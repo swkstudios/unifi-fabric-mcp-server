@@ -1,0 +1,8 @@
+UniFi Fabric MCP Server
+
+UniFi is a trademark of Ubiquiti Inc. This project is not affiliated with, endorsed by, or
+sponsored by Ubiquiti Inc. The UniFi brand, product names, and logos are registered trademarks
+of Ubiquiti Inc.
+
+This project is an independently maintained MCP server that integrates with UniFi's public
+Site Manager API as a third-party tool.

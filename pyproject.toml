@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unifi-fabric-mcp-server"
+version = "0.3.13"
+description = "MCP server for UniFi Site Manager API"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+dependencies = [
+    "cachetools>=5.3",
+    "fastmcp~=3.2.0",
+    "httpx>=0.27",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.4",
+    "respx>=0.21",
+    "mypy>=1.10",
+    "types-cachetools>=5.3",
+]
+
+[project.scripts]
+unifi-fabric-mcp = "unifi_fabric.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unifi_fabric"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "S", "ANN", "UP"]
+ignore = [
+    # ANN001/ANN201/ANN202: pervasive in existing tool helpers; annotating
+    # incrementally — mypy is added to CI as the primary type-checking gate.
+    "ANN001",
+    "ANN201",
+    "ANN202",
+    # ANN401: `Any` is legitimately required for **fields/**extra pass-through
+    # kwargs and for coroutine wrappers that must accept arbitrary return types.
+    "ANN401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = [
+    "S603",  # subprocess calls are intentional git invocations
+    "S607",  # partial executable path (git) is intentional
+    "S310",  # urllib.request.urlopen with a known GitHub API URL is intentional
+    "ANN",   # type annotations not required on standalone scripts
+]
+"tests/**" = [
+    "S101",  # assert is idiomatic in pytest
+    "S105",  # hardcoded "password" strings in test fixtures are not secrets
+    "S106",  # `page_token` / `acct_server_secret` in test args are not secrets
+    "S110",  # try-except-pass in teardown/cleanup helpers is intentional
+    "B017",  # broad pytest.raises(Exception) acceptable in unit tests
+    "ANN",   # type annotations not required on test functions
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
