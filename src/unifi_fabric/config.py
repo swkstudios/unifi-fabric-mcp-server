@@ -18,6 +18,19 @@ class APIKeyConfig(BaseSettings):
     )
 
 
+class MCPTransportSettings(BaseSettings):
+    """Transport-layer settings (no UNIFI_ prefix)."""
+
+    model_config = {"env_prefix": "MCP_"}
+
+    bearer_token: str = Field(
+        default="",
+        description="Optional shared secret for bearer-token auth on HTTP transport. "
+        "When set, all incoming MCP requests must include 'Authorization: Bearer <token>'. "
+        "When empty (default), the server runs without transport auth.",
+    )
+
+
 class Settings(BaseSettings):
     """Top-level settings loaded from environment variables."""
 

@@ -14,7 +14,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from .client import UniFiClient
-from .config import Settings
+from .config import MCPTransportSettings, Settings
 from .registry import Registry
 from .tools import (
     aggregation,
@@ -175,7 +175,16 @@ user specifically asks for ACL rules or classic rules.
   guest/IoT VLANs to prevent lateral movement between clients.
 """
 
-mcp = FastMCP("UniFi Fabric", instructions=INSTRUCTIONS, lifespan=lifespan)
+_mcp_transport = MCPTransportSettings()
+_mcp_auth = None
+if _mcp_transport.bearer_token:
+    from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+    _mcp_auth = StaticTokenVerifier(
+        tokens={_mcp_transport.bearer_token: {"client_id": "mcp", "scopes": []}}
+    )
+
+mcp = FastMCP("UniFi Fabric", instructions=INSTRUCTIONS, lifespan=lifespan, auth=_mcp_auth)
 
 
 def _require() -> tuple[UniFiClient, Registry]:

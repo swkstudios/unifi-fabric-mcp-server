@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.14] — 2026-04-29
+
+### Added
+- Optional `MCP_BEARER_TOKEN` env var for bearer-token authentication on HTTP transport
+- When set, all incoming MCP requests require `Authorization: Bearer <token>` header
+- Backward compatible: server runs without transport auth when unset (existing behavior)
+
 ## [0.3.13] — 2026-04-22
 
 ### Added

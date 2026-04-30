@@ -274,6 +274,29 @@ services:
 
 **Note:** The server exposes port 3000 for `streamable-http` and `sse` transports. If using `stdio`, no port is exposed; the server communicates exclusively via stdin/stdout.
 
+### Bearer Token Authentication (Optional)
+
+Set `MCP_BEARER_TOKEN` to require all incoming MCP requests to include an `Authorization: Bearer <token>` header. Requests with a missing or incorrect token receive a 401 response.
+
+When unset (the default), the server runs without transport-layer authentication — the same behavior as previous versions.
+
+```bash
+# Docker
+docker run -e UNIFI_API_KEY="..." -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server
+
+# Docker Compose
+services:
+  unifi-fabric-mcp:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server
+    environment:
+      UNIFI_API_KEY: your-api-key-here
+      MCP_BEARER_TOKEN: my-secret-token
+    ports:
+      - "3000:3000"
+```
+
+This uses FastMCP's `StaticTokenVerifier` — a single shared-secret pattern designed for LAN/VPN deployments where network-level access control is already in place. It is not intended as a standalone security boundary for public-internet deployments. See [issue #10](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/10) for design context.
+
 ### Single key setup
 
 ```bash
