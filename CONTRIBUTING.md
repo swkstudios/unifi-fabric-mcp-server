@@ -88,3 +88,7 @@ See `.github/workflows/ci.yml` for details.
 ## Security
 
 Report vulnerabilities privately via GitHub's security advisory system — see [SECURITY.md](.github/SECURITY.md).
+
+## Filing Issues and Pull Requests
+
+When opening issues or PRs, please use generic phrasing for project rules and constraints. Do not reference internal project documents (e.g., configuration files, governance documents) or internal team and agent names. Describe the rule or requirement in plain terms so the discussion is clear to all external contributors.
