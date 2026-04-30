@@ -8,7 +8,7 @@
 4. Make your changes — keep commits focused.
 5. Run `ruff check src/ tests/` and `ruff format --check src/ tests/` to pass lint.
 6. Run `pytest` and ensure all tests pass.
-7. Open a pull request against `dev`.
+7. Open a pull request against `main`.
 
 ## Developer Certificate of Origin (DCO)
 
@@ -81,7 +81,7 @@ Pull requests are merged using **merge commits** to preserve full history.
 
 - `ruff check` and `ruff format --check` must pass.
 - `pytest tests/ -v` must pass.
-- Both run automatically in GitHub Actions on every push/PR to `dev`.
+- Both run automatically in GitHub Actions on every push/PR to `main`.
 
 See `.github/workflows/ci.yml` for details.
 
