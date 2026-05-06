@@ -1,0 +1,109 @@
+name: Pull Approved Public Issues
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  pull-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate mirror app token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.MIRROR_APP_ID }}
+          private-key: ${{ secrets.MIRROR_APP_PRIVATE_KEY }}
+          owner: swkstudios
+
+      - name: Pull approved issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIRROR_TOKEN: ${{ steps.app-token.outputs.token }}
+          PUBLIC_REPO: swkstudios/unifi-fabric-mcp-server
+          DEV_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          ISSUES=$(curl -fsS \
+            -H "Authorization: token ${MIRROR_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${PUBLIC_REPO}/issues?labels=approved-for-dev&state=open&per_page=100")
+
+          COUNT=$(echo "$ISSUES" | jq 'length')
+          echo "Found ${COUNT} approved public issues"
+
+          if [ "$COUNT" = "0" ]; then
+            echo "Nothing to pull."
+            exit 0
+          fi
+
+          echo "$ISSUES" | jq -c '.[]' | while read -r ISSUE; do
+            PUB_NUMBER=$(echo "$ISSUE" | jq -r '.number')
+            PUB_TITLE=$(echo "$ISSUE" | jq -r '.title')
+            PUB_BODY=$(echo "$ISSUE" | jq -r '.body // ""')
+            PUB_USER=$(echo "$ISSUE" | jq -r '.user.login')
+            PUB_CREATED=$(echo "$ISSUE" | jq -r '.created_at')
+            PUB_URL="https://github.com/${PUBLIC_REPO}/issues/${PUB_NUMBER}"
+
+            echo "Processing public issue #${PUB_NUMBER}: ${PUB_TITLE}"
+
+            # Search for both URL format and shorthand format to catch
+            # manually-mirrored issues as well as workflow-created ones
+            SEARCH_URL="${PUBLIC_REPO}/issues/${PUB_NUMBER}"
+            SEARCH_SHORT="${PUBLIC_REPO}#${PUB_NUMBER}"
+
+            EXISTING_URL=$(curl -fsS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/search/issues?q=$(python3 -c "import urllib.parse; print(urllib.parse.quote('repo:${DEV_REPO} is:issue \"${SEARCH_URL}\"'))")" \
+              | jq '.total_count')
+
+            EXISTING_SHORT=$(curl -fsS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/search/issues?q=$(python3 -c "import urllib.parse; print(urllib.parse.quote('repo:${DEV_REPO} is:issue \"${SEARCH_SHORT}\"'))")" \
+              | jq '.total_count')
+
+            EXISTING=$((EXISTING_URL + EXISTING_SHORT))
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "  Already mirrored (found ${EXISTING} match(es)). Skipping."
+              continue
+            fi
+
+            DEV_BODY=$(cat <<BODY_EOF
+          Upstream: ${PUB_URL}
+
+          > From public mirror ${PUBLIC_REPO}#${PUB_NUMBER} (filed by @${PUB_USER} on ${PUB_CREATED})
+
+          ${PUB_BODY}
+          BODY_EOF
+            )
+
+            DEV_ISSUE=$(curl -fsS -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${DEV_REPO}/issues" \
+              -d "$(jq -n \
+                --arg title "$PUB_TITLE" \
+                --arg body "$DEV_BODY" \
+                '{title: $title, body: $body, labels: ["external-report"]}')")
+
+            DEV_NUMBER=$(echo "$DEV_ISSUE" | jq -r '.number')
+            echo "  Created dev issue #${DEV_NUMBER}"
+
+            curl -fsS -X POST \
+              -H "Authorization: token ${MIRROR_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${PUBLIC_REPO}/issues/${PUB_NUMBER}/comments" \
+              -d "$(jq -n '{body: "Tracked internally. Updates will be posted here when resolved."}')"
+
+            echo "  Posted cross-link comment on public #${PUB_NUMBER}"
+          done
+
+          echo "Issue pull complete."
