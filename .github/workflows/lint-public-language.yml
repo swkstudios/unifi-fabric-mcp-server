@@ -1,0 +1,137 @@
+name: Lint Public Language
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+  issues:
+    types: [opened, edited]
+
+jobs:
+  lint-public-language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      - name: Define forbidden patterns
+        id: patterns
+        run: |
+          # Single regex combining all forbidden terms
+          cat > /tmp/forbidden.txt <<'PATTERNS'
+          \b(Sentinel|Raven|Forge|Atlas|Pixel|Hawk|Probe|Scribe|Scout|Shield|Glitch|Anvil|Rusty|Courier|Clark|Anna|Viper)\b
+          \bTeknoCentral\b
+          \bPaperclip\b
+          \bdevbox\b
+          \bS[0-9]{2,}\b
+          CEO sign-off|CEO approval
+          directive [0-9]{4}-[0-9]{2}-[0-9]{2}
+          Raven (ruling|verdict|advisory)
+          binding verdict
+          CLAUDE\.md
+          dispatch_preamble
+          tekno-pm
+          tekno-memory
+          clay@swkstudios\.com
+          192\.168\.[0-9]+\.[0-9]+
+          10\.[0-9]+\.[0-9]+\.[0-9]+
+          100\.[0-9]+\.[0-9]+\.[0-9]+
+          PATTERNS
+          # Build single regex from lines (strip leading whitespace)
+          REGEX=$(sed 's/^[[:space:]]*//' /tmp/forbidden.txt | paste -sd'|' -)
+          echo "regex=${REGEX}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan PR title
+        if: github.event_name == 'pull_request' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          FORBIDDEN: ${{ steps.patterns.outputs.regex }}
+        run: |
+          if echo "$PR_TITLE" | grep -qEi "$FORBIDDEN"; then
+            echo "::error::Forbidden term found in PR title:"
+            echo "$PR_TITLE" | grep -Eni "$FORBIDDEN" | head -10
+            exit 1
+          fi
+          echo "PR title clean"
+
+      - name: Scan PR body
+        if: github.event_name == 'pull_request' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          FORBIDDEN: ${{ steps.patterns.outputs.regex }}
+        run: |
+          if echo "$PR_BODY" | grep -qEi "$FORBIDDEN"; then
+            echo "::error::Forbidden term found in PR body:"
+            echo "$PR_BODY" | grep -Eni "$FORBIDDEN" | head -10
+            exit 1
+          fi
+          echo "PR body clean"
+
+      - name: Scan PR commit messages
+        if: github.event_name == 'pull_request' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        env:
+          FORBIDDEN: ${{ steps.patterns.outputs.regex }}
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          FAIL=0
+          while IFS= read -r sha; do
+            MSG=$(git log --format='%B' -1 "$sha")
+            if echo "$MSG" | grep -qEi "$FORBIDDEN"; then
+              echo "::error::Forbidden term in commit $sha:"
+              echo "$MSG" | grep -Eni "$FORBIDDEN" | head -5
+              FAIL=1
+            fi
+          done < <(git rev-list "$BASE".."$HEAD")
+          if [ "$FAIL" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Commit messages clean"
+
+      - name: Scan commit author emails
+        if: github.event_name == 'pull_request' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          FAIL=0
+          ALLOWED='^[0-9]+\+[^@]+@users\.noreply\.github\.com$|^noreply@swkstudios\.com$'
+          while IFS= read -r line; do
+            sha=$(echo "$line" | cut -d' ' -f1)
+            email=$(echo "$line" | cut -d' ' -f2-)
+            if ! echo "$email" | grep -qE "$ALLOWED"; then
+              echo "::error::Commit $sha has disallowed author email: $email"
+              FAIL=1
+            fi
+          done < <(git log --format='%H %ae' "$BASE".."$HEAD")
+          if [ "$FAIL" -ne 0 ]; then
+            echo "Author emails must match <id>+<user>@users.noreply.github.com or noreply@swkstudios.com"
+            exit 1
+          fi
+          echo "Author emails clean"
+
+      - name: Scan issue title
+        if: github.event_name == 'issues' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          FORBIDDEN: ${{ steps.patterns.outputs.regex }}
+        run: |
+          if echo "$ISSUE_TITLE" | grep -qEi "$FORBIDDEN"; then
+            echo "::error::Forbidden term found in issue title:"
+            echo "$ISSUE_TITLE" | grep -Eni "$FORBIDDEN" | head -10
+            exit 1
+          fi
+          echo "Issue title clean"
+
+      - name: Scan issue body
+        if: github.event_name == 'issues' && github.repository == 'swkstudios/unifi-fabric-mcp-server'
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          FORBIDDEN: ${{ steps.patterns.outputs.regex }}
+        run: |
+          if echo "$ISSUE_BODY" | grep -qEi "$FORBIDDEN"; then
+            echo "::error::Forbidden term found in issue body:"
+            echo "$ISSUE_BODY" | grep -Eni "$FORBIDDEN" | head -10
+            exit 1
+          fi
+          echo "Issue body clean"
