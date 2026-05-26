@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    },
+    "unifi-fabric-with-bearer": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
+    }
+  }
+}
