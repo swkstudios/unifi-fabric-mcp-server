@@ -323,6 +323,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Aggregates devices from all consoles. Optionally filter by status
         (e.g. 'offline', 'online', 'updating') to find problem devices quickly.
+        status_filter is applied LOCALLY by exact (case-insensitive) match against each
+        device's status/state. WARNING: an unrecognised value is NOT rejected — it matches
+        nothing and returns an EMPTY device list, so a typo (e.g. 'ofline') looks like a
+        healthy fleet with zero problem devices rather than an error. Omit status_filter to
+        get the full fleet, then read the real status values off the returned records.
         key_label: scope query to a specific API key
         (use list_configured_api_keys to see available keys).
         """

@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import logging
 
+import pytest
+
 
 def _reload_server(monkeypatch, *, log_level: str = "INFO") -> None:
     """Reload config module with UNIFI_LOG_LEVEL set and return fresh Settings."""
@@ -64,33 +66,45 @@ class TestLogLevelConfig:
 
 
 class TestLogLevelServerWiring:
-    def test_server_applies_log_level_to_root_logger(self, monkeypatch):
-        """After reload, root logger effective level matches UNIFI_LOG_LEVEL."""
+    """Logging is configured at server *startup* (lifespan), not at import.
+
+    Importing the server module no longer has logging side effects — that was a
+    module-scope side effect removed with the lazy get_settings() change. These
+    tests drive lifespan() and assert the root logger picks up UNIFI_LOG_LEVEL.
+    """
+
+    @pytest.mark.asyncio
+    async def test_server_applies_log_level_to_root_logger(self, monkeypatch):
+        """lifespan() sets the root logger level from UNIFI_LOG_LEVEL."""
         monkeypatch.setenv("UNIFI_LOG_LEVEL", "DEBUG")
         monkeypatch.setenv("UNIFI_API_KEY", "sk-test-log-level")
-        # Reset root logger handlers so basicConfig isn't a no-op
+        import unifi_fabric.server as srv
+
         root = logging.getLogger()
         original_handlers = root.handlers[:]
+        original_level = root.level
         root.handlers = []
         try:
-            import unifi_fabric.server as srv
-
-            importlib.reload(srv)
-            assert root.level == logging.DEBUG
+            async with srv.lifespan(None):
+                assert root.level == logging.DEBUG
         finally:
             root.handlers = original_handlers
+            root.setLevel(original_level)
 
-    def test_server_default_log_level_is_info(self, monkeypatch):
-        """Without UNIFI_LOG_LEVEL, root logger defaults to INFO."""
+    @pytest.mark.asyncio
+    async def test_server_default_log_level_is_info(self, monkeypatch):
+        """Without UNIFI_LOG_LEVEL, lifespan() defaults the root logger to INFO."""
         monkeypatch.delenv("UNIFI_LOG_LEVEL", raising=False)
         monkeypatch.setenv("UNIFI_API_KEY", "sk-test-log-level")
+        import unifi_fabric.server as srv
+
         root = logging.getLogger()
         original_handlers = root.handlers[:]
+        original_level = root.level
         root.handlers = []
         try:
-            import unifi_fabric.server as srv
-
-            importlib.reload(srv)
-            assert root.level == logging.INFO
+            async with srv.lifespan(None):
+                assert root.level == logging.INFO
         finally:
             root.handlers = original_handlers
+            root.setLevel(original_level)

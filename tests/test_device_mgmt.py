@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.client import PaginationAbortedError
 from unifi_fabric.tools.device_mgmt import (
     _adopt_device as adopt_device,
 )
@@ -80,11 +81,38 @@ def registry():
 
 
 class TestListSiteDevices:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "dev-1", "model": "USW-24"}]
+    async def test_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [
+            {"id": "dev-1", "model": "USW-24"},
+            {"id": "dev-2"},
+        ]
         result = await list_site_devices(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices")
-        assert result == [{"id": "dev-1", "model": "USW-24"}]
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices", key=None, params=None, page_size=200
+        )
+        client.get.assert_not_called()
+        assert result == {
+            "data": [{"id": "dev-1", "model": "USW-24"}, {"id": "dev-2"}],
+            "totalCount": 2,
+        }
+
+    async def test_explicit_offset_and_limit_single_page(self, client, registry):
+        client.get.return_value = {"data": [{"id": "dev-9"}], "totalCount": 30}
+        result = await list_site_devices(client, registry, "h", "s", offset=10, limit=10)
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices", key=None, params={"offset": 10, "limit": 10}
+        )
+        client.paginate_offset.assert_not_called()
+        assert result == {"data": [{"id": "dev-9"}], "totalCount": 30}
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/sites/{SITE_ID}/devices", 3, "page cap of 3 reached", items=[{"id": "dev-1"}]
+        )
+        result = await list_site_devices(client, registry, "h", "s")
+        assert result["incomplete"] is True
+        assert result["data"] == [{"id": "dev-1"}]
+        assert result["totalCount"] == 1
 
 
 class TestAdoptDevice:

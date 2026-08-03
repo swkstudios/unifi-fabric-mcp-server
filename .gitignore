@@ -9,3 +9,9 @@ build/
 *.egg
 .ruff_cache/
 .pytest_cache/
+
+# coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
 from unifi_fabric.registry import Registry, _assert_uuid
 
@@ -35,6 +36,9 @@ def mock_client():
     client = AsyncMock()
     client.paginate = AsyncMock(side_effect=_paginate_side_effect)
     client.get = AsyncMock(side_effect=_get_side_effect)
+    # get_sites drains the offset-paginated proxy sites endpoint; mirror the
+    # get side-effect's payload as the drained (unwrapped) item list.
+    client.paginate_offset = AsyncMock(side_effect=_make_offset_from_get(_get_side_effect))
     return client
 
 
@@ -50,6 +54,21 @@ async def _get_side_effect(path, *, key=None, params=None):
     if "/proxy/network/integration/v1/sites" in path:
         return {"data": list(PROXY_SITES)}
     return {}
+
+
+def _make_offset_from_get(get_fn):
+    """Build a paginate_offset side-effect that drains what the get mock returns.
+
+    Registry.get_sites now drains the offset-paginated proxy sites endpoint via
+    paginate_offset (which returns the unwrapped item list), so tests mock it by
+    unwrapping the ``data`` envelope their get side-effect already defines.
+    """
+
+    async def _offset(path, *, key=None, params=None, page_size=200):
+        data = await get_fn(path, key=key, params=params)
+        return data.get("data", []) if isinstance(data, dict) else data
+
+    return _offset
 
 
 @pytest.fixture
@@ -139,8 +158,8 @@ class TestResolveSiteId:
     @pytest.mark.asyncio
     async def test_resolve_site_id_uses_proxy_endpoint(self, registry, mock_client):
         await registry.resolve_site_id("Default", _HOST_ID)
-        mock_client.get.assert_called_once()
-        call_path = mock_client.get.call_args[0][0]
+        mock_client.paginate_offset.assert_called_once()
+        call_path = mock_client.paginate_offset.call_args[0][0]
         assert "/proxy/network/integration/v1/sites" in call_path
         assert _HOST_ID in call_path
 
@@ -169,6 +188,7 @@ class TestResolveSiteIdNameField:
             return {}
 
         client.get = AsyncMock(side_effect=_get)
+        client.paginate_offset = AsyncMock(side_effect=_make_offset_from_get(_get))
         return client
 
     @pytest.fixture
@@ -206,6 +226,7 @@ class TestResolveSiteIdNameField:
             return {}
 
         client.get = AsyncMock(side_effect=_get)
+        client.paginate_offset = AsyncMock(side_effect=_make_offset_from_get(_get))
         return client
 
     @pytest.fixture
@@ -292,12 +313,12 @@ class TestCacheTtl:
     async def test_proxy_sites_cache_keyed_by_host(self, registry, mock_client):
         await registry.get_sites("host-aaa")
         await registry.get_sites("host-bbb")
-        assert mock_client.get.call_count == 2
+        assert mock_client.paginate_offset.call_count == 2
 
         # Second calls hit cache
         await registry.get_sites("host-aaa")
         await registry.get_sites("host-bbb")
-        assert mock_client.get.call_count == 2
+        assert mock_client.paginate_offset.call_count == 2
 
     @pytest.mark.asyncio
     async def test_invalidate_clears_proxy_sites_for_key(self, registry, mock_client):
@@ -305,7 +326,7 @@ class TestCacheTtl:
         await registry.get_sites("host-aaa", key=key_a)
         registry.invalidate(key=key_a)
         await registry.get_sites("host-aaa", key=key_a)
-        assert mock_client.get.call_count == 2
+        assert mock_client.paginate_offset.call_count == 2
 
 
 # --- Per-key isolation ---
@@ -352,7 +373,7 @@ class TestPerKeyIsolation:
 
         assert ("alpha", "host-aaa") in registry._sites
         assert ("beta", "host-aaa") in registry._sites
-        assert mock_client.get.call_count == 2
+        assert mock_client.paginate_offset.call_count == 2
 
 
 # --- Bounded cache (TTLCache size limits and eviction warnings) ---
@@ -503,3 +524,117 @@ class TestPerLabelLocking:
         )
         assert len(results) == 2
         assert mock_client.paginate.call_count == 2
+
+
+# --- resolve_key_for_host (MSP multi-key ownership resolution, issue #19) ---
+
+
+def _make_multikey_client(
+    hosts_by_label: dict[str, list[dict]],
+    *,
+    fail_labels: tuple[str, ...] = (),
+) -> MagicMock:
+    """Build a client mock whose /ea/hosts list differs per API key label.
+
+    ``list_key_labels`` / ``get_key_by_label`` are the real (synchronous) client
+    contract; ``paginate`` is async and returns each label's own host list, or
+    raises for labels in ``fail_labels`` (to exercise per-key failure isolation).
+    """
+    client = MagicMock()
+    labels = list(hosts_by_label.keys())
+    client.list_key_labels.return_value = labels
+    client.get_key_by_label.side_effect = lambda label: APIKeyConfig(key=f"sk-{label}", label=label)
+
+    async def _paginate(path: str, *, key: APIKeyConfig | None = None) -> list[dict]:
+        assert key is not None
+        if path == "/ea/hosts":
+            if key.label in fail_labels:
+                raise UniFiConnectionError(f"HTTP 401 from GET /ea/hosts ({key.label})")
+            return list(hosts_by_label[key.label])
+        return []
+
+    client.paginate = AsyncMock(side_effect=_paginate)
+    return client
+
+
+_ALPHA_HOSTS = [{"id": "host-a1", "name": "Alpha-Router", "reportedState": {"hostname": "a.local"}}]
+_BETA_HOSTS = [{"id": "host-b1", "name": "Beta-Switch", "reportedState": {"hostname": "b.local"}}]
+
+
+class TestResolveKeyForHost:
+    @pytest.mark.asyncio
+    async def test_selects_correct_key_by_id(self):
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("host-b1")
+        assert result is not None
+        assert result.label == "beta"
+
+    @pytest.mark.asyncio
+    async def test_selects_correct_key_by_hostname(self):
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("B.LOCAL")  # case-insensitive
+        assert result is not None
+        assert result.label == "beta"
+
+    @pytest.mark.asyncio
+    async def test_selects_correct_key_by_name(self):
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("alpha-router")  # case-insensitive
+        assert result is not None
+        assert result.label == "alpha"
+
+    @pytest.mark.asyncio
+    async def test_single_key_short_circuits_without_api_calls(self):
+        """The common case: one key means nothing to disambiguate, no host fan-out."""
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("host-a1")
+        assert result is None
+        client.paginate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_match_returns_none(self):
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("host-does-not-exist")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_empty_input_returns_none(self):
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        assert await reg.resolve_key_for_host("") is None
+        assert await reg.resolve_key_for_host("   ") is None
+
+    @pytest.mark.asyncio
+    async def test_one_key_fails_others_still_resolve(self):
+        """A failing/unauthorized key must not abort resolution for a healthy key."""
+        client = _make_multikey_client(
+            {"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS}, fail_labels=("alpha",)
+        )
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("host-b1")
+        assert result is not None
+        assert result.label == "beta"
+
+    @pytest.mark.asyncio
+    async def test_all_keys_fail_raises(self):
+        client = _make_multikey_client(
+            {"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS}, fail_labels=("alpha", "beta")
+        )
+        reg = Registry(client, ttl_seconds=900)
+        with pytest.raises(RuntimeError, match="all 2 configured"):
+            await reg.resolve_key_for_host("host-b1")
+
+    @pytest.mark.asyncio
+    async def test_uses_registry_cache_no_refetch_per_call(self):
+        """Repeated per-host resolution must reuse the TTL-cached host lists."""
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        await reg.resolve_key_for_host("host-a1")
+        await reg.resolve_key_for_host("host-b1")
+        # One /ea/hosts fetch per key, regardless of how many resolutions happen.
+        assert client.paginate.call_count == 2

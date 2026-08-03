@@ -1,4 +1,9 @@
-"""Tests for hotspot tools — operators and vouchers."""
+"""Tests for hotspot tools — operator accounts.
+
+Hotspot vouchers live in the network-services proxy tools
+(``tests/test_network_services_proxy.py``); this module covers only the
+Classic-REST operator tools registered from ``tools/hotspot.py``.
+"""
 
 from __future__ import annotations
 
@@ -10,19 +15,10 @@ from unifi_fabric.tools.hotspot import (
     _create_hotspot_operator as create_hotspot_operator,
 )
 from unifi_fabric.tools.hotspot import (
-    _create_vouchers as create_vouchers,
-)
-from unifi_fabric.tools.hotspot import (
     _delete_hotspot_operator as delete_hotspot_operator,
 )
 from unifi_fabric.tools.hotspot import (
-    _delete_voucher as delete_voucher,
-)
-from unifi_fabric.tools.hotspot import (
     _list_hotspot_operators as list_hotspot_operators,
-)
-from unifi_fabric.tools.hotspot import (
-    _list_vouchers as list_vouchers,
 )
 from unifi_fabric.tools.hotspot import (
     _update_hotspot_operator as update_hotspot_operator,
@@ -39,6 +35,7 @@ def client():
     c = AsyncMock()
     c.get = AsyncMock()
     c.post = AsyncMock()
+    c.put = AsyncMock()
     c.patch = AsyncMock()
     c.delete = AsyncMock()
     return c
@@ -77,15 +74,30 @@ class TestListHotspotOperators:
 
 
 class TestCreateHotspotOperator:
+    """Operators are created via Classic REST (/rest/hotspotop), not the unserved
+    Site Manager /ea/hotspot-operators path. Regression guard for the same
+    path-asymmetry class as the VPN/RADIUS get tools: the list sibling already
+    used Classic REST while create/update/delete pointed at the dead /ea path.
+    """
+
     async def test_basic(self, client, registry):
         client.post.return_value = {"data": {"id": "op-2"}}
         await create_hotspot_operator(client, registry, "myhost", "mysite", "manager", "pass123")
+        call_url = client.post.call_args[0][0]
+        assert call_url == f"{CLASSIC_REST_BASE}/hotspotop"
         call_json = client.post.call_args[1]["json"]
         assert call_json["name"] == "manager"
-        assert call_json["password"] == "pass123"
-        assert call_json["hostId"] == HOST_ID
-        assert call_json["siteId"] == SITE_ID
+        assert call_json["x_password"] == "pass123"
+        assert "hostId" not in call_json
+        assert "siteId" not in call_json
         assert "note" not in call_json
+
+    async def test_uses_classic_rest_not_ea(self, client, registry):
+        client.post.return_value = {"data": {}}
+        await create_hotspot_operator(client, registry, "h", "s", "op", "pw")
+        call_url = client.post.call_args[0][0]
+        assert "/ea/hotspot-operators" not in call_url
+        assert "/rest/hotspotop" in call_url
 
     async def test_with_note(self, client, registry):
         client.post.return_value = {"data": {}}
@@ -101,95 +113,30 @@ class TestCreateHotspotOperator:
 
 
 class TestUpdateHotspotOperator:
-    async def test_basic(self, client):
-        client.patch.return_value = {"data": {"id": "op-1", "name": "newname"}}
-        result = await update_hotspot_operator(client, "op-1", name="newname")
-        client.patch.assert_called_once_with("/ea/hotspot-operators/op-1", json={"name": "newname"})
+    async def test_basic(self, client, registry):
+        client.put.return_value = {"data": {"id": "op-1", "name": "newname"}}
+        result = await update_hotspot_operator(client, registry, "h", "s", "op-1", name="newname")
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/hotspotop/op-1", json={"name": "newname"}
+        )
         assert result["name"] == "newname"
+
+    async def test_uses_classic_rest_not_ea(self, client, registry):
+        client.put.return_value = {"data": {}}
+        await update_hotspot_operator(client, registry, "h", "s", "op-1", name="x")
+        call_url = client.put.call_args[0][0]
+        assert "/ea/hotspot-operators" not in call_url
 
 
 class TestDeleteHotspotOperator:
-    async def test_basic(self, client):
+    async def test_basic(self, client, registry):
         client.delete.return_value = None
-        result = await delete_hotspot_operator(client, "op-1")
-        client.delete.assert_called_once_with("/ea/hotspot-operators/op-1")
+        result = await delete_hotspot_operator(client, registry, "h", "s", "op-1")
+        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotop/op-1")
         assert result == {"deleted": True, "operatorId": "op-1"}
 
-
-# --- Vouchers ---
-
-
-class TestListVouchers:
-    async def test_no_filters(self, client, registry):
-        client.get.return_value = {"data": [{"id": "v-1", "code": "ABC123"}]}
-        result = await list_vouchers(client, registry)
-        client.get.assert_called_once_with("/ea/vouchers", params=None)
-        assert result["count"] == 1
-        assert result["vouchers"][0]["id"] == "v-1"
-
-    async def test_with_host_and_site(self, client, registry):
-        client.get.return_value = {"data": []}
-        await list_vouchers(client, registry, host="h", site="s")
-        client.get.assert_called_once_with(
-            "/ea/vouchers", params={"hostId": HOST_ID, "siteId": SITE_ID}
-        )
-
-    async def test_pagination(self, client, registry):
-        client.get.return_value = {"data": [], "nextToken": "v2"}
-        result = await list_vouchers(client, registry, page_token="v1")
-        assert result["nextToken"] == "v2"
-
-
-class TestCreateVouchers:
-    async def test_defaults(self, client, registry):
-        client.post.return_value = {"data": [{"id": "v-2"}]}
-        await create_vouchers(client, registry, "myhost", "mysite")
-        call_json = client.post.call_args[1]["json"]
-        assert call_json["count"] == 1
-        assert call_json["durationMinutes"] == 60
-        assert call_json["hostId"] == HOST_ID
-        assert call_json["siteId"] == SITE_ID
-        assert "quotaMb" not in call_json
-        assert "upBandwidthKbps" not in call_json
-        assert "downBandwidthKbps" not in call_json
-        assert "note" not in call_json
-
-    async def test_with_quota_and_bandwidth(self, client, registry):
-        client.post.return_value = {"data": []}
-        await create_vouchers(
-            client,
-            registry,
-            "h",
-            "s",
-            count=5,
-            duration_minutes=120,
-            quota_mb=500,
-            up_bandwidth_kbps=1024,
-            down_bandwidth_kbps=2048,
-        )
-        call_json = client.post.call_args[1]["json"]
-        assert call_json["count"] == 5
-        assert call_json["durationMinutes"] == 120
-        assert call_json["quotaMb"] == 500
-        assert call_json["upBandwidthKbps"] == 1024
-        assert call_json["downBandwidthKbps"] == 2048
-
-    async def test_with_note(self, client, registry):
-        client.post.return_value = {"data": []}
-        await create_vouchers(client, registry, "h", "s", note="Event pass")
-        call_json = client.post.call_args[1]["json"]
-        assert call_json["note"] == "Event pass"
-
-    async def test_quota_zero_included(self, client, registry):
-        client.post.return_value = {"data": []}
-        await create_vouchers(client, registry, "h", "s", quota_mb=0)
-        call_json = client.post.call_args[1]["json"]
-        assert call_json["quotaMb"] == 0
-
-
-class TestDeleteVoucher:
-    async def test_basic(self, client):
+    async def test_uses_classic_rest_not_ea(self, client, registry):
         client.delete.return_value = None
-        result = await delete_voucher(client, "v-1")
-        client.delete.assert_called_once_with("/ea/vouchers/v-1")
-        assert result == {"deleted": True, "voucherId": "v-1"}
+        await delete_hotspot_operator(client, registry, "h", "s", "op-1")
+        call_url = client.delete.call_args[0][0]
+        assert "/ea/hotspot-operators" not in call_url

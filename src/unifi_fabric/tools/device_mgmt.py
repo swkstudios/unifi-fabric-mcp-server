@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._pagination import collect_offset, mark_incomplete
 from .network import _proxy
 
 # Matches a bare 12-hex-char MAC (e.g. AABBCCDDEEFF) or colon/hyphen-separated MAC
@@ -76,12 +77,28 @@ async def _list_site_devices(
     registry: Registry,
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
-    """List all adopted devices for a site."""
+    """List all adopted devices for a site.
+
+    By default every offset page is drained and the complete device list is
+    returned as ``{data, totalCount}``. Passing offset or limit selects manual
+    paging: a single page is returned with the API's totalCount. A drain that
+    hits the page cap returns the devices gathered so far with incomplete=true
+    rather than truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/devices"))
+    url = _proxy(host_id, f"/sites/{site_id}/devices")
+    collected = await collect_offset(client, url, offset=offset, limit=limit)
+    total = collected["totalCount"]
+    result: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(result, collected)
 
 
 async def _adopt_device(
@@ -336,13 +353,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def list_site_devices(
         host: str,
         site: str,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """List all adopted devices for a site via connector proxy.
 
         host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+        By default every page is drained and the complete device list is returned.
+        offset/limit: fetch a single page manually (the API's totalCount is
+        surfaced so you can advance). A capped drain returns the devices gathered
+        so far with incomplete=true rather than truncating silently.
         """
         client, registry = deps_fn()
-        return await _list_site_devices(client, registry, host, site)
+        return await _list_site_devices(client, registry, host, site, offset=offset, limit=limit)
 
     @mcp.tool()
     async def adopt_device(
@@ -436,8 +459,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Execute a port action on a device interface.
 
         host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-        port_idx: port index number.
-        action: port action payload.
+        port_idx: port index number (1-based, matching the switch's physical port numbering).
+        action: the port-action payload, shape {'action': str}, forwarded verbatim to the
+          UniFi Network Integration API port-actions endpoint. The documented port action is
+          a PoE power cycle: {'action': 'power-cycle'} — it powers a PoE port off and back
+          on (only meaningful on PoE-capable ports). The value is passed through unchanged,
+          so any other action the console accepts also works, and any it rejects is answered
+          by the API's own error. NOTE: this endpoint is write-only (POST); unlike GET/list
+          tools its accepted set cannot be enumerated by inspection, so 'power-cycle' is the
+          one documented action and other values were not exercised.
         """
         client, registry = deps_fn()
         return await _execute_port_action(client, registry, host, site, device_id, port_idx, action)

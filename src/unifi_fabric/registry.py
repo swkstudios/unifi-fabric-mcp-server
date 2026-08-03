@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from cachetools import TTLCache
 
-from .client import validate_host_id
+from .client import PaginationAbortedError, validate_host_id
 
 if TYPE_CHECKING:
     from .client import UniFiClient
@@ -129,6 +129,14 @@ class Registry:
 
         Items have ``id`` (UUID) and ``description`` fields.  This is the
         authoritative source for site IDs used in proxy endpoint URLs.
+
+        The proxy sites endpoint is offset-paginated (verified live: it returns an
+        ``{offset, limit, count, totalCount, data}`` envelope with a native default
+        page size of only 25), so all pages are drained here. Fetching only page one
+        would silently hide sites past the first page and break site-name resolution
+        for consoles with many local sites. If a drain is capped, the sites gathered
+        so far are cached (a partial list still resolves the sites it contains)
+        rather than failing resolution outright.
         """
         label = self._key_label(key)
         cache_key = (label, host_id)
@@ -136,9 +144,78 @@ class Registry:
             if cache_key not in self._sites:
                 self._check_cache_pressure(self._sites, "sites", "_sites_full_warned")
                 path = _PROXY_SITES_PATH.format(host_id=host_id)
-                resp = await self._client.get(path, key=key)
-                self._sites[cache_key] = resp.get("data", []) if isinstance(resp, dict) else resp
+                try:
+                    self._sites[cache_key] = await self._client.paginate_offset(path, key=key)
+                except PaginationAbortedError as exc:
+                    self._sites[cache_key] = exc.items
             return self._sites[cache_key]
+
+    async def resolve_key_for_host(self, name_or_id: str) -> APIKeyConfig | None:
+        """Find which configured API key's host list contains the given host.
+
+        MSP deployments configure one API key per customer/org (see
+        ``Settings.get_key_configs``); each key's ``/ea/hosts`` list only
+        contains the consoles that key can see. Per-host tools must resolve
+        against the key that actually owns the host, not just the first
+        configured key — otherwise every host belonging to a non-first key
+        fails with "403 forbidden: host not found" even though the host exists
+        and the caller's key is valid (see public issue #19).
+
+        Matching mirrors :meth:`resolve_host_id`: id, hostname, or name
+        (case-insensitive). Returns the matching key config, or ``None`` when
+        no configured key owns the host — callers pass that ``None`` straight
+        through to ``resolve_host_id`` / ``resolve_site_id`` / the HTTP client,
+        which fall back to the default (first) key, preserving today's
+        behaviour.
+
+        Single-key deployments (the common case) short-circuit immediately:
+        there is nothing to disambiguate, so ``None`` is returned without any
+        extra API calls. For multi-key deployments the per-key host lists are
+        served from the registry's existing TTL cache (:meth:`get_hosts`), so
+        repeated per-host tool calls do not re-fetch every key's hosts on every
+        call. The keys are queried concurrently via :func:`asyncio.gather` and
+        each key's failure is isolated: a single failing/unauthorized key does
+        not abort resolution; a ``RuntimeError`` is raised only if *every*
+        configured key fails to list its hosts.
+        """
+        if not name_or_id or not name_or_id.strip():
+            return None
+        labels = self._client.list_key_labels()
+        if len(labels) <= 1:
+            return None
+        needle = name_or_id.lower()
+
+        async def _match(label: str) -> tuple[str, bool, Exception | None]:
+            key_config = self._client.get_key_by_label(label)
+            try:
+                hosts = await self.get_hosts(key=key_config)
+            except Exception as exc:
+                return label, False, exc
+            for host in hosts:
+                reported = host.get("reportedState") or {}
+                if (
+                    host.get("id") == name_or_id
+                    or reported.get("hostname", "").lower() == needle
+                    or host.get("name", "").lower() == needle
+                ):
+                    return label, True, None
+            return label, False, None
+
+        results = await asyncio.gather(*[_match(label) for label in labels])
+
+        errors = [(label, exc) for label, _matched, exc in results if exc is not None]
+        if len(errors) == len(labels):
+            raise RuntimeError(
+                f"Could not resolve host {name_or_id!r}: all {len(labels)} configured "
+                f"API keys failed to list hosts. First error: {errors[0][1]}"
+            )
+
+        matched = {label for label, is_match, _exc in results if is_match}
+        # Preserve configured key order so selection is deterministic.
+        for label in labels:
+            if label in matched:
+                return self._client.get_key_by_label(label)
+        return None
 
     async def resolve_host_id(self, name_or_id: str, *, key: APIKeyConfig | None = None) -> str:
         """Resolve a host name or ID to a host ID.

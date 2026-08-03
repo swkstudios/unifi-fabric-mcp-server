@@ -5,17 +5,20 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from fastmcp import FastMCP
 
-from unifi_fabric.client import UniFiClient
-from unifi_fabric.config import Settings
+from unifi_fabric.client import UniFiClient, UniFiConnectionError
+from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.registry import Registry
 from unifi_fabric.tools.aggregation import (
     _fleet_summary,
     _get_all_host_site_pairs,
     _list_all_clients_fleet,
     _list_all_devices_fleet,
+    _list_api_keys,
     _search_device,
     _unwrap_ea_devices,
+    register,
 )
 
 
@@ -495,3 +498,119 @@ class TestSearchDevice:
 
         assert result["count"] == 1
         assert result["matches"][0]["name"] == "ap-1"
+
+
+# --- _list_api_keys / list_configured_api_keys (previously ZERO coverage) ---
+
+
+class TestListApiKeys:
+    """The only tool with no test at any layer. Covers single-, multi-, and zero-key."""
+
+    async def test_single_key_returns_one_entry(self):
+        client = UniFiClient(Settings(api_key="test-key"))
+        result = await _list_api_keys(client)
+        assert result["count"] == 1
+        assert result["keys"] == [{"label": "default", "is_org_key": False}]
+
+    async def test_multi_key_returns_both_with_correct_is_org_key(self, multikey_client):
+        # multikey_client: alpha (personal) + beta (organization).
+        result = await _list_api_keys(multikey_client)
+        assert result["count"] == 2
+        by_label = {k["label"]: k["is_org_key"] for k in result["keys"]}
+        assert by_label == {"alpha": False, "beta": True}
+
+    async def test_zero_key_returns_empty(self):
+        client = UniFiClient(Settings())  # neither api_key nor api_keys set
+        result = await _list_api_keys(client)
+        assert result["count"] == 0
+        assert result["keys"] == []
+
+    async def test_never_exposes_key_values(self, multikey_client):
+        """Only label + is_org_key are surfaced — never the secret key material (SR-8)."""
+        result = await _list_api_keys(multikey_client)
+        for entry in result["keys"]:
+            assert set(entry) == {"label", "is_org_key"}
+
+    async def test_wrapper_list_configured_api_keys(self, multikey_client, registry):
+        """The registered MCP wrapper returns the same payload as the underlying helper."""
+        mcp = FastMCP("test")
+        register(mcp, lambda: (multikey_client, registry))
+        tool = await mcp.get_tool("list_configured_api_keys")
+        result = await tool.fn()
+        assert result == await _list_api_keys(multikey_client)
+
+
+# --- Cross-key / cross-site partial failure during fan-out (issue #19 semantics) ---
+
+
+class TestListAllClientsFleetPartialFailure:
+    """One target valid, another 401ing during fan-out.
+
+    Intended contract (mirrors _list_all_clients_fleet): partial results are returned
+    with an error surface; a RuntimeError is raised only if EVERY target fails.
+    """
+
+    async def test_partial_failure_returns_results_and_error_surface(self, client, registry):
+        ea_sites = [
+            {"hostId": "h1", "hostname": "console-1"},
+            {"hostId": "h2", "hostname": "console-2"},
+        ]
+        registry.get_ea_sites = AsyncMock(return_value=ea_sites)
+
+        async def mock_get_sites(host_id, **kwargs):
+            if host_id == "h1":
+                return [{"id": _UUID_S1, "description": "Healthy Site"}]
+            return [{"id": _UUID_S2, "description": "Unauthorized Site"}]
+
+        registry.get_sites = AsyncMock(side_effect=mock_get_sites)
+
+        async def mock_get(path, **kwargs):
+            if _UUID_S1 in path:
+                return [{"mac": "aa:bb:01", "name": "laptop-1"}]
+            raise UniFiConnectionError("HTTP 401 from GET /clients")
+
+        client.get = AsyncMock(side_effect=mock_get)
+
+        result = await _list_all_clients_fleet(client, registry)
+
+        # Partial results: only the healthy site's clients come back...
+        assert result["count"] == 1
+        assert result["clients"][0]["_siteName"] == "Healthy Site"
+        # ...and the failure is surfaced rather than swallowed.
+        assert "errors" in result
+        assert len(result["errors"]) == 1
+        assert "Unauthorized Site" in result["errors"][0]
+
+    async def test_all_targets_fail_raises(self, client, registry):
+        """Raise only when EVERY target fails — the all-or-nothing boundary."""
+        registry.get_ea_sites = AsyncMock(return_value=[{"hostId": "h1", "hostname": "c1"}])
+        registry.get_sites = AsyncMock(return_value=[{"id": _UUID_S1, "description": "Site A"}])
+        client.get = AsyncMock(side_effect=UniFiConnectionError("HTTP 401"))
+
+        with pytest.raises(RuntimeError, match="All 1 site"):
+            await _list_all_clients_fleet(client, registry)
+
+
+# --- Multi-key routing for a fleet tool that calls client.paginate directly ---
+
+
+class TestListAllDevicesFleetMultiKey:
+    """A tool calling client.paginate directly must ride the requested (non-first) key."""
+
+    async def test_key_label_scopes_paginate_to_non_first_key(self, multikey_client):
+        beta = multikey_client.get_key_by_label("beta")
+        captured: dict[str, APIKeyConfig | None] = {}
+
+        async def _paginate(path, *, key=None):
+            captured["key"] = key
+            return [{"name": "beta-switch", "state": "online"}]
+
+        multikey_client.paginate = AsyncMock(side_effect=_paginate)
+
+        result = await _list_all_devices_fleet(multikey_client, key_label="beta")
+
+        # The request must ride the beta key — NOT the default (first/alpha) key.
+        assert captured["key"] == beta
+        assert captured["key"].label == "beta"
+        assert result["key_label"] == "beta"
+        assert result["count"] == 1

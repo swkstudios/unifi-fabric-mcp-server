@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.client import PaginationAbortedError
 from unifi_fabric.tools.firewall_proxy import (
     create_acl_rule,
     create_firewall_policy,
@@ -58,33 +59,58 @@ def registry():
 
 
 class TestListFirewallPolicies:
-    async def test_basic(self, client, registry):
-        client.get.return_value = {"data": [{"id": "pol-1", "name": "Allow LAN"}], "totalCount": 1}
+    async def test_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [
+            {"id": "pol-1", "name": "Allow LAN"},
+            {"id": "pol-2"},
+        ]
         result = await list_firewall_policies(client, registry, "h", "s")
-        client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies", params={"offset": 0, "limit": 50}
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/firewall/policies", key=None, params=None, page_size=200
         )
-        assert result == {"data": [{"id": "pol-1", "name": "Allow LAN"}], "totalCount": 1}
+        client.get.assert_not_called()
+        assert result == {
+            "data": [{"id": "pol-1", "name": "Allow LAN"}, {"id": "pol-2"}],
+            "totalCount": 2,
+        }
 
     async def test_resolves_names(self, client, registry):
-        client.get.return_value = {"data": [], "totalCount": 0}
+        client.paginate_offset.return_value = []
         await list_firewall_policies(client, registry, "MyHost", "Office")
         registry.resolve_host_id.assert_called_once_with("MyHost")
         registry.resolve_site_id.assert_called_once_with("Office", HOST_ID)
 
-    async def test_pagination_params(self, client, registry):
-        client.get.return_value = {"data": [], "totalCount": 102}
-        await list_firewall_policies(client, registry, "h", "s", offset=50, limit=50)
+    async def test_pagination_params_single_page(self, client, registry):
+        client.get.return_value = {"data": [{"id": "pol-9"}], "totalCount": 102}
+        result = await list_firewall_policies(client, registry, "h", "s", offset=50, limit=50)
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies", params={"offset": 50, "limit": 50}
+            f"{BASE}/sites/{SITE_ID}/firewall/policies",
+            key=None,
+            params={"offset": 50, "limit": 50},
         )
+        client.paginate_offset.assert_not_called()
+        assert result == {"data": [{"id": "pol-9"}], "totalCount": 102}
 
     async def test_explicit_zero_limit_and_offset_are_sent(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 5}
         await list_firewall_policies(client, registry, "h", "s", offset=0, limit=0)
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies", params={"offset": 0, "limit": 0}
+            f"{BASE}/sites/{SITE_ID}/firewall/policies",
+            key=None,
+            params={"offset": 0, "limit": 0},
         )
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/sites/{SITE_ID}/firewall/policies",
+            2,
+            "page cap of 2 reached",
+            items=[{"id": "pol-1"}],
+        )
+        result = await list_firewall_policies(client, registry, "h", "s")
+        assert result["incomplete"] is True
+        assert result["data"] == [{"id": "pol-1"}]
+        assert result["totalCount"] == 1
 
 
 class TestCreateFirewallPolicy:
@@ -165,11 +191,34 @@ class TestFirewallPolicyOrdering:
 
 
 class TestListFirewallZones:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "zone-1", "name": "Internal"}]
+    async def test_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "zone-1", "name": "Internal"}]
         result = await list_firewall_zones(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/firewall/zones")
-        assert result == [{"id": "zone-1", "name": "Internal"}]
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/firewall/zones", key=None, params=None, page_size=200
+        )
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "zone-1", "name": "Internal"}], "totalCount": 1}
+
+    async def test_manual_page_returns_single_page(self, client, registry):
+        client.get.return_value = {"data": [{"id": "zone-1"}], "totalCount": 6}
+        result = await list_firewall_zones(client, registry, "h", "s", offset=0, limit=25)
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/firewall/zones", key=None, params={"offset": 0, "limit": 25}
+        )
+        client.paginate_offset.assert_not_called()
+        assert result == {"data": [{"id": "zone-1"}], "totalCount": 6}
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/sites/{SITE_ID}/firewall/zones",
+            2,
+            "page cap of 2 reached",
+            items=[{"id": "zone-1"}],
+        )
+        result = await list_firewall_zones(client, registry, "h", "s")
+        assert result["incomplete"] is True
+        assert result["data"] == [{"id": "zone-1"}]
 
 
 class TestCreateFirewallZone:

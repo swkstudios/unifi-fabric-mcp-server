@@ -4,7 +4,7 @@
 
 Reference manual for every tool registered with the FastMCP runtime.
 
-Total tools: 188
+Total tools: 208
 
 ## Tool Categories
 
@@ -15,9 +15,9 @@ Total tools: 188
 - [Device Control](#device-control) (4)
 - [Device Management](#device-management) (4)
 - [Execute & Actions](#execute--actions) (6)
-- [Listing & Discovery](#listing--discovery) (53)
+- [Listing & Discovery](#listing--discovery) (63)
 - [Other](#other) (5)
-- [Reading & Inspection](#reading--inspection) (47)
+- [Reading & Inspection](#reading--inspection) (57)
 - [Search](#search) (2)
 - [Update](#update) (27)
 
@@ -398,8 +398,14 @@ firmware version and profiles are effectively read-only. Use list_radius_profile
 Create an RTSPS stream for a Protect camera.
 
 host: console name, ID, or composite ID (MAC:numericId format).
-qualities: list of quality levels to enable, e.g. ['highest', 'high', 'medium', 'low'].
-Case-insensitive — values are normalized to lowercase before sending to the API.
+qualities: list of channel names to enable. The exhaustive set is 'high', 'medium',
+  'low', and 'package' (verified live against get_rtsps_stream, which reports exactly
+  these four channel keys). 'package' exists only on package-camera doorbells; on other
+  cameras it is null. There is NO 'highest' channel. Case-insensitive — values are
+  normalized to lowercase before sending. The list is forwarded to the API as-is with
+  no local allow-list, so an unrecognised name is not validated here; the upstream
+  Protect API governs the outcome (a name with no matching channel yields no stream for
+  that entry rather than a local error).
 
 **Parameters**
 
@@ -407,7 +413,7 @@ Case-insensitive — values are normalized to lowercase before sending to the AP
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `camera_id` | `string` | yes |  |  |
-| `qualities` | `array` | yes |  | list of quality levels to enable, e.g. ['highest', 'high', 'medium', 'low']. |
+| `qualities` | `array` | yes |  | list of channel names to enable. The exhaustive set is 'high', 'medium', |
 
 **Return type**
 
@@ -554,7 +560,9 @@ Upload a Protect device asset file. WARNING: Uploads asset file to NVR storage.
 Overwriting system files may not be reversible.
 
 host: console name, ID, or composite ID (MAC:numericId format).
-file_type: asset category, e.g. 'sounds' or 'images'.
+file_type: Protect asset category. 'sounds' and 'images' are the known categories;
+  the value selects the upload target path (/files/{file_type}). The category is not
+  validated on read-back, so pass a known category exactly.
 filename: name of the file to upload (e.g. 'alert.mp3').
 file_content_base64: base64-encoded file content.
 
@@ -563,7 +571,7 @@ file_content_base64: base64-encoded file content.
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
-| `file_type` | `string` | yes |  | asset category, e.g. 'sounds' or 'images'. |
+| `file_type` | `string` | yes |  | Protect asset category. 'sounds' and 'images' are the known categories; |
 | `filename` | `string` | yes |  | name of the file to upload (e.g. 'alert.mp3'). |
 | `file_content_base64` | `string` | yes |  | base64-encoded file content. |
 
@@ -673,11 +681,16 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 Delete a hotspot operator by ID.
 
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+operator_id: hotspot operator ID.
+
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `operator_id` | `string` | yes |  |  |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `operator_id` | `string` | yes |  | hotspot operator ID. |
 
 **Return type**
 
@@ -742,8 +755,11 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 Delete an RTSPS stream for a Protect camera.
 
 host: console name, ID, or composite ID (MAC:numericId format).
-qualities: list of quality levels to delete, e.g. ['highest', 'high'].
-Case-insensitive — values are normalized to lowercase before sending to the API.
+qualities: list of channel names to delete. The exhaustive set is 'high', 'medium',
+  'low', and 'package' (verified live; 'package' only on package-camera doorbells).
+  There is NO 'highest' channel. Case-insensitive — values are normalized to lowercase
+  before sending. Forwarded to the API as-is with no local allow-list; an unrecognised
+  name is not validated here and the upstream Protect API governs the outcome.
 
 **Parameters**
 
@@ -751,7 +767,7 @@ Case-insensitive — values are normalized to lowercase before sending to the AP
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `camera_id` | `string` | yes |  |  |
-| `qualities` | `array` | yes |  | list of quality levels to delete, e.g. ['highest', 'high']. |
+| `qualities` | `array` | yes |  | list of channel names to delete. The exhaustive set is 'high', 'medium', |
 
 **Return type**
 
@@ -835,11 +851,16 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 Delete a VPN server by ID. WARNING: Permanently removes VPN server.
 Connected clients will lose access immediately.
 
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+server_id: VPN server ID.
+
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `server_id` | `string` | yes |  |  |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `server_id` | `string` | yes |  | VPN server ID. |
 
 **Return type**
 
@@ -1103,8 +1124,15 @@ action: must include: {'action': str}. Common commands: {'action': 'restart'},
 Execute a port action on a device interface.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-port_idx: port index number.
-action: port action payload.
+port_idx: port index number (1-based, matching the switch's physical port numbering).
+action: the port-action payload, shape {'action': str}, forwarded verbatim to the
+  UniFi Network Integration API port-actions endpoint. The documented port action is
+  a PoE power cycle: {'action': 'power-cycle'} — it powers a PoE port off and back
+  on (only meaningful on PoE-capable ports). The value is passed through unchanged,
+  so any other action the console accepts also works, and any it rejects is answered
+  by the API's own error. NOTE: this endpoint is write-only (POST); unlike GET/list
+  tools its accepted set cannot be enumerated by inspection, so 'power-cycle' is the
+  one documented action and other values were not exercised.
 
 **Parameters**
 
@@ -1113,8 +1141,8 @@ action: port action payload.
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
 | `device_id` | `string` | yes |  |  |
-| `port_idx` | `integer` | yes |  | port index number. |
-| `action` | `object` | yes |  | port action payload. |
+| `port_idx` | `integer` | yes |  | port index number (1-based, matching the switch's physical port numbering). |
+| `action` | `object` | yes |  | the port-action payload, shape {'action': str}, forwarded verbatim to the |
 
 **Return type**
 
@@ -1163,14 +1191,14 @@ confirm: must be True to execute. Prevents accidental triggers on live infrastru
 
 ## Listing & Discovery
 
-**53 tools**
+**63 tools**
 
 ### `list_accounts`
 
 List local RADIUS user accounts for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+Returned verbatim, including plaintext x_password credential fields.
 
 **Parameters**
 
@@ -1178,7 +1206,6 @@ include_secrets: if True, return plaintext x_password values; defaults to False 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_password values; defaults to False (redacted). |
 
 **Return type**
 
@@ -1243,6 +1270,11 @@ List all devices across the entire fleet.
 
 Aggregates devices from all consoles. Optionally filter by status
 (e.g. 'offline', 'online', 'updating') to find problem devices quickly.
+status_filter is applied LOCALLY by exact (case-insensitive) match against each
+device's status/state. WARNING: an unrecognised value is NOT rejected — it matches
+nothing and returns an EMPTY device list, so a typo (e.g. 'ofline') looks like a
+healthy fleet with zero problem devices rather than an error. Omit status_filter to
+get the full fleet, then read the real status values off the returned records.
 key_label: scope query to a specific API key
 (use list_configured_api_keys to see available keys).
 
@@ -1304,14 +1336,33 @@ host: console name, ID, or composite ID (MAC:numericId format).
 
 `dict[str, Any]`
 
-### `list_clients`
+### `list_client_sessions`
 
-List connected clients for a site.
+List historical client connection sessions from the Classic REST /stat/session endpoint.
+
+This is the highest-value history tool: retention is ~90 days, so it covers
+far more than the currently-connected client list.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-offset: number of records to skip (for pagination). limit: max records to return.
-client_type: filter by connection type — WIRELESS, WIRED, or ALL (default: all types).
-Response includes totalCount when the API returns it.
+start/end: epoch SECONDS (UTC). This endpoint uses seconds natively — passing
+  milliseconds returns HTTP 200 with an EMPTY array and no error, so seconds are
+  enforced (millisecond-magnitude values are rejected).
+session_type: session class filter. The values that actually narrow the result
+  are "all" (default — the full unfiltered set), "user" (regular clients), and
+  "guest" (guest-network clients). WARNING: an unrecognised value is NOT rejected
+  and does NOT return an empty array — the endpoint silently ignores it and
+  returns the full "all" set, so a typo yields everything rather than a visible
+  error or "no data". (UniFi documents "voucher" as a fourth class; on tested
+  firmware it returned the full set, so prefer "user"/"guest" for real narrowing.)
+
+Each session includes mac, is_wired, assoc_time (session start, epoch seconds),
+duration (seconds), ap_mac, rx_bytes, tx_bytes, satisfaction, hostname, ip, _id, and
+roaming_sessions[]. Two things that surprise callers:
+- There is NO explicit disconnect timestamp — session end is assoc_time + duration.
+- Radio band lives ONLY inside roaming_sessions[] (radio_band: na/ng/6e), never at the
+  top level. Wired sessions have ap_mac=null and carry sw_mac/sw_port instead.
+
+The response is passed through verbatim, including identifiers (MAC/IP/hostname).
 
 **Parameters**
 
@@ -1319,9 +1370,35 @@ Response includes totalCount when the API returns it.
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
-| `offset` | `integer | null` | no | `null` | number of records to skip (for pagination). |
-| `limit` | `integer | null` | no | `null` | max records to return. |
-| `client_type` | `string | null` | no | `null` | filter by connection type — WIRELESS, WIRED, or ALL (default: all types). |
+| `start` | `integer` | yes |  |  |
+| `end` | `integer` | yes |  |  |
+| `session_type` | `string` | no | `all` | session class filter. The values that actually narrow the result |
+
+**Return type**
+
+`Any`
+
+### `list_clients`
+
+List connected clients for a site.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+By default every page is drained and the complete client list is returned
+as {data, totalCount}. offset/limit: fetch a single page manually (the
+API's totalCount is surfaced so you can advance). client_type: filter by
+connection type — WIRELESS, WIRED, or ALL (default: all types). A capped
+drain returns the clients gathered so far with incomplete=true rather than
+truncating silently.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+| `client_type` | `string | null` | no | `null` | filter by |
 
 **Return type**
 
@@ -1398,7 +1475,10 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 List all devices across the fleet with status, firmware, and model.
 
 host: optional filter by console name, ID, or composite ID (MAC:numericId format).
-Supports cursor pagination via page_token.
+By default every page is drained and the complete device list is returned.
+Pass page_token to fetch a single page manually (the response then carries a
+nextToken cursor to continue). A capped drain returns the devices gathered so
+far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
@@ -1416,6 +1496,9 @@ Supports cursor pagination via page_token.
 List all DNS policies for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+DNS policies are offset-paginated (native default page size 25); by default every
+page is drained and the complete list is returned as {data, totalCount}. Pass
+offset or limit for a single manual page. A capped drain is flagged incomplete.
 
 **Parameters**
 
@@ -1423,6 +1506,8 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1435,8 +1520,10 @@ List DPI applications available for traffic rules.
 Companion to list_dpi_categories; use application IDs in traffic rule configurations.
 host: console name, ID, or composite ID (MAC:numericId format).
 site: ignored — DPI data is host-level, not site-scoped.
-offset: number of records to skip (0 = start from beginning).
-limit: maximum records to return (0 = no limit, return all).
+By default every page is drained and the complete catalogue is returned as
+{data, totalCount}. Pass offset/limit to fetch a single page manually. A
+capped drain returns the applications gathered so far with incomplete=true
+rather than truncating silently.
 
 **Parameters**
 
@@ -1444,8 +1531,8 @@ limit: maximum records to return (0 = no limit, return all).
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | no | `""` | ignored — DPI data is host-level, not site-scoped. |
-| `offset` | `integer` | no | `0` | number of records to skip (0 = start from beginning). |
-| `limit` | `integer` | no | `0` | maximum records to return (0 = no limit, return all). |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1458,8 +1545,10 @@ List DPI (Deep Packet Inspection) app categories available for traffic rules.
 Categories include Social Media, Streaming Video, Gaming, etc.
 host: console name, ID, or composite ID (MAC:numericId format).
 site: ignored — DPI data is host-level, not site-scoped.
-offset: number of records to skip (0 = start from beginning).
-limit: maximum records to return (0 = no limit, return all).
+By default every page is drained and the complete catalogue is returned as
+{data, totalCount}. Pass offset/limit to fetch a single page manually. A
+capped drain returns the categories gathered so far with incomplete=true
+rather than truncating silently.
 
 **Parameters**
 
@@ -1467,8 +1556,8 @@ limit: maximum records to return (0 = no limit, return all).
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | no | `""` | ignored — DPI data is host-level, not site-scoped. |
-| `offset` | `integer` | no | `0` | number of records to skip (0 = start from beginning). |
-| `limit` | `integer` | no | `0` | maximum records to return (0 = no limit, return all). |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1479,7 +1568,7 @@ limit: maximum records to return (0 = no limit, return all).
 List Dynamic DNS provider configurations for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+Returned verbatim, including plaintext x_password credential fields.
 
 **Parameters**
 
@@ -1487,7 +1576,6 @@ include_secrets: if True, return plaintext x_password values; defaults to False 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_password values; defaults to False (redacted). |
 
 **Return type**
 
@@ -1512,12 +1600,13 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 ### `list_firewall_policies`
 
-List firewall policies for a site with pagination.
+List firewall policies for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-offset: number of records to skip (0 = start from beginning).
-limit: maximum records to return (0 = no limit, return all). Default 50.
-The response includes totalCount so callers can detect additional pages.
+By default every page is drained and the complete policy list is returned as
+{data, totalCount}. Pass offset/limit to fetch a single page manually (the
+API's totalCount is surfaced so you can advance). A capped drain returns the
+policies gathered so far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
@@ -1525,8 +1614,8 @@ The response includes totalCount so callers can detect additional pages.
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
-| `offset` | `integer` | no | `0` | number of records to skip (0 = start from beginning). |
-| `limit` | `integer` | no | `50` | maximum records to return (0 = no limit, return all). Default 50. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1554,6 +1643,9 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 List all firewall zones for a site via connector proxy.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Zones are offset-paginated (native default page size 25); by default every page is
+drained and the complete list is returned as {data, totalCount}. Pass offset or
+limit for a single manual page. A capped drain is flagged incomplete.
 
 **Parameters**
 
@@ -1561,6 +1653,8 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1570,14 +1664,16 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 List all UniFi consoles (hosts) with firmware, WAN IP, and status.
 
-GPS coordinates are hidden by default for privacy. Set include_gps=True to include them.
-Supports cursor pagination via page_token.
+Host records are returned verbatim, including reportedState GPS coordinates.
+By default every page is drained and the complete host list is returned. Pass
+page_token to fetch a single page manually (the response then carries a
+nextToken cursor to continue). A capped drain returns the hosts gathered so
+far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `include_gps` | `boolean` | no | `false` |  |
 | `page_token` | `string | null` | no | `null` |  |
 
 **Return type**
@@ -1623,6 +1719,10 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 List all hotspot vouchers for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Vouchers are offset-paginated (native default page size 100) and batches routinely
+exceed that; by default every page is drained and the complete list is returned as
+{data, totalCount}. Pass offset or limit for a single manual page. A capped drain
+is flagged incomplete.
 
 **Parameters**
 
@@ -1630,6 +1730,79 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_innerspace_devices`
+
+List placed device shapes from a console's InnerSpace floor-plan.
+
+Each mounted device's placement: mount, productId, title, position, and
+rotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including
+device meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting
+heights; mode='2D' flattens positions to z=0.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+mode: '3D' (default) or '2D'.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `mode` | `string` | no | `3D` | '3D' (default) or '2D'. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_known_clients`
+
+List the full per-site client roster incl. offline history (Classic REST /stat/alluser).
+
+Unlike list_active_clients_stats (currently-connected only), this includes clients
+seen historically — typically far more entries. (Distinct from the fleet-wide
+list_all_clients aggregation tool, which spans every console.) This endpoint accepts GET.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Each entry includes mac, first_seen, last_seen, disconnect_timestamp (all epoch
+seconds), is_wired, oui, last_ip, last_radio, hostname, and device-fingerprint fields.
+
+The response is passed through verbatim, including identifiers (MAC/IP/hostname/name).
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+
+**Return type**
+
+`Any`
+
+### `list_lags`
+
+List Link Aggregation Groups (LAGs) on a site.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Drains all pages by default; pass offset/limit for a single manual page. A
+capped drain is flagged incomplete rather than truncated silently.
+filter: optional UniFi Integration API filter expression.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+| `filter` | `string | null` | no | `null` | optional UniFi Integration API filter expression. |
 
 **Return type**
 
@@ -1667,11 +1840,37 @@ host: console name, ID, or composite ID (MAC:numericId format).
 
 `dict[str, Any]`
 
-### `list_networks`
+### `list_local_sites`
 
-List all networks/VLANs for a site.
+List sites managed by one UniFi Network application.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+By default every page is drained and the complete list is returned. Pass
+offset/limit to fetch a single page manually (native envelope preserved).
+A capped drain returns the sites gathered so far with incomplete=true rather
+than truncating silently. filter: optional UniFi Integration API filter.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+| `filter` | `string | null` | no | `null` | optional UniFi Integration API filter. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_mc_lag_domains`
+
+List Multi-Chassis Link Aggregation (MC-LAG) domains on a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Drains all pages by default; pass offset/limit for a single manual page. A
+capped drain is flagged incomplete rather than truncated silently.
+filter: optional UniFi Integration API filter expression.
 
 **Parameters**
 
@@ -1679,6 +1878,31 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+| `filter` | `string | null` | no | `null` | optional UniFi Integration API filter expression. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_networks`
+
+List all networks/VLANs for a site.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Networks are offset-paginated (native default page size 25); by default every page
+is drained and the complete list is returned as {data, totalCount}. Pass offset or
+limit for a single manual page. A capped drain is flagged incomplete.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1734,19 +1958,88 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 `Any`
 
-### `list_protect_files`
+### `list_protect_events`
 
-List Protect device asset files of a given type.
+Query historical Protect events (motion, smart-detect, sensor open/close, etc.).
+
+This uses the private /proxy/protect/api/events REST path — the ONLY source of
+historical events. The official Protect Integration API exposes events solely over
+WebSocket (/v1/subscribe/events) with no REST query endpoint, so do not expect the
+integration path to answer this.
 
 host: console name, ID, or composite ID (MAC:numericId format).
-file_type: asset category, e.g. 'sounds' or 'images'.
+start/end: epoch SECONDS (UTC), converted to milliseconds internally. Ranges are
+  inclusive on both ends. History depth is bounded by the NVR's retention.
+types: filter by event TYPE; single value or a list. Verified-present values:
+  motion, smartDetectZone, smartAudioDetect, sensorOpened, sensorClosed, access.
+  NOTE: person/face/animal/alrmSpeak are NOT event types — they are smart-detect
+  subtypes and belong in smart_detect_types, not here. An unrecognised value
+  returns zero events.
+smart_detect_types: filter by the smart-detect SUBTYPE — person, vehicle, animal,
+  package, face, licensePlate (on smartDetectZone events) and the audio alarms
+  alrmSpeak, alrmSiren, alrmBark, alrmCarHorn (on smartAudioDetect events). This is
+  a distinct upstream parameter from types. The API only honours it when types is
+  also set to the relevant event type(s); passing smart_detect_types alone is a
+  silent no-op upstream, so this tool rejects that with a clear error. Example:
+  types="smartDetectZone", smart_detect_types="person" for just person detections;
+  types="smartAudioDetect", smart_detect_types="alrmSpeak" to isolate the dominant
+  audio-alarm noise.
+cameras: filter by camera NAME or ID; single value or list. Names resolve to IDs
+  (case-insensitive) — an unknown name errors rather than silently matching nothing.
+categories: filter by event category; single value or list. Verified values:
+  motion, smart, iot, admin. Unknown values are silently ignored by the upstream API.
+without_descriptions: when true, ask the API to omit each event's description block
+  (~16% smaller payload). Opt-in only — full-fidelity records are the default and
+  descriptions are never dropped automatically.
+limit/offset: offset-based pagination (not cursor-based). By default (neither
+  given) every page is drained and the complete event set for the window is
+  returned — a wide window can hold tens of thousands of events, so expect all of
+  them, not just the first page. Pass offset or limit to fetch a single manual
+  page instead; a capped drain is flagged incomplete rather than truncating.
+order_direction: "ASC" (default, oldest-first) or "DESC" (newest-first).
+
+Sensor events set the top-level ``sensor`` field to null; the sensor reference at
+metadata.sensorId.text is promoted to that field so you can filter/join on it.
+Events are passed through verbatim, including identifiers (MAC/IP/hostname/name) and
+the metadata.name object carrying camera / recognised-person / license-plate text; the
+recognised-person name on face events is at metadata.detectedThumbnails[].matchedName.
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
-| `file_type` | `string` | yes |  | asset category, e.g. 'sounds' or 'images'. |
+| `start` | `integer` | yes |  |  |
+| `end` | `integer` | yes |  |  |
+| `types` | `string | array | null` | no | `null` | filter by event TYPE; single value or a list. Verified-present values: |
+| `cameras` | `string | array | null` | no | `null` | filter by camera NAME or ID; single value or list. Names resolve to IDs |
+| `limit` | `integer | null` | no | `null` |  |
+| `offset` | `integer | null` | no | `null` |  |
+| `order_direction` | `string` | no | `ASC` | "ASC" (default, oldest-first) or "DESC" (newest-first). |
+| `smart_detect_types` | `string | array | null` | no | `null` | filter by the smart-detect SUBTYPE — person, vehicle, animal, |
+| `categories` | `string | array | null` | no | `null` | filter by event category; single value or list. Verified values: |
+| `without_descriptions` | `boolean | null` | no | `null` | when true, ask the API to omit each event's description block |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_protect_files`
+
+List Protect device asset files of a given type.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+file_type: Protect asset category. 'sounds' and 'images' are the known categories.
+  The GET endpoint does NOT validate this value — an unrecognised category returns
+  HTTP 200 with an empty list rather than an error, so a wrong value is
+  indistinguishable from a genuinely empty category. Pass a known category exactly.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `file_type` | `string` | yes |  | Protect asset category. 'sounds' and 'images' are the known categories. |
 
 **Return type**
 
@@ -1757,6 +2050,9 @@ file_type: asset category, e.g. 'sounds' or 'images'.
 List RADIUS profiles for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+RADIUS profiles are offset-paginated (native default page size 25); by default
+every page is drained and the complete list is returned as {data, totalCount}.
+Pass offset or limit for a single manual page. A capped drain is flagged incomplete.
 
 **Parameters**
 
@@ -1764,6 +2060,100 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_recognition_detections`
+
+List a recognition group's detections (individual sightings) on a Protect console.
+
+Each detection carries id, eventId (joinable against list_protect_events), thumbnailId
+(fetch the crop with get_thumbnail), detectedAt (epoch ms), cameraId, and
+matchedGroupConfidence (0-100).
+
+Response shape: {"detections": [...], "count": N} (plus "nextPage" / "incomplete" when
+paging manually). The array key is "detections", NOT "data" — unlike the offset-proxy
+tools that return {"data": [...], "totalCount": N}; read the list from
+result["detections"].
+
+host: console name, ID, or composite ID (MAC:numericId format).
+type: recognition type. Use 'face' or 'vehicle' (singular -- plural forms
+  return HTTP 400 from upstream). Forwarded to the API as-is.
+group_id: the group's stable id, e.g. face_90.
+page_size: API page size; also the drain page size. Defaults to 200.
+start/end: optional time window in epoch SECONDS (UTC), converted to milliseconds
+  internally. Verified live: the endpoint filters detections server-side by detectedAt
+  against this window, so an arbitrary range (e.g. the last hour, 30 days, or 90 days)
+  can be requested directly. Omit both for all detections.
+page: fetch a single page (1-based) instead of draining. The response pages via a
+  links.next envelope; by default every page is drained so the complete detection set
+  for the group (and window, if given) is returned. Pass page to fetch one page
+  manually — nextPage is then surfaced.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `type` | `string` | yes |  | recognition type. Use 'face' or 'vehicle' (singular -- plural forms return HTTP 400 from upstream). Forwarded to the API as-is. |
+| `group_id` | `string` | yes |  | the group's stable id, e.g. face_90. |
+| `page_size` | `integer | null` | no | `null` | API page size; also the drain page size. Defaults to 200. |
+| `start` | `integer | null` | no | `null` |  |
+| `end` | `integer | null` | no | `null` |  |
+| `page` | `integer | null` | no | `null` | fetch a single page (1-based) instead of draining. The response pages via a |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_recognition_groups`
+
+List recognition groups (enrolled faces / vehicles) on a Protect console.
+
+Uses the private /proxy/protect/api/recognition/{type}/groups REST path (not the
+Protect Integration API, which has no recognition surface). Each group is a
+recognised subject with a stable, monotonic id (face_1, face_90, …), a name /
+matchedName label, a detectionsCount, and createdAt/firstDetectedAt/lastDetectedAt
+timestamps usable as sync and change-detection keys. This is a faithful pass-through:
+the name label is returned as-is and nothing is redacted.
+
+Response shape: {"groups": [...], "count": N} (plus "nextPage" / "incomplete" when
+paging manually). The array key is "groups", NOT "data" — unlike the offset-proxy
+tools that return {"data": [...], "totalCount": N}; read the list from result["groups"].
+
+host: console name, ID, or composite ID (MAC:numericId format).
+type: recognition type. Use 'face' or 'vehicle' (singular). Plural forms
+  ('faces', 'vehicles') are NOT valid and return HTTP 400 from upstream — two
+  separate agents have guessed plural and hit this error. The value is forwarded
+  as-is, so any other type the console accepts also works, and any it rejects is
+  answered by the API's own error.
+has_name: when true, return only named groups (unnamed groups are filtered out).
+page_size: API page size; also the drain page size. Defaults to 200.
+order_by / order_direction: server-side sort. order_direction is 'asc' or 'desc',
+  case-insensitive ('ASC'/'DESC' behave identically); an unrecognised value is
+  rejected upstream with HTTP 400. It only takes effect together with order_by
+  (e.g. order_by='name') — with order_by set but order_direction omitted the API
+  defaults to descending. order_by accepts name, createdAt, lastDetectedAt, or
+  detectionsCount.
+page: fetch a single page (1-based) instead of draining. The response pages via a
+  links.next envelope; by default every page is drained and the complete group set
+  is returned. Pass page to fetch one page manually — nextPage is then surfaced.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `type` | `string` | yes |  | recognition type. Use 'face' or 'vehicle' (singular). Plural forms |
+| `has_name` | `boolean | null` | no | `null` | when true, return only named groups (unnamed groups are filtered out). |
+| `page_size` | `integer | null` | no | `null` | API page size; also the drain page size. Defaults to 200. |
+| `order_by` | `string | null` | no | `null` |  |
+| `order_direction` | `string | null` | no | `null` | server-side sort. order_direction is 'asc' or 'desc', |
+| `page` | `integer | null` | no | `null` | fetch a single page (1-based) instead of draining. The response pages via a |
 
 **Return type**
 
@@ -1830,7 +2220,10 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 List Site Magic (SD-WAN) VPN mesh configurations.
 
-Supports cursor pagination via page_token.
+By default every page is drained and the complete config list is returned.
+Pass page_token to fetch a single page manually (the response then carries a
+nextToken cursor to continue). A capped drain returns the configs gathered so
+far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
@@ -1881,6 +2274,10 @@ Returns a list of setting objects grouped by key (mgmt, super_smtp, guest_access
 List all adopted devices for a site via connector proxy.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+By default every page is drained and the complete device list is returned.
+offset/limit: fetch a single page manually (the API's totalCount is
+surfaced so you can advance). A capped drain returns the devices gathered
+so far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
@@ -1888,6 +2285,8 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -1919,13 +2318,39 @@ the same as the proxy-path UUID used by per-site tools. You do not need either I
 pass site **names** (e.g., "Default") to all tools and the server resolves the correct
 ID internally.
 
-Supports cursor pagination via page_token.
+By default every page is drained and the complete site list is returned. Pass
+page_token to fetch a single page manually (the response then carries a
+nextToken cursor to continue). A capped drain returns the sites gathered so
+far with incomplete=true rather than truncating silently.
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `page_token` | `string | null` | no | `null` |  |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `list_switch_stacks`
+
+List switch stacks on a site.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+Drains all pages by default; pass offset/limit for a single manual page. A
+capped drain is flagged incomplete rather than truncated silently.
+filter: optional UniFi Integration API filter expression.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
+| `filter` | `string | null` | no | `null` | optional UniFi Integration API filter expression. |
 
 **Return type**
 
@@ -2021,6 +2446,9 @@ host: console name, ID, or composite ID (MAC:numericId format).
 List VPN servers for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+VPN servers are offset-paginated (native default page size 25); by default every
+page is drained and the complete list is returned as {data, totalCount}. Pass
+offset or limit for a single manual page. A capped drain is flagged incomplete.
 
 **Parameters**
 
@@ -2028,6 +2456,8 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
+| `offset` | `integer | null` | no | `null` |  |
+| `limit` | `integer | null` | no | `null` |  |
 
 **Return type**
 
@@ -2072,7 +2502,7 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 List per-SSID WLAN configurations (security, band steering, rate limits) for a site.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-include_secrets: if True, return plaintext x_passphrase values; defaults to False (redacted).
+Returned verbatim, including plaintext x_passphrase credential fields.
 
 **Parameters**
 
@@ -2080,7 +2510,6 @@ include_secrets: if True, return plaintext x_passphrase values; defaults to Fals
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_passphrase values; defaults to False (redacted). |
 
 **Return type**
 
@@ -2214,7 +2643,7 @@ device_id: device ID from list_pending_devices to reject.
 
 ## Reading & Inspection
 
-**47 tools**
+**57 tools**
 
 ### `get_account`
 
@@ -2222,7 +2651,7 @@ Get a single RADIUS account by ID.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
 account_id: RADIUS account ID.
-include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+Returned verbatim, including plaintext x_password credential fields.
 
 **Parameters**
 
@@ -2231,7 +2660,6 @@ include_secrets: if True, return plaintext x_password values; defaults to False 
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
 | `account_id` | `string` | yes |  | RADIUS account ID. |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_password values; defaults to False (redacted). |
 
 **Return type**
 
@@ -2421,7 +2849,7 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 Get a single Dynamic DNS configuration by ID.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+Returned verbatim, including plaintext x_password credential fields.
 
 **Parameters**
 
@@ -2430,7 +2858,6 @@ include_secrets: if True, return plaintext x_password values; defaults to False 
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
 | `ddns_id` | `string` | yes |  |  |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_password values; defaults to False (redacted). |
 
 **Return type**
 
@@ -2548,19 +2975,52 @@ key_label: scope summary to consoles visible to a specific API key.
 
 `dict[str, Any]`
 
+### `get_historical_stats`
+
+Get bucketed historical statistics from the Classic REST /stat/report endpoint.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+interval: one of "5minutes", "hourly", "daily".
+scope: one of "ap", "user", "site". The "ap" scope carries num_sta per AP per bucket.
+start/end: epoch SECONDS (UTC). Unlike /stat/session, this endpoint requires
+  MILLISECONDS — the tool converts seconds to milliseconds internally, so callers
+  always pass seconds for a consistent interface.
+attrs: metrics to aggregate; defaults to num_sta, rx_bytes, tx_bytes.
+
+Retention differs by interval: 5minutes ~1 day, hourly ~7 days, daily ~91 days.
+Output "time" is epoch milliseconds. Note: rx_bytes/tx_bytes come back as JSON
+floats in scientific notation (e.g. 5.27e9) — treat them as floats, not ints.
+
+The response is passed through verbatim.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `interval` | `string` | yes |  | 5minutes ~1 day, hourly ~7 days, daily ~91 days. |
+| `scope` | `string` | yes |  | one of "ap", "user", "site". The "ap" scope carries num_sta per AP per bucket. |
+| `start` | `integer` | yes |  |  |
+| `end` | `integer` | yes |  |  |
+| `attrs` | `array | null` | no | `null` | metrics to aggregate; defaults to num_sta, rx_bytes, tx_bytes. |
+
+**Return type**
+
+`Any`
+
 ### `get_host`
 
 Get details for a single UniFi console by name or ID.
 
 host: console name, ID, or composite ID (MAC:numericId format for cloud consoles).
-GPS coordinates are hidden by default. Set include_gps=True to include them.
+Host record is returned verbatim, including reportedState GPS coordinates.
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format for cloud consoles). |
-| `include_gps` | `boolean` | no | `false` |  |
 
 **Return type**
 
@@ -2603,6 +3063,54 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 
 `dict[str, Any]`
 
+### `get_innerspace_project`
+
+Return the full InnerSpace floor-plan project geometry for a console.
+
+The complete (~66 KB) project document: shapes, plans, products, wall types,
+and attenuation-object types. Returned verbatim, including device meta.mac /
+meta.ip and floor-plan image/asset URLs. Prefer get_innerspace_summary first
+if you only need an inventory — this payload is large.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+mode: '3D' (default; device shapes carry real metric mounting heights) or '2D'
+(device shapes flattened to z=0). 3D is the only mode with real heights.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `mode` | `string` | no | `3D` | '3D' (default; device shapes carry real metric mounting heights) or '2D' |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_innerspace_summary`
+
+Inventory a console's InnerSpace floor-plan project without the full payload.
+
+Returns counts and structure: shape breakdown by type (wall / device / map /
+scale), per-floor plans with each plan's own scale, product and wall-material /
+attenuation-type dictionary sizes, and project metadata. Call this before
+get_innerspace_project when you only need to know what's present. Surfaces the
+multi-floor caveat: floors do not share a coordinate origin.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+mode: '3D' (default; device shapes carry real metric mounting heights) or '2D'.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `mode` | `string` | no | `3D` | '3D' (default; device shapes carry real metric mounting heights) or '2D'. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_isp_metrics`
 
 Get WAN health metrics (speed, latency, packet loss, uptime).
@@ -2615,6 +3123,25 @@ Returns a dict with a 'periods' list containing WAN speed, latency, packet loss,
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `interval` | `string` | yes |  | time bucket for metrics aggregation — '5m' or '1h'. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_lag`
+
+Get one Link Aggregation Group.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+lag_id: LAG UUID from list_lags.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `lag_id` | `string` | yes |  | LAG UUID from list_lags. |
 
 **Return type**
 
@@ -2654,6 +3181,25 @@ host: console name, ID, or composite ID (MAC:numericId format).
 
 `dict[str, Any]`
 
+### `get_mc_lag_domain`
+
+Get one Multi-Chassis Link Aggregation domain.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+mc_lag_domain_id: domain UUID from list_mc_lag_domains.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `mc_lag_domain_id` | `string` | yes |  | domain UUID from list_mc_lag_domains. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_network`
 
 Get a single network/VLAN by ID.
@@ -2667,6 +3213,22 @@ host: console name, ID, or composite ID (MAC:numericId format). site: site name 
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
 | `network_id` | `string` | yes |  |  |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_network_application_info`
+
+Get the UniFi Network application version reported by a console.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 
 **Return type**
 
@@ -2732,11 +3294,59 @@ profile_id: port profile ID.
 
 Get a single RADIUS authentication profile by ID.
 
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+profile_id: RADIUS profile ID.
+
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `profile_id` | `string` | yes |  |  |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `profile_id` | `string` | yes |  | RADIUS profile ID. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_recognition_group_counts`
+
+Get aggregate recognition-group counts for a Protect console.
+
+Returns totals such as totalCount, nameNotNullCount (named groups), nameIsNullCount,
+notificationEnabledCount, and degradedCount.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+type: recognition type. Use 'face' or 'vehicle' (singular — plural forms
+  return HTTP 400 from upstream). Forwarded to the API as-is.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `type` | `string` | yes |  | recognition type. Use 'face' or 'vehicle' (singular — plural forms return HTTP 400 from upstream). Forwarded to the API as-is. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_recognition_group_image`
+
+Get a recognition group's reference crop. Returns base64-encoded JPEG image data.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+type: recognition type. Use 'face' or 'vehicle' (singular -- plural forms
+  return HTTP 400 from upstream). Forwarded to the API as-is.
+group_id: the group's stable id, e.g. face_90.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `type` | `string` | yes |  | recognition type. Use 'face' or 'vehicle' (singular -- plural forms return HTTP 400 from upstream). Forwarded to the API as-is. |
+| `group_id` | `string` | yes |  | the group's stable id, e.g. face_90. |
 
 **Return type**
 
@@ -2892,6 +3502,25 @@ Returns a list of subsystem health objects from the Classic REST /stat/health en
 
 `Any`
 
+### `get_switch_stack`
+
+Get one switch stack.
+
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+switch_stack_id: switch-stack UUID from list_switch_stacks.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
+| `switch_stack_id` | `string` | yes |  | switch-stack UUID from list_switch_stacks. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_system_info`
 
 Get controller/console system info: version, uptime, and memory.
@@ -2909,6 +3538,24 @@ Returns system info objects from the Classic REST /stat/sysinfo endpoint.
 **Return type**
 
 `Any`
+
+### `get_thumbnail`
+
+Get a detection thumbnail crop. Returns base64-encoded JPEG image data.
+
+host: console name, ID, or composite ID (MAC:numericId format).
+thumbnail_id: the thumbnailId from a detection record.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `thumbnail_id` | `string` | yes |  | the thumbnailId from a detection record. |
+
+**Return type**
+
+`dict[str, Any]`
 
 ### `get_traffic_matching_list`
 
@@ -3024,7 +3671,7 @@ Get a single WLAN (SSID) configuration by ID.
 
 host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
 wlan_id: WLAN config ID.
-include_secrets: if True, return plaintext x_passphrase values; defaults to False (redacted).
+Returned verbatim, including plaintext x_passphrase credential fields.
 
 **Parameters**
 
@@ -3033,7 +3680,6 @@ include_secrets: if True, return plaintext x_passphrase values; defaults to Fals
 | `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
 | `site` | `string` | yes |  | site name or ID. |
 | `wlan_id` | `string` | yes |  | WLAN config ID. |
-| `include_secrets` | `boolean` | no | `false` | if True, return plaintext x_passphrase values; defaults to False (redacted). |
 
 **Return type**
 
@@ -3289,15 +3935,18 @@ zone: full firewall zone configuration to replace with.
 
 Update a hotspot operator by ID.
 
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
 operator_id: hotspot operator ID.
-fields: fields to update (name, password, note, etc.).
+fields: fields to update (name, x_password, note, etc.).
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
 | `operator_id` | `string` | yes |  | hotspot operator ID. |
-| `fields` | `object` | yes |  | fields to update (name, password, note, etc.). |
+| `fields` | `object` | yes |  | fields to update (name, x_password, note, etc.). |
 
 **Return type**
 
@@ -3568,6 +4217,7 @@ settings: key-value pairs of viewer settings to update.
 
 Update a VPN server configuration by ID.
 
+host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
 server_id: VPN server ID.
 fields: fields to update (name, type, subnet, enabled, etc.).
 
@@ -3575,6 +4225,8 @@ fields: fields to update (name, type, subnet, enabled, etc.).
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | console name, ID, or composite ID (MAC:numericId format). |
+| `site` | `string` | yes |  | site name or ID. |
 | `server_id` | `string` | yes |  | VPN server ID. |
 | `fields` | `object` | yes |  | fields to update (name, type, subnet, enabled, etc.). |
 

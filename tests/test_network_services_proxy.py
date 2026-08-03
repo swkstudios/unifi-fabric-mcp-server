@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.client import PaginationAbortedError
 from unifi_fabric.tools.network import PROXY_BASE
 from unifi_fabric.tools.network_services_proxy import (
     _CLASSIC_REST_BASE,
@@ -110,11 +111,21 @@ def registry():
 
 
 class TestListDnsPolicies:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "dns-1", "name": "Default"}]
+    async def test_basic_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "dns-1", "name": "Default"}]
         result = await list_dns_policies(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/dns/policies")
-        assert result == [{"id": "dns-1", "name": "Default"}]
+        assert client.paginate_offset.call_args[0][0] == f"{BASE}/sites/{SITE_ID}/dns/policies"
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "dns-1", "name": "Default"}], "totalCount": 1}
+
+    async def test_manual_page_returns_single_page(self, client, registry):
+        client.get.return_value = {"data": [{"id": "dns-1"}], "totalCount": 5}
+        result = await list_dns_policies(client, registry, "h", "s", offset=0, limit=25)
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/dns/policies", params={"offset": 0, "limit": 25}
+        )
+        client.paginate_offset.assert_not_called()
+        assert result == {"data": [{"id": "dns-1"}], "totalCount": 5}
 
 
 class TestCreateDnsPolicy:
@@ -240,11 +251,12 @@ class TestDeleteTrafficMatchingList:
 
 
 class TestListVpnServers:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "vpn-1", "type": "wireguard"}]
+    async def test_basic_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "vpn-1", "type": "wireguard"}]
         result = await list_vpn_servers(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/vpn/servers")
-        assert result == [{"id": "vpn-1", "type": "wireguard"}]
+        assert client.paginate_offset.call_args[0][0] == f"{BASE}/sites/{SITE_ID}/vpn/servers"
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "vpn-1", "type": "wireguard"}], "totalCount": 1}
 
 
 class TestListSiteToSiteTunnels:
@@ -259,22 +271,35 @@ class TestListSiteToSiteTunnels:
 
 
 class TestListRadiusProfiles:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "rad-1", "name": "Corp Auth"}]
+    async def test_basic_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "rad-1", "name": "Corp Auth"}]
         result = await list_radius_profiles(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/radius/profiles")
-        assert result == [{"id": "rad-1", "name": "Corp Auth"}]
+        assert client.paginate_offset.call_args[0][0] == f"{BASE}/sites/{SITE_ID}/radius/profiles"
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "rad-1", "name": "Corp Auth"}], "totalCount": 1}
 
 
 # --- Hotspot Vouchers ---
 
 
 class TestListHotspotVouchers:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "v-1", "code": "ABC123"}]
+    async def test_basic_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "v-1", "code": "ABC123"}]
         result = await list_hotspot_vouchers(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/hotspot/vouchers")
-        assert result == [{"id": "v-1", "code": "ABC123"}]
+        assert client.paginate_offset.call_args[0][0] == f"{BASE}/sites/{SITE_ID}/hotspot/vouchers"
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "v-1", "code": "ABC123"}], "totalCount": 1}
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers",
+            2,
+            "page cap of 2 reached",
+            items=[{"id": "v-1"}],
+        )
+        result = await list_hotspot_vouchers(client, registry, "h", "s")
+        assert result["incomplete"] is True
+        assert result["data"] == [{"id": "v-1"}]
 
 
 class TestCreateHotspotVouchers:
@@ -575,6 +600,31 @@ class TestListSettings:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting")
         assert result == [{"key": "mgmt"}]
 
+    async def test_management_credentials_survive(self, client, registry):
+        # Data-survival: the server is a faithful pass-through. Credential fields
+        # returned by the controller reach the caller unchanged; a deployment that
+        # wants them hidden layers that policy on top of the response.
+        client.get.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "key": "mgmt",
+                    "x_api_token": "api-token",
+                    "x_mgmt_key": "management-key",
+                    "x_ssh_password": "password",
+                    "x_ssh_sha512passwd": "password-hash",
+                    "x_ssh_keys": [{"name": "collector", "key": "ssh-ed25519 PUBLIC"}],
+                }
+            ],
+        }
+        result = await list_settings(client, registry, "h", "s")
+        mgmt = result[0]
+        assert mgmt["x_api_token"] == "api-token"
+        assert mgmt["x_mgmt_key"] == "management-key"
+        assert mgmt["x_ssh_password"] == "password"
+        assert mgmt["x_ssh_sha512passwd"] == "password-hash"
+        assert mgmt["x_ssh_keys"][0]["key"] == "ssh-ed25519 PUBLIC"
+
 
 class TestGetSetting:
     async def test_uses_classic_rest_url_with_key(self, client, registry):
@@ -582,6 +632,27 @@ class TestGetSetting:
         result = await get_setting(client, registry, "h", "s", "mgmt")
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting/mgmt")
         assert result == [{"key": "mgmt"}]
+
+    async def test_nested_and_suffix_credentials_survive(self, client, registry):
+        # Data-survival: nested credential fields at any depth pass through verbatim.
+        client.get.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "key": "example",
+                    "nested": {
+                        "client_secret": "client-secret",
+                        "refresh_token": "refresh-token",
+                        "ordinary_key": "visible",
+                    },
+                }
+            ],
+        }
+        result = await get_setting(client, registry, "h", "s", "example")
+        nested = result[0]["nested"]
+        assert nested["client_secret"] == "client-secret"
+        assert nested["refresh_token"] == "refresh-token"
+        assert nested["ordinary_key"] == "visible"
 
 
 class TestUpdateSetting:
@@ -640,6 +711,49 @@ class TestUpdateSetting:
         result = await update_setting(client, registry, "h", "s", "mgmt", payload)
         assert result[0]["autobackup"] is True
 
+    async def test_secret_fields_survive_in_write_response(self, client, registry):
+        payload = {"x_ssh_auth_password_enabled": False}
+        pre = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "key": "mgmt",
+                    "x_ssh_auth_password_enabled": True,
+                    "x_ssh_password": "old-password",
+                }
+            ],
+        }
+        post = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "key": "mgmt",
+                    "x_ssh_auth_password_enabled": False,
+                    "x_ssh_password": "old-password",
+                }
+            ],
+        }
+        client.get.side_effect = [pre, post]
+        client.put.return_value = post
+        result = await update_setting(client, registry, "h", "s", "mgmt", payload)
+        assert result[0]["x_ssh_password"] == "old-password"
+
+    async def test_secret_fields_survive_in_idempotent_response(self, client, registry):
+        payload = {"x_ssh_auth_password_enabled": True}
+        pre = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "key": "mgmt",
+                    "x_ssh_auth_password_enabled": True,
+                    "x_ssh_password": "current-password",
+                }
+            ],
+        }
+        client.get.return_value = pre
+        result = await update_setting(client, registry, "h", "s", "mgmt", payload)
+        assert result["data"][0]["x_ssh_password"] == "current-password"
+
 
 # --- Dynamic DNS (Classic REST) ---
 
@@ -651,20 +765,13 @@ class TestListDynamicDns:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns")
         assert result == [{"_id": "ddns-1"}]
 
-    async def test_redacts_x_password_by_default(self, client, registry):
+    async def test_x_password_survives(self, client, registry):
+        # Data-survival: credential fields pass through verbatim, no opt-in required.
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "ddns-1", "service": "dyndns", "x_password": "secret"}],
         }
         result = await list_dynamic_dns(client, registry, "h", "s")
-        assert result == [{"_id": "ddns-1", "service": "dyndns", "x_password": "[REDACTED]"}]
-
-    async def test_exposes_x_password_when_include_secrets(self, client, registry):
-        client.get.return_value = {
-            "meta": {"rc": "ok"},
-            "data": [{"_id": "ddns-1", "service": "dyndns", "x_password": "secret"}],
-        }
-        result = await list_dynamic_dns(client, registry, "h", "s", include_secrets=True)
         assert result == [{"_id": "ddns-1", "service": "dyndns", "x_password": "secret"}]
 
 
@@ -675,20 +782,12 @@ class TestGetDynamicDns:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns/ddns-1")
         assert result == [{"_id": "ddns-1"}]
 
-    async def test_redacts_x_password_by_default(self, client, registry):
+    async def test_x_password_survives(self, client, registry):
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "ddns-1", "x_password": "secret"}],
         }
         result = await get_dynamic_dns(client, registry, "h", "s", "ddns-1")
-        assert result == [{"_id": "ddns-1", "x_password": "[REDACTED]"}]
-
-    async def test_exposes_x_password_when_include_secrets(self, client, registry):
-        client.get.return_value = {
-            "meta": {"rc": "ok"},
-            "data": [{"_id": "ddns-1", "x_password": "secret"}],
-        }
-        result = await get_dynamic_dns(client, registry, "h", "s", "ddns-1", include_secrets=True)
         assert result == [{"_id": "ddns-1", "x_password": "secret"}]
 
 
@@ -756,20 +855,13 @@ class TestListWlanConfigs:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf")
         assert result == [{"_id": "wlan-1", "name": "HomeSSID"}]
 
-    async def test_redacts_x_passphrase_by_default(self, client, registry):
+    async def test_x_passphrase_survives(self, client, registry):
+        # Data-survival: the WLAN passphrase reaches the operator who owns it.
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "wlan-1", "name": "HomeSSID", "x_passphrase": "secret123"}],
         }
         result = await list_wlan_configs(client, registry, "h", "s")
-        assert result == [{"_id": "wlan-1", "name": "HomeSSID", "x_passphrase": "[REDACTED]"}]
-
-    async def test_exposes_x_passphrase_when_include_secrets(self, client, registry):
-        client.get.return_value = {
-            "meta": {"rc": "ok"},
-            "data": [{"_id": "wlan-1", "name": "HomeSSID", "x_passphrase": "secret123"}],
-        }
-        result = await list_wlan_configs(client, registry, "h", "s", include_secrets=True)
         assert result == [{"_id": "wlan-1", "name": "HomeSSID", "x_passphrase": "secret123"}]
 
 
@@ -780,20 +872,12 @@ class TestGetWlanConfig:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf/wlan-1")
         assert result == [{"_id": "wlan-1"}]
 
-    async def test_redacts_x_passphrase_by_default(self, client, registry):
+    async def test_x_passphrase_survives(self, client, registry):
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "wlan-1", "x_passphrase": "secret123"}],
         }
         result = await get_wlan_config(client, registry, "h", "s", "wlan-1")
-        assert result == [{"_id": "wlan-1", "x_passphrase": "[REDACTED]"}]
-
-    async def test_exposes_x_passphrase_when_include_secrets(self, client, registry):
-        client.get.return_value = {
-            "meta": {"rc": "ok"},
-            "data": [{"_id": "wlan-1", "x_passphrase": "secret123"}],
-        }
-        result = await get_wlan_config(client, registry, "h", "s", "wlan-1", include_secrets=True)
         assert result == [{"_id": "wlan-1", "x_passphrase": "secret123"}]
 
 
@@ -947,14 +1031,15 @@ class TestListAccounts:
         }
         result = await list_accounts(client, registry, "h", "s")
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account")
-        assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "[REDACTED]"}]
+        assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}]
 
-    async def test_exposes_x_password_when_include_secrets(self, client, registry):
+    async def test_x_password_survives(self, client, registry):
+        # Data-survival: RADIUS account credentials pass through verbatim.
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}],
         }
-        result = await list_accounts(client, registry, "h", "s", include_secrets=True)
+        result = await list_accounts(client, registry, "h", "s")
         assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}]
 
 
@@ -965,20 +1050,12 @@ class TestGetAccount:
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account/acc-1")
         assert result == [{"_id": "acc-1"}]
 
-    async def test_redacts_x_password_by_default(self, client, registry):
+    async def test_x_password_survives(self, client, registry):
         client.get.return_value = {
             "meta": {"rc": "ok"},
             "data": [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}],
         }
         result = await get_account(client, registry, "h", "s", "acc-1")
-        assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "[REDACTED]"}]
-
-    async def test_exposes_x_password_when_include_secrets(self, client, registry):
-        client.get.return_value = {
-            "meta": {"rc": "ok"},
-            "data": [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}],
-        }
-        result = await get_account(client, registry, "h", "s", "acc-1", include_secrets=True)
         assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}]
 
 
@@ -1030,63 +1107,76 @@ class TestGetScheduledTask:
 
 
 class TestListDpiCategories:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "cat-1", "name": "Social Media"}]
+    async def test_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "cat-1", "name": "Social Media"}]
         result = await list_dpi_categories(client, registry, "h")
-        client.get.assert_called_once_with(
-            f"{BASE}/dpi/categories", params={"offset": 0, "limit": 0}
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/dpi/categories", key=None, params=None, page_size=200
         )
-        assert result == [{"id": "cat-1", "name": "Social Media"}]
+        client.get.assert_not_called()
+        assert result == {"data": [{"id": "cat-1", "name": "Social Media"}], "totalCount": 1}
 
     async def test_resolves_host(self, client, registry):
-        client.get.return_value = []
+        client.paginate_offset.return_value = []
         await list_dpi_categories(client, registry, "UDM-Pro")
         registry.resolve_host_id.assert_called_once_with("UDM-Pro")
         registry.resolve_site_id.assert_not_called()
 
-    async def test_with_offset_and_limit(self, client, registry):
-        client.get.return_value = []
+    async def test_with_offset_and_limit_single_page(self, client, registry):
+        client.get.return_value = {"data": [], "totalCount": 40}
         await list_dpi_categories(client, registry, "h", offset=10, limit=25)
         client.get.assert_called_once_with(
             f"{BASE}/dpi/categories", params={"offset": 10, "limit": 25}
         )
+        client.paginate_offset.assert_not_called()
 
     async def test_limit_only(self, client, registry):
-        client.get.return_value = []
+        client.get.return_value = {"data": [], "totalCount": 40}
         await list_dpi_categories(client, registry, "h", limit=10)
-        client.get.assert_called_once_with(
-            f"{BASE}/dpi/categories", params={"offset": 0, "limit": 10}
+        client.get.assert_called_once_with(f"{BASE}/dpi/categories", params={"limit": 10})
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/dpi/categories", 2, "page cap of 2 reached", items=[{"id": "cat-1"}]
         )
+        result = await list_dpi_categories(client, registry, "h")
+        assert result["incomplete"] is True
+        assert result["data"] == [{"id": "cat-1"}]
 
 
 # --- DPI Applications ---
 
 
 class TestListDpiApplications:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "app-1", "name": "YouTube", "categoryId": "cat-1"}]
+    async def test_drains_all_by_default(self, client, registry):
+        client.paginate_offset.return_value = [
+            {"id": "app-1", "name": "YouTube", "categoryId": "cat-1"}
+        ]
         result = await list_dpi_applications(client, registry, "h")
-        client.get.assert_called_once_with(
-            f"{BASE}/dpi/applications", params={"offset": 0, "limit": 0}
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/dpi/applications", key=None, params=None, page_size=200
         )
-        assert result == [{"id": "app-1", "name": "YouTube", "categoryId": "cat-1"}]
+        client.get.assert_not_called()
+        assert result == {
+            "data": [{"id": "app-1", "name": "YouTube", "categoryId": "cat-1"}],
+            "totalCount": 1,
+        }
 
     async def test_resolves_host(self, client, registry):
-        client.get.return_value = []
+        client.paginate_offset.return_value = []
         await list_dpi_applications(client, registry, "UDM-Pro")
         registry.resolve_host_id.assert_called_once_with("UDM-Pro")
         registry.resolve_site_id.assert_not_called()
 
-    async def test_with_offset_and_limit(self, client, registry):
-        client.get.return_value = []
+    async def test_with_offset_and_limit_single_page(self, client, registry):
+        client.get.return_value = {"data": [], "totalCount": 80}
         await list_dpi_applications(client, registry, "h", offset=5, limit=50)
         client.get.assert_called_once_with(
             f"{BASE}/dpi/applications", params={"offset": 5, "limit": 50}
         )
+        client.paginate_offset.assert_not_called()
 
     async def test_limit_only(self, client, registry):
-        client.get.return_value = []
+        client.get.return_value = {"data": [], "totalCount": 80}
         await list_dpi_applications(client, registry, "h", limit=25)
-        client.get.assert_called_once_with(
-            f"{BASE}/dpi/applications", params={"offset": 0, "limit": 25}
-        )
+        client.get.assert_called_once_with(f"{BASE}/dpi/applications", params={"limit": 25})

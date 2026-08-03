@@ -15,20 +15,34 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install ruff
       - run: ruff check src/ tests/
       - run: ruff format --check src/ tests/
+      # Pass-through guard: the server returns complete upstream data (see CLAUDE.md).
+      # Fail if any removed response-filtering helper reappears in src/. This is an
+      # exact name-check, not a semantic proof; the data-survival unit tests are the
+      # behavioural backstop. It intentionally does NOT match client.py's error-message
+      # redaction or the committed-fixture sanitisation check — those are separate.
+      - name: No runtime response redaction
+        run: |
+          if grep -rnE 'redact_identifiers|_redact_secrets|_sanitize_geometry|_filter_gps|_is_secret_field|_is_identifier_field' src/; then
+            echo "::error::Runtime response-filtering helper found in src/. This server is a"
+            echo "::error::faithful pass-through (see CLAUDE.md 'Pass-through invariant'): tools must"
+            echo "::error::return complete upstream data. Restriction belongs in the deployment, not here."
+            exit 1
+          fi
+          echo "No runtime response redaction helpers in src/ — pass-through invariant holds."
 
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
@@ -38,8 +52,8 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
@@ -49,12 +63,77 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]"
       # Verify pytest can collect all tests (including integration tests that skip at runtime)
       - run: pytest --collect-only -q tests/
-      - run: pytest tests/ -v
+      # Coverage gate: calibrated at/just below the measured line coverage (91.40%) so it
+      # catches regressions without failing on the current tree. Raise it as coverage grows;
+      # do NOT chase 100% (see docs/internal/testing-procedure.md).
+      - run: pytest tests/ -v --cov=src/unifi_fabric --cov-report=term-missing --cov-fail-under=91
+
+  # Phase G: primary secret-scanning gate. Runs in CI on every push and PR so a
+  # secret is caught at the source, before it can ever reach a build artifact or a
+  # published release. This is a working-tree scan and does not rely on git history.
+  #
+  # gitleaks/gitleaks-action is intentionally NOT used: as of action v2+ it
+  # requires a paid GITLEAKS_LICENSE for GitHub *organization* accounts
+  # (this is an organization account). A missing license would make this REQUIRED check
+  # fail permanently, and provisioning that secret is a credential mutation
+  # outside this job's scope. Instead we pin the gitleaks CLI by version +
+  # sha256 (the deterministic, supply-chain equivalent of SHA-pinning an
+  # action) and run `gitleaks detect --redact` exactly.
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history is required for the history scan and the PR-diff range.
+          fetch-depth: 0
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          curl -sSL -o "$tmp/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $tmp/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$tmp/gitleaks.tar.gz" -C "$tmp" gitleaks
+          sudo install -m 0755 "$tmp/gitleaks" /usr/local/bin/gitleaks
+          gitleaks version
+
+      # File scan of the checked-out working tree (the final squashed/mirrored
+      # state). --redact ensures no secret value is ever written to the logs.
+      - name: Secret scan -- working tree (file scan)
+        run: gitleaks detect --no-git --source . --redact --exit-code 1 -v
+
+      # Per-PR run: scope to the commits the PR introduces (diff mode).
+      - name: Secret scan -- PR diff (changed commits only)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: gitleaks detect --source . --redact --exit-code 1 -v --log-opts="${BASE_SHA}..${HEAD_SHA}"
+
+      # Push to default branch / manual dispatch: full-history baseline scan.
+      - name: Secret scan -- full history (baseline)
+        if: ${{ github.event_name != 'pull_request' }}
+        run: gitleaks detect --source . --redact --exit-code 1 -v
+
+  # Phase G: assert committed fixtures and example configs stay synthetic.
+  # Complements gitleaks with denylist checks targeted at this repo's data
+  # shapes (UniFi API keys, Bearer tokens, JWTs, PEM blocks, real public IPs).
+  fixtures-sanitization:
+    name: fixtures-sanitization
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert no real secrets/PII in fixtures and example configs
+        run: python3 .github/scripts/check_fixtures_sanitization.py

@@ -6,18 +6,61 @@ from typing import Any
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._pagination import collect_offset, mark_incomplete
 from .network import _proxy
+
+
+async def _drain_offset_list(
+    client: UniFiClient,
+    url: str,
+    *,
+    offset: int | None,
+    limit: int | None,
+) -> dict[str, Any]:
+    """Offset list fetch: drain all pages by default, single page when paged manually."""
+    if offset is not None or limit is not None:
+        params: dict[str, Any] = {}
+        if offset is not None:
+            params["offset"] = offset
+        if limit is not None:
+            params["limit"] = limit
+        result: dict[str, Any] = await client.get(url, params=params or None)
+        return result
+    collected = await collect_offset(client, url)
+    total = collected["totalCount"]
+    drained: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(drained, collected)
+
 
 # --- DNS Policies ---
 
 
 async def list_dns_policies(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List DNS policies for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope and
+    the native default page size is only 25). By default every page is drained and
+    the complete list is returned as ``{data, totalCount}``; pass offset or limit to
+    fetch a single manual page (native envelope preserved). A capped drain is
+    flagged ``incomplete`` rather than truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/dns/policies"))
+    return await _drain_offset_list(
+        client, _proxy(host_id, f"/sites/{site_id}/dns/policies"), offset=offset, limit=limit
+    )
 
 
 async def create_dns_policy(
@@ -135,12 +178,28 @@ async def delete_traffic_matching_list(
 
 
 async def list_vpn_servers(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List VPN servers for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope with a
+    native default page size of 25). By default every page is drained and the
+    complete list is returned as ``{data, totalCount}``; pass offset or limit for a
+    single manual page. A capped drain is flagged ``incomplete`` rather than
+    truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/vpn/servers"))
+    return await _drain_offset_list(
+        client, _proxy(host_id, f"/sites/{site_id}/vpn/servers"), offset=offset, limit=limit
+    )
 
 
 async def list_site_to_site_tunnels(
@@ -156,24 +215,57 @@ async def list_site_to_site_tunnels(
 
 
 async def list_radius_profiles(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List RADIUS profiles for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope with a
+    native default page size of 25). By default every page is drained and the
+    complete list is returned as ``{data, totalCount}``; pass offset or limit for a
+    single manual page. A capped drain is flagged ``incomplete`` rather than
+    truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/radius/profiles"))
+    return await _drain_offset_list(
+        client, _proxy(host_id, f"/sites/{site_id}/radius/profiles"), offset=offset, limit=limit
+    )
 
 
 # --- Hotspot Vouchers ---
 
 
 async def list_hotspot_vouchers(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List hotspot vouchers for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope with a
+    native default page size of 100). Voucher batches routinely exceed that, so a
+    single page silently truncated large sets. By default every page is now drained
+    and the complete list is returned as ``{data, totalCount}``; pass offset or limit
+    for a single manual page. A capped drain is flagged ``incomplete`` rather than
+    truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/hotspot/vouchers"))
+    return await _drain_offset_list(
+        client, _proxy(host_id, f"/sites/{site_id}/hotspot/vouchers"), offset=offset, limit=limit
+    )
 
 
 async def create_hotspot_vouchers(
@@ -386,8 +478,6 @@ def _extract_data(response: Any) -> Any:
     return response
 
 
-_SECRET_FIELDS = frozenset({"x_passphrase", "x_password"})
-
 # Fields managed by the UniFi controller that may change on every write
 # regardless of whether the submitted payload was accepted.  Exclude these
 # from silent-no-op comparison so that timestamp churn does not mask a
@@ -402,17 +492,6 @@ _SERVER_MANAGED_FIELDS = frozenset(
         "_createdAt",
     }
 )
-
-
-def _redact_secrets(data: Any) -> Any:
-    """Replace credential fields (x_passphrase, x_password) with [REDACTED]."""
-    if isinstance(data, list):
-        return [_redact_secrets(item) for item in data]
-    if isinstance(data, dict):
-        return {
-            k: "[REDACTED]" if k in _SECRET_FIELDS else _redact_secrets(v) for k, v in data.items()
-        }
-    return data
 
 
 # --- Users / DHCP Reservations (Classic REST) ---
@@ -611,14 +690,12 @@ async def list_dynamic_dns(
     registry: Registry,
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List Dynamic DNS provider configurations via Classic REST /rest/dynamicdns."""
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, "/dynamicdns"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 async def get_dynamic_dns(
@@ -627,15 +704,13 @@ async def get_dynamic_dns(
     host: str,
     site: str,
     ddns_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single Dynamic DNS config by ID via Classic REST /rest/dynamicdns."""
     validate_id(ddns_id, "ddns_id")
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, f"/dynamicdns/{ddns_id}"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 async def update_dynamic_dns(
@@ -717,14 +792,12 @@ async def list_wlan_configs(
     registry: Registry,
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List per-SSID WLAN configurations via Classic REST /rest/wlanconf."""
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, "/wlanconf"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 async def get_wlan_config(
@@ -733,15 +806,13 @@ async def get_wlan_config(
     host: str,
     site: str,
     wlan_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single WLAN configuration by ID via Classic REST /rest/wlanconf."""
     validate_id(wlan_id, "wlan_id")
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, f"/wlanconf/{wlan_id}"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 async def update_wlan_config(
@@ -874,14 +945,12 @@ async def list_accounts(
     registry: Registry,
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List local RADIUS user accounts via Classic REST /rest/account."""
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, "/account"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 async def get_account(
@@ -890,15 +959,13 @@ async def get_account(
     host: str,
     site: str,
     account_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single RADIUS account by ID via Classic REST /rest/account."""
     validate_id(account_id, "account_id")
     host_id = await registry.resolve_host_id(host)
     site_slug = await registry.resolve_site_slug(site, host_id)
     response = await client.get(_classic_rest(host_id, site_slug, f"/account/{account_id}"))
-    result = _extract_data(response)
-    return result if include_secrets else _redact_secrets(result)
+    return _extract_data(response)
 
 
 # --- Hotspot Packages (Classic REST) ---
@@ -956,20 +1023,19 @@ async def list_dpi_categories(
     client: UniFiClient,
     registry: Registry,
     host: str,
-    offset: int = 0,
-    limit: int = 0,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List DPI app categories available for traffic rules.
 
     DPI data is host-level (not site-scoped); the site parameter is ignored.
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
     """
     host_id = await registry.resolve_host_id(host)
-    params: dict[str, Any] = {}
-    if offset is not None:
-        params["offset"] = offset
-    if limit is not None:
-        params["limit"] = limit
-    return await client.get(_proxy(host_id, "/dpi/categories"), params=params or None)
+    return await _drain_offset_list(
+        client, _proxy(host_id, "/dpi/categories"), offset=offset, limit=limit
+    )
 
 
 # --- DPI Applications ---
@@ -979,17 +1045,16 @@ async def list_dpi_applications(
     client: UniFiClient,
     registry: Registry,
     host: str,
-    offset: int = 0,
-    limit: int = 0,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List DPI applications available for traffic rules, grouped by category.
 
     DPI data is host-level (not site-scoped); the site parameter is ignored.
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
     """
     host_id = await registry.resolve_host_id(host)
-    params: dict[str, Any] = {}
-    if offset is not None:
-        params["offset"] = offset
-    if limit is not None:
-        params["limit"] = limit
-    return await client.get(_proxy(host_id, "/dpi/applications"), params=params or None)
+    return await _drain_offset_list(
+        client, _proxy(host_id, "/dpi/applications"), offset=offset, limit=limit
+    )

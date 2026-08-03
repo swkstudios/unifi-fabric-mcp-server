@@ -12,11 +12,18 @@ TOKEN = "test-secret-token-1234"  # noqa: S105 — test-only value
 
 
 def _reload_server(monkeypatch, *, token: str = ""):
-    """Reload server module with MCP_BEARER_TOKEN set (or cleared)."""
+    """Reload server module with MCP_BEARER_TOKEN set (or cleared).
+
+    Bearer auth applies to HTTP transports only (fail-closed A2 reconciliation),
+    so whenever a token is set the transport is pinned to streamable-http to
+    mirror the Docker default and keep the config valid.
+    """
     if token:
         monkeypatch.setenv("MCP_BEARER_TOKEN", token)
+        monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
     else:
         monkeypatch.delenv("MCP_BEARER_TOKEN", raising=False)
+        monkeypatch.delenv("FASTMCP_TRANSPORT", raising=False)
 
     # Must also set a valid API key so Settings() doesn't fail at import time
     monkeypatch.setenv("UNIFI_API_KEY", "sk-reload-test")
@@ -35,17 +42,23 @@ def _reload_server(monkeypatch, *, token: str = ""):
 class TestMCPTransportSettings:
     def test_reads_bearer_token_from_env(self, monkeypatch):
         monkeypatch.setenv("MCP_BEARER_TOKEN", TOKEN)
+        # Auth is HTTP-only; pin transport so the fail-closed validator accepts it.
+        monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
         from unifi_fabric.config import MCPTransportSettings
 
         cfg = MCPTransportSettings()
         assert cfg.bearer_token == TOKEN
+        # Unset auth_mode resolves to "bearer" when a token is present.
+        assert cfg.auth_mode == "bearer"
 
     def test_defaults_to_empty(self, monkeypatch):
         monkeypatch.delenv("MCP_BEARER_TOKEN", raising=False)
+        monkeypatch.delenv("FASTMCP_TRANSPORT", raising=False)
         from unifi_fabric.config import MCPTransportSettings
 
         cfg = MCPTransportSettings()
         assert cfg.bearer_token == ""
+        assert cfg.auth_mode == "none"
 
 
 # ---------------------------------------------------------------------------
