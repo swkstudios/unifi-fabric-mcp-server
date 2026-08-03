@@ -10,6 +10,39 @@
       "headers": {
         "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
       }
+    },
+    "unifi-fabric-sse": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
+    },
+    "unifi-fabric-sse-with-bearer": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
+    },
+    "unifi-fabric-https": {
+      "type": "http",
+      "url": "https://localhost:3000/mcp"
+    },
+    "unifi-fabric-https-with-bearer": {
+      "type": "http",
+      "url": "https://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
+    },
+    "unifi-fabric-https-sse": {
+      "type": "sse",
+      "url": "https://localhost:3000/sse"
+    },
+    "unifi-fabric-https-sse-with-bearer": {
+      "type": "sse",
+      "url": "https://localhost:3000/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
     }
   }
 }

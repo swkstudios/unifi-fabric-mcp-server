@@ -15,7 +15,9 @@ async def test_lifespan_fails_without_api_key(monkeypatch):
 
     monkeypatch.delenv("UNIFI_API_KEY", raising=False)
     monkeypatch.delenv("UNIFI_API_KEYS", raising=False)
-    monkeypatch.setattr(server_module, "settings", Settings())
+    # Settings is built lazily inside lifespan via get_settings(); inject an
+    # unconfigured Settings through that seam rather than the old module global.
+    monkeypatch.setattr(server_module, "get_settings", lambda: Settings())
 
     with pytest.raises(RuntimeError, match="No API key configured"):
         async with lifespan(None):
@@ -27,7 +29,7 @@ async def test_lifespan_succeeds_with_api_key(monkeypatch):
     """Server should start successfully when UNIFI_API_KEY is set."""
     import unifi_fabric.server as server_module
 
-    monkeypatch.setattr(server_module, "settings", Settings(api_key="sk-test-key"))
+    monkeypatch.setattr(server_module, "get_settings", lambda: Settings(api_key="sk-test-key"))
 
     async with lifespan(None):
         assert server_module._client is not None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import ssl
 import sys
 
 # Suppress pydantic version URLs in validation error messages (information disclosure).
@@ -14,6 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import AuthProvider
 
 from .client import UniFiClient
 from .config import MCPTransportSettings, Settings
@@ -24,28 +26,49 @@ from .tools import (
     device_mgmt,
     firewall_proxy,
     hotspot,
+    innerspace,
     network,
     network_services_proxy,
     protect,
+    recognition,
     site_manager,
     statistics,
     vpn,
 )
 
-settings = Settings()
+_settings: Settings | None = None
 _client: UniFiClient | None = None
 _registry: Registry | None = None
 
-logging.basicConfig(
-    level=settings.log_level.upper(),
-    stream=sys.stderr,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+
+def get_settings() -> Settings:
+    """Lazily construct and cache the top-level :class:`Settings`.
+
+    Importing this module must not read the environment or be able to crash.
+    ``Settings()`` parses the ``UNIFI_*`` environment (including JSON-decoding
+    ``UNIFI_API_KEYS`` into ``list[APIKeyConfig]``) and raises ``SettingsError``
+    on malformed input. Constructing it at module scope turned a bad env var
+    into an *import-time* crash — surfacing as a pytest collection error for
+    every module that imports this one. Construction is deferred to first use
+    (``lifespan`` at server startup, or explicit callers) so the failure mode
+    is a proper startup error, not an import-time one.
+    """
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastMCP) -> AsyncIterator[None]:
     global _client, _registry
+    settings = get_settings()
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
+    )
     if not settings.get_key_configs():
         raise RuntimeError(
             "No API key configured. Set UNIFI_API_KEY or UNIFI_API_KEYS before starting the server."
@@ -100,7 +123,8 @@ When asked to "add a firewall rule", default to zone-based firewall policies unl
 user specifically asks for ACL rules or classic rules.
 
 ## Tool Organization
-- **Network**: networks/VLANs, WiFi broadcasts, WAN interfaces
+- **Network**: application info, local sites, networks/VLANs, WiFi broadcasts, WAN interfaces
+- **Switching**: LAGs, MC-LAG domains, switch stacks
 - **Port Forwarding**: `list_port_forwards`, `create_port_forward`,
   `update_port_forward`, `delete_port_forward`
 - **Firewall**: policies, zones, ACL rules, ordering
@@ -120,10 +144,18 @@ user specifically asks for ACL rules or classic rules.
   adoption, block/unblock clients
 - **Device Stats**: `list_device_stats`, `list_active_clients_stats`, `get_device_statistics`,
   `get_site_statistics`, `get_system_info`
+- **History**: `list_client_sessions` (~90d session history), `get_historical_stats`
+  (bucketed 5minutes/hourly/daily reports), `list_known_clients` (per-site roster incl. offline)
 - **Device Management**: adopt, unadopt, restart, upgrade, locate, execute actions
-- **Protect**: cameras, chimes, lights, sensors, viewers, liveviews, NVR, snapshots, PTZ control
+- **Protect**: cameras, chimes, lights, sensors, viewers, liveviews, NVR, snapshots, PTZ control,
+  `list_protect_events` (historical motion/smart-detect/sensor events, ~90d),
+  face/vehicle recognition — `list_recognition_groups`, `get_recognition_group_counts`,
+  `get_recognition_group_image`, `list_recognition_detections`, `get_thumbnail`
+- **InnerSpace**: floor-plan project geometry — walls, placed devices (with 3D
+  mounting heights), per-floor plans, product/material dictionaries
 - **VPN**: VPN servers (full CRUD), site-to-site tunnels (full CRUD),
-  RADIUS profiles (list read-only via proxy; CRUD via dedicated tools)
+  RADIUS profiles (list/get/create via dedicated tools; no update/delete —
+  the Site Manager API exposes no RADIUS profile mutation endpoint)
 - **Hotspot**: voucher management, operators
 - **ISP Metrics**: WAN health metrics (use interval='5m' or '1h')
 - **Fleet**: cross-host device search, fleet summary, site comparison
@@ -132,20 +164,25 @@ user specifically asks for ACL rules or classic rules.
 - **host + site required**: network, firewall, DNS, traffic routes, traffic rules,
   traffic matching lists, port forwarding, WLAN, dynamic DNS, settings, device,
   client, VPN server, RADIUS profile, hotspot operator tools,
+  `list_lags`, `get_lag`, `list_mc_lag_domains`, `get_mc_lag_domain`,
+  `list_switch_stacks`, `get_switch_stack`,
   `list_device_stats`, `list_active_clients_stats`, `get_device_statistics`,
-  `get_site_statistics`, `get_system_info`, `create_radius_profile`
-- **host only** (no site): `list_pending_devices`, `list_devices`,
+  `get_site_statistics`, `get_system_info`, `create_radius_profile`,
+  `list_client_sessions`, `get_historical_stats`, `list_known_clients`
+- **host only** (no site): `get_network_application_info`, `list_local_sites`,
+  `list_pending_devices`, `list_devices`,
   `list_cameras`, `get_camera`, `get_camera_snapshot`, `update_camera`, `ptz_goto_preset`,
   `ptz_patrol_start`, `ptz_patrol_stop`, `list_sensors`, `get_sensor`, `update_sensor`,
   `list_lights`, `get_light`, `update_light`, `list_chimes`, `get_chime`, `update_chime`,
   `list_viewers`, `get_viewer`, `update_viewer`, `list_liveviews`, `get_liveview`,
   `create_liveview`, `update_liveview`, `get_nvr`, `list_protect_files`, `upload_protect_file`,
   `trigger_alarm_webhook`, `start_talkback_session`, `disable_camera_mic_permanently`,
+  `list_protect_events`,
+  `list_recognition_groups`, `get_recognition_group_counts`, `get_recognition_group_image`,
+  `list_recognition_detections`, `get_thumbnail`,
+  `get_innerspace_summary`, `get_innerspace_project`, `list_innerspace_devices`,
   `list_countries`
 - **no host/site** (global EA API): fleet/aggregation tools
-- **ID only** (no host/site): `update_vpn_server`, `delete_vpn_server`,
-  `update_radius_profile`, `delete_radius_profile`, `update_hotspot_operator`,
-  `delete_hotspot_operator`
 
 ## Common Workflows
 
@@ -165,6 +202,13 @@ user specifically asks for ACL rules or classic rules.
 **Check WAN health:**
 1. `get_isp_metrics(interval='5m')` for recent metrics
 2. `list_wan_interfaces` for current WAN config
+
+**Look up face / vehicle recognition (Protect):**
+1. `list_recognition_groups` → enrolled subjects. NOTE: the parameter is `type`
+   (singular) and takes one value — `'face'` or `'vehicle'`, not a list.
+2. `list_recognition_detections` → individual sightings for a group; each detection
+   carries a `thumbnailId`.
+3. `get_thumbnail` → fetch that detection's crop (base64-encoded JPEG).
 
 ## Important Notes
 - **Read-only tools** are safe to call freely. Write tools (create/update/delete) modify
@@ -186,16 +230,103 @@ user specifically asks for ACL rules or classic rules.
   guest/IoT VLANs to prevent lateral movement between clients.
 """
 
+
+def build_auth(s: MCPTransportSettings) -> AuthProvider | None:
+    """Build the FastMCP auth provider for the resolved auth_mode.
+
+    - ``"none"``   -> ``None`` (no transport auth)
+    - ``"bearer"`` -> ``StaticTokenVerifier`` over the shared MCP_BEARER_TOKEN secret
+    - ``"oauth"``  -> ``RemoteAuthProvider`` wrapping a ``JWTVerifier`` (this server
+      is an OAuth 2.0 **resource server**: it verifies bearer JWTs minted by an
+      external authorization server and advertises itself via the
+      ``/.well-known/oauth-protected-resource`` metadata route — no IdP, login,
+      consent or dynamic client registration lives here)
+
+    The Phase-0 config validator already guarantees the oauth descriptor is complete
+    (issuer + jwks_uri + audience + base_url, fail-closed), so this builder can rely
+    on those fields being populated.
+    """
+    mode = s.auth_mode
+    if mode in (None, "none"):
+        return None
+    if mode == "bearer":
+        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+        return StaticTokenVerifier(tokens={s.bearer_token: {"client_id": "mcp", "scopes": []}})
+    if mode == "oauth":
+        from fastmcp.server.auth import RemoteAuthProvider
+        from fastmcp.server.auth.providers.jwt import JWTVerifier
+        from pydantic import AnyHttpUrl
+
+        # Token verifier: validate the JWT signature against the IdP's JWKS and
+        # enforce issuer / audience / required-scope claims. ssrf_safe defaults to
+        # False, which is appropriate for a JWKS URI supplied by the operator.
+        verifier = JWTVerifier(
+            jwks_uri=s.oauth_jwks_uri,
+            issuer=s.oauth_issuer,
+            audience=s.oauth_audience,
+            required_scopes=s.oauth_required_scopes,
+            algorithm=s.oauth_algorithm,
+        )
+        # Resource-server wrapper: serves the protected-resource discovery document
+        # naming the upstream authorization server(s). No client-redirect handling
+        # belongs here — that is the authorization server's responsibility.
+        return RemoteAuthProvider(
+            token_verifier=verifier,
+            authorization_servers=[AnyHttpUrl(u) for u in s.oauth_authorization_servers],
+            base_url=s.oauth_base_url,
+        )
+    # Unreachable: config validation restricts auth_mode to the values above.
+    raise ValueError(f"Unsupported auth_mode: {mode!r}")
+
+
+# Maps the MCP_TLS_CERT_REQS selector to the stdlib ssl client-verification
+# constant uvicorn expects. mTLS-only knob (https has no client cert).
+_CERT_REQS_MAP: dict[str, int] = {
+    "none": ssl.CERT_NONE,
+    "optional": ssl.CERT_OPTIONAL,
+    "required": ssl.CERT_REQUIRED,
+}
+
+
+def build_uvicorn_config(s: MCPTransportSettings) -> dict[str, Any] | None:
+    """Build uvicorn ssl kwargs for the resolved tls_mode.
+
+    Returns ``None`` for ``tls_mode="none"`` so the caller can omit the kwarg
+    entirely (fail-closed: stdio's ``run_stdio_async`` rejects ``uvicorn_config``).
+
+    Client-certificate verification (``ssl_cert_reqs``) is driven by the
+    ``tls_cert_reqs`` selector rather than hard-coded:
+
+    - ``https`` requests no client certificate, so ``ssl_cert_reqs`` is left
+      unset — uvicorn's default is ``ssl.CERT_NONE``. The selector is an mTLS
+      knob and does not apply here.
+    - ``mtls`` maps the selector (``none``/``optional``/``required``) to the
+      matching ``ssl.CERT_*`` constant, defaulting to ``ssl.CERT_REQUIRED`` when
+      unset. ``none`` is rejected up-front by the fail-closed config validator,
+      so it can never reach this builder under mTLS.
+    """
+    if s.tls_mode == "none":
+        return None
+    config: dict[str, Any] = {
+        "ssl_certfile": s.tls_certfile,
+        "ssl_keyfile": s.tls_keyfile,
+        "ssl_keyfile_password": s.tls_key_password or None,
+    }
+    if s.tls_mode == "mtls":
+        config["ssl_ca_certs"] = s.tls_ca_certs
+        config["ssl_cert_reqs"] = _CERT_REQS_MAP[s.tls_cert_reqs or "required"]
+    return config
+
+
 _mcp_transport = MCPTransportSettings()
-_mcp_auth = None
-if _mcp_transport.bearer_token:
-    from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
-    _mcp_auth = StaticTokenVerifier(
-        tokens={_mcp_transport.bearer_token: {"client_id": "mcp", "scopes": []}}
-    )
-
-mcp = FastMCP("UniFi Fabric", instructions=INSTRUCTIONS, lifespan=lifespan, auth=_mcp_auth)
+mcp = FastMCP(
+    "UniFi Fabric",
+    instructions=INSTRUCTIONS,
+    lifespan=lifespan,
+    auth=build_auth(_mcp_transport),
+)
 
 
 def _require() -> tuple[UniFiClient, Registry]:
@@ -209,32 +340,31 @@ def _require() -> tuple[UniFiClient, Registry]:
 
 @mcp.tool()
 async def list_hosts(
-    include_gps: bool = False,
     page_token: str | None = None,
 ) -> dict[str, Any]:
     """List all UniFi consoles (hosts) with firmware, WAN IP, and status.
 
-    GPS coordinates are hidden by default for privacy. Set include_gps=True to include them.
-    Supports cursor pagination via page_token.
+    Host records are returned verbatim, including reportedState GPS coordinates.
+    By default every page is drained and the complete host list is returned. Pass
+    page_token to fetch a single page manually (the response then carries a
+    nextToken cursor to continue). A capped drain returns the hosts gathered so
+    far with incomplete=true rather than truncating silently.
     """
     client, registry = _require()
-    return await site_manager.list_hosts(
-        client, registry, include_gps=include_gps, page_token=page_token
-    )
+    return await site_manager.list_hosts(client, registry, page_token=page_token)
 
 
 @mcp.tool()
 async def get_host(
     host: str,
-    include_gps: bool = False,
 ) -> dict[str, Any]:
     """Get details for a single UniFi console by name or ID.
 
     host: console name, ID, or composite ID (MAC:numericId format for cloud consoles).
-    GPS coordinates are hidden by default. Set include_gps=True to include them.
+    Host record is returned verbatim, including reportedState GPS coordinates.
     """
     client, registry = _require()
-    return await site_manager.get_host(client, registry, host, include_gps=include_gps)
+    return await site_manager.get_host(client, registry, host)
 
 
 @mcp.tool()
@@ -248,7 +378,10 @@ async def list_sites(
     pass site **names** (e.g., "Default") to all tools and the server resolves the correct
     ID internally.
 
-    Supports cursor pagination via page_token.
+    By default every page is drained and the complete site list is returned. Pass
+    page_token to fetch a single page manually (the response then carries a
+    nextToken cursor to continue). A capped drain returns the sites gathered so
+    far with incomplete=true rather than truncating silently.
     """
     client, registry = _require()
     return await site_manager.list_sites(client, registry, page_token=page_token)
@@ -262,7 +395,10 @@ async def list_devices(
     """List all devices across the fleet with status, firmware, and model.
 
     host: optional filter by console name, ID, or composite ID (MAC:numericId format).
-    Supports cursor pagination via page_token.
+    By default every page is drained and the complete device list is returned.
+    Pass page_token to fetch a single page manually (the response then carries a
+    nextToken cursor to continue). A capped drain returns the devices gathered so
+    far with incomplete=true rather than truncating silently.
     """
     client, registry = _require()
     return await site_manager.list_devices(client, registry, host=host, page_token=page_token)
@@ -320,7 +456,10 @@ async def list_sdwan_configs(
 ) -> dict[str, Any]:
     """List Site Magic (SD-WAN) VPN mesh configurations.
 
-    Supports cursor pagination via page_token.
+    By default every page is drained and the complete config list is returned.
+    Pass page_token to fetch a single page manually (the response then carries a
+    nextToken cursor to continue). A capped drain returns the configs gathered so
+    far with incomplete=true rather than truncating silently.
     """
     client, _ = _require()
     return await site_manager.list_sdwan_configs(client, page_token=page_token)
@@ -407,16 +546,59 @@ async def get_site_inventory(
 
 
 @mcp.tool()
+async def get_network_application_info(
+    host: str,
+) -> dict[str, Any]:
+    """Get the UniFi Network application version reported by a console.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    """
+    client, registry = _require()
+    return await network.get_network_application_info(client, registry, host)
+
+
+@mcp.tool()
+async def list_local_sites(
+    host: str,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List sites managed by one UniFi Network application.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    By default every page is drained and the complete list is returned. Pass
+    offset/limit to fetch a single page manually (native envelope preserved).
+    A capped drain returns the sites gathered so far with incomplete=true rather
+    than truncating silently. filter: optional UniFi Integration API filter.
+    """
+    client, registry = _require()
+    return await network.list_local_sites(
+        client,
+        registry,
+        host,
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+@mcp.tool()
 async def list_networks(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List all networks/VLANs for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Networks are offset-paginated (native default page size 25); by default every page
+    is drained and the complete list is returned as {data, totalCount}. Pass offset or
+    limit for a single manual page. A capped drain is flagged incomplete.
     """
     client, registry = _require()
-    return await network.list_networks(client, registry, host, site)
+    return await network.list_networks(client, registry, host, site, offset=offset, limit=limit)
 
 
 @mcp.tool()
@@ -506,6 +688,132 @@ async def get_network_references(
     """
     client, registry = _require()
     return await network.get_network_references(client, registry, host, site, network_id)
+
+
+@mcp.tool()
+async def list_lags(
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List Link Aggregation Groups (LAGs) on a site.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    filter: optional UniFi Integration API filter expression.
+    """
+    client, registry = _require()
+    return await network.list_lags(
+        client,
+        registry,
+        host,
+        site,
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+@mcp.tool()
+async def get_lag(
+    host: str,
+    site: str,
+    lag_id: str,
+) -> dict[str, Any]:
+    """Get one Link Aggregation Group.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    lag_id: LAG UUID from list_lags.
+    """
+    client, registry = _require()
+    return await network.get_lag(client, registry, host, site, lag_id)
+
+
+@mcp.tool()
+async def list_mc_lag_domains(
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List Multi-Chassis Link Aggregation (MC-LAG) domains on a site.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    filter: optional UniFi Integration API filter expression.
+    """
+    client, registry = _require()
+    return await network.list_mc_lag_domains(
+        client,
+        registry,
+        host,
+        site,
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+@mcp.tool()
+async def get_mc_lag_domain(
+    host: str,
+    site: str,
+    mc_lag_domain_id: str,
+) -> dict[str, Any]:
+    """Get one Multi-Chassis Link Aggregation domain.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    mc_lag_domain_id: domain UUID from list_mc_lag_domains.
+    """
+    client, registry = _require()
+    return await network.get_mc_lag_domain(client, registry, host, site, mc_lag_domain_id)
+
+
+@mcp.tool()
+async def list_switch_stacks(
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List switch stacks on a site.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    filter: optional UniFi Integration API filter expression.
+    """
+    client, registry = _require()
+    return await network.list_switch_stacks(
+        client,
+        registry,
+        host,
+        site,
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+@mcp.tool()
+async def get_switch_stack(
+    host: str,
+    site: str,
+    switch_stack_id: str,
+) -> dict[str, Any]:
+    """Get one switch stack.
+
+    host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    switch_stack_id: switch-stack UUID from list_switch_stacks.
+    """
+    client, registry = _require()
+    return await network.get_switch_stack(client, registry, host, site, switch_stack_id)
 
 
 @mcp.tool()
@@ -626,15 +934,16 @@ clients.register(mcp, _require)
 async def list_firewall_policies(
     host: str,
     site: str,
-    offset: int = 0,
-    limit: int = 50,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
-    """List firewall policies for a site with pagination.
+    """List firewall policies for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-    offset: number of records to skip (0 = start from beginning).
-    limit: maximum records to return (0 = no limit, return all). Default 50.
-    The response includes totalCount so callers can detect additional pages.
+    By default every page is drained and the complete policy list is returned as
+    {data, totalCount}. Pass offset/limit to fetch a single page manually (the
+    API's totalCount is surfaced so you can advance). A capped drain returns the
+    policies gathered so far with incomplete=true rather than truncating silently.
     """
     client, registry = _require()
     return await firewall_proxy.list_firewall_policies(client, registry, host, site, offset, limit)
@@ -770,13 +1079,20 @@ async def set_firewall_policy_ordering(
 async def list_firewall_zones_proxy(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List all firewall zones for a site via connector proxy.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Zones are offset-paginated (native default page size 25); by default every page is
+    drained and the complete list is returned as {data, totalCount}. Pass offset or
+    limit for a single manual page. A capped drain is flagged incomplete.
     """
     client, registry = _require()
-    return await firewall_proxy.list_firewall_zones(client, registry, host, site)
+    return await firewall_proxy.list_firewall_zones(
+        client, registry, host, site, offset=offset, limit=limit
+    )
 
 
 @mcp.tool()
@@ -958,13 +1274,20 @@ async def set_acl_rule_ordering(
 async def list_dns_policies(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List all DNS policies for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    DNS policies are offset-paginated (native default page size 25); by default every
+    page is drained and the complete list is returned as {data, totalCount}. Pass
+    offset or limit for a single manual page. A capped drain is flagged incomplete.
     """
     client, registry = _require()
-    return await network_services_proxy.list_dns_policies(client, registry, host, site)
+    return await network_services_proxy.list_dns_policies(
+        client, registry, host, site, offset=offset, limit=limit
+    )
 
 
 @mcp.tool()
@@ -1123,13 +1446,20 @@ async def delete_traffic_matching_list(
 async def list_vpn_servers(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List VPN servers for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    VPN servers are offset-paginated (native default page size 25); by default every
+    page is drained and the complete list is returned as {data, totalCount}. Pass
+    offset or limit for a single manual page. A capped drain is flagged incomplete.
     """
     client, registry = _require()
-    return await network_services_proxy.list_vpn_servers(client, registry, host, site)
+    return await network_services_proxy.list_vpn_servers(
+        client, registry, host, site, offset=offset, limit=limit
+    )
 
 
 @mcp.tool()
@@ -1152,13 +1482,20 @@ async def list_site_to_site_tunnels(
 async def list_radius_profiles(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List RADIUS profiles for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    RADIUS profiles are offset-paginated (native default page size 25); by default
+    every page is drained and the complete list is returned as {data, totalCount}.
+    Pass offset or limit for a single manual page. A capped drain is flagged incomplete.
     """
     client, registry = _require()
-    return await network_services_proxy.list_radius_profiles(client, registry, host, site)
+    return await network_services_proxy.list_radius_profiles(
+        client, registry, host, site, offset=offset, limit=limit
+    )
 
 
 # --- Hotspot Voucher Tools ---
@@ -1168,13 +1505,21 @@ async def list_radius_profiles(
 async def list_hotspot_vouchers(
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List all hotspot vouchers for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+    Vouchers are offset-paginated (native default page size 100) and batches routinely
+    exceed that; by default every page is drained and the complete list is returned as
+    {data, totalCount}. Pass offset or limit for a single manual page. A capped drain
+    is flagged incomplete.
     """
     client, registry = _require()
-    return await network_services_proxy.list_hotspot_vouchers(client, registry, host, site)
+    return await network_services_proxy.list_hotspot_vouchers(
+        client, registry, host, site, offset=offset, limit=limit
+    )
 
 
 @mcp.tool()
@@ -1349,8 +1694,14 @@ async def create_rtsps_stream(
     """Create an RTSPS stream for a Protect camera.
 
     host: console name, ID, or composite ID (MAC:numericId format).
-    qualities: list of quality levels to enable, e.g. ['highest', 'high', 'medium', 'low'].
-    Case-insensitive — values are normalized to lowercase before sending to the API.
+    qualities: list of channel names to enable. The exhaustive set is 'high', 'medium',
+      'low', and 'package' (verified live against get_rtsps_stream, which reports exactly
+      these four channel keys). 'package' exists only on package-camera doorbells; on other
+      cameras it is null. There is NO 'highest' channel. Case-insensitive — values are
+      normalized to lowercase before sending. The list is forwarded to the API as-is with
+      no local allow-list, so an unrecognised name is not validated here; the upstream
+      Protect API governs the outcome (a name with no matching channel yields no stream for
+      that entry rather than a local error).
     """
     client, registry = _require()
     return await protect.create_rtsps_stream(client, registry, host, camera_id, qualities)
@@ -1365,8 +1716,11 @@ async def delete_rtsps_stream(
     """Delete an RTSPS stream for a Protect camera.
 
     host: console name, ID, or composite ID (MAC:numericId format).
-    qualities: list of quality levels to delete, e.g. ['highest', 'high'].
-    Case-insensitive — values are normalized to lowercase before sending to the API.
+    qualities: list of channel names to delete. The exhaustive set is 'high', 'medium',
+      'low', and 'package' (verified live; 'package' only on package-camera doorbells).
+      There is NO 'highest' channel. Case-insensitive — values are normalized to lowercase
+      before sending. Forwarded to the API as-is with no local allow-list; an unrecognised
+      name is not validated here and the upstream Protect API governs the outcome.
     """
     client, registry = _require()
     await protect.delete_rtsps_stream(client, registry, host, camera_id, qualities)
@@ -1483,6 +1837,225 @@ async def update_sensor(
     """
     client, registry = _require()
     return await protect.update_sensor(client, registry, host, sensor_id, **settings)
+
+
+# --- Protect Historical Events ---
+
+
+@mcp.tool()
+async def list_protect_events(
+    host: str,
+    start: int,
+    end: int,
+    types: str | list[str] | None = None,
+    cameras: str | list[str] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    order_direction: str = "ASC",
+    smart_detect_types: str | list[str] | None = None,
+    categories: str | list[str] | None = None,
+    without_descriptions: bool | None = None,
+) -> dict[str, Any]:
+    """Query historical Protect events (motion, smart-detect, sensor open/close, etc.).
+
+    This uses the private /proxy/protect/api/events REST path — the ONLY source of
+    historical events. The official Protect Integration API exposes events solely over
+    WebSocket (/v1/subscribe/events) with no REST query endpoint, so do not expect the
+    integration path to answer this.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    start/end: epoch SECONDS (UTC), converted to milliseconds internally. Ranges are
+      inclusive on both ends. History depth is bounded by the NVR's retention.
+    types: filter by event TYPE; single value or a list. Verified-present values:
+      motion, smartDetectZone, smartAudioDetect, sensorOpened, sensorClosed, access.
+      NOTE: person/face/animal/alrmSpeak are NOT event types — they are smart-detect
+      subtypes and belong in smart_detect_types, not here. An unrecognised value
+      returns zero events.
+    smart_detect_types: filter by the smart-detect SUBTYPE — person, vehicle, animal,
+      package, face, licensePlate (on smartDetectZone events) and the audio alarms
+      alrmSpeak, alrmSiren, alrmBark, alrmCarHorn (on smartAudioDetect events). This is
+      a distinct upstream parameter from types. The API only honours it when types is
+      also set to the relevant event type(s); passing smart_detect_types alone is a
+      silent no-op upstream, so this tool rejects that with a clear error. Example:
+      types="smartDetectZone", smart_detect_types="person" for just person detections;
+      types="smartAudioDetect", smart_detect_types="alrmSpeak" to isolate the dominant
+      audio-alarm noise.
+    cameras: filter by camera NAME or ID; single value or list. Names resolve to IDs
+      (case-insensitive) — an unknown name errors rather than silently matching nothing.
+    categories: filter by event category; single value or list. Verified values:
+      motion, smart, iot, admin. Unknown values are silently ignored by the upstream API.
+    without_descriptions: when true, ask the API to omit each event's description block
+      (~16% smaller payload). Opt-in only — full-fidelity records are the default and
+      descriptions are never dropped automatically.
+    limit/offset: offset-based pagination (not cursor-based). By default (neither
+      given) every page is drained and the complete event set for the window is
+      returned — a wide window can hold tens of thousands of events, so expect all of
+      them, not just the first page. Pass offset or limit to fetch a single manual
+      page instead; a capped drain is flagged incomplete rather than truncating.
+    order_direction: "ASC" (default, oldest-first) or "DESC" (newest-first).
+
+    Sensor events set the top-level ``sensor`` field to null; the sensor reference at
+    metadata.sensorId.text is promoted to that field so you can filter/join on it.
+    Events are passed through verbatim, including identifiers (MAC/IP/hostname/name) and
+    the metadata.name object carrying camera / recognised-person / license-plate text; the
+    recognised-person name on face events is at metadata.detectedThumbnails[].matchedName.
+    """
+    client, registry = _require()
+    return await protect.list_protect_events(
+        client,
+        registry,
+        host,
+        start,
+        end,
+        types,
+        cameras,
+        limit,
+        offset,
+        order_direction,
+        smart_detect_types=smart_detect_types,
+        categories=categories,
+        without_descriptions=without_descriptions,
+    )
+
+
+# --- Protect Face/Vehicle Recognition (private REST path) ---
+
+
+@mcp.tool()
+async def list_recognition_groups(
+    host: str,
+    type: str,
+    has_name: bool | None = None,
+    page_size: int | None = None,
+    order_by: str | None = None,
+    order_direction: str | None = None,
+    page: int | None = None,
+) -> dict[str, Any]:
+    """List recognition groups (enrolled faces / vehicles) on a Protect console.
+
+    Uses the private /proxy/protect/api/recognition/{type}/groups REST path (not the
+    Protect Integration API, which has no recognition surface). Each group is a
+    recognised subject with a stable, monotonic id (face_1, face_90, …), a name /
+    matchedName label, a detectionsCount, and createdAt/firstDetectedAt/lastDetectedAt
+    timestamps usable as sync and change-detection keys. This is a faithful pass-through:
+    the name label is returned as-is and nothing is redacted.
+
+    Response shape: {"groups": [...], "count": N} (plus "nextPage" / "incomplete" when
+    paging manually). The array key is "groups", NOT "data" — unlike the offset-proxy
+    tools that return {"data": [...], "totalCount": N}; read the list from result["groups"].
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    type: recognition type. Use 'face' or 'vehicle' (singular). Plural forms
+      ('faces', 'vehicles') are NOT valid and return HTTP 400 from upstream — two
+      separate agents have guessed plural and hit this error. The value is forwarded
+      as-is, so any other type the console accepts also works, and any it rejects is
+      answered by the API's own error.
+    has_name: when true, return only named groups (unnamed groups are filtered out).
+    page_size: API page size; also the drain page size. Defaults to 200.
+    order_by / order_direction: server-side sort. order_direction is 'asc' or 'desc',
+      case-insensitive ('ASC'/'DESC' behave identically); an unrecognised value is
+      rejected upstream with HTTP 400. It only takes effect together with order_by
+      (e.g. order_by='name') — with order_by set but order_direction omitted the API
+      defaults to descending. order_by accepts name, createdAt, lastDetectedAt, or
+      detectionsCount.
+    page: fetch a single page (1-based) instead of draining. The response pages via a
+      links.next envelope; by default every page is drained and the complete group set
+      is returned. Pass page to fetch one page manually — nextPage is then surfaced.
+    """
+    client, registry = _require()
+    return await recognition.list_recognition_groups(
+        client, registry, host, type, has_name, page_size, order_by, order_direction, page
+    )
+
+
+@mcp.tool()
+async def get_recognition_group_counts(
+    host: str,
+    type: str,
+) -> dict[str, Any]:
+    """Get aggregate recognition-group counts for a Protect console.
+
+    Returns totals such as totalCount, nameNotNullCount (named groups), nameIsNullCount,
+    notificationEnabledCount, and degradedCount.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    type: recognition type. Use 'face' or 'vehicle' (singular — plural forms
+      return HTTP 400 from upstream). Forwarded to the API as-is.
+    """
+    client, registry = _require()
+    return await recognition.get_recognition_group_counts(client, registry, host, type)
+
+
+@mcp.tool()
+async def get_recognition_group_image(
+    host: str,
+    type: str,
+    group_id: str,
+) -> dict[str, Any]:
+    """Get a recognition group's reference crop. Returns base64-encoded JPEG image data.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    type: recognition type. Use 'face' or 'vehicle' (singular -- plural forms
+      return HTTP 400 from upstream). Forwarded to the API as-is.
+    group_id: the group's stable id, e.g. face_90.
+    """
+    client, registry = _require()
+    return await recognition.get_recognition_group_image(client, registry, host, type, group_id)
+
+
+@mcp.tool()
+async def list_recognition_detections(
+    host: str,
+    type: str,
+    group_id: str,
+    page_size: int | None = None,
+    start: int | None = None,
+    end: int | None = None,
+    page: int | None = None,
+) -> dict[str, Any]:
+    """List a recognition group's detections (individual sightings) on a Protect console.
+
+    Each detection carries id, eventId (joinable against list_protect_events), thumbnailId
+    (fetch the crop with get_thumbnail), detectedAt (epoch ms), cameraId, and
+    matchedGroupConfidence (0-100).
+
+    Response shape: {"detections": [...], "count": N} (plus "nextPage" / "incomplete" when
+    paging manually). The array key is "detections", NOT "data" — unlike the offset-proxy
+    tools that return {"data": [...], "totalCount": N}; read the list from
+    result["detections"].
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    type: recognition type. Use 'face' or 'vehicle' (singular -- plural forms
+      return HTTP 400 from upstream). Forwarded to the API as-is.
+    group_id: the group's stable id, e.g. face_90.
+    page_size: API page size; also the drain page size. Defaults to 200.
+    start/end: optional time window in epoch SECONDS (UTC), converted to milliseconds
+      internally. Verified live: the endpoint filters detections server-side by detectedAt
+      against this window, so an arbitrary range (e.g. the last hour, 30 days, or 90 days)
+      can be requested directly. Omit both for all detections.
+    page: fetch a single page (1-based) instead of draining. The response pages via a
+      links.next envelope; by default every page is drained so the complete detection set
+      for the group (and window, if given) is returned. Pass page to fetch one page
+      manually — nextPage is then surfaced.
+    """
+    client, registry = _require()
+    return await recognition.list_recognition_detections(
+        client, registry, host, type, group_id, page_size, start, end, page
+    )
+
+
+@mcp.tool()
+async def get_thumbnail(
+    host: str,
+    thumbnail_id: str,
+) -> dict[str, Any]:
+    """Get a detection thumbnail crop. Returns base64-encoded JPEG image data.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    thumbnail_id: the thumbnailId from a detection record.
+    """
+    client, registry = _require()
+    return await recognition.get_thumbnail(client, registry, host, thumbnail_id)
 
 
 # --- Protect Light Tools ---
@@ -1701,7 +2274,10 @@ async def list_protect_files(
     """List Protect device asset files of a given type.
 
     host: console name, ID, or composite ID (MAC:numericId format).
-    file_type: asset category, e.g. 'sounds' or 'images'.
+    file_type: Protect asset category. 'sounds' and 'images' are the known categories.
+      The GET endpoint does NOT validate this value — an unrecognised category returns
+      HTTP 200 with an empty list rather than an error, so a wrong value is
+      indistinguishable from a genuinely empty category. Pass a known category exactly.
     """
     client, registry = _require()
     return await protect.list_protect_files(client, registry, host, file_type)
@@ -1718,7 +2294,9 @@ async def upload_protect_file(
     Overwriting system files may not be reversible.
 
     host: console name, ID, or composite ID (MAC:numericId format).
-    file_type: asset category, e.g. 'sounds' or 'images'.
+    file_type: Protect asset category. 'sounds' and 'images' are the known categories;
+      the value selects the upload target path (/files/{file_type}). The category is not
+      validated on read-back, so pass a known category exactly.
     filename: name of the file to upload (e.g. 'alert.mp3').
     file_content_base64: base64-encoded file content.
     """
@@ -2090,17 +2668,14 @@ async def update_setting(
 async def list_dynamic_dns(
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List Dynamic DNS provider configurations for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-    include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_password credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.list_dynamic_dns(
-        client, registry, host, site, include_secrets
-    )
+    return await network_services_proxy.list_dynamic_dns(client, registry, host, site)
 
 
 @mcp.tool()
@@ -2108,17 +2683,14 @@ async def get_dynamic_dns(
     host: str,
     site: str,
     ddns_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single Dynamic DNS configuration by ID.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-    include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_password credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.get_dynamic_dns(
-        client, registry, host, site, ddns_id, include_secrets
-    )
+    return await network_services_proxy.get_dynamic_dns(client, registry, host, site, ddns_id)
 
 
 @mcp.tool()
@@ -2212,17 +2784,14 @@ async def list_routing_entries(
 async def list_wlan_configs(
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List per-SSID WLAN configurations (security, band steering, rate limits) for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-    include_secrets: if True, return plaintext x_passphrase values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_passphrase credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.list_wlan_configs(
-        client, registry, host, site, include_secrets
-    )
+    return await network_services_proxy.list_wlan_configs(client, registry, host, site)
 
 
 @mcp.tool()
@@ -2230,18 +2799,15 @@ async def get_wlan_config(
     host: str,
     site: str,
     wlan_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single WLAN (SSID) configuration by ID.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
     wlan_id: WLAN config ID.
-    include_secrets: if True, return plaintext x_passphrase values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_passphrase credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.get_wlan_config(
-        client, registry, host, site, wlan_id, include_secrets
-    )
+    return await network_services_proxy.get_wlan_config(client, registry, host, site, wlan_id)
 
 
 @mcp.tool()
@@ -2403,15 +2969,14 @@ async def get_firewall_group(
 async def list_accounts(
     host: str,
     site: str,
-    include_secrets: bool = False,
 ) -> Any:
     """List local RADIUS user accounts for a site.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-    include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_password credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.list_accounts(client, registry, host, site, include_secrets)
+    return await network_services_proxy.list_accounts(client, registry, host, site)
 
 
 @mcp.tool()
@@ -2419,18 +2984,15 @@ async def get_account(
     host: str,
     site: str,
     account_id: str,
-    include_secrets: bool = False,
 ) -> Any:
     """Get a single RADIUS account by ID.
 
     host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
     account_id: RADIUS account ID.
-    include_secrets: if True, return plaintext x_password values; defaults to False (redacted).
+    Returned verbatim, including plaintext x_password credential fields.
     """
     client, registry = _require()
-    return await network_services_proxy.get_account(
-        client, registry, host, site, account_id, include_secrets
-    )
+    return await network_services_proxy.get_account(client, registry, host, site, account_id)
 
 
 # --- Hotspot Package Tools ---
@@ -2504,16 +3066,18 @@ async def get_scheduled_task(
 async def list_dpi_categories(
     host: str,
     site: str = "",
-    offset: int = 0,
-    limit: int = 0,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List DPI (Deep Packet Inspection) app categories available for traffic rules.
 
     Categories include Social Media, Streaming Video, Gaming, etc.
     host: console name, ID, or composite ID (MAC:numericId format).
     site: ignored — DPI data is host-level, not site-scoped.
-    offset: number of records to skip (0 = start from beginning).
-    limit: maximum records to return (0 = no limit, return all).
+    By default every page is drained and the complete catalogue is returned as
+    {data, totalCount}. Pass offset/limit to fetch a single page manually. A
+    capped drain returns the categories gathered so far with incomplete=true
+    rather than truncating silently.
     """
     client, registry = _require()
     return await network_services_proxy.list_dpi_categories(client, registry, host, offset, limit)
@@ -2523,24 +3087,95 @@ async def list_dpi_categories(
 async def list_dpi_applications(
     host: str,
     site: str = "",
-    offset: int = 0,
-    limit: int = 0,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """List DPI applications available for traffic rules.
 
     Companion to list_dpi_categories; use application IDs in traffic rule configurations.
     host: console name, ID, or composite ID (MAC:numericId format).
     site: ignored — DPI data is host-level, not site-scoped.
-    offset: number of records to skip (0 = start from beginning).
-    limit: maximum records to return (0 = no limit, return all).
+    By default every page is drained and the complete catalogue is returned as
+    {data, totalCount}. Pass offset/limit to fetch a single page manually. A
+    capped drain returns the applications gathered so far with incomplete=true
+    rather than truncating silently.
     """
     client, registry = _require()
     return await network_services_proxy.list_dpi_applications(client, registry, host, offset, limit)
 
 
+# --- InnerSpace Floor-Plan Tools ---
+
+
+@mcp.tool()
+async def get_innerspace_summary(
+    host: str,
+    mode: str = "3D",
+) -> dict[str, Any]:
+    """Inventory a console's InnerSpace floor-plan project without the full payload.
+
+    Returns counts and structure: shape breakdown by type (wall / device / map /
+    scale), per-floor plans with each plan's own scale, product and wall-material /
+    attenuation-type dictionary sizes, and project metadata. Call this before
+    get_innerspace_project when you only need to know what's present. Surfaces the
+    multi-floor caveat: floors do not share a coordinate origin.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    mode: '3D' (default; device shapes carry real metric mounting heights) or '2D'.
+    """
+    client, registry = _require()
+    return await innerspace.get_innerspace_summary(client, registry, host, mode)
+
+
+@mcp.tool()
+async def get_innerspace_project(
+    host: str,
+    mode: str = "3D",
+) -> dict[str, Any]:
+    """Return the full InnerSpace floor-plan project geometry for a console.
+
+    The complete (~66 KB) project document: shapes, plans, products, wall types,
+    and attenuation-object types. Returned verbatim, including device meta.mac /
+    meta.ip and floor-plan image/asset URLs. Prefer get_innerspace_summary first
+    if you only need an inventory — this payload is large.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    mode: '3D' (default; device shapes carry real metric mounting heights) or '2D'
+    (device shapes flattened to z=0). 3D is the only mode with real heights.
+    """
+    client, registry = _require()
+    return await innerspace.get_innerspace_project(client, registry, host, mode)
+
+
+@mcp.tool()
+async def list_innerspace_devices(
+    host: str,
+    mode: str = "3D",
+) -> dict[str, Any]:
+    """List placed device shapes from a console's InnerSpace floor-plan.
+
+    Each mounted device's placement: mount, productId, title, position, and
+    rotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including
+    device meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting
+    heights; mode='2D' flattens positions to z=0.
+
+    host: console name, ID, or composite ID (MAC:numericId format).
+    mode: '3D' (default) or '2D'.
+    """
+    client, registry = _require()
+    return await innerspace.list_innerspace_devices(client, registry, host, mode)
+
+
 def main() -> None:
     """Entry point for the MCP server."""
-    mcp.run()
+    # Conditional uvicorn_config: only pass it when TLS is configured. stdio's
+    # run_stdio_async() takes no **kwargs, so an unconditional uvicorn_config
+    # would raise TypeError whenever the transport is stdio.
+    uvicorn_config = build_uvicorn_config(_mcp_transport)
+    if uvicorn_config:
+        mcp.run(uvicorn_config=uvicorn_config)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

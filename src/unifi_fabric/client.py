@@ -86,12 +86,25 @@ class PaginationAbortedError(Exception):
         path: The API path being paginated.
         page_count: Number of pages fetched before abort.
         reason: Human-readable reason for the abort.
+        items: Records gathered across the pages fetched *before* the abort. A
+            caller that prefers a partial-but-clearly-incomplete result over a
+            hard failure can recover these instead of discarding them — the
+            drain never silently truncates, but it also never throws the pages
+            it already paid for on the floor.
     """
 
-    def __init__(self, path: str, page_count: int, reason: str) -> None:
+    def __init__(
+        self,
+        path: str,
+        page_count: int,
+        reason: str,
+        *,
+        items: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.path = path
         self.page_count = page_count
         self.reason = reason
+        self.items: list[dict[str, Any]] = items if items is not None else []
         super().__init__(f"Pagination aborted on {path!r} after {page_count} pages: {reason}")
 
 
@@ -352,6 +365,7 @@ class UniFiClient:
                     path,
                     page_count,
                     f"stall detected — nextToken {next_token!r} repeated",
+                    items=all_items,
                 )
 
             if max_pages is not None and page_count >= max_pages:
@@ -359,10 +373,149 @@ class UniFiClient:
                     path,
                     page_count,
                     f"page cap of {max_pages} reached",
+                    items=all_items,
                 )
 
             prev_token = next_token
             req_params["nextToken"] = next_token
+
+        return all_items
+
+    async def paginate_offset(
+        self,
+        path: str,
+        *,
+        key: APIKeyConfig | None = None,
+        params: dict[str, Any] | None = None,
+        page_size: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Auto-paginate an offset-based list endpoint (offset/limit/totalCount).
+
+        The UniFi Network *Integration* proxy endpoints (per-site clients,
+        devices, firewall policies, switching resources, DPI catalogues, …) are
+        offset-paginated, not cursor-paginated: the response carries
+        ``{data, offset, limit, count, totalCount}`` and the caller advances by
+        ``offset += limit``. ``paginate()`` (nextToken cursor) does not fit them,
+        so this is the sibling drainer for that shape.
+
+        Termination is defensive, in priority order:
+        1. a short/empty page (``len(page) < limit``) is the last page;
+        2. ``totalCount``, when the API reports it, is authoritative;
+        3. ``UNIFI_PAGINATE_MAX_PAGES`` backstops a server that never signals an
+           end — reaching it raises PaginationAbortedError (carrying the pages
+           already gathered) rather than looping forever or truncating silently.
+
+        Bare-list responses (some private endpoints return a top-level JSON
+        array) are supported: they have no ``totalCount``, so the short-page rule
+        drives termination.
+        """
+        all_items: list[dict[str, Any]] = []
+        base = dict(params or {})
+        max_pages = self._settings.paginate_max_pages
+        try:
+            offset = int(base.get("offset", 0) or 0)
+        except (TypeError, ValueError):
+            offset = 0
+        limit = page_size
+        page_count = 0
+
+        while True:
+            req_params = dict(base)
+            req_params["offset"] = offset
+            req_params["limit"] = limit
+            data = await self.get(path, key=key, params=req_params)
+            page_count += 1
+
+            if isinstance(data, list):
+                items = data
+                total_count: int | None = None
+            else:
+                items = data.get("data", [])
+                raw_total = data.get("totalCount")
+                total_count = raw_total if isinstance(raw_total, int) else None
+            all_items.extend(items)
+
+            # A short or empty page is unambiguously the final page.
+            if len(items) < limit:
+                break
+            # totalCount, when present, is authoritative once we have them all.
+            if total_count is not None and len(all_items) >= total_count:
+                break
+
+            if max_pages is not None and page_count >= max_pages:
+                raise PaginationAbortedError(
+                    path,
+                    page_count,
+                    f"page cap of {max_pages} reached",
+                    items=all_items,
+                )
+
+            offset += limit
+
+        return all_items
+
+    async def paginate_links(
+        self,
+        path: str,
+        array_field: str,
+        *,
+        key: APIKeyConfig | None = None,
+        params: dict[str, Any] | None = None,
+        page_size: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Auto-paginate a ``links.next`` / page-number list endpoint.
+
+        The private Protect *recognition* endpoints (face/vehicle groups and their
+        detections) are neither cursor- nor offset-paginated. They return a
+        ``{<array_field>: [...], "links": {"prev": ..., "next": ...}}`` envelope where
+        ``links.next`` is a relative URL carrying ``&page=N`` (or ``null`` on the last
+        page). This is a third pagination family, so this is its dedicated drainer:
+        the page counter is advanced locally and pages are fetched until ``links.next``
+        is null (or a page comes back empty).
+
+        Termination is defensive, in priority order:
+        1. ``links.next`` is null (or an empty page) — the last page;
+        2. ``UNIFI_PAGINATE_MAX_PAGES`` backstops a server that never signals an end —
+           reaching it raises PaginationAbortedError (carrying the pages already
+           gathered) rather than looping forever or truncating silently.
+
+        Bare-list responses are tolerated: with no ``links`` envelope there is no next
+        page, so a single fetch is returned.
+        """
+        all_items: list[dict[str, Any]] = []
+        base = dict(params or {})
+        base["pageSize"] = page_size
+        max_pages = self._settings.paginate_max_pages
+        page = 1
+        page_count = 0
+
+        while True:
+            req_params = dict(base)
+            req_params["page"] = page
+            data = await self.get(path, key=key, params=req_params)
+            page_count += 1
+
+            if isinstance(data, list):
+                items = data
+                has_next = False
+            else:
+                items = data.get(array_field, [])
+                links = data.get("links") or {}
+                has_next = bool(links.get("next"))
+            all_items.extend(items)
+
+            if not has_next or not items:
+                break
+
+            if max_pages is not None and page_count >= max_pages:
+                raise PaginationAbortedError(
+                    path,
+                    page_count,
+                    f"page cap of {max_pages} reached",
+                    items=all_items,
+                )
+
+            page += 1
 
         return all_items
 

@@ -188,11 +188,9 @@ class TestListHostsWrapper:
         target = "unifi_fabric.server.site_manager.list_hosts"
         with patch(target, new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = expected
-            result = await server.list_hosts(include_gps=True, page_token="tok")
+            result = await server.list_hosts(page_token="tok")
 
-        mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, include_gps=True, page_token="tok"
-        )
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, page_token="tok")
         assert result is expected
 
 
@@ -203,11 +201,9 @@ class TestGetHostWrapper:
 
         with patch("unifi_fabric.server.site_manager.get_host", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = expected
-            result = await server.get_host("my-console", include_gps=False)
+            result = await server.get_host("my-console")
 
-        mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "my-console", include_gps=False
-        )
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "my-console")
         assert result is expected
 
 
@@ -261,6 +257,58 @@ class TestListDevicesWrapper:
 # ---------------------------------------------------------------------------
 
 
+class TestGetNetworkApplicationInfoWrapper:
+    async def test_delegates_to_network(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        expected = {"applicationVersion": "10.4.57"}
+
+        with patch(
+            "unifi_fabric.server.network.get_network_application_info",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = expected
+            result = await server.get_network_application_info("myhost")
+
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "myhost")
+        assert result is expected
+
+
+class TestListLocalSitesWrapper:
+    async def test_delegates_to_network(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        expected = {"data": []}
+
+        with patch(
+            "unifi_fabric.server.network.list_local_sites", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = expected
+            result = await server.list_local_sites(
+                "myhost", offset=10, limit=50, filter="name.like('lab*')"
+            )
+
+        mock_fn.assert_awaited_once_with(
+            mock_client,
+            mock_registry,
+            "myhost",
+            offset=10,
+            limit=50,
+            filter="name.like('lab*')",
+        )
+        assert result is expected
+
+    async def test_drains_by_default(self, mock_globals):
+        # No offset/limit → the wrapper forwards None/None so the tool drains all pages.
+        mock_client, mock_registry = mock_globals
+        with patch(
+            "unifi_fabric.server.network.list_local_sites", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {"data": [], "totalCount": 0}
+            await server.list_local_sites("myhost")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "myhost", offset=None, limit=None, filter=None
+        )
+
+
 class TestListNetworksWrapper:
     async def test_delegates_to_network(self, mock_globals):
         mock_client, mock_registry = mock_globals
@@ -270,7 +318,9 @@ class TestListNetworksWrapper:
             mock_fn.return_value = expected
             result = await server.list_networks("myhost", "mysite")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "myhost", "mysite")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "myhost", "mysite", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -557,6 +607,111 @@ class TestDeleteWifiBroadcastWrapper:
         assert result == "WiFi broadcast bc-1 deleted."
 
 
+@pytest.mark.parametrize(
+    ("wrapper_name", "implementation_name"),
+    [
+        ("list_lags", "list_lags"),
+        ("list_mc_lag_domains", "list_mc_lag_domains"),
+        ("list_switch_stacks", "list_switch_stacks"),
+    ],
+)
+async def test_list_switching_wrapper(wrapper_name, implementation_name, mock_globals):
+    mock_client, mock_registry = mock_globals
+    expected = {"data": []}
+    with patch(
+        f"unifi_fabric.server.network.{implementation_name}", new_callable=AsyncMock
+    ) as mock_fn:
+        mock_fn.return_value = expected
+        result = await getattr(server, wrapper_name)(
+            "h1",
+            "s1",
+            offset=10,
+            limit=50,
+            filter="metadata.origin.eq('USER')",
+        )
+    mock_fn.assert_awaited_once_with(
+        mock_client,
+        mock_registry,
+        "h1",
+        "s1",
+        offset=10,
+        limit=50,
+        filter="metadata.origin.eq('USER')",
+    )
+    assert result is expected
+
+
+@pytest.mark.parametrize(
+    "wrapper_name",
+    ["list_lags", "list_mc_lag_domains", "list_switch_stacks"],
+)
+async def test_list_switching_wrapper_drains_by_default(wrapper_name, mock_globals):
+    # No offset/limit → the wrapper forwards None/None so the tool drains all pages.
+    mock_client, mock_registry = mock_globals
+    with patch(f"unifi_fabric.server.network.{wrapper_name}", new_callable=AsyncMock) as mock_fn:
+        mock_fn.return_value = {"data": [], "totalCount": 0}
+        await getattr(server, wrapper_name)("h1", "s1")
+    mock_fn.assert_awaited_once_with(
+        mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
+    )
+
+
+class TestListDpiWrappers:
+    @pytest.mark.parametrize(
+        ("wrapper_name", "implementation_name"),
+        [
+            ("list_dpi_categories", "list_dpi_categories"),
+            ("list_dpi_applications", "list_dpi_applications"),
+        ],
+    )
+    async def test_drains_by_default(self, wrapper_name, implementation_name, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch(
+            f"unifi_fabric.server.network_services_proxy.{implementation_name}",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = {"data": [], "totalCount": 0}
+            await getattr(server, wrapper_name)("h1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", None, None)
+
+    @pytest.mark.parametrize(
+        ("wrapper_name", "implementation_name"),
+        [
+            ("list_dpi_categories", "list_dpi_categories"),
+            ("list_dpi_applications", "list_dpi_applications"),
+        ],
+    )
+    async def test_explicit_paging(self, wrapper_name, implementation_name, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch(
+            f"unifi_fabric.server.network_services_proxy.{implementation_name}",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = {"data": [], "totalCount": 9}
+            await getattr(server, wrapper_name)("h1", offset=5, limit=25)
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", 5, 25)
+
+
+@pytest.mark.parametrize(
+    ("wrapper_name", "implementation_name"),
+    [
+        ("get_lag", "get_lag"),
+        ("get_mc_lag_domain", "get_mc_lag_domain"),
+        ("get_switch_stack", "get_switch_stack"),
+    ],
+)
+async def test_get_switching_wrapper(wrapper_name, implementation_name, mock_globals):
+    mock_client, mock_registry = mock_globals
+    expected = {"id": "resource-1"}
+    with patch(
+        f"unifi_fabric.server.network.{implementation_name}", new_callable=AsyncMock
+    ) as mock_fn:
+        mock_fn.return_value = expected
+        result = await getattr(server, wrapper_name)("h1", "s1", "resource-1")
+    mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "resource-1")
+    assert result is expected
+
+
 class TestListWanInterfacesWrapper:
     async def test_delegates_to_network(self, mock_globals):
         mock_client, mock_registry = mock_globals
@@ -578,9 +733,10 @@ class TestListWanInterfacesWrapper:
 
 
 class TestListFirewallPoliciesWrapper:
-    async def test_delegates_to_firewall_proxy(self, mock_globals):
+    async def test_delegates_to_firewall_proxy_drains_by_default(self, mock_globals):
+        # No offset/limit → the wrapper passes None/None so the tool drains all pages.
         mock_client, mock_registry = mock_globals
-        expected = {"data": []}
+        expected = {"data": [], "totalCount": 0}
 
         with patch(
             "unifi_fabric.server.firewall_proxy.list_firewall_policies", new_callable=AsyncMock
@@ -588,7 +744,20 @@ class TestListFirewallPoliciesWrapper:
             mock_fn.return_value = expected
             result = await server.list_firewall_policies("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", 0, 50)
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", None, None)
+        assert result is expected
+
+    async def test_delegates_to_firewall_proxy_explicit_paging(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        expected = {"data": [], "totalCount": 5}
+
+        with patch(
+            "unifi_fabric.server.firewall_proxy.list_firewall_policies", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = expected
+            result = await server.list_firewall_policies("h1", "s1", offset=50, limit=50)
+
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", 50, 50)
         assert result is expected
 
 
@@ -716,7 +885,9 @@ class TestListFirewallZonesProxyWrapper:
             mock_fn.return_value = expected
             result = await server.list_firewall_zones_proxy("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -903,7 +1074,9 @@ class TestListDnsPoliciesWrapper:
             mock_fn.return_value = expected
             result = await server.list_dns_policies("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -1062,7 +1235,9 @@ class TestListVpnServersWrapper:
             mock_fn.return_value = expected
             result = await server.list_vpn_servers("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -1094,7 +1269,9 @@ class TestListRadiusProfilesWrapper:
             mock_fn.return_value = expected
             result = await server.list_radius_profiles("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -1110,7 +1287,9 @@ class TestListHotspotVouchersWrapper:
             mock_fn.return_value = expected
             result = await server.list_hotspot_vouchers("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 

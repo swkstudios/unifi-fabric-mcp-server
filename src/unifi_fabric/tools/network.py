@@ -6,6 +6,7 @@ from typing import Any
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._pagination import collect_offset, mark_incomplete
 
 PROXY_BASE = "/v1/connector/consoles/{host_id}/proxy/network/integration/v1"
 
@@ -26,6 +27,89 @@ def _proxy(host_id: str, path: str) -> str:
     return PROXY_BASE.format(host_id=host_id) + path
 
 
+# --- Application / Local Sites ---
+
+
+def _page_params(offset: int, limit: int, filter: str | None) -> dict[str, Any]:
+    """Build validated Network Integration API pagination parameters."""
+    if offset < 0:
+        raise ValueError("offset must be greater than or equal to 0")
+    if not 0 <= limit <= 200:
+        raise ValueError("limit must be between 0 and 200")
+    params: dict[str, Any] = {"offset": offset, "limit": limit}
+    if filter is not None:
+        params["filter"] = filter
+    return params
+
+
+async def _offset_list(
+    client: UniFiClient,
+    url: str,
+    *,
+    offset: int | None,
+    limit: int | None,
+    filter: str | None,
+) -> dict[str, Any]:
+    """Fetch an offset-paginated Integration list, draining all pages by default.
+
+    Passing offset or limit selects manual paging: a single validated page is
+    returned with the API's native envelope (offset/limit/count/totalCount)
+    preserved. Otherwise every page is drained into ``{data, totalCount}`` and a
+    capped drain is flagged incomplete instead of truncating silently. ``filter``
+    is a server-side filter (not paging) and applies in either mode.
+    """
+    if offset is not None or limit is not None:
+        page = _page_params(
+            offset if offset is not None else 0,
+            limit if limit is not None else 25,
+            filter,
+        )
+        result: dict[str, Any] = await client.get(url, params=page)
+        return result
+    base: dict[str, Any] = {}
+    if filter is not None:
+        base["filter"] = filter
+    collected = await collect_offset(client, url, params=base or None)
+    total = collected["totalCount"]
+    drained: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(drained, collected)
+
+
+async def get_network_application_info(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+) -> dict[str, Any]:
+    """Get the UniFi Network application version reported by a console."""
+    host_id = await registry.resolve_host_id(host)
+    return await client.get(_proxy(host_id, "/info"))
+
+
+async def list_local_sites(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List sites managed by one UniFi Network application.
+
+    By default every offset page is drained and the complete list is returned.
+    offset/limit: fetch a single page manually (native envelope preserved). A
+    capped drain returns the sites gathered so far with incomplete=true rather
+    than truncating silently.
+    """
+    host_id = await registry.resolve_host_id(host)
+    return await _offset_list(
+        client, _proxy(host_id, "/sites"), offset=offset, limit=limit, filter=filter
+    )
+
+
 # --- Networks / VLANs ---
 
 
@@ -34,13 +118,31 @@ async def list_networks(
     registry: Registry,
     host: str,
     site: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
 ) -> dict[str, Any]:
-    """List all networks/VLANs for a site."""
+    """List all networks/VLANs for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope and the
+    native default page size is only 25). By default every page is drained and the
+    complete list is returned as ``{data, totalCount}``; pass offset or limit to
+    fetch a single manual page (native envelope preserved). ``filter`` is a
+    server-side filter (not paging) and applies in either mode. A capped drain is
+    flagged ``incomplete`` rather than truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    data = await client.get(_proxy(host_id, f"/sites/{site_id}/networks"))
-    return data
+    return await _offset_list(
+        client,
+        _proxy(host_id, f"/sites/{site_id}/networks"),
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
 
 
 async def create_network(
@@ -257,3 +359,175 @@ async def get_network_references(
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
     return await client.get(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}/references"))
+
+
+# --- Switching ---
+
+
+async def _list_switching_resources(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    resource: str,
+    *,
+    offset: int | None,
+    limit: int | None,
+    filter: str | None,
+) -> dict[str, Any]:
+    host_id = await registry.resolve_host_id(host)
+    site_id = await registry.resolve_site_id(site, host_id)
+    _assert_uuid(site_id)
+    return await _offset_list(
+        client,
+        _proxy(host_id, f"/sites/{site_id}/switching/{resource}"),
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+async def _get_switching_resource(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    resource: str,
+    resource_id: str,
+    field_name: str,
+) -> dict[str, Any]:
+    validate_id(resource_id, field_name)
+    host_id = await registry.resolve_host_id(host)
+    site_id = await registry.resolve_site_id(site, host_id)
+    _assert_uuid(site_id)
+    return await client.get(_proxy(host_id, f"/sites/{site_id}/switching/{resource}/{resource_id}"))
+
+
+async def list_lags(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List Link Aggregation Groups (LAGs) on a site.
+
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    """
+    return await _list_switching_resources(
+        client,
+        registry,
+        host,
+        site,
+        "lags",
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+async def get_lag(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    lag_id: str,
+) -> dict[str, Any]:
+    """Get one Link Aggregation Group."""
+    return await _get_switching_resource(client, registry, host, site, "lags", lag_id, "lag_id")
+
+
+async def list_mc_lag_domains(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List Multi-Chassis Link Aggregation (MC-LAG) domains on a site.
+
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    """
+    return await _list_switching_resources(
+        client,
+        registry,
+        host,
+        site,
+        "mc-lag-domains",
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+async def get_mc_lag_domain(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    mc_lag_domain_id: str,
+) -> dict[str, Any]:
+    """Get one Multi-Chassis Link Aggregation domain."""
+    return await _get_switching_resource(
+        client,
+        registry,
+        host,
+        site,
+        "mc-lag-domains",
+        mc_lag_domain_id,
+        "mc_lag_domain_id",
+    )
+
+
+async def list_switch_stacks(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """List switch stacks on a site.
+
+    Drains all pages by default; pass offset/limit for a single manual page. A
+    capped drain is flagged incomplete rather than truncated silently.
+    """
+    return await _list_switching_resources(
+        client,
+        registry,
+        host,
+        site,
+        "switch-stacks",
+        offset=offset,
+        limit=limit,
+        filter=filter,
+    )
+
+
+async def get_switch_stack(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    switch_stack_id: str,
+) -> dict[str, Any]:
+    """Get one switch stack."""
+    return await _get_switching_resource(
+        client,
+        registry,
+        host,
+        site,
+        "switch-stacks",
+        switch_stack_id,
+        "switch_stack_id",
+    )

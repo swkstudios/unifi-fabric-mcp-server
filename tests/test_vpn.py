@@ -29,12 +29,6 @@ from unifi_fabric.tools.vpn import (
     _get_vpn_server as get_vpn_server,
 )
 from unifi_fabric.tools.vpn import (
-    _list_radius_profiles as list_radius_profiles,
-)
-from unifi_fabric.tools.vpn import (
-    _list_vpn_servers as list_vpn_servers,
-)
-from unifi_fabric.tools.vpn import (
     _update_site_to_site_tunnel as update_site_to_site_tunnel,
 )
 from unifi_fabric.tools.vpn import (
@@ -50,8 +44,10 @@ def client():
     c = AsyncMock()
     c.get = AsyncMock()
     c.post = AsyncMock()
+    c.put = AsyncMock()
     c.patch = AsyncMock()
     c.delete = AsyncMock()
+    c.paginate_offset = AsyncMock()
     return c
 
 
@@ -66,62 +62,43 @@ def registry():
 # --- VPN Servers ---
 
 
-class TestListVpnServers:
-    async def test_no_filters(self, client, registry):
-        client.get.return_value = {"data": [{"id": "vpn-1", "name": "MyVPN"}]}
-        result = await list_vpn_servers(client, registry)
-        client.get.assert_called_once_with("/ea/vpn-servers", params=None)
-        assert result["count"] == 1
-        assert result["vpnServers"][0]["id"] == "vpn-1"
-
-    async def test_with_host_and_site(self, client, registry):
-        client.get.return_value = {"data": []}
-        await list_vpn_servers(client, registry, host="myhost", site="mysite")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
-        client.get.assert_called_once_with(
-            "/ea/vpn-servers", params={"hostId": HOST_ID, "siteId": SITE_ID}
-        )
-
-    async def test_with_page_token(self, client, registry):
-        client.get.return_value = {"data": [], "nextToken": "tok-2"}
-        result = await list_vpn_servers(client, registry, page_token="tok-1")
-        assert "nextToken" in result
-        assert result["nextToken"] == "tok-2"
-
-    async def test_empty_data(self, client, registry):
-        client.get.return_value = {"data": []}
-        result = await list_vpn_servers(client, registry)
-        assert result == {"vpnServers": [], "count": 0}
-
-
 class TestGetVpnServer:
+    """get_vpn_server drains the working per-console proxy list and filters by ID.
+
+    Regression guard for the path-asymmetry bug: the tool used to filter the
+    Site Manager ``/ea/vpn-servers`` list, which is not served on the console and
+    404s at the route level, while ``list_vpn_servers`` used the proxy. These
+    tests pin it to the proxy path that actually returns data.
+    """
+
     async def test_basic(self, client, registry):
-        client.get.return_value = {"data": [{"id": "vpn-1", "name": "MyVPN"}]}
+        client.paginate_offset.return_value = [{"id": "vpn-1", "name": "MyVPN"}]
         result = await get_vpn_server(client, registry, "myhost", "mysite", "vpn-1")
-        client.get.assert_called_once_with(
-            "/ea/vpn-servers", params={"hostId": HOST_ID, "siteId": SITE_ID}
-        )
         assert result["id"] == "vpn-1"
 
+    async def test_uses_proxy_path_not_ea(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "vpn-1"}]
+        await get_vpn_server(client, registry, "h", "s", "vpn-1")
+        called_path = client.paginate_offset.call_args[0][0]
+        assert "/ea/vpn-servers" not in called_path
+        assert called_path == f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers"
+
     async def test_resolves_host_and_site(self, client, registry):
-        client.get.return_value = {"data": [{"id": "vpn-1"}]}
+        client.paginate_offset.return_value = [{"id": "vpn-1"}]
         await get_vpn_server(client, registry, "myhost", "mysite", "vpn-1")
         registry.resolve_host_id.assert_called_once_with("myhost")
         registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
 
     async def test_not_found(self, client, registry):
-        client.get.return_value = {"data": []}
+        client.paginate_offset.return_value = []
         with pytest.raises(ValueError, match="vpn-missing"):
             await get_vpn_server(client, registry, "h", "s", "vpn-missing")
 
     async def test_filters_by_id(self, client, registry):
-        client.get.return_value = {
-            "data": [
-                {"id": "vpn-1", "name": "FirstVPN"},
-                {"id": "vpn-2", "name": "SecondVPN"},
-            ]
-        }
+        client.paginate_offset.return_value = [
+            {"id": "vpn-1", "name": "FirstVPN"},
+            {"id": "vpn-2", "name": "SecondVPN"},
+        ]
         result = await get_vpn_server(client, registry, "h", "s", "vpn-2")
         assert result["id"] == "vpn-2"
         assert result["name"] == "SecondVPN"
@@ -174,66 +151,84 @@ class TestCreateVpnServer:
 
 
 class TestUpdateVpnServer:
-    async def test_basic(self, client):
-        client.patch.return_value = {"data": {"id": "vpn-1", "enabled": False}}
-        result = await update_vpn_server(client, "vpn-1", enabled=False)
-        client.patch.assert_called_once_with("/ea/vpn-servers/vpn-1", json={"enabled": False})
+    async def test_basic(self, client, registry):
+        client.put.return_value = {"data": {"id": "vpn-1", "enabled": False}}
+        result = await update_vpn_server(client, registry, "h", "s", "vpn-1", enabled=False)
+        client.put.assert_called_once_with(
+            f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1", json={"enabled": False}
+        )
         assert result["enabled"] is False
+
+    async def test_uses_proxy_path_not_ea(self, client, registry):
+        client.put.return_value = {"data": {}}
+        await update_vpn_server(client, registry, "h", "s", "vpn-1", enabled=True)
+        call_url = client.put.call_args[0][0]
+        assert "/ea/vpn-servers" not in call_url
+        assert f"/sites/{SITE_ID}/vpn/servers/vpn-1" in call_url
+
+    async def test_resolves_host_and_site(self, client, registry):
+        client.put.return_value = {"data": {}}
+        await update_vpn_server(client, registry, "myhost", "mysite", "vpn-1", enabled=True)
+        registry.resolve_host_id.assert_called_once_with("myhost")
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
 
 
 class TestDeleteVpnServer:
-    async def test_basic(self, client):
+    async def test_basic(self, client, registry):
         client.delete.return_value = None
-        result = await delete_vpn_server(client, "vpn-1")
-        client.delete.assert_called_once_with("/ea/vpn-servers/vpn-1")
+        result = await delete_vpn_server(client, registry, "h", "s", "vpn-1")
+        client.delete.assert_called_once_with(f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1")
         assert result == {"deleted": True, "serverId": "vpn-1"}
+
+    async def test_uses_proxy_path_not_ea(self, client, registry):
+        client.delete.return_value = None
+        await delete_vpn_server(client, registry, "h", "s", "vpn-1")
+        call_url = client.delete.call_args[0][0]
+        assert "/ea/vpn-servers" not in call_url
 
 
 # --- RADIUS Profiles ---
 
 
-class TestListRadiusProfiles:
-    async def test_no_filters(self, client, registry):
-        client.get.return_value = {"data": [{"id": "rad-1"}]}
-        result = await list_radius_profiles(client, registry)
-        client.get.assert_called_once_with("/ea/radius-profiles", params=None)
-        assert result["count"] == 1
-
-    async def test_with_host_and_site(self, client, registry):
-        client.get.return_value = {"data": []}
-        await list_radius_profiles(client, registry, host="h", site="s")
-        client.get.assert_called_once_with(
-            "/ea/radius-profiles",
-            params={"hostId": HOST_ID, "siteId": SITE_ID},
-        )
-
-    async def test_pagination(self, client, registry):
-        client.get.return_value = {"data": [], "nextToken": "page-2"}
-        result = await list_radius_profiles(client, registry, page_token="page-1")
-        assert result["nextToken"] == "page-2"
-
-
 class TestGetRadiusProfile:
+    """get_radius_profile drains the working per-console proxy list and filters by ID.
+
+    Regression guard for the path-asymmetry bug: the tool used to filter the
+    Site Manager ``/ea/radius-profiles`` list (not served → route-level 404) and
+    took only ``profile_id``. It now requires ``host``/``site`` because the
+    profile collection is per-site on the proxy, which is the only served path.
+    """
+
     async def test_basic(self, client, registry):
-        client.get.return_value = {"data": [{"id": "rad-1", "name": "Corp RADIUS"}]}
-        result = await get_radius_profile(client, registry, "rad-1")
-        client.get.assert_called_once_with("/ea/radius-profiles", params=None)
+        client.paginate_offset.return_value = [{"id": "rad-1", "name": "Corp RADIUS"}]
+        result = await get_radius_profile(client, registry, "myhost", "mysite", "rad-1")
         assert result["id"] == "rad-1"
         assert result["name"] == "Corp RADIUS"
 
+    async def test_uses_proxy_path_not_ea(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "rad-1"}]
+        await get_radius_profile(client, registry, "h", "s", "rad-1")
+        called_path = client.paginate_offset.call_args[0][0]
+        assert "/ea/radius-profiles" not in called_path
+        assert called_path == f"{_PROXY_BASE}/sites/{SITE_ID}/radius/profiles"
+
+    async def test_resolves_host_and_site(self, client, registry):
+        client.paginate_offset.return_value = [{"id": "rad-1"}]
+        await get_radius_profile(client, registry, "myhost", "mysite", "rad-1")
+        registry.resolve_host_id.assert_called_once_with("myhost")
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
+
     async def test_not_found(self, client, registry):
-        client.get.return_value = {"data": []}
+        client.paginate_offset.return_value = []
         with pytest.raises(ValueError, match="rad-99"):
-            await get_radius_profile(client, registry, "rad-99")
+            await get_radius_profile(client, registry, "h", "s", "rad-99")
 
     async def test_filters_by_id(self, client, registry):
-        client.get.return_value = {
-            "data": [
-                {"id": "rad-1", "name": "Profile One"},
-                {"id": "rad-2", "name": "Profile Two"},
-            ]
-        }
-        result = await get_radius_profile(client, registry, "rad-2")
+        client.paginate_offset.return_value = [
+            {"id": "rad-1", "name": "Profile One"},
+            {"id": "rad-2", "name": "Profile Two"},
+        ]
+        result = await get_radius_profile(client, registry, "h", "s", "rad-2")
         assert result["id"] == "rad-2"
         assert result["name"] == "Profile Two"
 

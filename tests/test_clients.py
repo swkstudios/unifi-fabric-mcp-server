@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.client import PaginationAbortedError
 from unifi_fabric.tools.clients import _CLASSIC_CMD_BASE
 from unifi_fabric.tools.clients import (
     _block_client as block_client,
@@ -53,43 +54,74 @@ def registry():
 
 
 class TestListClients:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "cl-1", "hostname": "laptop"}]
+    async def test_drains_all_by_default(self, client, registry):
+        # Default: drain every offset page via paginate_offset — get() unused.
+        client.paginate_offset.return_value = [
+            {"id": "cl-1", "hostname": "laptop"},
+            {"id": "cl-2"},
+        ]
         result = await list_clients(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients")
-        assert result == [{"id": "cl-1", "hostname": "laptop"}]
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients", key=None, params=None, page_size=200
+        )
+        client.get.assert_not_called()
+        assert result == {
+            "data": [{"id": "cl-1", "hostname": "laptop"}, {"id": "cl-2"}],
+            "totalCount": 2,
+        }
 
     async def test_resolves_names(self, client, registry):
-        client.get.return_value = []
+        client.paginate_offset.return_value = []
         await list_clients(client, registry, "UDM-Pro", "Office")
         registry.resolve_host_id.assert_called_once_with("UDM-Pro")
         registry.resolve_site_id.assert_called_once_with("Office", HOST_ID)
 
-    async def test_passes_offset_and_limit(self, client, registry):
-        client.get.return_value = {"data": [], "totalCount": 0}
-        await list_clients(client, registry, "h", "s", offset=25, limit=25)
+    async def test_explicit_offset_and_limit_single_page(self, client, registry):
+        # Explicit paging: one page only, API totalCount surfaced for manual paging.
+        client.get.return_value = {"data": [{"id": "cl-9"}], "totalCount": 51}
+        result = await list_clients(client, registry, "h", "s", offset=25, limit=25)
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/clients", params={"offset": 25, "limit": 25}
+            f"{BASE}/sites/{SITE_ID}/clients", key=None, params={"offset": 25, "limit": 25}
         )
+        client.paginate_offset.assert_not_called()
+        assert result == {"data": [{"id": "cl-9"}], "totalCount": 51}
 
-    async def test_passes_client_type_wireless(self, client, registry):
-        client.get.return_value = []
+    async def test_client_type_wireless_filter_drains(self, client, registry):
+        client.paginate_offset.return_value = []
         await list_clients(client, registry, "h", "s", client_type="WIRELESS")
-        client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/clients", params={"type": "WIRELESS"}
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"type": "WIRELESS"},
+            page_size=200,
         )
 
     async def test_client_type_all_omits_type_param(self, client, registry):
-        client.get.return_value = []
+        client.paginate_offset.return_value = []
         await list_clients(client, registry, "h", "s", client_type="ALL")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients", key=None, params=None, page_size=200
+        )
 
     async def test_client_type_lowercase_normalized(self, client, registry):
-        client.get.return_value = []
+        client.paginate_offset.return_value = []
         await list_clients(client, registry, "h", "s", client_type="wired")
-        client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/clients", params={"type": "WIRED"}
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"type": "WIRED"},
+            page_size=200,
         )
+
+    async def test_cap_exceeded_marked_incomplete(self, client, registry):
+        client.paginate_offset.side_effect = PaginationAbortedError(
+            f"{BASE}/sites/{SITE_ID}/clients", 5, "page cap of 5 reached", items=[{"id": "cl-1"}]
+        )
+        result = await list_clients(client, registry, "h", "s")
+        assert result["incomplete"] is True
+        assert "page cap of 5" in result["incompleteReason"]
+        assert result["data"] == [{"id": "cl-1"}]
+        assert result["totalCount"] == 1
 
 
 class TestGetClient:

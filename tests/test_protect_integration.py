@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 
 import pytest
+import pytest_asyncio
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
@@ -32,10 +33,18 @@ from unifi_fabric.tools.protect import (
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated
 # at collection time, not import time.  Run with a real key to execute them:
 #   UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("UNIFI_API_KEY"),
-    reason="UNIFI_API_KEY not set — skipping live integration tests",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not os.environ.get("UNIFI_API_KEY"),
+        reason="UNIFI_API_KEY not set — skipping live integration tests",
+    ),
+    # Share ONE event loop across every test in the module so the module-scoped client
+    # (and its lazily-created httpx.AsyncClient) stays valid for all tests. Without this,
+    # pytest-asyncio's default function-scoped loop closes after the first test and every
+    # subsequent test dies in httpx teardown with "Event loop is closed".
+    pytest.mark.asyncio(loop_scope="module"),
+]
 
 _TEST_HOST = os.environ.get("UNIFI_TEST_HOST", "")
 
@@ -45,9 +54,11 @@ def settings():
     return Settings()
 
 
-@pytest.fixture(scope="module")
-def client(settings):
-    return UniFiClient(settings)
+@pytest_asyncio.fixture(loop_scope="module", scope="module")
+async def client(settings):
+    c = UniFiClient(settings)
+    yield c
+    await c.close()
 
 
 @pytest.fixture(scope="module")

@@ -1,0 +1,57 @@
+name: Changelog Check
+
+# Verifies that PRs which modify src/ also update CHANGELOG.md, because src/
+# changes that affect user-visible behavior should be documented.
+#
+# To skip: add the 'skip-changelog' label to the PR. Use this label when a
+# src/ change is test-only, a pure internal refactor, or otherwise has no
+# user-visible effect.
+#
+# This workflow intentionally runs on EVERY PR (no top-level `paths:` filter)
+# and decides applicability INSIDE the job. A path-filtered workflow that is
+# skipped never reports its check run, so a branch-protection rule requiring
+# `changelog-check` would leave every PR that does not touch src/ pending
+# forever. Running unconditionally and passing when src/ is untouched makes the
+# check safe to mark as required.
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  changelog-check:
+    name: changelog-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify CHANGELOG.md is updated when src/ changes
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          echo "Files changed in this PR:"
+          echo "$changed"
+
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$labels" | grep -q '"skip-changelog"'; then
+            echo "Skipping changelog check — 'skip-changelog' label is set."
+            exit 0
+          fi
+
+          if ! echo "$changed" | grep -q '^src/'; then
+            echo "No src/ changes in this PR — CHANGELOG entry not required. Check passed."
+            exit 0
+          fi
+
+          if echo "$changed" | grep -qx 'CHANGELOG.md'; then
+            echo "CHANGELOG.md is updated — check passed."
+          else
+            echo "::error::This PR modifies src/ without a CHANGELOG.md entry."
+            echo "::error::Add an entry under [Unreleased] for any user-visible behavior change."
+            echo "::error::If this change has no user-visible effect (test-only, refactor, CI-only),"
+            echo "::error::add the 'skip-changelog' label to this PR instead."
+            exit 1
+          fi

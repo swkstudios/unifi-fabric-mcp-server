@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._pagination import collect_offset, mark_incomplete
 from .network import _proxy
 
 _CLASSIC_CMD_BASE = "/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/cmd"
@@ -27,21 +28,29 @@ async def _list_clients(
     limit: int | None = None,
     client_type: str | None = None,
 ) -> Any:
-    """List connected clients for a site with optional pagination and type filter."""
+    """List connected clients for a site with optional pagination and type filter.
+
+    By default every offset page is drained and the complete client list is
+    returned as ``{data, totalCount}``. Passing offset or limit selects manual
+    paging: a single page is returned with the API's totalCount so the caller can
+    advance. client_type is a filter (not paging) and applies in either mode. A
+    drain that hits the page cap returns the clients gathered so far with
+    incomplete=true rather than truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    params: dict[str, Any] = {}
-    if offset is not None:
-        params["offset"] = offset
-    if limit is not None:
-        params["limit"] = limit
+    base: dict[str, Any] = {}
     if client_type and client_type.upper() != "ALL":
-        params["type"] = client_type.upper()
+        base["type"] = client_type.upper()
     url = _proxy(host_id, f"/sites/{site_id}/clients")
-    if params:
-        return await client.get(url, params=params)
-    return await client.get(url)
+    collected = await collect_offset(client, url, params=base or None, offset=offset, limit=limit)
+    total = collected["totalCount"]
+    result: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(result, collected)
 
 
 async def _get_client(
@@ -157,9 +166,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """List connected clients for a site.
 
         host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-        offset: number of records to skip (for pagination). limit: max records to return.
-        client_type: filter by connection type — WIRELESS, WIRED, or ALL (default: all types).
-        Response includes totalCount when the API returns it.
+        By default every page is drained and the complete client list is returned
+        as {data, totalCount}. offset/limit: fetch a single page manually (the
+        API's totalCount is surfaced so you can advance). client_type: filter by
+        connection type — WIRELESS, WIRED, or ALL (default: all types). A capped
+        drain returns the clients gathered so far with incomplete=true rather than
+        truncating silently.
         """
         client, registry = deps_fn()
         return await _list_clients(

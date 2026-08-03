@@ -12,6 +12,16 @@ An MCP (Model Context Protocol) server that exposes the UniFi Site Manager API a
 
 > **Disclaimer:** This project is not affiliated with, endorsed by, or sponsored by Ubiquiti Inc. UniFi is a trademark of Ubiquiti Inc.
 
+**Highlights:**
+
+- 208 tools across Fleet, Network, Firewall, Protect, VPN, InnerSpace, History, and more
+- Faithful pass-through — tools return complete upstream payloads including credential fields (WLAN passphrases, RADIUS secrets, API tokens), GPS coordinates, and Protect recognition data. The `include_secrets` and `include_gps` parameters have been removed; all fields are always returned. Callers upgrading from 0.4.x or earlier should drop those parameters.
+- Configurable authentication: `none` (loopback/dev) / `bearer` (LAN/VPN) / `oauth` (resource-server, JWT-verified via JWKS)
+- Configurable TLS: plain HTTP / in-server HTTPS (`https`) / mutual TLS (`mtls`)
+- Stdio transport for local use; `streamable-http` / `sse` for containerized deployments
+- Stateless, cloud-first design — connects to `api.ui.com` via the UniFi Site Manager API; no direct controller access required
+
+
 ## Architecture
 
 ```mermaid
@@ -67,7 +77,7 @@ Install and run the server locally. The MCP client launches it as a subprocess o
 git clone https://github.com/swkstudios/unifi-fabric-mcp-server.git
 cd unifi-fabric-mcp-server
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
+pip install -e .          # -e is editable/dev mode; omit for a standard install
 export UNIFI_API_KEY="your-api-key-here"
 unifi-fabric-mcp
 ```
@@ -85,6 +95,10 @@ Add to `~/.claude/settings.json` or project `.mcp.json`:
 }
 ```
 
+> **PATH note:** The `"command": "unifi-fabric-mcp"` entry point only resolves if it is on the MCP client's `PATH`. Many MCP clients do not inherit the shell's virtual environment. Use the absolute path to the venv binary instead (e.g. `/path/to/.venv/bin/unifi-fabric-mcp`), or install globally with `pipx install .` or `uv tool install .`.
+
+**Verify it works:** When launched by the client the server exits immediately if `UNIFI_API_KEY` is absent or empty; an incorrect key will not prevent startup but will cause tool calls to fail with an authentication error. A successful start produces no output on stdio (the client communicates over stdin/stdout).
+
 ---
 
 ### Track B — Docker (HTTP, Recommended)
@@ -92,8 +106,10 @@ Add to `~/.claude/settings.json` or project `.mcp.json`:
 Run the server as a container. The MCP client connects over HTTP to the `/mcp` endpoint.
 
 ```bash
-docker run -e UNIFI_API_KEY="your-api-key-here" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server
+docker run -e UNIFI_API_KEY="your-api-key-here" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
 ```
+
+> **Tip:** `:0.5.0` pins to this release. `:latest` always tracks the newest **published** image — it is not the current development state and may not include tools added since the last release. For production deployments, pin by digest instead — see [Docker Deployment](#docker-deployment).
 
 Add to `~/.claude/settings.json` or project `.mcp.json`:
 
@@ -108,7 +124,19 @@ Add to `~/.claude/settings.json` or project `.mcp.json`:
 }
 ```
 
-See [`config/mcp-server.example.json`](config/mcp-server.example.json) for a full example, including a bearer token client configuration for use when `MCP_BEARER_TOKEN` is set server-side.
+**Verify it works:**
+
+```bash
+curl -s -w "\nHTTP:%{http_code}\n" \
+  -X POST -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}' \
+  http://localhost:3000/mcp
+```
+
+`HTTP:200` on the last line confirms the server is up. The `data:` line above it will contain a JSON object with `"protocolVersion":"2024-11-05"`. (A bare GET to `/mcp` returns `400 Bad Request` on FastMCP 3.x — the streamable-http protocol requires a POST to open a session. Always use this POST form for smoke tests.) Then ask your AI assistant to run `list_hosts` to get live data from your UniFi console.
+
+See [`config/mcp-server.example.json`](config/mcp-server.example.json) for examples covering plain-HTTP, SSE, HTTPS, and bearer-auth client configurations, including environment-variable substitution forms (e.g. `${MCP_BEARER_TOKEN}`) for use in templated deployments.
 
 > **Network deployments:** The MCP server listens on plain HTTP. For non-localhost deployments, run behind a TLS-terminating reverse proxy (e.g., Traefik, Caddy, nginx).
 
@@ -187,35 +215,78 @@ This server integrates with the following UniFi components:
 | Component | Minimum Version | Tested Version | Tested OS |
 |-----------|-----------------|----------------|-----------|
 | Site Manager API | — | v1.0 | N/A |
-| Network | v10.0.0 | v10.1.84+ | — |
-| Protect | v7.0.0 | v7.0.104+ | — |
-| UDM Pro / UDR Hardware | — | — | OS 5.1.7 / Network 10.3.55 / Protect 7.0.107 |
+| Network | v10.0.0 | v10.5.67 | — |
+| Protect | v7.0.0 | v7.2.97 | — |
+| UDM Pro Hardware | — | — | OS 5.1.127 / Network 10.5.67 / Protect 7.2.97 |
 
 For the latest component versions and hardware compatibility, see [developer.ui.com](https://developer.ui.com).
+## Tested against
+
+The tool set was verified against a live deployment during a read-only sweep (124 of 208 tools invoked). The environment is a single-console, single-site home or small-office setup — not a multi-site or multi-organization estate. Operators managing many sites across multiple organizations should treat untested paths as unverified rather than broken.
+
+| Component | Verified version |
+|-----------|-----------------|
+| Console hardware | UniFi Dream Machine Pro |
+| UniFi OS | 5.1.127 |
+| Network application | 10.5.67 |
+| Protect application | 7.2.97 |
+| InnerSpace application | 1.3.22 |
+| Access application | not installed |
+
+**Network infrastructure present during the sweep:** integrated gateway, 4 access points, 2 switches.
+
+**Protect devices present during the sweep:** 6 cameras (UVC G4 Instant, UVC G5 Bullet, UVC G5 Dome, UVC G6 Instant); 4 door/window sensors (USL-Entry-US).
+
+**Face recognition:** active and populated without dedicated AI hardware. The UDM Pro runs recognition inference in software; a separate AI Port or AI Processor is not required for recognition to populate.
+
+## Coverage and limitations
+
+**Tool coverage:** 124 of 208 tools were invoked live. The remaining 84 — covering create, update, delete, device restart, firmware upgrade, and alarm-webhook operations — were not called. These operations are irreversible or trigger physical effects (device reboots, alarm hardware, permanent microphone disable). Their code paths are exercised by unit tests in CI. If you want to verify a specific write tool before deploying, read the tool's docstring and test against a non-production console first.
+
+**Read-only tools with no data:** Several read-only tools were called and returned empty results because the corresponding hardware or feature was not present in the test environment. This reflects a gap in the test environment, not a code defect. Readers with the following equipment should expect these tools to work:
+
+- **Switching:** LAGs, switch stacks, and MC-LAG domains
+- **Network services:** DNS policies, traffic routes, traffic rules, and traffic matching lists
+- **Identity and access:** dynamic DNS, RADIUS profiles
+- **Hotspot:** vouchers and billing packages
+- **VPN:** site-to-site tunnels
+- **Protect extras:** UniFi lights, chimes, viewers, and configured liveviews
+- **InnerSpace:** the application is installed and running on this console; a floor plan project exists but contains no placed devices or configured geometry
+- **Access:** the application is not installed on this console; Access tools return an error for this reason
+
+**Deployment matrix:** stdio, streamable-http, and SSE transports were verified end-to-end. Bearer-token auth on both plain HTTP and HTTPS was verified. mTLS was verified as the live production transport for the canonical deployment. The full matrix is in `docs/internal/testing-procedure.md`.
+
+**OAuth:** End-to-end OAuth flow requires a running external identity provider and could not be exercised in this environment. The fail-closed startup behavior — the server refuses to start when required OAuth parameters are missing — is covered by unit tests in CI. See [docs/AUTH-OAUTH.md](docs/AUTH-OAUTH.md) for deployment guidance.
+
+**Multi-key MSP:** The single-key path (`UNIFI_API_KEY`) was fully exercised. The multi-key `UNIFI_API_KEYS` path has a known per-host resolution limitation described in [Multi-key MSP setup](#multi-key-msp-setup): per-host tools currently resolve against the first configured key only. Aggregate tools (`list_hosts`, `list_sites`, `list_all_sites_aggregated`) iterate all keys and are not affected.
+
+
 
 ## Available Tools
 
-The server exposes **188+ tools** organized by domain for managing UniFi infrastructure:
+The server exposes **208 tools** organized by domain for managing UniFi infrastructure:
 
 | Domain | Tool Count | Purpose |
 |--------|-----------|---------|
 | **Fleet & Aggregation** | 6 | Cross-console device search, fleet summary, site comparison |
 | **Site Management** | 8 | Site operations, health, inventory, system info |
-| **Network & VLAN** | 18 | Networks, VLANs, WiFi broadcasts, WAN interfaces |
+| **Network & VLAN** | 26 | Application info, sites, switching, VLANs, WiFi, WAN |
 | **Device Management** | 16 | Device control, adoption, stats, actions, location |
 | **Clients** | 8 | Client listing, stats, blocking, reconnection |
 | **Firewall** | 24 | Policies, zones, ACL rules, rule ordering |
 | **DNS & Traffic** | 21 | DNS policies, traffic rules, matching lists, routes |
 | **Port Forwarding** | 4 | List, create, update, delete port forwards |
 | **WLAN** | 6 | WLAN configs, groups, security settings |
-| **Protect** | 22 | Cameras, sensors, lights, chimes, liveviews, PTZ, snapshots |
+| **Protect** | 28 | Cameras, sensors, lights, chimes, liveviews, PTZ, snapshots, historical events, face/vehicle recognition |
 | **VPN** | 12 | VPN servers, site-to-site tunnels, RADIUS profiles |
 | **Hotspot** | 4 | Voucher management, operators, billing packages |
 | **Settings & Monitoring** | 8 | Controller settings, ISP metrics, WAN health |
 | **Utilities** | 7 | Country list, file upload, alarm webhooks |
+| **InnerSpace** | 3 | Floor-plan geometry, spatial mapping, placed device positions |
+| **History** | 3 | Session history, bucketed traffic reports, full client roster (offline incl.) |
 | **Other** | 4 | Miscellaneous network operations |
 
-For the authoritative tool list, MCP clients can query the server directly or see `src/unifi_fabric/server.py` for all `@mcp.tool()` definitions.
+The domain groupings above are illustrative and each tool is counted once. The row counts sum to 188, which is 20 short of the full 208 because some tools are not broken out into their own domain row (they fall outside the listed categories rather than being double-counted across them). For the full tool reference — including all 208 tool names, parameter tables, and descriptions — see [`docs/TOOLS.md`](docs/TOOLS.md). MCP clients can also query the server directly via the `tools/list` method.
 
 ## Configuration
 
@@ -229,11 +300,11 @@ All UniFi-specific settings are loaded from environment variables with the `UNIF
 | `UNIFI_API_KEYS` | No | — | JSON list of key configs for multi-console MSP setups |
 | `UNIFI_API_BASE_URL` | No | `https://api.ui.com` | UniFi Site Manager API base URL |
 | `UNIFI_CACHE_TTL_SECONDS` | No | `900` | TTL for host/site registry cache (seconds) |
-| `UNIFI_CACHE_MAX_HOSTS` | No | `512` | Max entries in the hosts/sites TTLCache (bounds memory use) |
+| `UNIFI_CACHE_MAX_HOSTS` | No | `512` | Max entries in the hosts TTLCache (bounds memory use) |
 | `UNIFI_CACHE_MAX_SITES` | No | `2048` | Max entries in the per-console sites TTLCache |
 | `UNIFI_MAX_CONCURRENCY` | No | `10` | Max concurrent outbound requests to api.ui.com |
 | `UNIFI_REQUEST_TIMEOUT_SECONDS` | No | `30` | HTTP request timeout in seconds |
-| `UNIFI_PAGINATE_MAX_PAGES` | No | `None` (unlimited) | Hard cap on pagination page count. Unset by default — stall detection is the primary safeguard. Set to a generous number (e.g. `100000`) if desired. |
+| `UNIFI_PAGINATE_MAX_PAGES` | No | `None` (unlimited) | Hard cap on pages drained per call. By default list tools drain all pages automatically; set this to limit drain depth. When the cap is hit the response includes `"incomplete": true` and `"incompleteReason"`. |
 | `UNIFI_LOG_LEVEL` | No | `INFO` | Logging verbosity. Accepts standard Python levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Logs go to stderr only — request/response bodies are never logged. |
 
 ### Transport Configuration
@@ -254,26 +325,72 @@ To use a different transport, override the environment variable at runtime:
 
 ```bash
 # SSE transport
-docker run -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=sse -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server
-
-# Stdio transport
-docker run -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=stdio ghcr.io/swkstudios/unifi-fabric-mcp-server
+docker run -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=sse -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
 ```
+
+MCP clients connect to the `/sse` endpoint — note the path differs from the streamable-http default (`/mcp`):
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
+```
+
+**Verify SSE is up:**
+
+```bash
+curl --max-time 3 -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/sse
+```
+
+A `200` printed on stdout confirms the server is listening. (The SSE stream stays open; `--max-time 3` disconnects after a few seconds — that is expected and normal.)
+
+```bash
+# Stdio transport
+docker run --no-healthcheck --rm -i -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=stdio ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
+```
+
+With stdio transport the MCP client must **spawn** the container as a subprocess (analogous to Track A), not connect over HTTP. Pass `--rm -i` so the container receives stdin and is removed on exit. The corresponding client config uses `command`/`args`, not `type`/`url`:
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i",
+               "-e", "UNIFI_API_KEY=your-api-key-here",
+               "-e", "FASTMCP_TRANSPORT=stdio",
+               "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0"]
+    }
+  }
+}
+```
+
+> **HEALTHCHECK note:** When `FASTMCP_TRANSPORT=stdio`, no port 3000 is bound. The Dockerfile's built-in TCP healthcheck will fail permanently. Pass `--no-healthcheck` to suppress the misleading `(unhealthy)` status: `docker run --no-healthcheck --rm -i ...`.
 
 #### Override Transport in Docker Compose
 
 ```yaml
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
     environment:
       UNIFI_API_KEY: your-api-key-here
       FASTMCP_TRANSPORT: sse  # or stdio
     ports:
-      - "3000:3000"
+      - "3000:3000"  # remove this entry when using stdio
 ```
 
-**Note:** The server exposes port 3000 for `streamable-http` and `sse` transports. If using `stdio`, no port is exposed; the server communicates exclusively via stdin/stdout.
+**Note:** The server exposes port 3000 for `streamable-http` and `sse` transports. If using `stdio`, no port is exposed; the server communicates exclusively via stdin/stdout. When switching to `stdio`, remove the `ports:` mapping and disable the built-in TCP healthcheck (which will fail permanently when nothing binds port 3000) by adding:
+
+```yaml
+    healthcheck:
+      disable: true
+```
 
 ### Bearer Token Authentication (Optional)
 
@@ -283,12 +400,12 @@ When unset (the default), the server runs without transport-layer authentication
 
 ```bash
 # Docker
-docker run -e UNIFI_API_KEY="..." -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server
+docker run -e UNIFI_API_KEY="..." -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
 
 # Docker Compose
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
     environment:
       UNIFI_API_KEY: your-api-key-here
       MCP_BEARER_TOKEN: my-secret-token
@@ -296,7 +413,198 @@ services:
       - "3000:3000"
 ```
 
-This uses FastMCP's `StaticTokenVerifier` — a single shared-secret pattern designed for LAN/VPN deployments where network-level access control is already in place. It is not intended as a standalone security boundary for public-internet deployments. See [issue #10](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/10) for design context.
+**Client configuration with bearer auth:**
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
+      "headers": { "Authorization": "Bearer my-secret-token" }
+    }
+  }
+}
+```
+
+For `FASTMCP_TRANSPORT=sse`, use the `sse` client type pointing at the `/sse` endpoint with the same `Authorization` header:
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse",
+      "headers": { "Authorization": "Bearer my-secret-token" }
+    }
+  }
+}
+```
+
+This uses FastMCP's `StaticTokenVerifier` — a single shared-secret pattern designed for LAN/VPN deployments where network-level access control is already in place. It is not intended as a standalone security boundary for public-internet deployments; for public-internet use, see the OAuth mode below.
+
+#### Bearer + HTTPS (Recommended for LAN/VPN)
+
+Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=https` to add transport encryption on top of the shared-secret check — this is the recommended posture for private-network deployments:
+
+```bash
+# Docker — bearer auth with in-server HTTPS
+docker run \
+  -e UNIFI_API_KEY="your-api-key-here" \
+  -e MCP_BEARER_TOKEN="my-secret-token" \
+  -e MCP_TLS_MODE=https \
+  -e MCP_TLS_CERTFILE=/certs/cert.pem \
+  -e MCP_TLS_KEYFILE=/certs/key.pem \
+  -v /path/to/certs:/certs:ro \
+  -p 3000:3000 \
+  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
+```
+
+```yaml
+# Docker Compose — bearer auth with in-server HTTPS
+services:
+  unifi-fabric-mcp:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
+    environment:
+      UNIFI_API_KEY: your-api-key-here
+      MCP_BEARER_TOKEN: my-secret-token
+      MCP_TLS_MODE: https
+      MCP_TLS_CERTFILE: /certs/cert.pem
+      MCP_TLS_KEYFILE: /certs/key.pem
+    volumes:
+      - /path/to/certs:/certs:ro
+    ports:
+      - "3000:3000"
+```
+
+**Client configuration for bearer + HTTPS** — the URL must use `https://`:
+
+`streamable-http` transport:
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "http",
+      "url": "https://localhost:3000/mcp",
+      "headers": { "Authorization": "Bearer my-secret-token" }
+    }
+  }
+}
+```
+
+`sse` transport (`FASTMCP_TRANSPORT=sse`):
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "sse",
+      "url": "https://localhost:3000/sse",
+      "headers": { "Authorization": "Bearer my-secret-token" }
+    }
+  }
+}
+```
+
+See [`docs/TLS.md`](docs/TLS.md) for certificate generation and the HEALTHCHECK requirement when enabling in-server TLS.
+
+#### Bearer + mTLS (High-assurance internal)
+
+Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=mtls` for mutual transport identity on top of the shared-secret check. The server requires every client to present a certificate issued by your CA:
+
+```bash
+# Docker — bearer auth with mutual TLS
+docker run \
+  -e UNIFI_API_KEY="your-api-key-here" \
+  -e MCP_BEARER_TOKEN="my-secret-token" \
+  -e MCP_TLS_MODE=mtls \
+  -e MCP_TLS_CERTFILE=/certs/server-cert.pem \
+  -e MCP_TLS_KEYFILE=/certs/server-key.pem \
+  -e MCP_TLS_CA_CERTS=/certs/ca-cert.pem \
+  -v /path/to/certs:/certs:ro \
+  -p 3000:3000 \
+  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.5.0
+```
+
+Most MCP clients cannot present a client certificate directly. The recommended pattern is a TLS-terminating reverse proxy that presents the client certificate toward the server; downstream MCP clients connect to the proxy over standard HTTPS with the bearer token in the `Authorization` header:
+
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "type": "http",
+      "url": "https://proxy.example.com/mcp",
+      "headers": { "Authorization": "Bearer my-secret-token" }
+    }
+  }
+}
+```
+
+Replace `https://proxy.example.com/mcp` with the proxy's public HTTPS address. See [`docs/TLS.md`](docs/TLS.md) for the mTLS client configuration details and certificate generation.
+
+### Auth × TLS Deployment Matrix
+
+`MCP_BEARER_TOKEN` (above) is one mode of a broader auth/transport/TLS selector
+surface. The selectors live in the `MCP_*` namespace and apply to **HTTP
+transports only** — auth and TLS are rejected (fail-closed) when
+`FASTMCP_TRANSPORT` is `stdio`. Set `FASTMCP_TRANSPORT=streamable-http` (or `sse`)
+when enabling any of these.
+
+**Auth × TLS deployment grid**
+
+The table below summarises all supported combinations and where each is appropriate:
+
+| Auth mode | TLS mode | Posture / Use when |
+|-----------|----------|--------------------|
+| `none` | `none` | Local loopback / single-user dev only — see [SECURITY.md](.github/SECURITY.md) |
+| `none` | `https` | **Not recommended as-is** — only acceptable when a TLS-terminating proxy in front enforces authentication |
+| `none` | `mtls` | **Not recommended as-is** — transport-level peer identity but still no application-layer auth; set `MCP_AUTH_MODE` to `bearer` or `oauth` to add application-layer auth |
+| `bearer` | `none` | Trusted LAN (token travels in cleartext — secure at the network level) |
+| `bearer` | `https` | **Recommended for LAN/VPN** — shared-secret auth + transport encryption |
+| `bearer` | `mtls` | High-assurance internal — mutual transport identity + shared secret |
+| `oauth` | `none` | **Avoid** — tokens validated per-client but travel in cleartext; only tolerable behind a TLS-terminating proxy |
+| `oauth` | `https` | **Recommended for internet-exposed** — per-client JWT + transport encryption |
+| `oauth` | `mtls` | Zero-trust / multi-tenant — maximum assurance |
+
+All nine cells are supported. Configuration details are in the tables below and in
+[docs/AUTH-OAUTH.md](docs/AUTH-OAUTH.md) / [docs/TLS.md](docs/TLS.md).
+See [SECURITY.md](.github/SECURITY.md) for the full posture decision matrix including
+guidance on mTLS as a transport boundary.
+
+**Auth selectors**
+
+| Env var | Default | Description |
+|---|---|---|
+| `MCP_AUTH_MODE` | _(unset)_ | `none`, `bearer`, or `oauth`. Unset resolves to `bearer` when `MCP_BEARER_TOKEN` is set, else `none`. |
+| `MCP_BEARER_TOKEN` | `""` | Shared secret for `bearer` mode. |
+| `MCP_OAUTH_ISSUER` | `""` | OAuth issuer URL. Required for `oauth`. |
+| `MCP_OAUTH_JWKS_URI` | `""` | JWKS URI for signature verification. Required for `oauth`. |
+| `MCP_OAUTH_AUDIENCE` | `""` | Expected token audience. Required for `oauth`. |
+| `MCP_OAUTH_BASE_URL` | `""` | Public base URL of this resource server. Required for `oauth`. |
+| `MCP_OAUTH_REQUIRED_SCOPES` | `""` | Comma-separated scopes a token must carry. |
+| `MCP_OAUTH_ALGORITHM` | `RS256` | JWT signing algorithm to accept. |
+| `MCP_OAUTH_AUTHORIZATION_SERVERS` | _(issuer)_ | Comma-separated authorization-server URLs. Defaults to `[MCP_OAUTH_ISSUER]`. |
+
+**TLS selectors**
+
+| Env var | Default | Description |
+|---|---|---|
+| `MCP_TLS_MODE` | `none` | `none`, `https`, or `mtls`. |
+| `MCP_TLS_CERTFILE` | `""` | Server certificate path. Required for `https`/`mtls`. |
+| `MCP_TLS_KEYFILE` | `""` | Server private key path. Required for `https`/`mtls`. |
+| `MCP_TLS_CA_CERTS` | `""` | Client CA bundle for verifying client certs. Required for `mtls`. |
+| `MCP_TLS_KEY_PASSWORD` | `""` | Password for an encrypted private key. Optional. |
+| `MCP_TLS_CERT_REQS` | _(unset)_ | Client-cert verification level for `mtls`: `none`, `optional`, or `required`. |
+
+**Fail-closed validation:** `https`/`mtls` require a cert + key (`mtls` also a CA
+bundle); `oauth` requires issuer + JWKS URI + audience + base URL; `bearer` requires
+a non-empty `MCP_BEARER_TOKEN`; unknown enum values and `stdio` + auth/TLS are
+rejected at startup with a clear message.
+
+All auth modes (`none`, `bearer`, `oauth`) and TLS modes (`none`, `https`, `mtls`)
+are active and CI-tested. For OAuth setup see [`docs/AUTH-OAUTH.md`](docs/AUTH-OAUTH.md);
+for HTTPS / mTLS see [`docs/TLS.md`](docs/TLS.md).
 
 ### Single key setup
 
@@ -312,6 +620,58 @@ export UNIFI_API_KEYS='[{"key": "key-a", "label": "org-east", "is_org_key": true
 
 Organization keys (`is_org_key: true`) cover all sites under the org. Personal keys only access consoles owned by the key holder.
 
+> **Shell vs Docker env-file:** the single quotes above are correct for an interactive shell
+> or a script that uses `export`. If you store this value in a file consumed by Docker
+> (`--env-file` / `env_file:` in Compose), write the value **without surrounding quotes** —
+> Docker reads the file literally and passes the raw string to the container. Writing the
+> line with quotes in a Docker env file causes the literal quote characters to become part
+> of the value, which fails JSON parsing with a `SettingsError`. The same file cannot
+> serve both purposes without a wrapper: use the quoted form for shell, the unquoted form
+> for Docker.
+
+> **Known limitation:** In the current release, per-host operations (any tool that accepts a `host` parameter) resolve against the first API key in `UNIFI_API_KEYS` only. Consoles owned exclusively by a non-first key will return a `403 host not found` error from those tools. `list_hosts`, `list_sites`, and `list_all_sites_aggregated` are not affected — they iterate all keys. A fix extending key resolution to all per-host tools is planned for an upcoming release.
+
+## Pagination Behavior
+
+List tools return **all available results by default**. The server follows pagination
+automatically, draining every page before returning to the caller. For typical queries
+("list all sites", "list all clients") you receive a complete result set without any
+manual page handling.
+
+### Getting a single page
+
+To opt out of full-drain and receive exactly one page, supply explicit pagination
+parameters:
+
+- **Cursor-based tools** (those that return a `nextPageToken`): pass the prior
+  page token as `page_token=<value>`.
+- **Offset-based tools** (those that accept `offset` and `limit`): pass **both**
+  `offset=<n>` and `limit=<n>` together.
+
+Passing only one of `offset` or `limit` on an offset-based tool causes the server
+to drain from that starting position.
+
+### Partial results when a page cap is set
+
+When `UNIFI_PAGINATE_MAX_PAGES` is configured and the cap is reached before all
+results are collected, the response includes:
+
+```json
+{
+  "incomplete": true,
+  "incompleteReason": "page cap reached after N pages",
+  "data": [...]
+}
+```
+
+Check for `"incomplete": true` in results — when present, the data covers only a
+subset of what the API holds. Raise or remove the cap (the default is no cap) to
+retrieve the full dataset.
+
+Stall detection is always active regardless of the cap: the client raises an error if
+a page response returns the same continuation token twice or if a zero-result page
+arrives with an active token.
+
 ## Retry & Backoff Behavior
 
 The MCP server automatically retries failed requests to handle transient failures and rate limits gracefully.
@@ -321,14 +681,15 @@ The MCP server automatically retries failed requests to handle transient failure
 When the UniFi API responds with HTTP 429 (Too Many Requests), the server retries with **exponential backoff + jitter**:
 
 - **Max retries**: 5 (6 total attempts)
-- **Backoff formula**: `delay = min(2^attempt, 32) + random_jitter`
+- **Backoff formula**: `delay = min(2^attempt, 32) + random_jitter`, where `attempt` is 0-based (0 for the sleep before the 2nd request, 1 before the 3rd, etc.)
   - Attempt 1: immediate
-  - Attempt 2: ~1 second (1 + jitter 0-1)
-  - Attempt 3: ~2 seconds (2 + jitter 0-2)
-  - Attempt 4: ~4 seconds (4 + jitter 0-4)
-  - Attempt 5: ~8 seconds (8 + jitter 0-8)
-  - Attempt 6: ~16 seconds (16 + jitter 0-16)
-  - Attempt 7+: capped at ~32 seconds (32 + jitter 0-32)
+  - Attempt 2: 1-2 seconds (`2^0=1` + jitter 0-1)
+  - Attempt 3: 2-4 seconds (`2^1=2` + jitter 0-2)
+  - Attempt 4: 4-8 seconds (`2^2=4` + jitter 0-4)
+  - Attempt 5: 8-16 seconds (`2^3=8` + jitter 0-8)
+  - Attempt 6: 16-32 seconds (`2^4=16` + jitter 0-16)
+
+  > **Note:** With the default `max_retries=5` (6 total attempts), Attempt 6 is the final request. On a 429 at Attempt 6 the client raises `RateLimitError` immediately without sleeping. The highest sleep actually reached before exhaustion is therefore 16-32 seconds (the wait before Attempt 6, which is `base_delay=16` plus up to 16 seconds of jitter). The 32-second **base delay** cap requires `attempt>=5` and is only reachable if `max_retries` is increased beyond 5; however, the total sleep (base + jitter) already reaches 32 seconds with the default `max_retries=5` due to jitter.
 
 - **Jitter**: Uniform random(0, base_delay) added to avoid "thundering herd" — coordinated retries from multiple clients hitting the API at the same moment.
 
@@ -340,7 +701,7 @@ The following errors are **not retried** and raise immediately:
 
 - **Timeout**: Request exceeds `UNIFI_REQUEST_TIMEOUT_SECONDS` (default 30)
 - **Connection failed**: Network unreachable, DNS failure, refused connection
-- **HTTP errors**: 4xx (auth, not found) and 5xx (server error) are raised immediately
+- **HTTP errors**: non-429 4xx (auth, not found) and 5xx (server error) are raised immediately without retry
 
 These are considered non-transient and retrying would not help. See [Troubleshooting](#troubleshooting) for how to handle them.
 
@@ -379,6 +740,7 @@ These are considered non-transient and retrying would not help. See [Troubleshoo
 **"UNIFI_API_KEYS" JSON parse error**
 - Use proper JSON formatting: `[{"key": "...", "label": "..."}, ...]`
 - Escape quotes correctly in shell: `export UNIFI_API_KEYS='[{"key":"your-key"}]'` (single quotes)
+- If using Docker `--env-file` or Compose `env_file:`, write the value **without** surrounding quotes — Docker reads the file literally, so quotes become part of the value and break JSON parsing
 - Validate JSON at [jsonlint.com](https://www.jsonlint.com) before setting
 
 **"Base URL is incorrect" or "api.ui.com not found"**
@@ -449,9 +811,10 @@ and guard against tag mutation:
 docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
 ```
 
-You can find the digest for a given release on the package page or via:
+You can find the digest for a given release on the package page or via (the image must be present locally — run `docker pull` first):
 
 ```bash
+docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
 docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
 ```
 
@@ -475,10 +838,12 @@ docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabr
 
 ## Contributing
 
-Use conventional commits and standard branch naming. See [SECURITY.md](.github/SECURITY.md) for how to report vulnerabilities privately.
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions,
+branch naming, commit conventions, CI gates, testing requirements, and the changelog
+rule. For security vulnerabilities, see [SECURITY.md](.github/SECURITY.md) — do not
+open a public issue.
 
 ## License
 
 MIT. See [LICENSE](LICENSE) for details.
-
 

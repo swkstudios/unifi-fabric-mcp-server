@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "client-0001",
+      "name": "Front Desk Laptop"
+    },
+    {
+      "id": "client-0002",
+      "name": "Warehouse Scanner"
+    }
+  ],
+  "offset": 0,
+  "limit": 2,
+  "count": 2,
+  "totalCount": 4
+}

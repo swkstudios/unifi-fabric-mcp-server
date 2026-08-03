@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "client-0003",
+      "name": "Lobby Tablet"
+    },
+    {
+      "id": "client-0004",
+      "name": "Server Room NUC"
+    }
+  ],
+  "offset": 2,
+  "limit": 2,
+  "count": 2,
+  "totalCount": 4
+}

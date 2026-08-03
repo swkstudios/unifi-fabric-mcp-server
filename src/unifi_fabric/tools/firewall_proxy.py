@@ -6,6 +6,7 @@ from typing import Any
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._pagination import collect_offset, mark_incomplete
 from .network import _proxy
 
 # --- Firewall Policies ---
@@ -16,20 +17,28 @@ async def list_firewall_policies(
     registry: Registry,
     host: str,
     site: str,
-    offset: int = 0,
-    limit: int = 50,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List firewall policies for a site.
+
+    By default every offset page is drained and the complete policy list is
+    returned as ``{data, totalCount}``. Passing offset or limit selects manual
+    paging: a single page is returned with the API's totalCount so the caller can
+    advance. A drain that hits the page cap returns the policies gathered so far
+    with incomplete=true rather than truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    params: dict[str, Any] = {}
-    if offset is not None:
-        params["offset"] = offset
-    if limit is not None:
-        params["limit"] = limit
-    return await client.get(
-        _proxy(host_id, f"/sites/{site_id}/firewall/policies"), params=params or None
-    )
+    url = _proxy(host_id, f"/sites/{site_id}/firewall/policies")
+    collected = await collect_offset(client, url, offset=offset, limit=limit)
+    total = collected["totalCount"]
+    result: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(result, collected)
 
 
 async def create_firewall_policy(
@@ -134,12 +143,33 @@ async def set_firewall_policy_ordering(
 
 
 async def list_firewall_zones(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
+    """List firewall zones for a site.
+
+    This Network Integration endpoint is offset-paginated (verified live: the
+    response carries an ``{offset, limit, count, totalCount, data}`` envelope with a
+    native default page size of 25). By default every page is drained and the
+    complete list is returned as ``{data, totalCount}``; pass offset or limit for a
+    single manual page. A capped drain is flagged ``incomplete`` rather than
+    truncating silently.
+    """
     host_id = await registry.resolve_host_id(host)
     site_id = await registry.resolve_site_id(site, host_id)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/firewall/zones"))
+    url = _proxy(host_id, f"/sites/{site_id}/firewall/zones")
+    collected = await collect_offset(client, url, offset=offset, limit=limit)
+    total = collected["totalCount"]
+    result: dict[str, Any] = {
+        "data": collected["items"],
+        "totalCount": total if total is not None else len(collected["items"]),
+    }
+    return mark_incomplete(result, collected)
 
 
 async def create_firewall_zone(
