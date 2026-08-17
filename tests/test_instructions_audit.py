@@ -41,6 +41,7 @@ from unifi_fabric._instructions_audit import (
     parse_param_scope_buckets,
     phantom_tool_refs,
     tool_verbs,
+    undocumented_required_params,
 )
 
 
@@ -61,6 +62,19 @@ def _registered_tool_params() -> dict[str, set[str]]:
     """Map each registered tool name to its parameter names from the live schema."""
     return {
         tool.name: set((tool.parameters or {}).get("properties", {}).keys())
+        for tool in _registered_tools()
+    }
+
+
+def _registered_tool_descriptions() -> dict[str, str]:
+    """Map each registered tool name to its description text from the live schema."""
+    return {tool.name: (tool.description or "") for tool in _registered_tools()}
+
+
+def _registered_tool_required() -> dict[str, list[str]]:
+    """Map each registered tool name to its required parameter names from the live schema."""
+    return {
+        tool.name: list((tool.parameters or {}).get("required", []) or [])
         for tool in _registered_tools()
     }
 
@@ -95,6 +109,23 @@ def test_instructions_param_scope_matches_schema() -> None:
         "disagrees with their registered host/site parameters:\n  "
         + "\n  ".join(violations)
         + "\nMove the tool to the correct bucket in the INSTRUCTIONS constant in server.py."
+    )
+
+
+def test_every_required_param_named_in_description() -> None:
+    # Agent-facing gate: the tool description is the interface an agent reads before it
+    # picks arguments, so every required parameter must be named there — schema-only is not
+    # enough (this is the class that produced calls omitting group_id / start / end).
+    descriptions = _registered_tool_descriptions()
+    required = _registered_tool_required()
+    assert descriptions, "no tools registered — introspection is broken"
+    violations = undocumented_required_params(descriptions, required)
+    assert violations == [], (
+        "Some tools have a REQUIRED parameter that is never named in their description; an "
+        "agent cannot see it exists from the prose it reads:\n  "
+        + "\n  ".join(violations)
+        + "\nName each required parameter in the tool's docstring (and say where to obtain "
+        "its value)."
     )
 
 
@@ -212,6 +243,42 @@ def test_param_scope_violations_skips_unregistered_tools() -> None:
     # Unregistered names are the phantom class; the scope check leaves them alone.
     text = "## Parameter Scope Quick Reference\n- **host only**: `list_phantom_thing`\n"
     assert param_scope_violations(text, {"list_devices": {"host"}}) == []
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for the required-parameter-in-description detector
+# ---------------------------------------------------------------------------
+
+
+def test_undocumented_required_params_flags_missing_name() -> None:
+    descriptions = {"get_camera": "Get details for a single Protect camera by ID."}
+    required = {"get_camera": ["host", "camera_id"]}
+    violations = undocumented_required_params(descriptions, required)
+    assert len(violations) == 2
+    assert any("host" in v for v in violations)
+    assert any("camera_id" in v for v in violations)
+
+
+def test_undocumented_required_params_empty_when_all_named() -> None:
+    descriptions = {"get_camera": "Get a camera. host: the console. camera_id: from list_cameras."}
+    required = {"get_camera": ["host", "camera_id"]}
+    assert undocumented_required_params(descriptions, required) == []
+
+
+def test_undocumented_required_params_uses_whole_word_match() -> None:
+    # A substring hit inside another word must NOT count as documenting the param.
+    descriptions = {"t": "mentions grouped and identifier but not the real arg."}
+    required = {"t": ["group_id"]}
+    violations = undocumented_required_params(descriptions, required)
+    assert len(violations) == 1
+    assert "group_id" in violations[0]
+
+
+def test_undocumented_required_params_ignores_optional_params() -> None:
+    # Only 'required' params are checked; optional ones are absent from the required map.
+    descriptions = {"list_thing": "Lists things. host: the console."}
+    required = {"list_thing": ["host"]}
+    assert undocumented_required_params(descriptions, required) == []
 
 
 def test_param_scope_violations_empty_when_consistent() -> None:

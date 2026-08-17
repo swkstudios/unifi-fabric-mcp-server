@@ -57,6 +57,7 @@ def client():
 def registry():
     r = AsyncMock()
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     return r
 
 
@@ -67,7 +68,7 @@ class TestListSensors:
     async def test_list_returns_dict(self, client, registry):
         client.get.return_value = [{"id": "sen-1", "type": "motion"}]
         result = await list_sensors(client, registry, "myhost")
-        client.get.assert_called_once_with(f"{BASE}/sensors")
+        client.get.assert_called_once_with(f"{BASE}/sensors", key=None)
         assert result == {"sensors": [{"id": "sen-1", "type": "motion"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -78,14 +79,14 @@ class TestListSensors:
     async def test_resolves_host(self, client, registry):
         client.get.return_value = []
         await list_sensors(client, registry, "MyHost")
-        registry.resolve_host_id.assert_called_once_with("MyHost")
+        registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
 
 
 class TestGetSensor:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "sen-1", "state": "open"}
         result = await get_sensor(client, registry, "h", "sen-1")
-        client.get.assert_called_once_with(f"{BASE}/sensors/sen-1")
+        client.get.assert_called_once_with(f"{BASE}/sensors/sen-1", key=None)
         assert result["id"] == "sen-1"
 
     async def test_non_dict_wrapped(self, client, registry):
@@ -98,7 +99,9 @@ class TestUpdateSensor:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "sen-1", "name": "Door"}
         result = await update_sensor(client, registry, "h", "sen-1", name="Door")
-        client.patch.assert_called_once_with(f"{BASE}/sensors/sen-1", json={"name": "Door"})
+        client.patch.assert_called_once_with(
+            f"{BASE}/sensors/sen-1", json={"name": "Door"}, key=None
+        )
         assert result["name"] == "Door"
 
 
@@ -109,7 +112,7 @@ class TestListLights:
     async def test_list_returns_dict(self, client, registry):
         client.get.return_value = [{"id": "lt-1"}]
         result = await list_lights(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/lights")
+        client.get.assert_called_once_with(f"{BASE}/lights", key=None)
         assert result == {"lights": [{"id": "lt-1"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -122,7 +125,7 @@ class TestGetLight:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "lt-1", "on": True}
         result = await get_light(client, registry, "h", "lt-1")
-        client.get.assert_called_once_with(f"{BASE}/lights/lt-1")
+        client.get.assert_called_once_with(f"{BASE}/lights/lt-1", key=None)
         assert result["id"] == "lt-1"
 
 
@@ -130,7 +133,9 @@ class TestUpdateLight:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "lt-1", "brightness": 80}
         result = await update_light(client, registry, "h", "lt-1", brightness=80)
-        client.patch.assert_called_once_with(f"{BASE}/lights/lt-1", json={"brightness": 80})
+        client.patch.assert_called_once_with(
+            f"{BASE}/lights/lt-1", json={"brightness": 80}, key=None
+        )
         assert result["brightness"] == 80
 
 
@@ -141,7 +146,7 @@ class TestListChimes:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "ch-1"}]
         result = await list_chimes(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/chimes")
+        client.get.assert_called_once_with(f"{BASE}/chimes", key=None)
         assert result == {"chimes": [{"id": "ch-1"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -154,7 +159,7 @@ class TestGetChime:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "ch-1", "volume": 70}
         result = await get_chime(client, registry, "h", "ch-1")
-        client.get.assert_called_once_with(f"{BASE}/chimes/ch-1")
+        client.get.assert_called_once_with(f"{BASE}/chimes/ch-1", key=None)
         assert result["id"] == "ch-1"
 
 
@@ -162,7 +167,7 @@ class TestUpdateChime:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "ch-1", "volume": 50}
         result = await update_chime(client, registry, "h", "ch-1", volume=50)
-        client.patch.assert_called_once_with(f"{BASE}/chimes/ch-1", json={"volume": 50})
+        client.patch.assert_called_once_with(f"{BASE}/chimes/ch-1", json={"volume": 50}, key=None)
         assert result["volume"] == 50
 
 
@@ -173,7 +178,7 @@ class TestListViewers:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "vw-1"}]
         result = await list_viewers(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/viewers")
+        client.get.assert_called_once_with(f"{BASE}/viewers", key=None)
         assert result == {"viewers": [{"id": "vw-1"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -186,7 +191,7 @@ class TestGetViewer:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "vw-1", "liveview": "lv-1"}
         result = await get_viewer(client, registry, "h", "vw-1")
-        client.get.assert_called_once_with(f"{BASE}/viewers/vw-1")
+        client.get.assert_called_once_with(f"{BASE}/viewers/vw-1", key=None)
         assert result["id"] == "vw-1"
 
 
@@ -194,7 +199,9 @@ class TestUpdateViewer:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "vw-1", "liveview": "lv-2"}
         result = await update_viewer(client, registry, "h", "vw-1", liveview="lv-2")
-        client.patch.assert_called_once_with(f"{BASE}/viewers/vw-1", json={"liveview": "lv-2"})
+        client.patch.assert_called_once_with(
+            f"{BASE}/viewers/vw-1", json={"liveview": "lv-2"}, key=None
+        )
         assert result["liveview"] == "lv-2"
 
 
@@ -205,7 +212,7 @@ class TestListLiveviews:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "lv-1", "name": "Main View"}]
         result = await list_liveviews(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/liveviews")
+        client.get.assert_called_once_with(f"{BASE}/liveviews", key=None)
         assert result == {"liveviews": [{"id": "lv-1", "name": "Main View"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -218,7 +225,7 @@ class TestGetLiveview:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "lv-1", "name": "Lobby"}
         result = await get_liveview(client, registry, "h", "lv-1")
-        client.get.assert_called_once_with(f"{BASE}/liveviews/lv-1")
+        client.get.assert_called_once_with(f"{BASE}/liveviews/lv-1", key=None)
         assert result["id"] == "lv-1"
 
 
@@ -226,7 +233,9 @@ class TestCreateLiveview:
     async def test_basic(self, client, registry):
         client.post.return_value = {"id": "lv-2", "name": "New View"}
         result = await create_liveview(client, registry, "h", "New View")
-        client.post.assert_called_once_with(f"{BASE}/liveviews", json={"name": "New View"})
+        client.post.assert_called_once_with(
+            f"{BASE}/liveviews", json={"name": "New View"}, key=None
+        )
         assert result["name"] == "New View"
 
     async def test_extra_fields(self, client, registry):
@@ -241,7 +250,9 @@ class TestUpdateLiveview:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "lv-1", "name": "Updated"}
         result = await update_liveview(client, registry, "h", "lv-1", name="Updated")
-        client.patch.assert_called_once_with(f"{BASE}/liveviews/lv-1", json={"name": "Updated"})
+        client.patch.assert_called_once_with(
+            f"{BASE}/liveviews/lv-1", json={"name": "Updated"}, key=None
+        )
         assert result["name"] == "Updated"
 
 
@@ -252,7 +263,7 @@ class TestGetNvr:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "nvr-1", "version": "4.0.0"}
         result = await get_nvr(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/nvrs")
+        client.get.assert_called_once_with(f"{BASE}/nvrs", key=None)
         assert result["id"] == "nvr-1"
 
     async def test_non_dict_wrapped(self, client, registry):
@@ -268,7 +279,7 @@ class TestTriggerAlarmWebhook:
     async def test_basic(self, client, registry):
         client.post.return_value = {"status": "triggered"}
         result = await trigger_alarm_webhook(client, registry, "h", "wh-1")
-        client.post.assert_called_once_with(f"{BASE}/alarm-manager/webhook/wh-1", json={})
+        client.post.assert_called_once_with(f"{BASE}/alarm-manager/webhook/wh-1", json={}, key=None)
         assert result["status"] == "triggered"
 
     async def test_non_dict_fallback(self, client, registry):
@@ -285,7 +296,7 @@ class TestCreateRtspsStream:
         client.post.return_value = {"url": "rtsps://..."}
         result = await create_rtsps_stream(client, registry, "h", "cam-1", ["highest", "high"])
         client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/rtsps-stream", json={"qualities": ["highest", "high"]}
+            f"{BASE}/cameras/cam-1/rtsps-stream", json={"qualities": ["highest", "high"]}, key=None
         )
         assert result["url"] == "rtsps://..."
 
@@ -313,9 +324,11 @@ class TestDeleteRtspsStream:
         client.delete.return_value = None
         await delete_rtsps_stream(client, registry, "h", "cam-1", ["highest", "high"])
         client.delete.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/rtsps-stream", params={"qualities": ["highest", "high"]}
+            f"{BASE}/cameras/cam-1/rtsps-stream",
+            params={"qualities": ["highest", "high"]},
+            key=None,
         )
-        registry.resolve_host_id.assert_called_once_with("h")
+        registry.resolve_host_id.assert_called_once_with("h", key=None)
 
     async def test_qualities_normalized_to_lowercase(self, client, registry):
         client.delete.return_value = None
@@ -338,7 +351,7 @@ class TestListProtectFiles:
     async def test_list_returns_dict(self, client, registry):
         client.get.return_value = [{"id": "file-1", "name": "alert.mp3"}]
         result = await list_protect_files(client, registry, "myhost", "sounds")
-        client.get.assert_called_once_with(f"{BASE}/files/sounds")
+        client.get.assert_called_once_with(f"{BASE}/files/sounds", key=None)
         assert result == {
             "files": [{"id": "file-1", "name": "alert.mp3"}],
             "count": 1,
@@ -354,7 +367,7 @@ class TestListProtectFiles:
     async def test_resolves_host(self, client, registry):
         client.get.return_value = []
         await list_protect_files(client, registry, "MyHost", "sounds")
-        registry.resolve_host_id.assert_called_once_with("MyHost")
+        registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
 
     async def test_empty_list(self, client, registry):
         client.get.return_value = []
@@ -389,7 +402,7 @@ class TestUploadProtectFile:
         client.post_multipart.return_value = {}
         encoded = base64.b64encode(b"x").decode()
         await upload_protect_file(client, registry, "MyHost", "images", "img.png", encoded)
-        registry.resolve_host_id.assert_called_once_with("MyHost")
+        registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
 
 
 # --- Historical Events (private /proxy/protect/api/events path) ---

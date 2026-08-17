@@ -38,6 +38,7 @@ def client():
 @pytest.fixture()
 def registry():
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
     return r
@@ -50,14 +51,14 @@ class TestListPortForwards:
     async def test_basic(self, client, registry):
         client.get.return_value = {"data": [{"_id": "pf-1"}]}
         result = await list_port_forwards(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward", key=None)
         assert result == {"data": [{"_id": "pf-1"}]}
 
     async def test_resolves_host_and_site(self, client, registry):
         client.get.return_value = {}
         await list_port_forwards(client, registry, "myhost", "mysite")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID, key=None)
 
 
 class TestCreatePortForward:
@@ -74,7 +75,9 @@ class TestCreatePortForward:
         }
         client.post.return_value = {"_id": "pf-2", **payload}
         result = await create_port_forward(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward", json=payload)
+        client.post.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward", key=None, json=payload
+        )
         assert result["name"] == "Web Server"
 
 
@@ -83,7 +86,9 @@ class TestUpdatePortForward:
         payload = {"enabled": False}
         client.put.return_value = {"_id": "pf-1", "enabled": False}
         result = await update_port_forward(client, registry, "h", "s", "pf-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None, json=payload
+        )
         assert result["enabled"] is False
 
 
@@ -91,7 +96,7 @@ class TestDeletePortForward:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         await delete_port_forward(client, registry, "h", "s", "pf-1")
-        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1")
+        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None)
 
 
 # --- Traffic Rules (v2 API) ---
@@ -101,22 +106,27 @@ class TestListTrafficRules:
     async def test_basic(self, client, registry):
         client.get.return_value = {"data": [{"_id": "tr-1"}]}
         result = await list_traffic_rules(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficrules")
+        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None)
         assert result == {"data": [{"_id": "tr-1"}]}
 
     async def test_resolves_host_and_site(self, client, registry):
         client.get.return_value = {}
         await list_traffic_rules(client, registry, "myhost", "mysite")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID, key=None)
 
 
 class TestCreateTrafficRule:
     async def test_basic(self, client, registry):
-        payload = {"description": "Block Gaming", "action": "BLOCK", "matching_target": "INTERNET"}
+        payload = {
+            "description": "Block Gaming",
+            "action": "BLOCK",
+            "matching_target": "INTERNET",
+            "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
+        }
         client.post.return_value = {"_id": "tr-2", **payload}
         result = await create_traffic_rule(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", json=payload)
+        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None, json=payload)
         assert result["description"] == "Block Gaming"
 
 
@@ -125,7 +135,9 @@ class TestUpdateTrafficRule:
         payload = {"enabled": False}
         client.put.return_value = {"_id": "tr-1", "enabled": False}
         result = await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
-        client.put.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", json=payload)
+        client.put.assert_called_once_with(
+            f"{V2_API_BASE}/trafficrules/tr-1/", key=None, json=payload
+        )
         assert result["enabled"] is False
 
 
@@ -133,4 +145,4 @@ class TestDeleteTrafficRule:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         await delete_traffic_rule(client, registry, "h", "s", "tr-1")
-        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/")
+        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", key=None)

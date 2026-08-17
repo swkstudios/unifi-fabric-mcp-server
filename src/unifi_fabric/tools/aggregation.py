@@ -31,8 +31,8 @@ async def _get_all_host_site_pairs(
 ) -> list[dict[str, str]]:
     """Build a list of {hostId, siteId, hostName, siteName} for every site.
 
-    Enumerates hosts from /ea/sites, then fetches UUID site IDs from the
-    per-console proxy /sites endpoint. The /ea/sites ``siteId`` field is a
+    Enumerates hosts from /v1/sites, then fetches UUID site IDs from the
+    per-console proxy /sites endpoint. The /v1/sites ``siteId`` field is a
     Fabric ObjectId and cannot be used in proxy URLs — proxy endpoints require
     the UUID returned by the console's Network Integration /sites API.
     """
@@ -84,13 +84,13 @@ async def _list_all_devices_fleet(
     status_filter: str | None = None,
     key_label: str | None = None,
 ) -> dict[str, Any]:
-    """List all devices across the entire fleet using the /ea/devices endpoint.
+    """List all devices across the entire fleet using the /v1/devices endpoint.
 
     Optionally filter by status (e.g. 'offline', 'online', 'updating').
     key_label scopes the query to a specific API key for MSP multi-tenant use.
     """
     key = _resolve_key(client, key_label)
-    all_devices = await client.paginate("/ea/devices", key=key)
+    all_devices = await client.paginate("/v1/devices", key=key)
 
     if status_filter:
         status_lower = status_filter.lower()
@@ -161,7 +161,7 @@ async def _list_all_clients_fleet(
 
 
 def _unwrap_ea_devices(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """/ea/devices returns host-wrapper objects: [{hostId, devices:[...]}, ...].
+    """/v1/devices returns host-wrapper objects: [{hostId, devices:[...]}, ...].
 
     Unwrap to get a flat list of device objects. Fall back to using the item
     directly if it is not a wrapper (i.e. has no inner 'devices' list).
@@ -188,16 +188,16 @@ async def _fleet_summary(
     """
     key = _resolve_key(client, key_label)
     hosts_data, sites_data, raw_devices = await asyncio.gather(
-        client.paginate("/ea/hosts", key=key),
-        client.paginate("/ea/sites", key=key),
-        client.paginate("/ea/devices", key=key),
+        client.paginate("/v1/hosts", key=key),
+        client.paginate("/v1/sites", key=key),
+        client.paginate("/v1/devices", key=key),
     )
 
     # Opportunistically refresh registry cache for this key
     await registry.set_hosts(hosts_data, key=key)
     await registry.set_ea_sites(sites_data, key=key)
 
-    # /ea/devices returns host-wrapper objects — unwrap to actual device dicts
+    # /v1/devices returns host-wrapper objects — unwrap to actual device dicts
     devices_data = _unwrap_ea_devices(raw_devices)
 
     # Device status breakdown
@@ -237,9 +237,9 @@ async def _search_device(
     key_label scopes the search to consoles visible to a specific API key.
     """
     key = _resolve_key(client, key_label)
-    all_raw = await client.paginate("/ea/devices", key=key)
+    all_raw = await client.paginate("/v1/devices", key=key)
 
-    # /ea/devices returns host-wrapper objects: [{"devices": [...], "hostId": ...}, ...]
+    # /v1/devices returns host-wrapper objects: [{"devices": [...], "hostId": ...}, ...]
     # Unwrap to get the inner device list; fall back to using the item directly if not wrapped.
     all_devices: list[dict[str, Any]] = []
     for wrapper in all_raw:
@@ -370,6 +370,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns all matching devices from all consoles.
         key_label: scope search to consoles visible to a specific API key.
+        query: REQUIRED. Search string matched against device name, model, and MAC across the fleet.
         """
         client, _ = deps_fn()
         return await _search_device(client, query, key_label=key_label)

@@ -30,8 +30,10 @@ def _assert_uuid(site_id: str) -> None:
     """Raise ValueError if site_id is not a valid UUID.
 
     Called at every proxy URL construction site as defense-in-depth so that
-    ObjectId values from the legacy /ea/sites path can never slip into a
-    proxy endpoint URL.
+    ObjectId values from the Site Manager sites list (/v1/sites, formerly
+    /ea/sites) can never slip into a proxy endpoint URL. The Site Manager
+    siteId is a Fabric ObjectId on BOTH /ea and /v1 (live-verified); the
+    UUID comes only from the per-console connector proxy /sites endpoint.
     """
     if not _UUID_RE.match(site_id):
         raise ValueError(
@@ -47,7 +49,7 @@ class Registry:
     with multiple keys (each seeing different consoles) return correct data.
 
     _sites uses a (label, host_id) tuple key because proxy site lists are
-    per-console; _ea_sites uses a plain label key for the MSP /ea/sites list.
+    per-console; _ea_sites uses a plain label key for the MSP /v1/sites list.
 
     All three caches are backed by cachetools.TTLCache which enforces both a
     maximum size (LRU eviction when full) and a per-entry TTL.
@@ -110,16 +112,16 @@ class Registry:
         async with self._get_lock(label):
             if label not in self._hosts:
                 self._check_cache_pressure(self._hosts, "hosts", "_hosts_full_warned")
-                self._hosts[label] = await self._client.paginate("/ea/hosts", key=key)
+                self._hosts[label] = await self._client.paginate("/v1/hosts", key=key)
             return self._hosts[label]
 
     async def get_ea_sites(self, *, key: APIKeyConfig | None = None) -> list[dict[str, Any]]:
-        """Return sites from the MSP /ea/sites endpoint (for enumeration/display)."""
+        """Return sites from the MSP Site Manager `/v1/sites` endpoint (for enumeration/display)."""
         label = self._key_label(key)
         async with self._get_lock(label):
             if label not in self._ea_sites:
                 self._check_cache_pressure(self._ea_sites, "ea_sites", "_ea_sites_full_warned")
-                self._ea_sites[label] = await self._client.paginate("/ea/sites", key=key)
+                self._ea_sites[label] = await self._client.paginate("/v1/sites", key=key)
             return self._ea_sites[label]
 
     async def get_sites(
@@ -154,7 +156,7 @@ class Registry:
         """Find which configured API key's host list contains the given host.
 
         MSP deployments configure one API key per customer/org (see
-        ``Settings.get_key_configs``); each key's ``/ea/hosts`` list only
+        ``Settings.get_key_configs``); each key's ``/v1/hosts`` list only
         contains the consoles that key can see. Per-host tools must resolve
         against the key that actually owns the host, not just the first
         configured key — otherwise every host belonging to a non-first key
@@ -295,9 +297,9 @@ class Registry:
         )
 
     async def resolve_ea_site_id(self, name_or_id: str, *, key: APIKeyConfig | None = None) -> str:
-        """Resolve a site name or ID using the EA sites list.
+        """Resolve a site name or ID using the Site Manager sites list (`/v1/sites`).
 
-        Used for /v1/sites/ and /ea/sites based endpoints that do not require
+        Used for /v1/sites based endpoints that do not require
         a specific host_id for resolution. Matches on id, siteId, or siteName/description.
         Falls back to returning name_or_id as-is if no match is found.
         """
@@ -324,7 +326,7 @@ class Registry:
     async def set_ea_sites(
         self, sites: list[dict[str, Any]], *, key: APIKeyConfig | None = None
     ) -> None:
-        """Update the EA sites cache under the async lock."""
+        """Update the Site Manager sites cache (registry `_ea_sites`) under the async lock."""
         label = self._key_label(key)
         async with self._get_lock(label):
             self._ea_sites[label] = sites

@@ -41,6 +41,7 @@ def client():
 def registry():
     r = AsyncMock()
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     return r
 
 
@@ -51,7 +52,7 @@ class TestListCameras:
     async def test_list_returns_dict(self, client, registry):
         client.get.return_value = [{"id": "cam-1", "name": "Front Door"}]
         result = await list_cameras(client, registry, "myhost")
-        client.get.assert_called_once_with(f"{BASE}/cameras")
+        client.get.assert_called_once_with(f"{BASE}/cameras", key=None)
         assert result == {"cameras": [{"id": "cam-1", "name": "Front Door"}], "count": 1}
 
     async def test_data_wrapper(self, client, registry):
@@ -68,7 +69,7 @@ class TestListCameras:
     async def test_resolves_host(self, client, registry):
         client.get.return_value = []
         await list_cameras(client, registry, "MyHost")
-        registry.resolve_host_id.assert_called_once_with("MyHost")
+        registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
 
 
 # --- get_camera ---
@@ -78,7 +79,7 @@ class TestGetCamera:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "cam-1", "state": "CONNECTED"}
         result = await get_camera(client, registry, "h", "cam-1")
-        client.get.assert_called_once_with(f"{BASE}/cameras/cam-1")
+        client.get.assert_called_once_with(f"{BASE}/cameras/cam-1", key=None)
         assert result["id"] == "cam-1"
         assert result["state"] == "CONNECTED"
 
@@ -90,7 +91,7 @@ class TestGetCamera:
     async def test_resolves_host(self, client, registry):
         client.get.return_value = {"id": "cam-1"}
         await get_camera(client, registry, "myhost", "cam-1")
-        registry.resolve_host_id.assert_called_once_with("myhost")
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
 
 
 # --- update_camera ---
@@ -100,7 +101,9 @@ class TestUpdateCamera:
     async def test_basic(self, client, registry):
         client.patch.return_value = {"id": "cam-1", "name": "Backyard"}
         result = await update_camera(client, registry, "h", "cam-1", name="Backyard")
-        client.patch.assert_called_once_with(f"{BASE}/cameras/cam-1", json={"name": "Backyard"})
+        client.patch.assert_called_once_with(
+            f"{BASE}/cameras/cam-1", json={"name": "Backyard"}, key=None
+        )
         assert result["name"] == "Backyard"
 
     async def test_multiple_fields(self, client, registry):
@@ -127,7 +130,7 @@ class TestGetCameraSnapshot:
         jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 16
         client.get_bytes.return_value = jpeg_bytes
         result = await get_camera_snapshot(client, registry, "h", "cam-1")
-        client.get_bytes.assert_called_once_with(f"{BASE}/cameras/cam-1/snapshot")
+        client.get_bytes.assert_called_once_with(f"{BASE}/cameras/cam-1/snapshot", key=None)
         assert result["image_base64"] == base64.b64encode(jpeg_bytes).decode()
         assert result["content_type"] == "image/jpeg"
         assert result["size_bytes"] == len(jpeg_bytes)
@@ -135,7 +138,7 @@ class TestGetCameraSnapshot:
     async def test_resolves_host(self, client, registry):
         client.get_bytes.return_value = b"\xff\xd8\xff"
         await get_camera_snapshot(client, registry, "console-1", "cam-99")
-        registry.resolve_host_id.assert_called_once_with("console-1")
+        registry.resolve_host_id.assert_called_once_with("console-1", key=None)
 
 
 # --- get_rtsps_stream ---
@@ -145,7 +148,7 @@ class TestGetRtspsStream:
     async def test_basic(self, client, registry):
         client.get.return_value = {"url": "rtsps://192.168.1.1/stream"}
         result = await get_rtsps_stream(client, registry, "h", "cam-1")
-        client.get.assert_called_once_with(f"{BASE}/cameras/cam-1/rtsps-stream")
+        client.get.assert_called_once_with(f"{BASE}/cameras/cam-1/rtsps-stream", key=None)
         assert result["url"].startswith("rtsps://")
 
     async def test_non_dict_wrapped(self, client, registry):
@@ -161,7 +164,9 @@ class TestTalkbackStart:
     async def test_basic(self, client, registry):
         client.post.return_value = {"sessionId": "sess-1", "status": "started"}
         result = await talkback_start(client, registry, "h", "cam-1")
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/talkback-session", json={})
+        client.post.assert_called_once_with(
+            f"{BASE}/cameras/cam-1/talkback-session", json={}, key=None
+        )
         assert result["status"] == "started"
 
     async def test_non_dict_fallback(self, client, registry):
@@ -172,7 +177,7 @@ class TestTalkbackStart:
     async def test_resolves_host(self, client, registry):
         client.post.return_value = {"status": "ok"}
         await talkback_start(client, registry, "console-x", "cam-5")
-        registry.resolve_host_id.assert_called_once_with("console-x")
+        registry.resolve_host_id.assert_called_once_with("console-x", key=None)
 
 
 # --- disable_mic_permanently ---
@@ -183,7 +188,7 @@ class TestDisableMicPermanently:
         client.post.return_value = {"micDisabled": True}
         result = await disable_mic_permanently(client, registry, "h", "cam-1")
         client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/disable-mic-permanently", json={}
+            f"{BASE}/cameras/cam-1/disable-mic-permanently", json={}, key=None
         )
         assert result["micDisabled"] is True
 
@@ -195,7 +200,7 @@ class TestDisableMicPermanently:
     async def test_resolves_host(self, client, registry):
         client.post.return_value = {"status": "ok"}
         await disable_mic_permanently(client, registry, "console-y", "cam-7")
-        registry.resolve_host_id.assert_called_once_with("console-y")
+        registry.resolve_host_id.assert_called_once_with("console-y", key=None)
 
 
 # --- ptz_goto ---
@@ -205,13 +210,13 @@ class TestPtzGoto:
     async def test_basic(self, client, registry):
         client.post.return_value = {"status": "moving"}
         result = await ptz_goto(client, registry, "h", "cam-1", 2)
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/2", json={})
+        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/2", json={}, key=None)
         assert result["status"] == "moving"
 
     async def test_slot_zero(self, client, registry):
         client.post.return_value = {"status": "ok"}
         result = await ptz_goto(client, registry, "h", "cam-1", 0)
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/0", json={})
+        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/0", json={}, key=None)
         assert result == {"status": "ok"}
 
     async def test_non_dict_fallback(self, client, registry):
@@ -222,7 +227,7 @@ class TestPtzGoto:
     async def test_resolves_host(self, client, registry):
         client.post.return_value = {"status": "ok"}
         await ptz_goto(client, registry, "ptz-console", "cam-ptz", 3)
-        registry.resolve_host_id.assert_called_once_with("ptz-console")
+        registry.resolve_host_id.assert_called_once_with("ptz-console", key=None)
 
 
 # --- ptz_patrol_start ---
@@ -232,7 +237,9 @@ class TestPtzPatrolStart:
     async def test_basic(self, client, registry):
         client.post.return_value = {"patrolling": True}
         result = await ptz_patrol_start(client, registry, "h", "cam-1", 1)
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/patrol/start/1", json={})
+        client.post.assert_called_once_with(
+            f"{BASE}/cameras/cam-1/ptz/patrol/start/1", json={}, key=None
+        )
         assert result["patrolling"] is True
 
     async def test_non_dict_fallback(self, client, registry):
@@ -248,7 +255,9 @@ class TestPtzPatrolStop:
     async def test_basic(self, client, registry):
         client.post.return_value = {"patrolling": False}
         result = await ptz_patrol_stop(client, registry, "h", "cam-1")
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/patrol/stop", json={})
+        client.post.assert_called_once_with(
+            f"{BASE}/cameras/cam-1/ptz/patrol/stop", json={}, key=None
+        )
         assert result["patrolling"] is False
 
     async def test_non_dict_fallback(self, client, registry):
@@ -259,4 +268,4 @@ class TestPtzPatrolStop:
     async def test_resolves_host(self, client, registry):
         client.post.return_value = {"status": "ok"}
         await ptz_patrol_stop(client, registry, "console-z", "cam-ptz")
-        registry.resolve_host_id.assert_called_once_with("console-z")
+        registry.resolve_host_id.assert_called_once_with("console-z", key=None)

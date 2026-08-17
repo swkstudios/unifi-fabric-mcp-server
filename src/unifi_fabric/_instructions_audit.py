@@ -39,6 +39,14 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 
+
+# A required parameter's name, matched as a whole word inside a tool description. Used by
+# :func:`undocumented_required_params` to assert every required param is signposted in the
+# prose an agent actually reads, not only in the machine schema.
+def _name_in_text(name: str, text: str) -> bool:
+    return re.search(r"\b" + re.escape(name) + r"\b", text) is not None
+
+
 # Backtick-delimited pure lower snake_case identifiers, e.g. `list_recognition_groups`.
 # camelCase (`siteId`), tokens with `=`/`:`/quotes (`interval='5m'`) and single words
 # without an underscore never match, so they are excluded up front.
@@ -159,5 +167,35 @@ def param_scope_violations(
                     f'`{tool}` is filed under "{bucket}" (site '
                     f"{'required' if site_required else 'forbidden'}) but its schema "
                     f"{'has no' if site_required else 'has a'} `site` parameter"
+                )
+    return violations
+
+
+def undocumented_required_params(
+    tool_descriptions: Mapping[str, str],
+    tool_required_params: Mapping[str, Iterable[str]],
+) -> list[str]:
+    """Return ``tool: param`` pairs where a required parameter is absent from the description.
+
+    The consumers of this server are AI agents, and the tool *description* is the only
+    interface text they read before choosing arguments — the JSON schema alone is not
+    enough. When a required parameter is not even named in the description, an agent has to
+    guess it exists, which is the exact failure that led to calls omitting ``group_id`` and
+    the like. This check asserts, mechanically, that every required parameter's name appears
+    as a whole word somewhere in its tool's description.
+
+    It deliberately checks only *name presence*, not wording or whether the description says
+    where to obtain the value — those are not mechanically verifiable without becoming
+    brittle. Name-presence is the strong, stable floor: cheap to satisfy, and it catches a
+    whole tool whose required argument is invisible in the prose. An empty list means every
+    registered tool names each of its required parameters in its description.
+    """
+    violations: list[str] = []
+    for tool in sorted(tool_descriptions):
+        description = tool_descriptions[tool]
+        for param in tool_required_params.get(tool, ()):
+            if not _name_in_text(param, description):
+                violations.append(
+                    f"{tool}: required parameter `{param}` is not named in the description"
                 )
     return violations

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unifi-fabric-mcp-server"
-version = "0.6.0"
+version = "0.6.2"
 description = "MCP server for UniFi Site Manager API"
 license = {text = "MIT"}
 requires-python = ">=3.12"
@@ -73,6 +73,7 @@ asyncio_mode = "auto"
 markers = [
     "tls: real-socket HTTPS/TLS tests (in-memory CA, 127.0.0.1 only). Run in CI by default — NOT a runtime skip, so the wrong-CA reject assertion always executes.",
     "integration: live-console integration test. Reads real credentials from the environment (opts out of the hermetic-env fixture) and is skipped unless UNIFI_API_KEY is set.",
+    "mutating: performs a LIVE write or physical actuation against the production UniFi console (config change, or device actuation such as a PTZ move or a talkback/speaker session). A superset-label on top of `integration`; skipped unless UNIFI_API_KEY is set, and excluded from the unattended integration canary by marker selection (`-m 'integration and not mutating'`).",
 ]
 
 [tool.coverage.run]

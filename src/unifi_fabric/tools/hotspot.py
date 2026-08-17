@@ -36,9 +36,10 @@ async def _list_hotspot_operators(
     site: str,
 ) -> dict[str, Any]:
     """List hotspot operator accounts via Classic REST (/rest/hotspotop)."""
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    data = await client.get(_classic_rest(host_id, site_slug, "/hotspotop"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    data = await client.get(_classic_rest(host_id, site_slug, "/hotspotop"), key=key)
     items = data.get("data", [])
     return {"operators": items, "count": len(items)}
 
@@ -70,8 +71,9 @@ async def _create_hotspot_operator(
         password: Operator password.
         note: Optional note for this operator.
     """
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
 
     body: dict[str, Any] = {
         "name": name,
@@ -81,7 +83,7 @@ async def _create_hotspot_operator(
     if note:
         body["note"] = note
 
-    data = await client.post(_classic_rest(host_id, site_slug, "/hotspotop"), json=body)
+    data = await client.post(_classic_rest(host_id, site_slug, "/hotspotop"), key=key, json=body)
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -95,10 +97,11 @@ async def _update_hotspot_operator(
 ) -> dict[str, Any]:
     """Update a hotspot operator by ID via Classic REST (/rest/hotspotop/{id})."""
     validate_id(operator_id, "operator_id")
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     data = await client.put(
-        _classic_rest(host_id, site_slug, f"/hotspotop/{operator_id}"), json=fields
+        _classic_rest(host_id, site_slug, f"/hotspotop/{operator_id}"), key=key, json=fields
     )
     return cast(dict[str, Any], data.get("data", data))
 
@@ -112,9 +115,10 @@ async def _delete_hotspot_operator(
 ) -> dict[str, Any]:
     """Delete a hotspot operator by ID via Classic REST (/rest/hotspotop/{id})."""
     validate_id(operator_id, "operator_id")
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    await client.delete(_classic_rest(host_id, site_slug, f"/hotspotop/{operator_id}"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    await client.delete(_classic_rest(host_id, site_slug, f"/hotspotop/{operator_id}"), key=key)
     return {"deleted": True, "operatorId": operator_id}
 
 

@@ -1,9 +1,24 @@
-"""Site Manager read-only tools — 9 endpoints from the UniFi Site Manager API."""
+"""Site Manager read-only tools — 9 endpoints from the UniFi Site Manager API.
+
+Namespace policy (issues #198/#192): these tools target the stable Official
+``/v1/`` Site Manager namespace. All five families (hosts, sites, devices,
+isp-metrics, sd-wan-configs) were migrated from ``/ea/`` to ``/v1/`` in place
+without renaming any tool. New Site Manager tools MUST call ``/v1/`` where a
+published equivalent exists; ``/ea/`` is permitted only when no ``/v1/`` path
+is served, and such a tool MUST carry an explicit "Early Access — endpoint may
+change" note in its docstring. Tests pin the exact ``/v1/`` URL each tool builds
+so a namespace regression fails at Tier 1.
+
+The Site Manager ``siteId`` is a Fabric ObjectId on BOTH ``/ea`` and ``/v1``
+(live-verified 2026-08-15); the UUID site ID used in proxy URLs comes only from
+the per-console connector ``/sites`` endpoint, which is unaffected by this policy.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
@@ -22,6 +37,11 @@ from ._pagination import collect_cursor, mark_incomplete
 from .network import _proxy
 
 logger = logging.getLogger(__name__)
+
+# An all-digit string (optionally with a decimal fraction) is an epoch value, never a
+# valid ISO 8601 timestamp. Used to reject bare-epoch start_time/end_time in
+# query_isp_metrics before they reach the API as a meaningless window.
+_EPOCH_STRING_RE = re.compile(r"\s*\d+(\.\d+)?\s*")
 
 
 async def _aggregate_lists_over_keys(
@@ -101,7 +121,7 @@ async def list_hosts(
         hosts, errors = await _aggregate_lists_over_keys(
             client,
             labels,
-            lambda key: client.paginate("/ea/hosts", key=key),
+            lambda key: client.paginate("/v1/hosts", key=key),
             on_success=lambda key, items: registry.set_hosts(items, key=key),
         )
         mk_result: dict[str, Any] = {"hosts": hosts, "count": len(hosts), "key_labels": labels}
@@ -110,7 +130,7 @@ async def list_hosts(
         return mk_result
 
     collected = await collect_cursor(
-        client, "/ea/hosts", page_token=page_token, page_size=page_size
+        client, "/v1/hosts", page_token=page_token, page_size=page_size
     )
     raw_hosts = collected["items"]
 
@@ -133,8 +153,9 @@ async def get_host(
 
     Host record is returned verbatim, including reportedState GPS coordinates.
     """
-    host_id = await registry.resolve_host_id(host)
-    data = await client.get(f"/ea/hosts/{host_id}")
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    data = await client.get(f"/v1/hosts/{host_id}", key=key)
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -160,7 +181,7 @@ async def list_sites(
         sites, errors = await _aggregate_lists_over_keys(
             client,
             labels,
-            lambda key: client.paginate("/ea/sites", key=key),
+            lambda key: client.paginate("/v1/sites", key=key),
             on_success=lambda key, items: registry.set_ea_sites(items, key=key),
         )
         mk_result: dict[str, Any] = {"sites": sites, "count": len(sites), "key_labels": labels}
@@ -168,7 +189,7 @@ async def list_sites(
             mk_result["errors"] = errors
         return mk_result
 
-    collected = await collect_cursor(client, "/ea/sites", page_token=page_token)
+    collected = await collect_cursor(client, "/v1/sites", page_token=page_token)
     sites = collected["items"]
 
     if page_token is None:
@@ -195,12 +216,14 @@ async def list_devices(
     so far with incomplete=true rather than truncating silently.
     """
     params: dict[str, Any] = {}
+    key: APIKeyConfig | None = None
     if host:
-        host_id = await registry.resolve_host_id(host)
+        key = await registry.resolve_key_for_host(host)
+        host_id = await registry.resolve_host_id(host, key=key)
         params["hostId"] = host_id
 
     collected = await collect_cursor(
-        client, "/ea/devices", params=params or None, page_token=page_token
+        client, "/v1/devices", key=key, params=params or None, page_token=page_token
     )
     devices = collected["items"]
 
@@ -220,7 +243,7 @@ async def get_isp_metrics(
     """
     if interval not in ("5m", "1h"):
         raise ValueError(f"interval must be '5m' or '1h', got {interval!r}")
-    data = await client.get(f"/ea/isp-metrics/{interval}")
+    data = await client.get(f"/v1/isp-metrics/{interval}")
     result = data.get("data", data) if isinstance(data, dict) else data
     if isinstance(result, list):
         return {"periods": result}
@@ -241,8 +264,13 @@ async def query_isp_metrics(
     sites: list of {hostId, siteId} dicts to scope the query. REQUIRED — the UniFi
         Site Manager API rejects an unscoped query body with an opaque HTTP 400
         ("error while parsing request").
-    start_time/end_time: ISO 8601 UTC timestamps (e.g. "2026-07-23T00:00:00Z")
-        bounding the query window. The UniFi Site Manager API reads the window from
+    start_time/end_time: ISO 8601 UTC timestamp STRINGS (e.g. "2026-07-23T00:00:00Z"),
+        not epoch numbers — the typed signature rejects an integer with
+        'Input should be a valid string', and a bare-epoch string (all digits) is
+        rejected here with the expected ISO 8601 format. Unlike the epoch-seconds history tools
+        (list_protect_events, list_client_sessions, get_historical_stats), this Site
+        Manager endpoint takes ISO 8601 strings. These params bound the query window.
+        The UniFi Site Manager API reads the window from
         per-site ``beginTimestamp`` / ``endTimestamp`` fields nested INSIDE each
         ``sites[]`` entry — a top-level timestamp is accepted but silently ignored
         (verified live: a top-level window returns the full default range, whereas a
@@ -258,6 +286,17 @@ async def query_isp_metrics(
             "sites=[{'hostId': ..., 'siteId': ...}]. The UniFi API rejects an "
             "unscoped query with HTTP 400 'error while parsing request'."
         )
+    # start_time/end_time must be ISO 8601 strings. A bare epoch value (all digits)
+    # slips past the string-typed signature but is a meaningless timestamp to the Site
+    # Manager API, which then silently ignores the window and returns the full default
+    # range. Reject it here with the expected format rather than forwarding bad input.
+    for _label, _value in (("start_time", start_time), ("end_time", end_time)):
+        if _value is not None and _EPOCH_STRING_RE.fullmatch(_value):
+            raise ValueError(
+                f"{_label} must be an ISO 8601 UTC timestamp string like "
+                f"'2026-07-23T00:00:00Z', not an epoch value ({_value!r}). Convert epoch "
+                "seconds or milliseconds to an ISO 8601 string before calling."
+            )
     # Copy each site dict so the caller's list is never mutated, then inject the
     # time window per-site (where the API actually reads it). setdefault lets a
     # caller pin an explicit per-entry window that overrides the convenience params.
@@ -269,7 +308,7 @@ async def query_isp_metrics(
             if end_time:
                 entry.setdefault("endTimestamp", end_time)
 
-    data = await client.post(f"/ea/isp-metrics/{interval}/query", json=body)
+    data = await client.post(f"/v1/isp-metrics/{interval}/query", json=body)
     result = data.get("data", data) if isinstance(data, dict) else data
     if isinstance(result, list):
         return {"periods": result}
@@ -288,7 +327,7 @@ async def list_sdwan_configs(
     nextToken cursor to continue). A capped drain returns the configs gathered
     so far with incomplete=true rather than truncating silently.
     """
-    collected = await collect_cursor(client, "/ea/sd-wan-configs", page_token=page_token)
+    collected = await collect_cursor(client, "/v1/sd-wan-configs", page_token=page_token)
     configs = collected["items"]
 
     result: dict[str, Any] = {"configs": configs, "count": len(configs)}
@@ -303,7 +342,7 @@ async def get_sdwan_config(
 ) -> dict[str, Any]:
     """Get a single SD-WAN configuration by ID."""
     validate_id(config_id, "config_id")
-    data = await client.get(f"/ea/sd-wan-configs/{config_id}")
+    data = await client.get(f"/v1/sd-wan-configs/{config_id}")
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -313,7 +352,7 @@ async def get_sdwan_config_status(
 ) -> dict[str, Any]:
     """Get the status of an SD-WAN configuration by ID."""
     validate_id(config_id, "config_id")
-    data = await client.get(f"/ea/sd-wan-configs/{config_id}/status")
+    data = await client.get(f"/v1/sd-wan-configs/{config_id}/status")
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -321,7 +360,10 @@ async def get_sdwan_config_status(
 
 
 async def _resolve_ea_host_site(registry: Registry, name_or_id: str) -> tuple[str, str]:
-    """Resolve a site name or siteId to a validated (hostId, siteId) pair from EA sites.
+    """Resolve a site name or siteId to a validated (hostId, siteId) pair.
+
+    Reads the Site Manager sites list (the registry EA-sites cache, sourced from
+    `/v1/sites`).
 
     Raises ValueError if the site is not found or if either ID fails validation.
     """
@@ -389,7 +431,7 @@ async def list_all_sites_aggregated(
     if not isinstance(sites, list):
         sites = []
 
-    # Opportunistically refresh EA site registry cache
+    # Opportunistically refresh Site Manager site registry cache
     await registry.set_ea_sites(sites)
 
     return {"sites": sites, "count": len(sites)}
@@ -406,9 +448,10 @@ async def get_site_health_summary(
     Routes through Classic REST /stat/health (same endpoint as get_site_statistics).
     """
     host_id, _ = await _resolve_ea_host_site(registry, site)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host_id)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     url = f"/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/health"
-    data = await client.get(url)
+    data = await client.get(url, key=key)
     result = data.get("data", data) if isinstance(data, dict) else data
     if isinstance(result, list):
         return {"health": result, "count": len(result)}
@@ -465,15 +508,18 @@ async def search_across_sites(
             logger.warning("search_across_sites: skipping site %s: %s", ea_site_id, exc)
             return {"siteId": ea_site_id, "siteName": site_name, "matches": [], "errors": []}
 
-        # Resolve the proxy UUID — EA siteId is a Fabric ObjectId, not a UUID
+        # Route on the API key that owns this host (multi-key MSP); None in single-key.
+        key = await registry.resolve_key_for_host(host_id)
+
+        # Resolve the proxy UUID — Site Manager siteId is a Fabric ObjectId, not a UUID
         try:
-            site_id = await registry.resolve_site_id(site_name, host_id)
+            site_id = await registry.resolve_site_id(site_name, host_id, key=key)
         except ValueError as exc:
             logger.warning("search_across_sites: skipping site %s: %s", ea_site_id, exc)
             return {"siteId": ea_site_id, "siteName": site_name, "matches": [], "errors": []}
 
         try:
-            data = await client.get(_proxy(host_id, f"/sites/{site_id}/devices"))
+            data = await client.get(_proxy(host_id, f"/sites/{site_id}/devices"), key=key)
             devices = data.get("data", data) if isinstance(data, dict) else data
             if isinstance(devices, list):
                 for d in devices:
@@ -496,7 +542,7 @@ async def search_across_sites(
             errors.append({"siteId": site_id, "scope": "devices", "error": str(exc)})
 
         try:
-            data = await client.get(_proxy(host_id, f"/sites/{site_id}/clients"))
+            data = await client.get(_proxy(host_id, f"/sites/{site_id}/clients"), key=key)
             clients_list = data.get("data", data) if isinstance(data, dict) else data
             if isinstance(clients_list, list):
                 for c in clients_list:
@@ -549,12 +595,13 @@ async def get_site_inventory(
     site: site name or ID.
     """
     host_id, _ = await _resolve_ea_host_site(registry, site)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host_id)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
 
     devices_data, clients_data = await asyncio.gather(
-        client.get(_proxy(host_id, f"/sites/{site_id}/devices")),
-        client.get(_proxy(host_id, f"/sites/{site_id}/clients")),
+        client.get(_proxy(host_id, f"/sites/{site_id}/devices"), key=key),
+        client.get(_proxy(host_id, f"/sites/{site_id}/clients"), key=key),
     )
 
     devices = (

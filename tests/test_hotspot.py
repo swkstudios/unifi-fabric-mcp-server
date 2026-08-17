@@ -44,6 +44,7 @@ def client():
 @pytest.fixture()
 def registry():
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
@@ -57,15 +58,15 @@ class TestListHotspotOperators:
     async def test_basic(self, client, registry):
         client.get.return_value = {"data": [{"id": "op-1", "name": "admin"}]}
         result = await list_hotspot_operators(client, registry, "myhost", "mysite")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotop")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotop", key=None)
         assert result["count"] == 1
         assert result["operators"][0]["id"] == "op-1"
 
     async def test_resolves_host_and_site(self, client, registry):
         client.get.return_value = {"data": []}
         await list_hotspot_operators(client, registry, "myhost", "mysite")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID, key=None)
 
     async def test_empty(self, client, registry):
         client.get.return_value = {"data": []}
@@ -117,7 +118,7 @@ class TestUpdateHotspotOperator:
         client.put.return_value = {"data": {"id": "op-1", "name": "newname"}}
         result = await update_hotspot_operator(client, registry, "h", "s", "op-1", name="newname")
         client.put.assert_called_once_with(
-            f"{CLASSIC_REST_BASE}/hotspotop/op-1", json={"name": "newname"}
+            f"{CLASSIC_REST_BASE}/hotspotop/op-1", key=None, json={"name": "newname"}
         )
         assert result["name"] == "newname"
 
@@ -132,7 +133,7 @@ class TestDeleteHotspotOperator:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         result = await delete_hotspot_operator(client, registry, "h", "s", "op-1")
-        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotop/op-1")
+        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotop/op-1", key=None)
         assert result == {"deleted": True, "operatorId": "op-1"}
 
     async def test_uses_classic_rest_not_ea(self, client, registry):

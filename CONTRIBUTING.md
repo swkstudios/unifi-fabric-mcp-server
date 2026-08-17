@@ -26,7 +26,7 @@ only holds if the reasoning does:
   data and asked for it.
 - So if you believe an output should be restricted, restrict it in *your*
   deployment. A reviewer may reasonably argue for narrowing what a tool returns;
-  the **data-survival tests** (`docs/internal/testing-procedure.md`) exist as the
+  the **data-survival tests** exist as the
   check on that and are meant to fail such a change loudly.
 
 This is scoped to response *bodies*. Redacting identifiers inside error-message

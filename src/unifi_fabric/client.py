@@ -155,6 +155,7 @@ class UniFiClient:
         json: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
         max_retries: int = 5,
+        raise_on_error: bool = True,
     ) -> httpx.Response:
         """Make an HTTP request with exponential backoff + jitter on rate limits.
 
@@ -170,6 +171,12 @@ class UniFiClient:
             json: JSON request body
             files: Form files for multipart uploads
             max_retries: Maximum number of retry attempts (default: 5, total 6 attempts)
+            raise_on_error: When True (default) a non-429 4xx/5xx response is raised as
+                UniFiConnectionError (the behaviour every typed tool relies on). When
+                False the response is returned regardless of status so the caller can
+                inspect status/body itself — used by the guarded connector relay, whose
+                invalid-ID probes must read a 4xx as reachability evidence, not a failure.
+                The 429 retry/backoff loop is unaffected by this flag.
 
         Returns:
             httpx.Response with HTTP status 2xx or 3xx (or 4xx/5xx non-rate-limit errors)
@@ -214,7 +221,7 @@ class UniFiClient:
                 raise UniFiConnectionError(f"Network error: {method} {safe}") from None
 
             if resp.status_code != 429:
-                if resp.is_error:
+                if resp.is_error and raise_on_error:
                     body = resp.text[:500]
                     # Raise UniFiConnectionError (not httpx.HTTPStatusError) so that
                     # the request object — which contains the Authorization header —
@@ -267,6 +274,31 @@ class UniFiClient:
         resp = await self.request("GET", path, key=key, params=params)
         return resp.content
 
+    async def get_binary(
+        self,
+        path: str,
+        *,
+        key: APIKeyConfig | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> tuple[bytes, str]:
+        """GET request, return ``(raw bytes, Content-Type)`` for binary responses.
+
+        Unlike ``get_bytes`` this also surfaces the upstream ``Content-Type`` header,
+        so a caller can report the true media type of an image/asset instead of
+        guessing from a file extension. Falls back to ``application/octet-stream``
+        when the header is absent.
+
+        Known limitation: httpx buffers the entire response body into memory here,
+        so any size cap a caller applies to the returned bytes fires only *after*
+        the full download. A future improvement would stream the body with a running
+        byte-count and abort once a cap is exceeded, bounding peak RAM on a large
+        asset. Not implemented this pass; the caller-side cap still prevents base64
+        encoding amplification of an oversized payload.
+        """
+        resp = await self.request("GET", path, key=key, params=params)
+        content_type = resp.headers.get("content-type", "application/octet-stream")
+        return resp.content, content_type
+
     async def post(
         self,
         path: str,
@@ -274,9 +306,18 @@ class UniFiClient:
         key: APIKeyConfig | None = None,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        max_retries: int = 5,
     ) -> dict[str, Any]:
-        """POST request, return JSON body."""
-        resp = await self.request("POST", path, key=key, json=json, params=params)
+        """POST request, return JSON body.
+
+        ``max_retries`` threads through to :meth:`request`; pass ``0`` for a
+        side-effecting call that must NOT be auto-retried (see the Protect POS
+        ingestion / physical-action tools, where a 429 retry could duplicate an
+        effect that has no documented rollback).
+        """
+        resp = await self.request(
+            "POST", path, key=key, json=json, params=params, max_retries=max_retries
+        )
         return self._decode_json(resp)
 
     async def post_multipart(
@@ -310,9 +351,12 @@ class UniFiClient:
         key: APIKeyConfig | None = None,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        max_retries: int = 5,
     ) -> dict[str, Any]:
-        """PATCH request, return JSON body."""
-        resp = await self.request("PATCH", path, key=key, json=json, params=params)
+        """PATCH request, return JSON body. ``max_retries=0`` disables 429 auto-retry."""
+        resp = await self.request(
+            "PATCH", path, key=key, json=json, params=params, max_retries=max_retries
+        )
         return self._decode_json(resp)
 
     async def delete(
@@ -322,9 +366,12 @@ class UniFiClient:
         key: APIKeyConfig | None = None,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        max_retries: int = 5,
     ) -> None:
-        """DELETE request, no body returned."""
-        await self.request("DELETE", path, key=key, json=json, params=params)
+        """DELETE request, no body returned. ``max_retries=0`` disables 429 auto-retry."""
+        await self.request(
+            "DELETE", path, key=key, json=json, params=params, max_retries=max_retries
+        )
 
     async def paginate(
         self,

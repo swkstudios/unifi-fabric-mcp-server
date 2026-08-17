@@ -105,6 +105,30 @@ class TestMultiKey:
             empty._default_key()
 
 
+# --- Binary responses ---
+
+
+class TestGetBinary:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_bytes_and_content_type(self, client):
+        payload = b"\x89PNG\r\n\x1a\nsynthetic"
+        respx.get(f"{BASE}/asset.png").mock(
+            return_value=Response(200, content=payload, headers={"Content-Type": "image/png"})
+        )
+        content, content_type = await client.get_binary("/asset.png")
+        assert content == payload
+        assert content_type == "image/png"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_defaults_content_type_when_absent(self, client):
+        respx.get(f"{BASE}/asset.bin").mock(return_value=Response(200, content=b"raw"))
+        content, content_type = await client.get_binary("/asset.bin")
+        assert content == b"raw"
+        assert content_type == "application/octet-stream"
+
+
 # --- Backoff / rate-limit ---
 
 

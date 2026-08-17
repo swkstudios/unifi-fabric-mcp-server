@@ -54,6 +54,7 @@ def client():
 @pytest.fixture()
 def registry():
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     return r
@@ -86,8 +87,8 @@ class TestGetVpnServer:
     async def test_resolves_host_and_site(self, client, registry):
         client.paginate_offset.return_value = [{"id": "vpn-1"}]
         await get_vpn_server(client, registry, "myhost", "mysite", "vpn-1")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID, key=None)
 
     async def test_not_found(self, client, registry):
         client.paginate_offset.return_value = []
@@ -113,6 +114,7 @@ class TestCreateVpnServer:
         expected_url = f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers"
         client.post.assert_called_once_with(
             expected_url,
+            key=None,
             json={
                 "name": "CorpVPN",
                 "type": "wireguard",
@@ -155,7 +157,7 @@ class TestUpdateVpnServer:
         client.put.return_value = {"data": {"id": "vpn-1", "enabled": False}}
         result = await update_vpn_server(client, registry, "h", "s", "vpn-1", enabled=False)
         client.put.assert_called_once_with(
-            f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1", json={"enabled": False}
+            f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1", key=None, json={"enabled": False}
         )
         assert result["enabled"] is False
 
@@ -169,15 +171,17 @@ class TestUpdateVpnServer:
     async def test_resolves_host_and_site(self, client, registry):
         client.put.return_value = {"data": {}}
         await update_vpn_server(client, registry, "myhost", "mysite", "vpn-1", enabled=True)
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID, key=None)
 
 
 class TestDeleteVpnServer:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         result = await delete_vpn_server(client, registry, "h", "s", "vpn-1")
-        client.delete.assert_called_once_with(f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1")
+        client.delete.assert_called_once_with(
+            f"{_PROXY_BASE}/sites/{SITE_ID}/vpn/servers/vpn-1", key=None
+        )
         assert result == {"deleted": True, "serverId": "vpn-1"}
 
     async def test_uses_proxy_path_not_ea(self, client, registry):
@@ -215,8 +219,8 @@ class TestGetRadiusProfile:
     async def test_resolves_host_and_site(self, client, registry):
         client.paginate_offset.return_value = [{"id": "rad-1"}]
         await get_radius_profile(client, registry, "myhost", "mysite", "rad-1")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID, key=None)
 
     async def test_not_found(self, client, registry):
         client.paginate_offset.return_value = []
@@ -305,14 +309,14 @@ class TestCreateSiteToSiteTunnel:
         tunnel = {"remoteIp": "10.0.0.1", "psk": "secret"}
         client.post.return_value = {"id": "tun-1", **tunnel}
         result = await create_site_to_site_tunnel(client, registry, "h", "s", tunnel)
-        client.post.assert_called_once_with(TUNNEL_BASE, json=tunnel)
+        client.post.assert_called_once_with(TUNNEL_BASE, key=None, json=tunnel)
         assert result["remoteIp"] == "10.0.0.1"
 
     async def test_resolves_host_and_site(self, client, registry):
         client.post.return_value = {"id": "tun-1"}
         await create_site_to_site_tunnel(client, registry, "myhost", "mysite", {})
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_id.assert_called_once_with("mysite", HOST_ID, key=None)
 
 
 class TestUpdateSiteToSiteTunnel:
@@ -320,7 +324,7 @@ class TestUpdateSiteToSiteTunnel:
         tunnel = {"enabled": False}
         client.put.return_value = {"id": "tun-1", **tunnel}
         result = await update_site_to_site_tunnel(client, registry, "h", "s", "tun-1", tunnel)
-        client.put.assert_called_once_with(f"{TUNNEL_BASE}/tun-1", json=tunnel)
+        client.put.assert_called_once_with(f"{TUNNEL_BASE}/tun-1", key=None, json=tunnel)
         assert result["enabled"] is False
 
 
@@ -328,5 +332,5 @@ class TestDeleteSiteToSiteTunnel:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         result = await delete_site_to_site_tunnel(client, registry, "h", "s", "tun-1")
-        client.delete.assert_called_once_with(f"{TUNNEL_BASE}/tun-1")
+        client.delete.assert_called_once_with(f"{TUNNEL_BASE}/tun-1", key=None)
         assert result == {"deleted": True, "tunnelId": "tun-1"}

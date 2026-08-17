@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -37,32 +38,36 @@ def _extract_data(response: Any) -> Any:
 async def _get_site_statistics(
     client: UniFiClient, registry: Registry, host: str, site: str
 ) -> Any:
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    response = await client.get(_classic_stat(host_id, site_slug, "/health"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/health"), key=key)
     return _extract_data(response)
 
 
 async def _get_system_info(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    response = await client.get(_classic_stat(host_id, site_slug, "/sysinfo"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/sysinfo"), key=key)
     return _extract_data(response)
 
 
 async def _list_active_clients_stats(
     client: UniFiClient, registry: Registry, host: str, site: str
 ) -> Any:
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    response = await client.get(_classic_stat(host_id, site_slug, "/sta"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/sta"), key=key)
     return _extract_data(response)
 
 
 async def _list_device_stats(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
-    response = await client.get(_classic_stat(host_id, site_slug, "/device"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/device"), key=key)
     return _extract_data(response)
 
 
@@ -82,11 +87,14 @@ async def _list_client_sessions(
     """
     start_s = require_epoch_seconds(start, "start")
     end_s = require_epoch_seconds(end, "end")
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     body = {"type": session_type, "start": start_s, "end": end_s}
     try:
-        response = await client.post(_classic_stat(host_id, site_slug, "/session"), json=body)
+        response = await client.post(
+            _classic_stat(host_id, site_slug, "/session"), key=key, json=body
+        )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return _extract_data(response)
@@ -116,8 +124,9 @@ async def _get_historical_stats(
         raise ValueError(f"Invalid scope {scope!r}: expected one of {sorted(_REPORT_SCOPES)}")
     start_ms = seconds_to_millis(require_epoch_seconds(start, "start"))
     end_ms = seconds_to_millis(require_epoch_seconds(end, "end"))
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     body = {
         "attrs": list(attrs) if attrs else list(_DEFAULT_REPORT_ATTRS),
         "start": start_ms,
@@ -125,7 +134,7 @@ async def _get_historical_stats(
     }
     try:
         response = await client.post(
-            _classic_stat(host_id, site_slug, f"/report/{interval}.{scope}"), json=body
+            _classic_stat(host_id, site_slug, f"/report/{interval}.{scope}"), key=key, json=body
         )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
@@ -134,13 +143,235 @@ async def _get_historical_stats(
 
 async def _list_known_clients(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
     """Fetch the full client roster (including offline history) from Classic REST /stat/alluser."""
-    host_id = await registry.resolve_host_id(host)
-    site_slug = await registry.resolve_site_slug(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     try:
-        response = await client.get(_classic_stat(host_id, site_slug, "/alluser"))
+        response = await client.get(_classic_stat(host_id, site_slug, "/alluser"), key=key)
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return _extract_data(response)
+
+
+# --- Focused convenience reads over /stat/sta and /stat/device (issues #183/#184/#188) ---
+#
+# These helpers add NO new Fabric route: each reuses the exact Classic REST request the
+# corresponding list_* tool already issues (/stat/sta for clients, /stat/device for
+# devices), then selects and/or projects the already-fetched payload in memory. The
+# selector is compared against in-memory record fields only and is never interpolated into
+# a URL path, so it needs no path-safety validation. Upstream operational fields are
+# preserved verbatim; the list_* tools remain the faithful raw pass-throughs.
+
+_MAC_SEP_RE = re.compile(r"[:\-.]")
+
+# Bounded, explicit multi-select ceiling for get_client_link_diagnostics — keeps the helper
+# from being used to scan/fan out an unbounded set of identifiers.
+_MAX_MULTI_CLIENT_SELECT = 64
+
+# Device-level thermal/power summary keys surfaced by the device view of
+# get_device_port_state. Values are copied verbatim under their upstream names.
+_DEVICE_THERMAL_POWER_KEYS = (
+    "general_temperature",
+    "fan_level",
+    "overheating",
+    "total_used_power",
+    "total_max_power",
+)
+
+# Device- and port-level STP keys surfaced by get_device_stp_state. Any additional ``stp_*``
+# key present upstream is also carried through, so these are a floor, not a whitelist that
+# could silently drop a future field.
+_DEVICE_STP_KEYS = ("stp_version", "stp_priority", "root_switch", "root")
+_PORT_STP_KEYS = ("stp_state", "stp_role", "stp_pathcost", "stp_path_cost")
+
+
+def _normalize_mac(value: str) -> str:
+    """Lowercase a MAC and strip ':' '-' '.' separators for equality comparison."""
+    return _MAC_SEP_RE.sub("", value).lower()
+
+
+def _as_record_list(data: Any, source_label: str) -> list[dict[str, Any]]:
+    """Coerce an extracted /stat/* payload into a list of record dicts, or fail clearly."""
+    if not isinstance(data, list):
+        raise ValueError(
+            f"Unexpected {source_label} response shape: expected a list of records, "
+            f"got {type(data).__name__}."
+        )
+    return [record for record in data if isinstance(record, dict)]
+
+
+def _record_matches(record: dict[str, Any], selector: str, norm_selector: str) -> bool:
+    """True if record matches selector by _id/id (exact) or mac (separator-insensitive)."""
+    for id_key in ("_id", "id"):
+        value = record.get(id_key)
+        if isinstance(value, str) and value == selector:
+            return True
+    mac = record.get("mac")
+    if isinstance(mac, str) and norm_selector and _normalize_mac(mac) == norm_selector:
+        return True
+    return False
+
+
+def _select_one_record(
+    records: list[dict[str, Any]], selector: str, kind: str, source_label: str
+) -> dict[str, Any]:
+    """Return the single record matching selector, or raise a clear not-found error."""
+    if not selector:
+        raise ValueError(f"{kind} selector must not be empty")
+    norm = _normalize_mac(selector)
+    for record in records:
+        if _record_matches(record, selector, norm):
+            return record
+    raise ValueError(
+        f"No {kind} matching {selector!r} in {source_label} "
+        f"(matched against _id, id, and mac); verify the identifier with the list tool."
+    )
+
+
+def _port_rows(device: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the device's port_table as a list of row dicts (empty if absent/malformed)."""
+    port_table = device.get("port_table")
+    if not isinstance(port_table, list):
+        return []
+    return [row for row in port_table if isinstance(row, dict)]
+
+
+async def _get_client_link_diagnostics(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    client_id: str | None = None,
+    client_ids: list[str] | None = None,
+) -> Any:
+    """Select per-client link/policy diagnostics from the /stat/sta payload.
+
+    Exactly one of ``client_id`` (single) or ``client_ids`` (bounded explicit list) must be
+    supplied. Single selection returns the matching upstream record unchanged; the multi
+    form returns a list of unchanged records in the requested order. Reuses the same
+    /stat/sta request as _list_active_clients_stats — no new route.
+    """
+    if (client_id is None) == (client_ids is None):
+        raise ValueError("Provide exactly one of client_id (single) or client_ids (bounded list).")
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/sta"), key=key)
+    records = _as_record_list(_extract_data(response), "/stat/sta")
+
+    if client_id is not None:
+        return _select_one_record(records, client_id, "client", "/stat/sta")
+
+    if not client_ids:
+        raise ValueError("client_ids must be a non-empty list of client IDs/MACs.")
+    if len(client_ids) > _MAX_MULTI_CLIENT_SELECT:
+        raise ValueError(
+            f"client_ids has {len(client_ids)} entries; the bounded maximum is "
+            f"{_MAX_MULTI_CLIENT_SELECT}. Select explicitly rather than scanning."
+        )
+    selected: list[dict[str, Any]] = []
+    missing: list[str] = []
+    for cid in client_ids:
+        norm = _normalize_mac(cid or "")
+        match = next((r for r in records if _record_matches(r, cid, norm)), None)
+        if match is None:
+            missing.append(cid)
+        else:
+            selected.append(match)
+    if missing:
+        raise ValueError(
+            f"No /stat/sta client matched: {missing!r} "
+            "(matched against _id, id, and mac); verify the identifiers."
+        )
+    return selected
+
+
+async def _get_device_port_state(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    device_id: str,
+    port_idx: int | None = None,
+) -> Any:
+    """Project switch port_table / lldp_table / thermal telemetry from /stat/device.
+
+    Reuses the same /stat/device request as _list_device_stats (one Fabric call, no new
+    route). With ``port_idx`` omitted returns the device view (verbatim port_table and
+    lldp_table plus a thermal/power summary); with ``port_idx`` set returns that single
+    port_table row verbatim. Envelope keys (device, port_idx, source) are additive and
+    never rename or drop upstream fields.
+    """
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/device"), key=key)
+    records = _as_record_list(_extract_data(response), "/stat/device")
+    device = _select_one_record(records, device_id, "device", "/stat/device")
+    ports = _port_rows(device)
+
+    if port_idx is not None:
+        for row in ports:
+            if row.get("port_idx") == port_idx:
+                return {
+                    "device": device_id,
+                    "port_idx": port_idx,
+                    "source": "/stat/device",
+                    "port": row,
+                }
+        raise ValueError(
+            f"Device {device_id!r} has no port_idx={port_idx} in its /stat/device "
+            "port_table; call the device view (omit port_idx) to list available ports."
+        )
+
+    thermal_power = {k: device[k] for k in _DEVICE_THERMAL_POWER_KEYS if k in device}
+    lldp_table = device.get("lldp_table")
+    return {
+        "device": device_id,
+        "port_idx": None,
+        "source": "/stat/device",
+        "port_table": ports,
+        "lldp_table": lldp_table if isinstance(lldp_table, list) else [],
+        "thermal_power": thermal_power,
+    }
+
+
+async def _get_device_stp_state(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    device_id: str,
+) -> Any:
+    """Project per-device and per-port STP/RSTP state from the /stat/device payload.
+
+    Fabric-only, over the same /stat/device request as _list_device_stats. Surfaces the
+    device-level STP fields (stp_version, stp_priority, root_switch/root, and any other
+    ``stp_*`` key present) and per-port STP role/state/path-cost where upstream provides
+    them, all verbatim. No write is performed (STP-priority write support is investigated in
+    the PR description only; STP-priority writes are out of scope for this tool).
+    """
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    response = await client.get(_classic_stat(host_id, site_slug, "/device"), key=key)
+    records = _as_record_list(_extract_data(response), "/stat/device")
+    device = _select_one_record(records, device_id, "device", "/stat/device")
+
+    device_stp: dict[str, Any] = {
+        k: v for k, v in device.items() if k in _DEVICE_STP_KEYS or k.startswith("stp_")
+    }
+    ports_out: list[dict[str, Any]] = []
+    for row in _port_rows(device):
+        entry: dict[str, Any] = {"port_idx": row.get("port_idx"), "name": row.get("name")}
+        entry.update({k: v for k, v in row.items() if k in _PORT_STP_KEYS or k.startswith("stp_")})
+        ports_out.append(entry)
+    return {
+        "device": device_id,
+        "source": "/stat/device",
+        "stp": device_stp,
+        "ports": ports_out,
+    }
 
 
 def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
@@ -197,6 +428,86 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """
         client, registry = deps_fn()
         return await _list_device_stats(client, registry, host, site)
+
+    @mcp.tool()
+    async def get_client_link_diagnostics(
+        host: str,
+        site: str,
+        client_id: str | None = None,
+        client_ids: list[str] | None = None,
+    ) -> Any:
+        """Get first-class per-client link/policy diagnostics for one or more clients.
+
+        Read-only and Fabric-only: reuses the same Classic REST
+        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/sta request as
+        list_active_clients_stats, then selects the requested client(s) from that payload in
+        memory. Surfaces link quality (rssi, signal, noise, channel, radio_name),
+        rx_rate/tx_rate and retry counters, satisfaction_reason, network/VLAN identity, QoS,
+        fixed-IP, and virtual-network override fields when upstream provides them — the
+        matching record is returned unchanged, so unknown/future fields survive.
+
+        host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+        client_id: a single client selector — its /stat/sta _id, id, or mac (case- and
+          separator-insensitive). Provide EITHER client_id OR client_ids, not both.
+        client_ids: a bounded, explicit list of client selectors (max 64) for multi-client
+          selection; returns the matching records as a list. A selector that matches no
+          client fails clearly rather than being silently skipped.
+        """
+        client, registry = deps_fn()
+        return await _get_client_link_diagnostics(
+            client, registry, host, site, client_id, client_ids
+        )
+
+    @mcp.tool()
+    async def get_device_port_state(
+        host: str,
+        site: str,
+        device_id: str,
+        port_idx: int | None = None,
+    ) -> Any:
+        """Get switch port health, PoE, optics, and LLDP telemetry for a device.
+
+        Read-only and Fabric-only: reuses the same Classic REST
+        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device request
+        as list_device_stats (one call, no new route), then projects the selected device's
+        port telemetry from that payload. Upstream operational fields are preserved
+        verbatim — link state/speed/duplex, rx/tx byte/packet/error/drop counters, PoE state
+        and draw (poe_enable/poe_good/poe_power/poe_voltage/poe_current/poe_class/poe_mode),
+        SFP/optics fields where present, and port config identity — nothing is renamed or
+        dropped.
+
+        host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+        device_id: device selector — its /stat/device _id, id, or mac (case- and
+          separator-insensitive).
+        port_idx: optional 1-based port number. Omit it for the device view (verbatim
+          port_table and lldp_table plus a thermal/power summary); set it to return that
+          single port_table row verbatim. An unknown port_idx fails clearly.
+        """
+        client, registry = deps_fn()
+        return await _get_device_port_state(client, registry, host, site, device_id, port_idx)
+
+    @mcp.tool()
+    async def get_device_stp_state(
+        host: str,
+        site: str,
+        device_id: str,
+    ) -> Any:
+        """Get per-device STP/RSTP state and per-port STP role/state/path-cost.
+
+        Read-only and Fabric-only: reads the same Classic REST
+        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device payload
+        as list_device_stats and projects the selected device's STP fields. Returns the
+        device-level stp_version, stp_priority, root_switch/root (and any other stp_* field
+        present) plus per-port STP role/state/path-cost where upstream provides them, all
+        verbatim. This tool is read-only: STP-priority write support is documented in the PR
+        description only and no write is performed here.
+
+        host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
+        device_id: device selector — its /stat/device _id, id, or mac (case- and
+          separator-insensitive).
+        """
+        client, registry = deps_fn()
+        return await _get_device_stp_state(client, registry, host, site, device_id)
 
     @mcp.tool()
     async def list_client_sessions(

@@ -319,6 +319,14 @@ class Settings(BaseSettings):
         "DEBUG, INFO, WARNING, ERROR, CRITICAL. Logs go to stderr only — no file handlers. "
         "Request/response bodies are never logged.",
     )
+    enable_connector_write: bool = Field(
+        default=False,
+        description="Enable the guarded generic Fabric connector WRITE relay "
+        "(fabric_connector_post/put/patch/delete). Env: UNIFI_ENABLE_CONNECTOR_WRITE. "
+        "Code default is OFF (fail-closed) — a mutating connector relay additionally "
+        "requires confirm=true on the tool call. The GET relay (fabric_connector_get) is "
+        "always available and is unaffected by this flag.",
+    )
 
     def get_key_configs(self) -> list[APIKeyConfig]:
         """Return resolved list of API key configs."""

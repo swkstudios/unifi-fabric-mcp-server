@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 
 from ..client import UniFiClient, validate_id
 from ..registry import Registry, _assert_uuid
+from ._payload import sanitize_integration_write
 from .network import _proxy
 from .network_services_proxy import (
     list_radius_profiles as _proxy_list_radius_profiles,
@@ -36,11 +37,12 @@ async def _create_site_to_site_tunnel(
         site: Site name or ID.
         tunnel: Tunnel configuration payload (remoteIp, psk, networks, etc.).
     """
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     return await client.post(
-        _proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels"), json=tunnel
+        _proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels"), key=key, json=tunnel
     )
 
 
@@ -54,11 +56,14 @@ async def _update_site_to_site_tunnel(
 ) -> dict[str, Any]:
     """Update a site-to-site VPN tunnel by ID."""
     validate_id(tunnel_id, "tunnel_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     return await client.put(
-        _proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels/{tunnel_id}"), json=tunnel
+        _proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels/{tunnel_id}"),
+        key=key,
+        json=sanitize_integration_write(tunnel),
     )
 
 
@@ -71,10 +76,13 @@ async def _delete_site_to_site_tunnel(
 ) -> dict[str, Any]:
     """Delete a site-to-site VPN tunnel by ID."""
     validate_id(tunnel_id, "tunnel_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels/{tunnel_id}"))
+    await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/vpn/site-to-site-tunnels/{tunnel_id}"), key=key
+    )
     return {"deleted": True, "tunnelId": tunnel_id}
 
 
@@ -128,8 +136,9 @@ async def _create_vpn_server(
         subnet: VPN client address pool CIDR.
         enabled: Whether the VPN server is active.
     """
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
 
     body: dict[str, Any] = {
@@ -141,7 +150,7 @@ async def _create_vpn_server(
     if subnet:
         body["subnet"] = subnet
 
-    data = await client.post(_proxy(host_id, f"/sites/{site_id}/vpn/servers"), json=body)
+    data = await client.post(_proxy(host_id, f"/sites/{site_id}/vpn/servers"), key=key, json=body)
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -161,11 +170,14 @@ async def _update_vpn_server(
     ``/ea/vpn-servers/{id}`` path.
     """
     validate_id(server_id, "server_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     data = await client.put(
-        _proxy(host_id, f"/sites/{site_id}/vpn/servers/{server_id}"), json=fields
+        _proxy(host_id, f"/sites/{site_id}/vpn/servers/{server_id}"),
+        key=key,
+        json=sanitize_integration_write(fields),
     )
     return cast(dict[str, Any], data.get("data", data))
 
@@ -179,10 +191,11 @@ async def _delete_vpn_server(
 ) -> dict[str, Any]:
     """Delete a VPN server by ID via the per-console proxy, mirroring create."""
     validate_id(server_id, "server_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/vpn/servers/{server_id}"))
+    await client.delete(_proxy(host_id, f"/sites/{site_id}/vpn/servers/{server_id}"), key=key)
     return {"deleted": True, "serverId": server_id}
 
 
@@ -243,8 +256,9 @@ async def _create_radius_profile(
         acct_server_port: RADIUS accounting server port (default 1813).
         acct_server_secret: Shared secret for accounting server (optional).
     """
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
 
     body: dict[str, Any] = {
@@ -260,7 +274,9 @@ async def _create_radius_profile(
         if acct_server_secret:
             body["acctServerSecret"] = acct_server_secret
 
-    data = await client.post(_proxy(host_id, f"/sites/{site_id}/radius/profiles"), json=body)
+    data = await client.post(
+        _proxy(host_id, f"/sites/{site_id}/radius/profiles"), key=key, json=body
+    )
     return cast(dict[str, Any], data.get("data", data))
 
 
@@ -413,7 +429,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Create a RADIUS authentication profile.
 
         host: console name, ID, or composite ID (MAC:numericId format). site: site name or ID.
-        auth_server_ip/port/secret: RADIUS authentication server details.
+        name: REQUIRED. Display name for the new RADIUS profile.
+        auth_server_ip: REQUIRED. RADIUS authentication server IP address (string).
+        auth_server_port: REQUIRED. RADIUS authentication server UDP port (integer, e.g. 1812).
+        auth_server_secret: REQUIRED. Shared secret (string) for the RADIUS authentication server.
         acct_server_ip/port/secret: optional accounting server details.
         Note: if the console returns HTTP 405, RADIUS profile creation is not supported on this
         firmware version and profiles are effectively read-only. Use list_radius_profiles instead.

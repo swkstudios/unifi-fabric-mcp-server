@@ -83,7 +83,8 @@ async def list_recognition_groups(
       returned. Pass ``page`` to fetch one page manually — ``nextPage`` is then surfaced.
     """
     validate_id(type, "type")
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     params: dict[str, Any] = {}
     if has_name is not None:
         params["hasName"] = has_name
@@ -96,6 +97,7 @@ async def list_recognition_groups(
             client,
             _private(host_id, f"/recognition/{type}/groups"),
             "groups",
+            key=key,
             params=params,
             page=page,
             page_size=page_size if page_size is not None else DRAIN_PAGE_SIZE,
@@ -124,9 +126,10 @@ async def get_recognition_group_counts(
       return HTTP 400 from upstream). Forwarded to the API as-is.
     """
     validate_id(type, "type")
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     try:
-        data = await client.get(_private(host_id, f"/recognition/{type}/groups/counts"))
+        data = await client.get(_private(host_id, f"/recognition/{type}/groups/counts"), key=key)
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return data if isinstance(data, dict) else {"data": data}
@@ -150,10 +153,11 @@ async def get_recognition_group_image(
     """
     validate_id(type, "type")
     validate_id(group_id, "group_id")
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     try:
         raw = await client.get_bytes(
-            _private(host_id, f"/recognition/{type}/groups/{group_id}/image")
+            _private(host_id, f"/recognition/{type}/groups/{group_id}/image"), key=key
         )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
@@ -177,13 +181,19 @@ async def list_recognition_detections(
 ) -> dict[str, Any]:
     """List a recognition group's detections (individual sightings) on a Protect console.
 
+    REQUIRED: both ``type`` and ``group_id``. ``group_id`` selects which enrolled subject
+    to list sightings for — obtain a valid one from ``list_recognition_groups`` (its ``id``
+    field, e.g. ``face_90``). There is no "all groups" mode; an id that does not exist on
+    the console returns HTTP 404.
+
     Each detection record carries ``id``, ``eventId`` (joinable against
     ``list_protect_events``), ``thumbnailId`` (fetch the crop with ``get_thumbnail``),
     ``detectedAt`` (epoch ms), ``cameraId``, and ``matchedGroupConfidence`` (0-100).
 
     type: recognition type. Use ``face`` or ``vehicle`` (singular — plural forms
       return HTTP 400 from upstream). Forwarded to the API as-is.
-    group_id: the group's stable id, e.g. ``face_90``.
+    group_id: REQUIRED. The group's stable id, e.g. ``face_90`` — take it from a
+      ``list_recognition_groups`` result (the ``id`` field).
     page_size: API page size; also the drain page size. Defaults to 200.
     start/end: optional time window in epoch SECONDS (UTC), converted to milliseconds
       internally. Verified live: the endpoint filters detections server-side by
@@ -196,7 +206,8 @@ async def list_recognition_detections(
     """
     validate_id(type, "type")
     validate_id(group_id, "group_id")
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     params: dict[str, Any] = {}
     if start is not None:
         params["start"] = seconds_to_millis(require_epoch_seconds(start, "start"))
@@ -207,6 +218,7 @@ async def list_recognition_detections(
             client,
             _private(host_id, f"/recognition/{type}/groups/{group_id}/detections"),
             "detections",
+            key=key,
             params=params,
             page=page,
             page_size=page_size if page_size is not None else DRAIN_PAGE_SIZE,
@@ -235,9 +247,10 @@ async def get_thumbnail(
     thumbnail_id: the ``thumbnailId`` from a detection record.
     """
     validate_id(thumbnail_id, "thumbnail_id")
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     try:
-        raw = await client.get_bytes(_private(host_id, f"/thumbnails/{thumbnail_id}"))
+        raw = await client.get_bytes(_private(host_id, f"/thumbnails/{thumbnail_id}"), key=key)
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return {

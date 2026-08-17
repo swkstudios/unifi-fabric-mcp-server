@@ -51,6 +51,7 @@ def client():
 @pytest.fixture()
 def registry():
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     return r
 
@@ -157,7 +158,9 @@ class TestGetRecognitionGroupCounts:
     async def test_basic(self, client, registry):
         client.get.return_value = {"totalCount": 67, "nameNotNullCount": 6}
         result = await get_recognition_group_counts(client, registry, "h", "face")
-        client.get.assert_called_once_with(f"{PRIVATE_BASE}/recognition/face/groups/counts")
+        client.get.assert_called_once_with(
+            f"{PRIVATE_BASE}/recognition/face/groups/counts", key=None
+        )
         assert result["totalCount"] == 67
 
     async def test_non_dict_wrapped(self, client, registry):
@@ -180,7 +183,7 @@ class TestGetRecognitionGroupImage:
         client.get_bytes.return_value = raw
         result = await get_recognition_group_image(client, registry, "h", "face", "face_90")
         client.get_bytes.assert_called_once_with(
-            f"{PRIVATE_BASE}/recognition/face/groups/face_90/image"
+            f"{PRIVATE_BASE}/recognition/face/groups/face_90/image", key=None
         )
         assert result["content_type"] == "image/jpeg"
         assert result["size_bytes"] == len(raw)
@@ -273,7 +276,7 @@ class TestGetThumbnail:
         client.get_bytes.return_value = raw
         result = await get_thumbnail(client, registry, "h", "AABBCCDDEEFF-1785656054573")
         client.get_bytes.assert_called_once_with(
-            f"{PRIVATE_BASE}/thumbnails/AABBCCDDEEFF-1785656054573"
+            f"{PRIVATE_BASE}/thumbnails/AABBCCDDEEFF-1785656054573", key=None
         )
         assert result["content_type"] == "image/jpeg"
         assert result["size_bytes"] == len(raw)

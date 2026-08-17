@@ -130,6 +130,7 @@ def _networks_from(result):
     return result.get("networks") or result.get("data") or []
 
 
+@pytest.mark.mutating
 class TestVLANCRUDIntegration:
     """Full create/read/update/delete lifecycle for a VLAN, against the live console.
 

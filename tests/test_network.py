@@ -54,6 +54,7 @@ def client():
 def registry():
     r = AsyncMock()
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
     return r
@@ -63,7 +64,7 @@ class TestApplicationAndSites:
     async def test_get_network_application_info(self, client, registry):
         client.get.return_value = {"applicationVersion": "10.4.57"}
         result = await get_network_application_info(client, registry, "myhost")
-        client.get.assert_called_once_with(f"{BASE}/info")
+        client.get.assert_called_once_with(f"{BASE}/info", key=None)
         assert result["applicationVersion"] == "10.4.57"
 
     async def test_get_network_application_info_propagates_resolution_error(self, client, registry):
@@ -85,6 +86,7 @@ class TestApplicationAndSites:
         client.get.assert_called_once_with(
             f"{BASE}/sites",
             params={"offset": 10, "limit": 50, "filter": "name.like('lab*')"},
+            key=None,
         )
         assert result["offset"] == 10
 
@@ -148,7 +150,7 @@ class TestListNetworks:
         client.get.return_value = envelope
         result = await list_networks(client, registry, "h", "s", offset=0, limit=25)
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/networks", params={"offset": 0, "limit": 25}
+            f"{BASE}/sites/{SITE_ID}/networks", params={"offset": 0, "limit": 25}, key=None
         )
         client.paginate_offset.assert_not_called()
         assert result == envelope
@@ -164,24 +166,73 @@ class TestListNetworks:
     async def test_resolves_names(self, client, registry):
         client.paginate_offset.return_value = []
         await list_networks(client, registry, "MyHost", "Office")
-        registry.resolve_host_id.assert_called_once_with("MyHost")
-        registry.resolve_site_id.assert_called_once_with("Office", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
+        registry.resolve_site_id.assert_called_once_with("Office", HOST_ID, key=None)
+
+    async def test_filter_drains_with_exact_param(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_networks(client, registry, "h", "s", filter="vlanId.eq(100)")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks",
+            key=None,
+            params={"filter": "vlanId.eq(100)"},
+            page_size=200,
+        )
+        client.get.assert_not_called()
+
+    async def test_filter_manual_page_exact_param(self, client, registry):
+        client.get.return_value = {"data": [], "offset": 0, "limit": 25, "totalCount": 0}
+        await list_networks(client, registry, "h", "s", offset=0, limit=25, filter="vlanId.eq(100)")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks",
+            params={"offset": 0, "limit": 25, "filter": "vlanId.eq(100)"},
+            key=None,
+        )
+        client.paginate_offset.assert_not_called()
+
+    async def test_filter_none_omits_param_on_drain(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_networks(client, registry, "h", "s", filter=None)
+        _, kwargs = client.paginate_offset.call_args
+        assert kwargs["params"] is None
+
+    async def test_filter_threads_owning_key(self, client, registry):
+        sentinel = object()
+        registry.resolve_key_for_host.return_value = sentinel
+        client.paginate_offset.return_value = []
+        await list_networks(client, registry, "h", "s", filter="name.like('*guest*')")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks",
+            key=sentinel,
+            params={"filter": "name.like('*guest*')"},
+            page_size=200,
+        )
 
 
 class TestCreateNetwork:
     async def test_basic(self, client, registry):
-        payload = {"name": "Guest", "vlan": 100}
+        # 'management' is the discriminator the controller validates first
+        # (Missing $.management); the tool validates it before the request.
+        payload = {"management": "GATEWAY", "name": "Guest", "vlanId": 100}
         client.post.return_value = {"id": "net-2", **payload}
         result = await create_network(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks", json=payload)
+        client.post.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks", json=payload, key=None
+        )
         assert result["name"] == "Guest"
+
+    async def test_missing_management_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_network(client, registry, "h", "s", {"name": "Guest"})
+        assert str(exc.value) == "create_network requires: management"
+        client.post.assert_not_called()
 
 
 class TestGetNetwork:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "net-1", "name": "LAN"}
         result = await get_network(client, registry, "h", "s", "net-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1", key=None)
         assert result["id"] == "net-1"
 
 
@@ -190,7 +241,9 @@ class TestUpdateNetwork:
         payload = {"name": "Updated"}
         client.put.return_value = {"id": "net-1", **payload}
         result = await update_network(client, registry, "h", "s", "net-1", payload)
-        client.put.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks/net-1", json=payload, key=None
+        )
         assert result["name"] == "Updated"
 
     async def test_strips_read_only_fields(self, client, registry):
@@ -200,7 +253,7 @@ class TestUpdateNetwork:
         result = await update_network(client, registry, "h", "s", "net-1", payload)
         # Only the non-read-only field should be sent
         client.put.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/networks/net-1", json={"name": "Updated"}
+            f"{BASE}/sites/{SITE_ID}/networks/net-1", json={"name": "Updated"}, key=None
         )
         assert result["name"] == "Updated"
 
@@ -209,38 +262,131 @@ class TestUpdateNetwork:
         payload = {"name": "Guest", "vlan": 100, "purpose": "corporate"}
         client.put.return_value = {"id": "net-1", **payload}
         result = await update_network(client, registry, "h", "s", "net-1", payload)
-        client.put.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks/net-1", json=payload, key=None
+        )
         assert result["vlan"] == 100
+
+    async def test_strips_empty_strings_from_dns_servers(self, client, registry):
+        """Issue #164: the API pads list fields with empty strings
+        (``["192.168.1.1", "", ""]``); passing them back yields HTTP 400
+        'must be valid IPv4 address'. Assert the PUT carries ONLY the real
+        server — the empties are gone, not merely 'a value is present'."""
+        payload = {"name": "LAN", "dns_servers": ["192.168.1.1", "", ""]}
+        client.put.return_value = {"id": "net-1"}
+        await update_network(client, registry, "h", "s", "net-1", payload)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks/net-1",
+            json={"name": "LAN", "dns_servers": ["192.168.1.1"]},
+            key=None,
+        )
+
+    async def test_dns_servers_preserve_order(self, client, registry):
+        """Multiple real servers keep their order; only padding is removed."""
+        payload = {"dns_servers": ["1.1.1.1", "", "8.8.8.8", ""]}
+        client.put.return_value = {"id": "net-1"}
+        await update_network(client, registry, "h", "s", "net-1", payload)
+        sent = client.put.call_args.kwargs["json"]
+        assert sent["dns_servers"] == ["1.1.1.1", "8.8.8.8"]
+
+    async def test_all_empty_dns_servers_become_empty_list(self, client, registry):
+        """A list that was pure padding round-trips as ``[]`` (clear the field),
+        never omitted — the caller's intent survives under PUT replace."""
+        payload = {"dns_servers": ["", "", ""]}
+        client.put.return_value = {"id": "net-1"}
+        await update_network(client, registry, "h", "s", "net-1", payload)
+        sent = client.put.call_args.kwargs["json"]
+        assert sent["dns_servers"] == []
+
+    async def test_get_network_response_round_trips_clean(self, client, registry):
+        """End-to-end: a realistic ``get_network`` body (read-only fields +
+        padded list) feeds straight into ``update_network`` and the PUT payload
+        is one the controller accepts — no ``id``/``metadata``, no empty IPs."""
+        get_response = {
+            "id": "net-1",
+            "default": True,
+            "metadata": {"x": 1},
+            "name": "LAN",
+            "vlan": 1,
+            "dns_servers": ["192.168.1.1", "", ""],
+        }
+        client.put.return_value = {"id": "net-1"}
+        await update_network(client, registry, "h", "s", "net-1", get_response)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks/net-1",
+            json={"name": "LAN", "vlan": 1, "dns_servers": ["192.168.1.1"]},
+            key=None,
+        )
 
 
 class TestDeleteNetwork:
     async def test_basic(self, client, registry):
         await delete_network(client, registry, "h", "s", "net-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1")
+        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1", key=None)
 
 
 class TestListWifiBroadcasts:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "wifi-1", "name": "Office"}]
         result = await list_wifi_broadcasts(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wifi/broadcasts")
+        # filter defaults to None → params omitted entirely (never the string "None").
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts", key=None, params=None
+        )
         assert result == [{"id": "wifi-1", "name": "Office"}]
+
+    async def test_filter_forwarded_verbatim(self, client, registry):
+        client.get.return_value = [{"id": "wifi-1"}]
+        await list_wifi_broadcasts(client, registry, "h", "s", filter="enabled.eq(true)")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts",
+            key=None,
+            params={"filter": "enabled.eq(true)"},
+        )
+
+    async def test_filter_none_omits_param_not_string(self, client, registry):
+        client.get.return_value = []
+        await list_wifi_broadcasts(client, registry, "h", "s", filter=None)
+        _, kwargs = client.get.call_args
+        assert kwargs["params"] is None
+
+    async def test_filter_threads_owning_key(self, client, registry):
+        sentinel = object()
+        registry.resolve_key_for_host.return_value = sentinel
+        client.get.return_value = []
+        await list_wifi_broadcasts(client, registry, "h", "s", filter="name.like('*Guest*')")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts",
+            key=sentinel,
+            params={"filter": "name.like('*Guest*')"},
+        )
 
 
 class TestCreateWifiBroadcast:
     async def test_basic(self, client, registry):
-        payload = {"name": "Guest WiFi", "security": "wpa2"}
+        # 'type' is the discriminator the controller validates first (Missing $.type).
+        payload = {"type": "STANDARD", "name": "Guest WiFi", "security": "wpa2"}
         client.post.return_value = {"id": "wifi-2", **payload}
         result = await create_wifi_broadcast(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wifi/broadcasts", json=payload)
+        client.post.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts", json=payload, key=None
+        )
         assert result["name"] == "Guest WiFi"
+
+    async def test_missing_type_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_wifi_broadcast(client, registry, "h", "s", {"name": "Guest WiFi"})
+        assert str(exc.value) == "create_wifi_broadcast requires: type"
+        client.post.assert_not_called()
 
 
 class TestGetWifiBroadcast:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "wifi-1", "name": "Office"}
         result = await get_wifi_broadcast(client, registry, "h", "s", "wifi-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1", key=None
+        )
         assert result["id"] == "wifi-1"
 
 
@@ -250,15 +396,29 @@ class TestUpdateWifiBroadcast:
         client.put.return_value = {"id": "wifi-1", **payload}
         result = await update_wifi_broadcast(client, registry, "h", "s", "wifi-1", payload)
         client.put.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1", json=payload
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1", json=payload, key=None
         )
         assert result["name"] == "Updated SSID"
+
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: padded list fields in a get_wifi_broadcast body are
+        cleaned before the PUT so the round-trip does not 400."""
+        payload = {"name": "Guest", "apGroupIds": ["grp-1", "", ""]}
+        client.put.return_value = {"id": "wifi-1"}
+        await update_wifi_broadcast(client, registry, "h", "s", "wifi-1", payload)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1",
+            json={"name": "Guest", "apGroupIds": ["grp-1"]},
+            key=None,
+        )
 
 
 class TestDeleteWifiBroadcast:
     async def test_basic(self, client, registry):
         await delete_wifi_broadcast(client, registry, "h", "s", "wifi-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1")
+        client.delete.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wifi/broadcasts/wifi-1", key=None
+        )
 
 
 class TestListWanInterfaces:
@@ -284,8 +444,8 @@ class TestListWanInterfaces:
     async def test_resolves_names(self, client, registry):
         client.get.side_effect = [[], {"data": []}]
         await list_wan_interfaces(client, registry, "UDM-Pro", "Main Office")
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
-        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
+        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID, key=None)
 
 
 class TestUpdateWanInterface:
@@ -293,28 +453,42 @@ class TestUpdateWanInterface:
         wan = {"name": "ISP2", "dns": ["8.8.8.8"]}
         client.put.return_value = {"id": "wan-1", **wan}
         result = await update_wan_interface(client, registry, "h", "s", "wan-1", wan)
-        client.put.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wans/wan-1", json=wan)
+        client.put.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/wans/wan-1", json=wan, key=None)
         assert result["name"] == "ISP2"
 
     async def test_resolves_names(self, client, registry):
         client.put.return_value = {}
         await update_wan_interface(client, registry, "UDM-Pro", "Main Office", "wan-1", {})
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
-        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
+        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID, key=None)
+
+    async def test_strips_empty_strings_from_dns_list(self, client, registry):
+        """Issue #164: a WAN object's padded ``dns`` array is cleaned before the
+        PUT so a read-modify-write of a WAN interface does not 400."""
+        wan = {"name": "ISP2", "dns": ["8.8.8.8", "", ""]}
+        client.put.return_value = {"id": "wan-1"}
+        await update_wan_interface(client, registry, "h", "s", "wan-1", wan)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/wans/wan-1",
+            json={"name": "ISP2", "dns": ["8.8.8.8"]},
+            key=None,
+        )
 
 
 class TestGetNetworkReferences:
     async def test_basic(self, client, registry):
         client.get.return_value = {"data": [{"type": "wifi_broadcast", "id": "wifi-1"}]}
         result = await get_network_references(client, registry, "h", "s", "net-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/networks/net-1/references")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/networks/net-1/references", key=None
+        )
         assert result["data"][0]["type"] == "wifi_broadcast"
 
     async def test_resolves_names(self, client, registry):
         client.get.return_value = {}
         await get_network_references(client, registry, "UDM-Pro", "Main Office", "net-1")
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
-        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
+        registry.resolve_site_id.assert_called_once_with("Main Office", HOST_ID, key=None)
 
 
 @pytest.mark.parametrize(
@@ -339,6 +513,7 @@ async def test_list_switching_resource(function, resource, client, registry):
     client.get.assert_called_once_with(
         f"{BASE}/sites/{SITE_ID}/switching/{resource}",
         params={"offset": 5, "limit": 25, "filter": "metadata.origin.eq('USER')"},
+        key=None,
     )
     assert result["data"] == []
 
@@ -389,7 +564,9 @@ async def test_list_switching_resource_cap_exceeded_marked_incomplete(function, 
 async def test_get_switching_resource(function, resource, client, registry):
     client.get.return_value = {"id": RESOURCE_ID}
     result = await function(client, registry, "myhost", "mysite", RESOURCE_ID)
-    client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/switching/{resource}/{RESOURCE_ID}")
+    client.get.assert_called_once_with(
+        f"{BASE}/sites/{SITE_ID}/switching/{resource}/{RESOURCE_ID}", key=None
+    )
     assert result["id"] == RESOURCE_ID
 
 

@@ -392,6 +392,51 @@ class TestISPMetrics:
             await query_isp_metrics(client, "5m")
         client.post.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_query_isp_metrics_rejects_epoch_string_start_time(self, client):
+        # A bare-epoch string slips past the str-typed signature but is a meaningless
+        # timestamp to the API. The tool rejects it with the expected ISO 8601 format
+        # rather than forwarding it, and never issues the request.
+        client.post = AsyncMock()
+        with pytest.raises(ValueError) as exc:
+            await query_isp_metrics(
+                client,
+                "5m",
+                sites=[{"hostId": "h1", "siteId": "s1"}],
+                start_time="1690000000000",
+            )
+        msg = str(exc.value)
+        assert "start_time" in msg
+        assert "ISO 8601" in msg
+        assert "2026-07-23T00:00:00Z" in msg
+        client.post.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_query_isp_metrics_rejects_epoch_string_end_time(self, client):
+        client.post = AsyncMock()
+        with pytest.raises(ValueError) as exc:
+            await query_isp_metrics(
+                client,
+                "5m",
+                sites=[{"hostId": "h1", "siteId": "s1"}],
+                end_time="1690000000",
+            )
+        assert "end_time" in str(exc.value)
+        client.post.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_query_isp_metrics_accepts_iso_timestamp(self, client):
+        # A real ISO 8601 string is accepted and forwarded as the per-site window.
+        client.post = AsyncMock(return_value={"data": []})
+        await query_isp_metrics(
+            client,
+            "5m",
+            sites=[{"hostId": "h1", "siteId": "s1"}],
+            start_time="2026-07-23T00:00:00Z",
+        )
+        _, kwargs = client.post.call_args
+        assert kwargs["json"]["sites"][0]["beginTimestamp"] == "2026-07-23T00:00:00Z"
+
 
 class TestSDWAN:
     @pytest.mark.asyncio
@@ -583,7 +628,7 @@ class TestGetSiteHealthSummary:
 
         result = await get_site_health_summary(client, registry, "Default")
         assert result["numSta"] == 5
-        registry.resolve_site_slug.assert_called_once_with("Default", "host-h1")
+        registry.resolve_site_slug.assert_called_once_with("Default", "host-h1", key=None)
         call_path = client.get.call_args[0][0]
         assert "/stat/health" in call_path
         assert "host-h1" in call_path
@@ -803,7 +848,7 @@ class TestGetSiteInventory:
 
         await get_site_inventory(client, registry, "Default")
 
-        registry.resolve_site_id.assert_called_once_with("Default", "host-h1")
+        registry.resolve_site_id.assert_called_once_with("Default", "host-h1", key=None)
         # Both proxy calls should use the UUID
         for call in client.get.call_args_list:
             assert _UUID_SITE in call[0][0]
@@ -873,7 +918,7 @@ class TestListHostsMultiKey:
     ):
         async def _paginate(path, *, key=None):
             if key.label == "beta":
-                raise UniFiConnectionError("HTTP 401 from GET /ea/hosts")
+                raise UniFiConnectionError("HTTP 401 from GET /v1/hosts")
             return [{"id": "h-a", "reportedState": {"hostname": "a"}}]
 
         multikey_client.paginate = AsyncMock(side_effect=_paginate)
@@ -887,7 +932,7 @@ class TestListHostsMultiKey:
     @pytest.mark.asyncio
     async def test_all_keys_fail_raises(self, multikey_client, multikey_registry):
         multikey_client.paginate = AsyncMock(
-            side_effect=UniFiConnectionError("HTTP 401 from GET /ea/hosts")
+            side_effect=UniFiConnectionError("HTTP 401 from GET /v1/hosts")
         )
         with pytest.raises(RuntimeError, match="All 2 API key"):
             await list_hosts(multikey_client, multikey_registry)
@@ -952,3 +997,101 @@ class TestListAllSitesAggregatedMultiKey:
         assert result["count"] == 1
         assert result["sites"][0]["_keyLabel"] == "beta"
         assert "errors" in result
+
+
+class TestNamespaceURLPinning:
+    """Pin the EXACT Site Manager URL each tool builds (issues #198/#192).
+
+    All five families were migrated /ea/ -> /v1/ in place. These tests assert
+    the precise path (including the /v1/ prefix) so a future refactor that
+    silently reverts a call site to /ea/ (or drifts the namespace any other
+    way) fails at Tier 1 rather than in a live run. Each test also asserts the
+    path does NOT start with /ea/ as a belt-and-suspenders guard.
+    """
+
+    @pytest.mark.asyncio
+    async def test_list_hosts_calls_v1_hosts(self, client, registry):
+        client.paginate = AsyncMock(return_value=[])
+        await list_hosts(client, registry)
+        path = client.paginate.call_args.args[0]
+        assert path == "/v1/hosts"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_get_host_calls_v1_hosts_id(self, client, registry):
+        registry.resolve_key_for_host = AsyncMock(return_value=None)
+        registry.resolve_host_id = AsyncMock(return_value="host-xyz")
+        client.get = AsyncMock(return_value={"data": {"id": "host-xyz"}})
+        await get_host(client, registry, "host-xyz")
+        path = client.get.call_args.args[0]
+        assert path == "/v1/hosts/host-xyz"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_list_sites_calls_v1_sites(self, client, registry):
+        client.paginate = AsyncMock(return_value=[])
+        await list_sites(client, registry)
+        path = client.paginate.call_args.args[0]
+        assert path == "/v1/sites"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_list_devices_calls_v1_devices(self, client, registry):
+        client.paginate = AsyncMock(return_value=[])
+        await list_devices(client, registry)
+        path = client.paginate.call_args.args[0]
+        assert path == "/v1/devices"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_get_isp_metrics_calls_v1_isp_metrics(self, client):
+        client.get = AsyncMock(return_value={"data": []})
+        await get_isp_metrics(client, "5m")
+        path = client.get.call_args.args[0]
+        assert path == "/v1/isp-metrics/5m"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_query_isp_metrics_calls_v1_isp_metrics_query(self, client):
+        client.post = AsyncMock(return_value={"data": []})
+        await query_isp_metrics(client, "1h", sites=[{"hostId": "h1", "siteId": "s1"}])
+        path = client.post.call_args.args[0]
+        assert path == "/v1/isp-metrics/1h/query"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_list_sdwan_configs_calls_v1_sd_wan_configs(self, client):
+        client.paginate = AsyncMock(return_value=[])
+        await list_sdwan_configs(client)
+        path = client.paginate.call_args.args[0]
+        assert path == "/v1/sd-wan-configs"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_get_sdwan_config_calls_v1_sd_wan_configs_id(self, client):
+        client.get = AsyncMock(return_value={"data": {"id": "cfg1"}})
+        await get_sdwan_config(client, "cfg1")
+        path = client.get.call_args.args[0]
+        assert path == "/v1/sd-wan-configs/cfg1"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_get_sdwan_config_status_calls_v1_sd_wan_configs_id_status(self, client):
+        client.get = AsyncMock(return_value={"data": {"status": "active"}})
+        await get_sdwan_config_status(client, "cfg1")
+        path = client.get.call_args.args[0]
+        assert path == "/v1/sd-wan-configs/cfg1/status"
+        assert not path.startswith("/ea/")
+
+    @pytest.mark.asyncio
+    async def test_no_ea_paths_remain_in_site_manager_module(self):
+        """Source-level guard: the migrated module must contain no /ea/ call sites."""
+        import inspect
+
+        import unifi_fabric.tools.site_manager as sm_mod
+
+        src = inspect.getsource(sm_mod)
+        ea = "/ea/"
+        for family in ("hosts", "sites", "devices", "isp-metrics", "sd-wan-configs"):
+            assert (ea + family + '"') not in src
+            assert (ea + family + "/") not in src
