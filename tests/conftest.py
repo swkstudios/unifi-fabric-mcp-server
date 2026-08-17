@@ -42,7 +42,8 @@ def _hermetic_credentials_env(request, monkeypatch):
     environment is otherwise silently pulled into ``Settings()`` / ``MCPTransportSettings()``
     (init kwargs do NOT stop pydantic-settings from populating *unset* fields like ``api_keys``
     from the environment). On an assertion failure the value is then printed to the log — which
-    is exactly how a live key once leaked to disk (SR-8). Stripping the credential/config
+    is exactly how a live key once leaked to disk (a previously documented failure mode).
+    Stripping the credential/config
     namespaces before every unit test makes it impossible for a unit test to read them,
     regardless of how or where the suite is invoked.
 

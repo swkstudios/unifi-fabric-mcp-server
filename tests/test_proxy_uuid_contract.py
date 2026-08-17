@@ -50,6 +50,7 @@ def _make_client() -> AsyncMock:
 def _make_registry(uuid_site_id: str = _VALID_UUID) -> AsyncMock:
     """Mock registry that returns a UUID or non-UUID site_id."""
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=_HOST_ID)
     r.resolve_site_id = AsyncMock(return_value=uuid_site_id)
     return r
@@ -88,8 +89,10 @@ class TestNetworkProxyUuidContract:
     async def test_create_network_objectid_raises(self):
         client = _make_client()
         registry = _make_registry_raises_objectid()
+        # Payload satisfies required-field validation so execution reaches the
+        # site-UUID contract check that this test is about.
         with pytest.raises(ValueError, match="not a UUID"):
-            await network.create_network(client, registry, "h", "s", {})
+            await network.create_network(client, registry, "h", "s", {"management": "GATEWAY"})
         client.post.assert_not_called()
 
     @pytest.mark.asyncio
@@ -234,8 +237,19 @@ class TestFirewallProxyUuidContract:
     async def test_create_firewall_policy_objectid_raises(self):
         client = _make_client()
         registry = _make_registry_raises_objectid()
+        # Payload satisfies required-field validation so execution reaches the
+        # site-UUID contract check that this test is about.
+        policy = {
+            "name": "P",
+            "action": {"type": "DENY"},
+            "enabled": True,
+            "source": {"zoneId": "z1"},
+            "destination": {"zoneId": "z2"},
+            "ipProtocolScope": {"ipVersion": "BOTH"},
+            "loggingEnabled": False,
+        }
         with pytest.raises(ValueError, match="not a UUID"):
-            await firewall_proxy.create_firewall_policy(client, registry, "h", "s", {})
+            await firewall_proxy.create_firewall_policy(client, registry, "h", "s", policy)
         client.post.assert_not_called()
 
 
@@ -255,7 +269,7 @@ class TestHotspotUuidContract:
             client, registry, "myhost", "mysite", "admin", "pass"
         )
         # Classic REST: resolve_site_slug called with host_id (not resolve_site_id)
-        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
     @pytest.mark.asyncio
@@ -266,8 +280,8 @@ class TestHotspotUuidContract:
         registry = _make_registry()
         registry.resolve_site_slug = AsyncMock(return_value="default")
         await hotspot._list_hotspot_operators(client, registry, "myhost", "mysite")
-        registry.resolve_host_id.assert_called_once_with("myhost")
-        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("myhost", key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
 
@@ -283,7 +297,7 @@ class TestVpnUuidContract:
         client.post.return_value = {"data": {"id": "vpn-1"}}
         registry = _make_registry()
         await vpn._create_vpn_server(client, registry, "myhost", "mysite", "my-vpn", "wireguard")
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
 
     @pytest.mark.asyncio
     async def test_update_vpn_server_uuid_resolves(self):
@@ -291,14 +305,14 @@ class TestVpnUuidContract:
         client.put.return_value = {"data": {"id": "vpn-1"}}
         registry = _make_registry()
         await vpn._update_vpn_server(client, registry, "myhost", "mysite", "vpn-1", enabled=False)
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
 
     @pytest.mark.asyncio
     async def test_delete_vpn_server_uuid_resolves(self):
         client = _make_client()
         registry = _make_registry()
         await vpn._delete_vpn_server(client, registry, "myhost", "mysite", "vpn-1")
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
 
     @pytest.mark.asyncio
     async def test_update_vpn_server_objectid_raises(self):
@@ -316,4 +330,4 @@ class TestVpnUuidContract:
         await vpn._create_radius_profile(
             client, registry, "myhost", "mysite", "profile", "1.2.3.4", 1812, "secret"
         )
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID)
+        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)

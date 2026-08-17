@@ -22,6 +22,11 @@ jobs:
           # NOTE: the agent-name list below must stay in sync with the identical
           # agent-name blocklist maintained elsewhere under .github/workflows/.
           # If you add or remove a name in one place, update all copies.
+          # Internal QA marker (UNTESTABLE-LIVE-ON-ESTATE) is blocked in PR/issue metadata too.
+          # The POSSESSIVE forms ("our/this estate") are intentionally NOT listed here: this
+          # gate scans public-authored PR/issue text, where a user legitimately writes
+          # "this estate has N sites" (generic usage). Those forms are enforced only in the
+          # content-scan battery in the publish workflow, over the authored tree.
           cat > /tmp/forbidden.txt <<'PATTERNS'
           \b(Sentinel|Raven|Forge|Atlas|Pixel|Hawk|Probe|Scribe|Scout|Shield|Glitch|Anvil|Rusty|Courier|Clark|Anna|Viper|Compass|Accountant)\b
           \bTeknoCentral\b
@@ -36,10 +41,10 @@ jobs:
           dispatch_preamble
           tekno-pm
           tekno-memory
-          clay@swkstudios\.com
           192\.168\.[0-9]+\.[0-9]+
           10\.[0-9]+\.[0-9]+\.[0-9]+
           100\.[0-9]+\.[0-9]+\.[0-9]+
+          UNTESTABLE-LIVE-ON-ESTATE
           PATTERNS
           # Build single regex from lines (strip leading whitespace)
           REGEX=$(sed 's/^[[:space:]]*//' /tmp/forbidden.txt | paste -sd'|' -)

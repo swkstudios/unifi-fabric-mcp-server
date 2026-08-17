@@ -139,10 +139,14 @@ class TestGetCameraIntegration:
 
 
 # ---------------------------------------------------------------------------
-# update_camera (non-destructive: set name back to current value)
+# update_camera — LIVE WRITE against the production console. Setting the name back
+# to its current value still issues a real update (PATCH/PUT) request to the device;
+# it is NOT a read-only or "non-destructive" probe. Marked mutating and excluded from
+# the unattended canary (deselected by marker: `-m 'integration and not mutating'`).
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.mutating
 class TestUpdateCameraIntegration:
     async def test_update_camera_name_roundtrip(self, client, registry):
         _require_host()
@@ -221,10 +225,16 @@ class TestGetRtspsStreamIntegration:
 
 
 # ---------------------------------------------------------------------------
-# PTZ control — read-only probe (home/preset position, no movement)
+# PTZ control — LIVE ACTUATION against the production console. ptz_goto(..., 0) is a
+# real pan/tilt/zoom MOVE command that physically drives the camera head to preset
+# slot 0; it is NOT a read-only probe and there is no "no movement" guard. It only
+# appears harmless today because the test estate has no PTZ-capable camera, so the test
+# skips — that is incidental, not a safety guard. Marked mutating and excluded from the
+# unattended canary (deselected by marker: `-m 'integration and not mutating'`).
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.mutating
 class TestPtzIntegration:
     async def _first_ptz_camera(self, client, registry):
         """Return the first camera that advertises PTZ support, or skip."""
@@ -246,10 +256,16 @@ class TestPtzIntegration:
 
 
 # ---------------------------------------------------------------------------
-# talkback_start — verify endpoint responds (no actual audio session)
+# talkback_start — LIVE ACTUATION against the production console. This opens a real
+# two-way audio/speaker session on the camera or doorbell (confirmed firing during
+# sprint validation); it is NOT a passive "endpoint responds" check and it DOES start
+# an audio session. The session is transient and persists no state, but it is a real
+# speaker actuation in a possibly-occupied space. Marked mutating and excluded from the
+# unattended canary (deselected by marker: `-m 'integration and not mutating'`).
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.mutating
 class TestTalkbackStartIntegration:
     async def _first_talkback_camera(self, client, registry):
         """Return the first camera with talkback support, or None."""

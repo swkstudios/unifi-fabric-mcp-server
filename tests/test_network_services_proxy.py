@@ -12,6 +12,8 @@ from unifi_fabric.tools.network_services_proxy import (
     _CLASSIC_REST_BASE,
     _CLASSIC_STAT_BASE,
     _V2_API_BASE,
+    allow_network_on_port_profile,
+    annotate_auto_exclusions,
     bulk_delete_hotspot_vouchers,
     create_dns_policy,
     create_hotspot_vouchers,
@@ -25,6 +27,7 @@ from unifi_fabric.tools.network_services_proxy import (
     delete_traffic_matching_list,
     delete_traffic_route,
     delete_traffic_rule,
+    exclude_network_on_port_profile,
     get_account,
     get_channel_plan,
     get_dns_policy,
@@ -101,6 +104,7 @@ def client():
 @pytest.fixture()
 def registry():
     r = AsyncMock()
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
@@ -122,7 +126,7 @@ class TestListDnsPolicies:
         client.get.return_value = {"data": [{"id": "dns-1"}], "totalCount": 5}
         result = await list_dns_policies(client, registry, "h", "s", offset=0, limit=25)
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/dns/policies", params={"offset": 0, "limit": 25}
+            f"{BASE}/sites/{SITE_ID}/dns/policies", key=None, params={"offset": 0, "limit": 25}
         )
         client.paginate_offset.assert_not_called()
         assert result == {"data": [{"id": "dns-1"}], "totalCount": 5}
@@ -130,18 +134,27 @@ class TestListDnsPolicies:
 
 class TestCreateDnsPolicy:
     async def test_basic(self, client, registry):
-        payload = {"name": "Custom DNS"}
+        # 'type' is the discriminator the controller validates first (Missing $.type).
+        payload = {"type": "ALLOW", "name": "Custom DNS"}
         client.post.return_value = {"id": "dns-2", **payload}
         result = await create_dns_policy(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/dns/policies", json=payload)
+        client.post.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/dns/policies", key=None, json=payload
+        )
         assert result["name"] == "Custom DNS"
+
+    async def test_missing_type_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_dns_policy(client, registry, "h", "s", {"name": "Custom DNS"})
+        assert str(exc.value) == "create_dns_policy requires: type"
+        client.post.assert_not_called()
 
 
 class TestGetDnsPolicy:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "dns-1", "name": "Default"}
         result = await get_dns_policy(client, registry, "h", "s", "dns-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1", key=None)
         assert result["id"] == "dns-1"
 
     async def test_rejects_path_injection_id(self, client, registry):
@@ -157,7 +170,7 @@ class TestUpdateDnsPolicy:
         client.put.return_value = {"id": "dns-1", **payload}
         result = await update_dns_policy(client, registry, "h", "s", "dns-1", payload)
         client.put.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1", json=payload
+            f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1", key=None, json=payload
         )
         assert result["name"] == "Updated"
 
@@ -167,11 +180,25 @@ class TestUpdateDnsPolicy:
         registry.resolve_host_id.assert_not_called()
         client.put.assert_not_called()
 
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: padded list fields in a DNS policy object are cleaned
+        before the PUT so a read-modify-write round-trip does not 400."""
+        payload = {"name": "P1", "domains": ["example.com", "", ""]}
+        client.put.return_value = {"id": "dns-1"}
+        await update_dns_policy(client, registry, "h", "s", "dns-1", payload)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1",
+            key=None,
+            json={"name": "P1", "domains": ["example.com"]},
+        )
+
 
 class TestDeleteDnsPolicy:
     async def test_basic(self, client, registry):
         await delete_dns_policy(client, registry, "h", "s", "dns-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1")
+        client.delete.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/dns/policies/dns-1", key=None
+        )
 
     async def test_rejects_path_injection_id(self, client, registry):
         with pytest.raises(ValueError, match="policy_id"):
@@ -187,26 +214,37 @@ class TestListTrafficMatchingLists:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "tml-1", "name": "IoT Devices"}]
         result = await list_traffic_matching_lists(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/traffic-matching-lists")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists", key=None
+        )
         assert result == [{"id": "tml-1", "name": "IoT Devices"}]
 
 
 class TestCreateTrafficMatchingList:
     async def test_basic(self, client, registry):
-        payload = {"name": "Gaming"}
+        # Top-level 'type' is the discriminator (Missing $.type); observed value PORTS.
+        payload = {"type": "PORTS", "name": "Gaming"}
         client.post.return_value = {"id": "tml-2", **payload}
         result = await create_traffic_matching_list(client, registry, "h", "s", payload)
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists", json=payload
+            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists", key=None, json=payload
         )
         assert result["name"] == "Gaming"
+
+    async def test_missing_type_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_traffic_matching_list(client, registry, "h", "s", {"name": "Gaming"})
+        assert str(exc.value) == "create_traffic_matching_list requires: type"
+        client.post.assert_not_called()
 
 
 class TestGetTrafficMatchingList:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "tml-1", "name": "IoT Devices"}
         result = await get_traffic_matching_list(client, registry, "h", "s", "tml-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1", key=None
+        )
         assert result["id"] == "tml-1"
 
     async def test_rejects_path_injection_id(self, client, registry):
@@ -222,7 +260,7 @@ class TestUpdateTrafficMatchingList:
         client.put.return_value = {"id": "tml-1", **payload}
         result = await update_traffic_matching_list(client, registry, "h", "s", "tml-1", payload)
         client.put.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1", json=payload
+            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1", key=None, json=payload
         )
         assert result["name"] == "Updated"
 
@@ -237,7 +275,7 @@ class TestDeleteTrafficMatchingList:
     async def test_basic(self, client, registry):
         await delete_traffic_matching_list(client, registry, "h", "s", "tml-1")
         client.delete.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1"
+            f"{BASE}/sites/{SITE_ID}/traffic-matching-lists/tml-1", key=None
         )
 
     async def test_rejects_path_injection_id(self, client, registry):
@@ -263,7 +301,9 @@ class TestListSiteToSiteTunnels:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"id": "tun-1", "status": "connected"}]
         result = await list_site_to_site_tunnels(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/vpn/site-to-site-tunnels")
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/vpn/site-to-site-tunnels", key=None
+        )
         assert result == [{"id": "tun-1", "status": "connected"}]
 
 
@@ -304,20 +344,27 @@ class TestListHotspotVouchers:
 
 class TestCreateHotspotVouchers:
     async def test_basic(self, client, registry):
-        payload = {"count": 5, "duration": 3600}
+        # name + timeLimitMinutes verified required by the live controller.
+        payload = {"name": "Lobby", "timeLimitMinutes": 60, "count": 5}
         client.post.return_value = [{"id": "v-1"}, {"id": "v-2"}]
         result = await create_hotspot_vouchers(client, registry, "h", "s", payload)
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers", json=payload
+            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers", key=None, json=payload
         )
         assert len(result) == 2
+
+    async def test_missing_required_fields_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_hotspot_vouchers(client, registry, "h", "s", {"count": 5})
+        assert str(exc.value) == "create_hotspot_vouchers requires: name, timeLimitMinutes"
+        client.post.assert_not_called()
 
 
 class TestGetHotspotVoucher:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "v-1", "code": "ABC123"}
         result = await get_hotspot_voucher(client, registry, "h", "s", "v-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/hotspot/vouchers/v-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/hotspot/vouchers/v-1", key=None)
         assert result["code"] == "ABC123"
 
     async def test_rejects_path_injection_id(self, client, registry):
@@ -330,7 +377,9 @@ class TestGetHotspotVoucher:
 class TestDeleteHotspotVoucher:
     async def test_basic(self, client, registry):
         await delete_hotspot_voucher(client, registry, "h", "s", "v-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/hotspot/vouchers/v-1")
+        client.delete.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers/v-1", key=None
+        )
 
     async def test_rejects_path_injection_id(self, client, registry):
         with pytest.raises(ValueError, match="voucher_id"):
@@ -344,7 +393,7 @@ class TestBulkDeleteHotspotVouchers:
         params = {"expired": True}
         await bulk_delete_hotspot_vouchers(client, registry, "h", "s", params)
         client.delete.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers", params=params
+            f"{BASE}/sites/{SITE_ID}/hotspot/vouchers", key=None, params=params
         )
 
 
@@ -356,7 +405,7 @@ class TestListDeviceTags:
         client.get.return_value = [{"id": "tag-1", "name": "IoT"}]
         result = await list_device_tags(client, registry, "h", "s")
         assert result == [{"id": "tag-1", "name": "IoT"}]
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags", key=None)
 
 
 class TestListCountries:
@@ -364,7 +413,7 @@ class TestListCountries:
         client.get.return_value = [{"code": "US", "name": "United States"}]
         result = await list_countries(client, registry, "h")
         assert result == [{"code": "US", "name": "United States"}]
-        client.get.assert_called_once_with(f"{BASE}/countries")
+        client.get.assert_called_once_with(f"{BASE}/countries", key=None)
         registry.resolve_site_id.assert_not_called()
 
 
@@ -375,13 +424,13 @@ class TestListPortForwards:
     async def test_uses_classic_rest_url(self, client, registry):
         client.get.return_value = {"data": [{"_id": "pf-1", "name": "SSH"}]}
         result = await list_port_forwards(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward", key=None)
         assert result == {"data": [{"_id": "pf-1", "name": "SSH"}]}
 
     async def test_resolves_slug_not_uuid(self, client, registry):
         client.get.return_value = {}
         await list_port_forwards(client, registry, "h", "s")
-        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
 
@@ -400,7 +449,9 @@ class TestCreatePortForward:
         }
         client.post.return_value = {"_id": "pf-new", **payload}
         result = await create_port_forward(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward", json=payload)
+        client.post.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward", key=None, json=payload
+        )
         assert result["_id"] == "pf-new"
 
     async def test_empty_payload_rejected(self, client, registry):
@@ -421,7 +472,9 @@ class TestCreatePortForward:
         }
         client.post.return_value = {"_id": "pf-x", **payload}
         result = await create_port_forward(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward", json=payload)
+        client.post.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward", key=None, json=payload
+        )
         assert result["_id"] == "pf-x"
 
 
@@ -430,14 +483,16 @@ class TestUpdatePortForward:
         payload = {"enabled": False}
         client.put.return_value = {"_id": "pf-1", **payload}
         result = await update_port_forward(client, registry, "h", "s", "pf-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None, json=payload
+        )
         assert result["_id"] == "pf-1"
 
 
 class TestDeletePortForward:
     async def test_deletes_via_classic_rest(self, client, registry):
         await delete_port_forward(client, registry, "h", "s", "pf-1")
-        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1")
+        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None)
 
 
 # --- Traffic Rules (v2 API) ---
@@ -447,13 +502,13 @@ class TestListTrafficRules:
     async def test_uses_v2_url(self, client, registry):
         client.get.return_value = {"data": [{"_id": "tr-1", "description": "Block Social"}]}
         result = await list_traffic_rules(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficrules")
+        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None)
         assert result == {"data": [{"_id": "tr-1", "description": "Block Social"}]}
 
     async def test_resolves_slug_not_uuid(self, client, registry):
         client.get.return_value = {}
         await list_traffic_rules(client, registry, "h", "s")
-        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
     async def test_bare_list_wrapped(self, client, registry):
@@ -472,16 +527,40 @@ class TestListTrafficRules:
 
 class TestCreateTrafficRule:
     async def test_posts_to_v2(self, client, registry):
+        # Live-verified required set: action, matching_target, target_devices.
+        # description/enabled are optional here (not API-required) but ride along fine.
+        payload = {
+            "action": "BLOCK",
+            "matching_target": "INTERNET",
+            "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
+            "description": "Block Social Media",
+        }
+        client.post.return_value = {"_id": "tr-new", **payload}
+        result = await create_traffic_rule(client, registry, "h", "s", payload)
+        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None, json=payload)
+        assert result["_id"] == "tr-new"
+
+    async def test_missing_target_devices_rejected(self, client, registry):
+        # The field the old docstring omitted: a body with description+action+
+        # matching_target+enabled but no target_devices is rejected locally.
         payload = {
             "description": "Block Social Media",
             "action": "BLOCK",
             "matching_target": "INTERNET",
             "enabled": True,
         }
-        client.post.return_value = {"_id": "tr-new", **payload}
-        result = await create_traffic_rule(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", json=payload)
-        assert result["_id"] == "tr-new"
+        with pytest.raises(ValueError) as exc:
+            await create_traffic_rule(client, registry, "h", "s", payload)
+        assert str(exc.value) == "create_traffic_rule requires: target_devices"
+        client.post.assert_not_called()
+
+    async def test_empty_payload_names_all_missing(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_traffic_rule(client, registry, "h", "s", {})
+        assert str(exc.value) == (
+            "create_traffic_rule requires: action, matching_target, target_devices"
+        )
+        client.post.assert_not_called()
 
 
 class TestUpdateTrafficRule:
@@ -489,14 +568,28 @@ class TestUpdateTrafficRule:
         payload = {"enabled": False}
         client.put.return_value = {"_id": "tr-1", **payload}
         result = await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
-        client.put.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", json=payload)
+        client.put.assert_called_once_with(
+            f"{V2_API_BASE}/trafficrules/tr-1/", key=None, json=payload
+        )
         assert result["_id"] == "tr-1"
+
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: padded list fields in a traffic-rule object are cleaned
+        before the PUT so a read-modify-write round-trip does not 400."""
+        payload = {"enabled": True, "target_devices": ["dev-1", "", ""]}
+        client.put.return_value = {"_id": "tr-1"}
+        await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
+        client.put.assert_called_once_with(
+            f"{V2_API_BASE}/trafficrules/tr-1/",
+            key=None,
+            json={"enabled": True, "target_devices": ["dev-1"]},
+        )
 
 
 class TestDeleteTrafficRule:
     async def test_deletes_via_v2_with_trailing_slash(self, client, registry):
         await delete_traffic_rule(client, registry, "h", "s", "tr-1")
-        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/")
+        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", key=None)
 
 
 # --- Users / DHCP Reservations (Classic REST) ---
@@ -506,13 +599,13 @@ class TestListUsers:
     async def test_uses_classic_rest_url(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "u-1"}]}
         result = await list_users(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/user")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/user", key=None)
         assert result == [{"_id": "u-1"}]
 
     async def test_resolves_slug_not_uuid(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": []}
         await list_users(client, registry, "h", "s")
-        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
 
@@ -520,7 +613,7 @@ class TestGetUser:
     async def test_uses_classic_rest_url(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "u-1"}]}
         result = await get_user(client, registry, "h", "s", "u-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/user/u-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/user/u-1", key=None)
         assert result == [{"_id": "u-1"}]
 
 
@@ -529,7 +622,7 @@ class TestUpdateUser:
         payload = {"name": "My Device", "fixed_ip": "192.168.1.100"}
         client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "u-1", **payload}]}
         result = await update_user(client, registry, "h", "s", "u-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/user/u-1", json=payload)
+        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/user/u-1", key=None, json=payload)
         assert result[0]["name"] == "My Device"
 
 
@@ -540,23 +633,37 @@ class TestListTrafficRoutes:
     async def test_uses_v2_url(self, client, registry):
         client.get.return_value = [{"_id": "rt-1", "name": "Default Route"}]
         result = await list_traffic_routes(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficroutes")
+        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficroutes", key=None)
         assert result == [{"_id": "rt-1", "name": "Default Route"}]
 
     async def test_resolves_slug_not_uuid(self, client, registry):
         client.get.return_value = []
         await list_traffic_routes(client, registry, "h", "s")
-        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
 
 class TestCreateTrafficRoute:
     async def test_posts_to_v2(self, client, registry):
-        payload = {"name": "ISP2 Route", "enabled": True}
+        # v2 endpoint uses snake_case wire fields (verified: network_id, not networkId).
+        payload = {
+            "network_id": "ANY",
+            "matching_target": "INTERNET",
+            "target_devices": [{"network_id": "n1"}],
+            "name": "ISP2 Route",
+        }
         client.post.return_value = {"_id": "rt-new", **payload}
         result = await create_traffic_route(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficroutes", json=payload)
+        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficroutes", key=None, json=payload)
         assert result["_id"] == "rt-new"
+
+    async def test_missing_required_fields_rejected(self, client, registry):
+        with pytest.raises(ValueError) as exc:
+            await create_traffic_route(client, registry, "h", "s", {"name": "ISP2 Route"})
+        assert str(exc.value) == (
+            "create_traffic_route requires: matching_target, network_id, target_devices"
+        )
+        client.post.assert_not_called()
 
 
 class TestGetTrafficRoute:
@@ -566,7 +673,7 @@ class TestGetTrafficRoute:
             {"_id": "rt-2", "name": "ISP2 Route"},
         ]
         result = await get_traffic_route(client, registry, "h", "s", "rt-1")
-        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficroutes")
+        client.get.assert_called_once_with(f"{V2_API_BASE}/trafficroutes", key=None)
         assert result == {"_id": "rt-1", "name": "Default Route"}
 
     async def test_raises_when_not_found(self, client, registry):
@@ -580,14 +687,16 @@ class TestUpdateTrafficRoute:
         payload = {"enabled": False}
         client.put.return_value = {"_id": "rt-1", **payload}
         result = await update_traffic_route(client, registry, "h", "s", "rt-1", payload)
-        client.put.assert_called_once_with(f"{V2_API_BASE}/trafficroutes/rt-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{V2_API_BASE}/trafficroutes/rt-1", key=None, json=payload
+        )
         assert result["_id"] == "rt-1"
 
 
 class TestDeleteTrafficRoute:
     async def test_deletes_via_v2(self, client, registry):
         await delete_traffic_route(client, registry, "h", "s", "rt-1")
-        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficroutes/rt-1")
+        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficroutes/rt-1", key=None)
 
 
 # --- Controller Settings (Classic REST) ---
@@ -597,7 +706,7 @@ class TestListSettings:
     async def test_uses_classic_rest_url(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"key": "mgmt"}]}
         result = await list_settings(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting", key=None)
         assert result == [{"key": "mgmt"}]
 
     async def test_management_credentials_survive(self, client, registry):
@@ -630,7 +739,7 @@ class TestGetSetting:
     async def test_uses_classic_rest_url_with_key(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"key": "mgmt"}]}
         result = await get_setting(client, registry, "h", "s", "mgmt")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting/mgmt")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting/mgmt", key=None)
         assert result == [{"key": "mgmt"}]
 
     async def test_nested_and_suffix_credentials_survive(self, client, registry):
@@ -666,7 +775,9 @@ class TestUpdateSetting:
         client.get.side_effect = [pre, post_get]
         client.put.return_value = post_put
         result = await update_setting(client, registry, "h", "s", "mgmt", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/setting/mgmt", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/setting/mgmt", key=None, json=payload
+        )
         assert result[0]["autobackup"] is True
         assert client.get.call_count == 2, "expected pre+post GETs for state comparison"
 
@@ -690,6 +801,56 @@ class TestUpdateSetting:
         client.put.return_value = post_put
         with pytest.raises(RuntimeError, match="mgmt"):
             await update_setting(client, registry, "h", "s", "mgmt", payload)
+
+    async def test_silent_noop_error_points_to_get_setting(self, client, registry):
+        """Issue #17 Defect 3: the no-op error must teach discovery — name the rejected
+        field, explain the silent drop, and point the caller at get_setting."""
+        payload = {"autobackup": True}
+        pre = {"meta": {"rc": "ok"}, "data": [{"key": "mgmt", "autobackup": False}]}
+        unchanged = {"meta": {"rc": "ok"}, "data": [{"key": "mgmt", "autobackup": False}]}
+        client.get.side_effect = [pre, unchanged]
+        client.put.return_value = unchanged
+        with pytest.raises(RuntimeError) as exc:
+            await update_setting(client, registry, "h", "s", "mgmt", payload)
+        msg = str(exc.value)
+        assert "'autobackup'" in msg
+        assert "silently drops" in msg
+        assert "get_setting(setting_key='mgmt')" in msg
+
+    async def test_padded_list_field_is_recognised_as_no_op(self, client, registry):
+        """A list field whose only difference from current state is the controller's
+        empty-string padding must be seen as already-equal and skip the PUT — not
+        treated as a change (which would then be mis-flagged as a silent no-op)."""
+        payload = {"dns": ["8.8.8.8", "", ""]}
+        pre = {"meta": {"rc": "ok"}, "data": [{"key": "mgmt", "dns": ["8.8.8.8", "", ""]}]}
+        client.get.return_value = pre
+        result = await update_setting(client, registry, "h", "s", "mgmt", payload)
+        client.put.assert_not_called()
+        assert result["note"] == "no change needed"
+
+    async def test_real_change_not_flagged_by_unchanged_padded_list(self, client, registry):
+        """The regression: a genuine scalar change succeeds while an unchanged
+        padded list field rides along. The padded field differs from the stripped
+        payload only by placeholders, so it must NOT be reported as a rejected
+        write — the tool must return the result, not raise."""
+        payload = {"autobackup": True, "dns": ["8.8.8.8", "", ""]}
+        pre = {
+            "meta": {"rc": "ok"},
+            "data": [{"key": "mgmt", "autobackup": False, "dns": ["8.8.8.8", "", ""]}],
+        }
+        post = {
+            "meta": {"rc": "ok"},
+            "data": [{"key": "mgmt", "autobackup": True, "dns": ["8.8.8.8", "", ""]}],
+        }
+        client.get.side_effect = [pre, post]
+        client.put.return_value = post
+        result = await update_setting(client, registry, "h", "s", "mgmt", payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/setting/mgmt",
+            key=None,
+            json={"autobackup": True, "dns": ["8.8.8.8"]},
+        )
+        assert result[0]["autobackup"] is True
 
     async def test_server_managed_fields_excluded(self, client, registry):
         """Server-managed fields changing should not trigger false-positive no-op."""
@@ -754,6 +915,51 @@ class TestUpdateSetting:
         result = await update_setting(client, registry, "h", "s", "mgmt", payload)
         assert result["data"][0]["x_ssh_password"] == "current-password"
 
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: a setting group read back with a padded list field
+        round-trips cleanly — the PUT carries only the real entries."""
+        payload = {"ntp_server": ["pool.ntp.org", "", ""]}
+        pre = {"meta": {"rc": "ok"}, "data": [{"key": "ntp", "ntp_server": ["old.ntp.org"]}]}
+        post = {"meta": {"rc": "ok"}, "data": [{"key": "ntp", "ntp_server": ["pool.ntp.org"]}]}
+        client.get.side_effect = [pre, post]
+        client.put.return_value = post
+        await update_setting(client, registry, "h", "s", "ntp", payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/setting/ntp",
+            key=None,
+            json={"ntp_server": ["pool.ntp.org"]},
+        )
+
+    async def test_idempotent_after_stripping_padding(self, client, registry):
+        """The no-op guard compares the *stripped* payload: a padded submission
+        whose real values already match current state skips the PUT rather than
+        writing a spurious change."""
+        payload = {"ntp_server": ["pool.ntp.org", "", ""]}
+        pre = {"meta": {"rc": "ok"}, "data": [{"key": "ntp", "ntp_server": ["pool.ntp.org"]}]}
+        client.get.return_value = pre
+        result = await update_setting(client, registry, "h", "s", "ntp", payload)
+        client.put.assert_not_called()
+        assert result["note"] == "no change needed"
+
+
+class TestSettingSchemaHints:
+    """Issue #17 Defect 3: get_setting/update_setting must give callers a way to learn
+    what a setting_key accepts. The hints are grounded in live controller responses."""
+
+    def test_get_setting_documents_common_keys_and_enums(self):
+        doc = get_setting.__doc__ or ""
+        # Common keys observed live, including the exact repro key/field from #17.
+        for token in ("mdns", "enabled_for", "ntp", "setting_preference", "doh"):
+            assert token in doc, f"get_setting docstring should mention {token!r}"
+        # It must teach the discovery workflow and the silent-drop hazard.
+        assert "silently drops" in doc
+        assert "x_" in doc  # flags credential-bearing fields
+
+    def test_update_setting_points_at_get_setting(self):
+        doc = update_setting.__doc__ or ""
+        assert "get_setting" in doc
+        assert "silently drops" in doc
+
 
 # --- Dynamic DNS (Classic REST) ---
 
@@ -762,7 +968,7 @@ class TestListDynamicDns:
     async def test_uses_classic_rest_url(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "ddns-1"}]}
         result = await list_dynamic_dns(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns", key=None)
         assert result == [{"_id": "ddns-1"}]
 
     async def test_x_password_survives(self, client, registry):
@@ -779,7 +985,7 @@ class TestGetDynamicDns:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "ddns-1"}]}
         result = await get_dynamic_dns(client, registry, "h", "s", "ddns-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns/ddns-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns/ddns-1", key=None)
         assert result == [{"_id": "ddns-1"}]
 
     async def test_x_password_survives(self, client, registry):
@@ -796,7 +1002,9 @@ class TestUpdateDynamicDns:
         payload = {"service": "dyndns", "hostname": "home.example.com"}
         client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "ddns-1", **payload}]}
         result = await update_dynamic_dns(client, registry, "h", "s", "ddns-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/dynamicdns/ddns-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/dynamicdns/ddns-1", key=None, json=payload
+        )
         assert result[0]["service"] == "dyndns"
 
 
@@ -805,27 +1013,278 @@ class TestUpdateDynamicDns:
 
 class TestListPortProfiles:
     async def test_uses_classic_rest_url(self, client, registry):
-        client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1", "name": "All"}]}
+        client.get.side_effect = [
+            {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1", "name": "All"}]},
+            {"meta": {"rc": "ok"}, "data": []},
+        ]
         result = await list_port_profiles(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portconf")
+        assert client.get.call_args_list[0].args[0] == f"{CLASSIC_REST_BASE}/portconf"
         assert result == [{"_id": "pp-1", "name": "All"}]
+
+    async def test_resolves_networkconf_ids_to_named_objects(self, client, registry):
+        """Issue #181: bare networkconf ids render as {id, name, vlan}."""
+        client.get.side_effect = [
+            {
+                "meta": {"rc": "ok"},
+                "data": [
+                    {
+                        "_id": "pp-1",
+                        "name": "Estate Trunk",
+                        "tagged_vlan_mgmt": "custom",
+                        "native_networkconf_id": "netlan",
+                        "voice_networkconf_id": "netvoip",
+                        "excluded_networkconf_ids": ["netguest", "", "netstale"],
+                    }
+                ],
+            },
+            {
+                "meta": {"rc": "ok"},
+                "data": [
+                    {"_id": "netlan", "name": "LAN", "vlan": 1},
+                    {"_id": "netvoip", "name": "VoIP", "vlan": 20},
+                    {"_id": "netguest", "name": "Guest", "vlan": 3111},
+                ],
+            },
+        ]
+        result = await list_port_profiles(client, registry, "h", "s")
+        assert client.get.call_args_list[1].args[0] == f"{CLASSIC_REST_BASE}/networkconf"
+        prof = result[0]
+        assert prof["native_networkconf_id"] == {"id": "netlan", "name": "LAN", "vlan": 1}
+        assert prof["voice_networkconf_id"] == {"id": "netvoip", "name": "VoIP", "vlan": 20}
+        # empty strings dropped; unknown id still rendered as an object (never a bare id)
+        assert prof["excluded_networkconf_ids"] == [
+            {"id": "netguest", "name": "Guest", "vlan": 3111},
+            {"id": "netstale", "name": None, "vlan": None},
+        ]
 
 
 class TestGetPortProfile:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
-        client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1"}]}
+        client.get.side_effect = [
+            {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1"}]},
+            {"meta": {"rc": "ok"}, "data": []},
+        ]
         result = await get_port_profile(client, registry, "h", "s", "pp-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/portconf/pp-1")
+        assert client.get.call_args_list[0].args[0] == f"{CLASSIC_REST_BASE}/portconf/pp-1"
         assert result == [{"_id": "pp-1"}]
+
+    async def test_rejects_path_injection_id(self, client, registry):
+        with pytest.raises(ValueError, match="profile_id"):
+            await get_port_profile(client, registry, "h", "s", "../etc")
+        client.get.assert_not_called()
 
 
 class TestUpdatePortProfile:
     async def test_puts_to_classic_rest(self, client, registry):
         payload = {"poe_mode": "auto"}
-        client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1", **payload}]}
+        client.put.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [{"_id": "pp-1", **payload, "excluded_networkconf_ids": ["netguest"]}],
+        }
+        client.get.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [{"_id": "netguest", "name": "Guest", "vlan": 3111}],
+        }
         result = await update_port_profile(client, registry, "h", "s", "pp-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/portconf/pp-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portconf/pp-1", key=None, json=payload
+        )
         assert result[0]["poe_mode"] == "auto"
+        # response is resolved even though the write payload stays bare
+        assert result[0]["excluded_networkconf_ids"] == [
+            {"id": "netguest", "name": "Guest", "vlan": 3111}
+        ]
+
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: a port profile read back with a padded list field (e.g.
+        tagged VLAN networks) round-trips cleanly."""
+        payload = {"poe_mode": "auto", "tagged_networkconf_ids": ["net-1", "", ""]}
+        client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "pp-1"}]}
+        client.get.return_value = {"meta": {"rc": "ok"}, "data": []}
+        await update_port_profile(client, registry, "h", "s", "pp-1", payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portconf/pp-1",
+            key=None,
+            json={"poe_mode": "auto", "tagged_networkconf_ids": ["net-1"]},
+        )
+
+
+class TestAllowNetworkOnPortProfile:
+    async def test_removes_from_exclusion_and_returns_tagged(self, client, registry):
+        """Issue #181 D12 remediation: un-exclude a network atomically."""
+        client.get.side_effect = [
+            {
+                "meta": {"rc": "ok"},
+                "data": [
+                    {
+                        "_id": "pp-1",
+                        "name": "Estate Trunk",
+                        "tagged_vlan_mgmt": "custom",
+                        "native_networkconf_id": "netlan",
+                        "excluded_networkconf_ids": ["netguest", "netiot"],
+                    }
+                ],
+            },
+            {
+                "meta": {"rc": "ok"},
+                "data": [
+                    {"_id": "netlan", "name": "LAN", "vlan": 1},
+                    {"_id": "netguest", "name": "Guest", "vlan": 3111},
+                    {"_id": "netiot", "name": "IoT", "vlan": 40},
+                ],
+            },
+        ]
+        client.put.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "_id": "pp-1",
+                    "name": "Estate Trunk",
+                    "native_networkconf_id": "netlan",
+                    "excluded_networkconf_ids": ["netiot"],
+                }
+            ],
+        }
+        result = await allow_network_on_port_profile(
+            client, registry, "h", "s", "pp-1", "netguest", confirm=True
+        )
+        # fresh-read then PUT the whole object with netguest removed
+        put_json = client.put.call_args.kwargs["json"]
+        assert put_json["excluded_networkconf_ids"] == ["netiot"]
+        assert put_json["_id"] == "pp-1"
+        # derived tagged set = VLAN nets - native(netlan) - excluded(netiot) = netguest
+        assert result["tagged_networks"] == [{"id": "netguest", "name": "Guest", "vlan": 3111}]
+        assert result["profile"]["excluded_networkconf_ids"] == [
+            {"id": "netiot", "name": "IoT", "vlan": 40}
+        ]
+
+    async def test_refuses_without_confirm(self, client, registry):
+        """Confirm guard: live PUT refused with zero controller calls without confirm."""
+        result = await allow_network_on_port_profile(client, registry, "h", "s", "pp-1", "netguest")
+        assert result["error"] == "confirm=True required"
+        assert result["profile_id"] == "pp-1"
+        assert result["network_id"] == "netguest"
+        client.get.assert_not_called()
+        client.put.assert_not_called()
+
+    async def test_rejects_path_injection_network_id(self, client, registry):
+        with pytest.raises(ValueError, match="network_id"):
+            await allow_network_on_port_profile(
+                client, registry, "h", "s", "pp-1", "../etc", confirm=True
+            )
+        client.get.assert_not_called()
+
+    async def test_raises_when_profile_not_found(self, client, registry):
+        client.get.return_value = {"meta": {"rc": "ok"}, "data": []}
+        with pytest.raises(ValueError, match="not found"):
+            await allow_network_on_port_profile(
+                client, registry, "h", "s", "pp-1", "netguest", confirm=True
+            )
+        client.put.assert_not_called()
+
+
+class TestExcludeNetworkOnPortProfile:
+    async def test_refuses_without_confirm(self, client, registry):
+        result = await exclude_network_on_port_profile(
+            client, registry, "h", "s", "pp-1", "netguest"
+        )
+        assert result["error"] == "confirm=True required"
+        client.get.assert_not_called()
+        client.put.assert_not_called()
+
+    async def test_adds_to_exclusion(self, client, registry):
+        client.get.side_effect = [
+            {
+                "meta": {"rc": "ok"},
+                "data": [{"_id": "pp-1", "excluded_networkconf_ids": ["netiot"]}],
+            },
+            {"meta": {"rc": "ok"}, "data": []},
+        ]
+        client.put.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [{"_id": "pp-1", "excluded_networkconf_ids": ["netiot", "netguest"]}],
+        }
+        await exclude_network_on_port_profile(
+            client, registry, "h", "s", "pp-1", "netguest", confirm=True
+        )
+        put_json = client.put.call_args.kwargs["json"]
+        assert put_json["excluded_networkconf_ids"] == ["netiot", "netguest"]
+
+    async def test_idempotent_when_already_excluded(self, client, registry):
+        client.get.side_effect = [
+            {
+                "meta": {"rc": "ok"},
+                "data": [{"_id": "pp-1", "excluded_networkconf_ids": ["netguest"]}],
+            },
+            {"meta": {"rc": "ok"}, "data": []},
+        ]
+        client.put.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [{"_id": "pp-1", "excluded_networkconf_ids": ["netguest"]}],
+        }
+        await exclude_network_on_port_profile(
+            client, registry, "h", "s", "pp-1", "netguest", confirm=True
+        )
+        put_json = client.put.call_args.kwargs["json"]
+        assert put_json["excluded_networkconf_ids"] == ["netguest"]
+
+
+class TestAnnotateAutoExclusions:
+    async def test_appends_warning_for_custom_tagged_profiles(self, client, registry):
+        """Issue #181: create_network response flags D12 auto-exclusions."""
+        created = {"id": "netguest", "name": "Guest", "vlanId": 3111}
+        client.get.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "_id": "pp-1",
+                    "name": "Estate Trunk",
+                    "tagged_vlan_mgmt": "custom",
+                    "excluded_networkconf_ids": ["netguest"],
+                },
+                {
+                    "_id": "pp-2",
+                    "name": "Auto Profile",
+                    "tagged_vlan_mgmt": "auto",
+                    "excluded_networkconf_ids": ["netguest"],
+                },
+                {
+                    "_id": "pp-3",
+                    "name": "Other Custom",
+                    "tagged_vlan_mgmt": "custom",
+                    "excluded_networkconf_ids": [],
+                },
+            ],
+        }
+        result = await annotate_auto_exclusions(client, registry, "h", "s", created)
+        assert result["name"] == "Guest"
+        assert len(result["warnings"]) == 1
+        warning = result["warnings"][0]
+        assert warning["code"] == "D12_AUTO_EXCLUSION"
+        assert warning["remediation_tool"] == "allow_network_on_port_profile"
+        # only the custom-tagged profile that actually excludes the new net
+        assert warning["profiles"] == [{"id": "pp-1", "name": "Estate Trunk"}]
+        assert "3111" in warning["message"]
+
+    async def test_no_warning_when_not_excluded(self, client, registry):
+        created = {"id": "netguest", "vlanId": 3111}
+        client.get.return_value = {
+            "meta": {"rc": "ok"},
+            "data": [{"_id": "pp-1", "tagged_vlan_mgmt": "custom", "excluded_networkconf_ids": []}],
+        }
+        result = await annotate_auto_exclusions(client, registry, "h", "s", created)
+        assert "warnings" not in result
+
+    async def test_non_dict_passthrough(self, client, registry):
+        assert await annotate_auto_exclusions(client, registry, "h", "s", ["x"]) == ["x"]
+        client.get.assert_not_called()
+
+    async def test_best_effort_on_portconf_error(self, client, registry):
+        created = {"id": "netguest", "vlanId": 3111}
+        client.get.side_effect = RuntimeError("portconf 500")
+        result = await annotate_auto_exclusions(client, registry, "h", "s", created)
+        assert result == created
+        assert "warnings" not in result
 
 
 # --- Routing Table (Classic REST) ---
@@ -838,7 +1297,7 @@ class TestListRoutingEntries:
             "data": [{"_id": "rt-1", "network": "10.0.0.0/8"}],
         }
         result = await list_routing_entries(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/routing")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/routing", key=None)
         assert result == [{"_id": "rt-1", "network": "10.0.0.0/8"}]
 
 
@@ -852,7 +1311,7 @@ class TestListWlanConfigs:
             "data": [{"_id": "wlan-1", "name": "HomeSSID"}],
         }
         result = await list_wlan_configs(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf", key=None)
         assert result == [{"_id": "wlan-1", "name": "HomeSSID"}]
 
     async def test_x_passphrase_survives(self, client, registry):
@@ -869,7 +1328,7 @@ class TestGetWlanConfig:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "wlan-1"}]}
         result = await get_wlan_config(client, registry, "h", "s", "wlan-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf/wlan-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf/wlan-1", key=None)
         assert result == [{"_id": "wlan-1"}]
 
     async def test_x_passphrase_survives(self, client, registry):
@@ -886,8 +1345,22 @@ class TestUpdateWlanConfig:
         payload = {"x_passphrase": "newpassword123"}
         client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "wlan-1", **payload}]}
         result = await update_wlan_config(client, registry, "h", "s", "wlan-1", payload)
-        client.put.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlanconf/wlan-1", json=payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/wlanconf/wlan-1", key=None, json=payload
+        )
         assert result[0]["x_passphrase"] == "newpassword123"
+
+    async def test_strips_empty_strings_from_list_fields(self, client, registry):
+        """Issue #164: a WLAN config read back with a padded list field (e.g. a
+        MAC filter list) round-trips cleanly without the empties."""
+        payload = {"name": "HomeSSID", "mac_filter_list": ["aa:bb:cc:dd:ee:ff", "", ""]}
+        client.put.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "wlan-1"}]}
+        await update_wlan_config(client, registry, "h", "s", "wlan-1", payload)
+        client.put.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/wlanconf/wlan-1",
+            key=None,
+            json={"name": "HomeSSID", "mac_filter_list": ["aa:bb:cc:dd:ee:ff"]},
+        )
 
 
 # --- WLAN Groups (Classic REST) ---
@@ -900,7 +1373,7 @@ class TestListWlanGroups:
             "data": [{"_id": "wg-1", "name": "Default"}],
         }
         result = await list_wlan_groups(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlangroup")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlangroup", key=None)
         assert result == [{"_id": "wg-1", "name": "Default"}]
 
 
@@ -908,7 +1381,7 @@ class TestGetWlanGroup:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "wg-1"}]}
         result = await get_wlan_group(client, registry, "h", "s", "wg-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlangroup/wg-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/wlangroup/wg-1", key=None)
         assert result == [{"_id": "wg-1"}]
 
 
@@ -922,7 +1395,7 @@ class TestGetChannelPlan:
             "data": [{"radio": "ng", "channel": 6, "ht": "HT20"}],
         }
         result = await get_channel_plan(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/channelplan")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/channelplan", key=None)
         assert result == [{"radio": "ng", "channel": 6, "ht": "HT20"}]
 
     async def test_empty_returns_informative_message(self, client, registry):
@@ -943,13 +1416,13 @@ class TestListRogueAps:
             "data": [{"bssid": "aa:bb:cc:dd:ee:ff", "ssid": "EvilAP", "channel": 11}],
         }
         result = await list_rogue_aps(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_STAT_BASE}/rogueap")
+        client.get.assert_called_once_with(f"{CLASSIC_STAT_BASE}/rogueap", key=None)
         assert result == [{"bssid": "aa:bb:cc:dd:ee:ff", "ssid": "EvilAP", "channel": 11}]
 
     async def test_resolves_slug_not_uuid(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": []}
         await list_rogue_aps(client, registry, "h", "s")
-        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID)
+        registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
         registry.resolve_site_id.assert_not_called()
 
     async def test_rogue_only_filters_confirmed_rogues(self, client, registry):
@@ -986,7 +1459,7 @@ class TestListFirewallRules:
             "data": [{"_id": "fr-1", "name": "Block Telnet", "action": "drop"}],
         }
         result = await list_firewall_rules(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallrule")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallrule", key=None)
         assert result == [{"_id": "fr-1", "name": "Block Telnet", "action": "drop"}]
 
 
@@ -994,7 +1467,7 @@ class TestGetFirewallRule:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "fr-1"}]}
         result = await get_firewall_rule(client, registry, "h", "s", "fr-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallrule/fr-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallrule/fr-1", key=None)
         assert result == [{"_id": "fr-1"}]
 
 
@@ -1008,7 +1481,7 @@ class TestListFirewallGroups:
             "data": [{"_id": "fg-1", "name": "RFC1918", "group_type": "address-group"}],
         }
         result = await list_firewall_groups(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallgroup")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallgroup", key=None)
         assert result == [{"_id": "fg-1", "name": "RFC1918", "group_type": "address-group"}]
 
 
@@ -1016,7 +1489,7 @@ class TestGetFirewallGroup:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "fg-1"}]}
         result = await get_firewall_group(client, registry, "h", "s", "fg-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallgroup/fg-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallgroup/fg-1", key=None)
         assert result == [{"_id": "fg-1"}]
 
 
@@ -1030,7 +1503,7 @@ class TestListAccounts:
             "data": [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}],
         }
         result = await list_accounts(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account", key=None)
         assert result == [{"_id": "acc-1", "name": "jdoe", "x_password": "secret"}]
 
     async def test_x_password_survives(self, client, registry):
@@ -1047,7 +1520,7 @@ class TestGetAccount:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "acc-1"}]}
         result = await get_account(client, registry, "h", "s", "acc-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account/acc-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/account/acc-1", key=None)
         assert result == [{"_id": "acc-1"}]
 
     async def test_x_password_survives(self, client, registry):
@@ -1069,7 +1542,7 @@ class TestListHotspotPackages:
             "data": [{"_id": "pkg-1", "name": "Day Pass", "price": 5}],
         }
         result = await list_hotspot_packages(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotpackage")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotpackage", key=None)
         assert result == [{"_id": "pkg-1", "name": "Day Pass", "price": 5}]
 
 
@@ -1077,7 +1550,7 @@ class TestGetHotspotPackage:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "pkg-1"}]}
         result = await get_hotspot_package(client, registry, "h", "s", "pkg-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotpackage/pkg-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/hotspotpackage/pkg-1", key=None)
         assert result == [{"_id": "pkg-1"}]
 
 
@@ -1091,7 +1564,7 @@ class TestListScheduledTasks:
             "data": [{"_id": "st-1", "name": "Auto Upgrade", "type": "firmware_upgrade"}],
         }
         result = await list_scheduled_tasks(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/scheduletask")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/scheduletask", key=None)
         assert result == [{"_id": "st-1", "name": "Auto Upgrade", "type": "firmware_upgrade"}]
 
 
@@ -1099,7 +1572,7 @@ class TestGetScheduledTask:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "st-1"}]}
         result = await get_scheduled_task(client, registry, "h", "s", "st-1")
-        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/scheduletask/st-1")
+        client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/scheduletask/st-1", key=None)
         assert result == [{"_id": "st-1"}]
 
 
@@ -1119,21 +1592,21 @@ class TestListDpiCategories:
     async def test_resolves_host(self, client, registry):
         client.paginate_offset.return_value = []
         await list_dpi_categories(client, registry, "UDM-Pro")
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
         registry.resolve_site_id.assert_not_called()
 
     async def test_with_offset_and_limit_single_page(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 40}
         await list_dpi_categories(client, registry, "h", offset=10, limit=25)
         client.get.assert_called_once_with(
-            f"{BASE}/dpi/categories", params={"offset": 10, "limit": 25}
+            f"{BASE}/dpi/categories", key=None, params={"offset": 10, "limit": 25}
         )
         client.paginate_offset.assert_not_called()
 
     async def test_limit_only(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 40}
         await list_dpi_categories(client, registry, "h", limit=10)
-        client.get.assert_called_once_with(f"{BASE}/dpi/categories", params={"limit": 10})
+        client.get.assert_called_once_with(f"{BASE}/dpi/categories", key=None, params={"limit": 10})
 
     async def test_cap_exceeded_marked_incomplete(self, client, registry):
         client.paginate_offset.side_effect = PaginationAbortedError(
@@ -1165,18 +1638,20 @@ class TestListDpiApplications:
     async def test_resolves_host(self, client, registry):
         client.paginate_offset.return_value = []
         await list_dpi_applications(client, registry, "UDM-Pro")
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
         registry.resolve_site_id.assert_not_called()
 
     async def test_with_offset_and_limit_single_page(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 80}
         await list_dpi_applications(client, registry, "h", offset=5, limit=50)
         client.get.assert_called_once_with(
-            f"{BASE}/dpi/applications", params={"offset": 5, "limit": 50}
+            f"{BASE}/dpi/applications", key=None, params={"offset": 5, "limit": 50}
         )
         client.paginate_offset.assert_not_called()
 
     async def test_limit_only(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 80}
         await list_dpi_applications(client, registry, "h", limit=25)
-        client.get.assert_called_once_with(f"{BASE}/dpi/applications", params={"limit": 25})
+        client.get.assert_called_once_with(
+            f"{BASE}/dpi/applications", key=None, params={"limit": 25}
+        )

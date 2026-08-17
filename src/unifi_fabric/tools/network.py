@@ -5,22 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from ..client import UniFiClient, validate_id
+from ..config import APIKeyConfig
 from ..registry import Registry, _assert_uuid
 from ._pagination import collect_offset, mark_incomplete
+from ._payload import require_fields, sanitize_integration_write
 
 PROXY_BASE = "/v1/connector/consoles/{host_id}/proxy/network/integration/v1"
-
-# Read-only fields returned by get_network that the controller rejects
-# (HTTP 400) when included in an update_network PUT payload.  Strip these
-# from input before sending to avoid caller confusion when round-tripping
-# a GET response back into an update.
-_NETWORK_READ_ONLY_FIELDS = frozenset(
-    {
-        "id",
-        "default",
-        "metadata",
-    }
-)
 
 
 def _proxy(host_id: str, path: str) -> str:
@@ -46,6 +36,7 @@ async def _offset_list(
     client: UniFiClient,
     url: str,
     *,
+    key: APIKeyConfig | None = None,
     offset: int | None,
     limit: int | None,
     filter: str | None,
@@ -64,12 +55,12 @@ async def _offset_list(
             limit if limit is not None else 25,
             filter,
         )
-        result: dict[str, Any] = await client.get(url, params=page)
+        result: dict[str, Any] = await client.get(url, key=key, params=page)
         return result
     base: dict[str, Any] = {}
     if filter is not None:
         base["filter"] = filter
-    collected = await collect_offset(client, url, params=base or None)
+    collected = await collect_offset(client, url, key=key, params=base or None)
     total = collected["totalCount"]
     drained: dict[str, Any] = {
         "data": collected["items"],
@@ -84,8 +75,9 @@ async def get_network_application_info(
     host: str,
 ) -> dict[str, Any]:
     """Get the UniFi Network application version reported by a console."""
-    host_id = await registry.resolve_host_id(host)
-    return await client.get(_proxy(host_id, "/info"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    return await client.get(_proxy(host_id, "/info"), key=key)
 
 
 async def list_local_sites(
@@ -104,9 +96,10 @@ async def list_local_sites(
     capped drain returns the sites gathered so far with incomplete=true rather
     than truncating silently.
     """
-    host_id = await registry.resolve_host_id(host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     return await _offset_list(
-        client, _proxy(host_id, "/sites"), offset=offset, limit=limit, filter=filter
+        client, _proxy(host_id, "/sites"), key=key, offset=offset, limit=limit, filter=filter
     )
 
 
@@ -133,12 +126,14 @@ async def list_networks(
     server-side filter (not paging) and applies in either mode. A capped drain is
     flagged ``incomplete`` rather than truncating silently.
     """
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     return await _offset_list(
         client,
         _proxy(host_id, f"/sites/{site_id}/networks"),
+        key=key,
         offset=offset,
         limit=limit,
         filter=filter,
@@ -152,11 +147,23 @@ async def create_network(
     site: str,
     network: dict[str, Any],
 ) -> dict[str, Any]:
-    """Create a new network/VLAN on a site."""
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    """Create a new network/VLAN on a site.
+
+    Required field: ``management`` — the network's management mode and the discriminator
+    the API validates first (verified live: an empty body is rejected with
+    ``Missing $.management value``). Observed values include ``GATEWAY``. The remaining
+    required fields are management-mode-specific rather than universal, so only the
+    discriminator is validated here; for ``management="GATEWAY"`` the API additionally
+    requires ``name``, ``vlanId``, ``enabled``, ``internetAccessEnabled``,
+    ``isolationEnabled``, ``cellularBackupEnabled`` and ``ipV4Configuration`` (verified
+    live).
+    """
+    require_fields("create_network", network, {"management"})
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.post(_proxy(host_id, f"/sites/{site_id}/networks"), json=network)
+    return await client.post(_proxy(host_id, f"/sites/{site_id}/networks"), key=key, json=network)
 
 
 async def get_network(
@@ -168,10 +175,11 @@ async def get_network(
 ) -> dict[str, Any]:
     """Get a single network by ID."""
     validate_id(network_id, "network_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}"))
+    return await client.get(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}"), key=key)
 
 
 async def update_network(
@@ -184,18 +192,27 @@ async def update_network(
 ) -> dict[str, Any]:
     """Update an existing network/VLAN.
 
-    Strips read-only fields (``id``, ``default``, ``metadata``) from the
-    input payload before sending to the controller.  These fields are
-    present in ``get_network`` responses but cause HTTP 400 if included in
-    an update request (Issue #17, Defect 2).
+    Sanitizes a ``get_network`` response so it round-trips cleanly into an
+    update:
+
+    * Server-managed read-only fields (``id``, ``default``, ``metadata``, and the
+      ordering ``index``) are stripped by name — they are present in
+      ``get_network`` output but the Integration API rejects any such field in a
+      write body with HTTP 400 ``unknown-property``.
+    * Empty-string entries are stripped from list-valued fields — the API pads
+      list fields with placeholder empty strings (e.g.
+      ``"dns_servers": ["192.168.1.1", "", ""]``) which fail validation as
+      ``must be valid IPv4 address`` (HTTP 400) if passed back.
     """
     validate_id(network_id, "network_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    cleaned = {k: v for k, v in network.items() if k not in _NETWORK_READ_ONLY_FIELDS}
     return await client.put(
-        _proxy(host_id, f"/sites/{site_id}/networks/{network_id}"), json=cleaned
+        _proxy(host_id, f"/sites/{site_id}/networks/{network_id}"),
+        key=key,
+        json=sanitize_integration_write(network),
     )
 
 
@@ -208,10 +225,11 @@ async def delete_network(
 ) -> None:
     """Delete a network/VLAN."""
     validate_id(network_id, "network_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}"))
+    await client.delete(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}"), key=key)
 
 
 # --- WiFi Broadcasts ---
@@ -222,12 +240,25 @@ async def list_wifi_broadcasts(
     registry: Registry,
     host: str,
     site: str,
+    *,
+    filter: str | None = None,
 ) -> dict[str, Any]:
-    """List all WiFi broadcast SSIDs for a site."""
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    """List all WiFi broadcast SSIDs for a site.
+
+    ``filter`` is forwarded unchanged as the Network Integration API ``filter``
+    query parameter (server-side filtering); when ``None`` it is omitted entirely
+    rather than sent as the string ``"None"``. The tool does not implement a local
+    filter language — the upstream API validates the grammar and returns its own
+    error for a malformed expression.
+    """
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"))
+    params: dict[str, Any] | None = {"filter": filter} if filter is not None else None
+    return await client.get(
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), key=key, params=params
+    )
 
 
 async def create_wifi_broadcast(
@@ -237,11 +268,22 @@ async def create_wifi_broadcast(
     site: str,
     broadcast: dict[str, Any],
 ) -> dict[str, Any]:
-    """Create a new WiFi broadcast SSID."""
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    """Create a new WiFi broadcast SSID.
+
+    Required field: ``type`` — the broadcast's discriminator, which the API validates
+    first (verified live: an empty body is rejected with ``Missing $.type value``).
+    Observed values include ``STANDARD``. Fields beyond the discriminator are
+    type-specific (e.g. ``name``, ``network``, ``securityConfiguration``,
+    ``broadcastingFrequenciesGHz`` on a ``STANDARD`` SSID) and are not validated here.
+    """
+    require_fields("create_wifi_broadcast", broadcast, {"type"})
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.post(_proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), json=broadcast)
+    return await client.post(
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), key=key, json=broadcast
+    )
 
 
 async def get_wifi_broadcast(
@@ -253,10 +295,13 @@ async def get_wifi_broadcast(
 ) -> dict[str, Any]:
     """Get a single WiFi broadcast by ID."""
     validate_id(broadcast_id, "broadcast_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"))
+    return await client.get(
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"), key=key
+    )
 
 
 async def update_wifi_broadcast(
@@ -267,13 +312,22 @@ async def update_wifi_broadcast(
     broadcast_id: str,
     broadcast: dict[str, Any],
 ) -> dict[str, Any]:
-    """Update an existing WiFi broadcast SSID."""
+    """Update an existing WiFi broadcast SSID.
+
+    Sanitizes a ``get_wifi_broadcast`` response so it round-trips cleanly into an
+    update: server-managed read-only fields (``id``, ``metadata``) are stripped
+    (the Integration API rejects them with HTTP 400 ``unknown-property``), and
+    empty-string placeholders are stripped from list-valued fields.
+    """
     validate_id(broadcast_id, "broadcast_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     return await client.put(
-        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"), json=broadcast
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"),
+        key=key,
+        json=sanitize_integration_write(broadcast),
     )
 
 
@@ -286,10 +340,13 @@ async def delete_wifi_broadcast(
 ) -> None:
     """Delete a WiFi broadcast SSID."""
     validate_id(broadcast_id, "broadcast_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"))
+    await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"), key=key
+    )
 
 
 # --- WAN Interfaces ---
@@ -305,17 +362,18 @@ async def list_wan_interfaces(
     site: str,
 ) -> dict[str, Any]:
     """List WAN interfaces for a site, enriched with IP, status, and speed from stat/health."""
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    wans = await client.get(_proxy(host_id, f"/sites/{site_id}/wans"))
+    wans = await client.get(_proxy(host_id, f"/sites/{site_id}/wans"), key=key)
     wan_list = wans if isinstance(wans, list) else wans.get("data", wans)
 
     # Enrich with health data (IP, status, speed) from Classic REST stat/health
     try:
-        site_slug = await registry.resolve_site_slug(site, host_id)
+        site_slug = await registry.resolve_site_slug(site, host_id, key=key)
         health_url = _STAT_BASE.format(host_id=host_id, site_slug=site_slug) + "/health"
-        health_data = await client.get(health_url)
+        health_data = await client.get(health_url, key=key)
         health_list = (
             health_data.get("data", health_data) if isinstance(health_data, dict) else health_data
         )
@@ -335,12 +393,24 @@ async def update_wan_interface(
     wan_id: str,
     wan: dict[str, Any],
 ) -> dict[str, Any]:
-    """Update a WAN interface configuration."""
+    """Update a WAN interface configuration.
+
+    Sanitizes a previously-read WAN object so it round-trips cleanly into an
+    update: server-managed read-only fields (``id``, ``metadata``) are stripped
+    (the Integration API rejects them with HTTP 400 ``unknown-property``), and
+    empty-string placeholders are stripped from list-valued fields (e.g. padded
+    ``dns`` arrays).
+    """
     validate_id(wan_id, "wan_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.put(_proxy(host_id, f"/sites/{site_id}/wans/{wan_id}"), json=wan)
+    return await client.put(
+        _proxy(host_id, f"/sites/{site_id}/wans/{wan_id}"),
+        key=key,
+        json=sanitize_integration_write(wan),
+    )
 
 
 # --- Network References ---
@@ -355,10 +425,13 @@ async def get_network_references(
 ) -> dict[str, Any]:
     """Get all references to a network (WiFi broadcasts, firewall policies, port profiles)."""
     validate_id(network_id, "network_id")
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}/references"))
+    return await client.get(
+        _proxy(host_id, f"/sites/{site_id}/networks/{network_id}/references"), key=key
+    )
 
 
 # --- Switching ---
@@ -375,12 +448,14 @@ async def _list_switching_resources(
     limit: int | None,
     filter: str | None,
 ) -> dict[str, Any]:
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     return await _offset_list(
         client,
         _proxy(host_id, f"/sites/{site_id}/switching/{resource}"),
+        key=key,
         offset=offset,
         limit=limit,
         filter=filter,
@@ -397,10 +472,13 @@ async def _get_switching_resource(
     field_name: str,
 ) -> dict[str, Any]:
     validate_id(resource_id, field_name)
-    host_id = await registry.resolve_host_id(host)
-    site_id = await registry.resolve_site_id(site, host_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/switching/{resource}/{resource_id}"))
+    return await client.get(
+        _proxy(host_id, f"/sites/{site_id}/switching/{resource}/{resource_id}"), key=key
+    )
 
 
 async def list_lags(

@@ -43,9 +43,9 @@ def mock_client():
 
 
 async def _paginate_side_effect(path, *, key=None):
-    if path == "/ea/hosts":
+    if path == "/v1/hosts":
         return list(HOSTS)
-    if path == "/ea/sites":
+    if path == "/v1/sites":
         return list(EA_SITES)
     return []
 
@@ -271,7 +271,7 @@ class TestGetEaSites:
     @pytest.mark.asyncio
     async def test_calls_ea_path(self, registry, mock_client):
         await registry.get_ea_sites()
-        mock_client.paginate.assert_called_once_with("/ea/sites", key=None)
+        mock_client.paginate.assert_called_once_with("/v1/sites", key=None)
 
 
 # --- Cache TTL / invalidation ---
@@ -534,7 +534,7 @@ def _make_multikey_client(
     *,
     fail_labels: tuple[str, ...] = (),
 ) -> MagicMock:
-    """Build a client mock whose /ea/hosts list differs per API key label.
+    """Build a client mock whose /v1/hosts list differs per API key label.
 
     ``list_key_labels`` / ``get_key_by_label`` are the real (synchronous) client
     contract; ``paginate`` is async and returns each label's own host list, or
@@ -547,9 +547,9 @@ def _make_multikey_client(
 
     async def _paginate(path: str, *, key: APIKeyConfig | None = None) -> list[dict]:
         assert key is not None
-        if path == "/ea/hosts":
+        if path == "/v1/hosts":
             if key.label in fail_labels:
-                raise UniFiConnectionError(f"HTTP 401 from GET /ea/hosts ({key.label})")
+                raise UniFiConnectionError(f"HTTP 401 from GET /v1/hosts ({key.label})")
             return list(hosts_by_label[key.label])
         return []
 
@@ -636,5 +636,14 @@ class TestResolveKeyForHost:
         reg = Registry(client, ttl_seconds=900)
         await reg.resolve_key_for_host("host-a1")
         await reg.resolve_key_for_host("host-b1")
-        # One /ea/hosts fetch per key, regardless of how many resolutions happen.
+        # One /v1/hosts fetch per key, regardless of how many resolutions happen.
         assert client.paginate.call_count == 2
+
+
+class TestGetHostsPath:
+    """Pin the exact Site Manager hosts path the registry drains (#198/#192)."""
+
+    @pytest.mark.asyncio
+    async def test_get_hosts_calls_v1_path(self, registry, mock_client):
+        await registry.get_hosts()
+        mock_client.paginate.assert_called_once_with("/v1/hosts", key=None)

@@ -123,7 +123,7 @@ class TestListAllDevicesFleet:
 
         assert result["count"] == 2
         assert len(result["devices"]) == 2
-        client.paginate.assert_called_once_with("/ea/devices", key=None)
+        client.paginate.assert_called_once_with("/v1/devices", key=None)
 
     async def test_filters_by_status(self, client):
         devices = [
@@ -256,7 +256,7 @@ class TestFleetSummary:
         assert result["devices"]["byType"]["uap"] == 1
 
     async def test_summary_unwraps_host_wrapper_objects(self, client, registry):
-        """/ea/devices returns [{hostId, devices:[...]}, ...] — summary must unwrap."""
+        """/v1/devices returns [{hostId, devices:[...]}, ...] — summary must unwrap."""
         hosts = [{"id": "h1"}]
         sites = [{"siteId": "s1"}]
         # Host-wrapper format returned by the real EA API
@@ -463,7 +463,7 @@ class TestSearchDevice:
         assert result["count"] == 1
 
     async def test_search_unwraps_host_wrapper(self, client):
-        """When /ea/devices returns host-wrapper objects, inner devices are searchable."""
+        """When /v1/devices returns host-wrapper objects, inner devices are searchable."""
         wrapped = [
             {
                 "hostId": "h1",
@@ -526,7 +526,8 @@ class TestListApiKeys:
         assert result["keys"] == []
 
     async def test_never_exposes_key_values(self, multikey_client):
-        """Only label + is_org_key are surfaced — never the secret key material (SR-8)."""
+        """Only label + is_org_key are surfaced — never the secret key material
+        (key values must not appear in tool responses)."""
         result = await _list_api_keys(multikey_client)
         for entry in result["keys"]:
             assert set(entry) == {"label", "is_org_key"}
@@ -614,3 +615,35 @@ class TestListAllDevicesFleetMultiKey:
         assert captured["key"].label == "beta"
         assert result["key_label"] == "beta"
         assert result["count"] == 1
+
+
+class TestNamespaceURLPinningAggregation:
+    """Pin exact /v1/ Site Manager paths for aggregation call sites (#198/#192).
+
+    aggregation.py fans out over the Site Manager hosts/sites/devices families;
+    a namespace regression here would silently degrade fleet-wide reads. These
+    tests pin the precise paths so a drift back to /ea/ fails at Tier 1.
+    """
+
+    async def test_fleet_summary_pins_v1_paths(self, client, registry):
+        seen: list[str] = []
+
+        async def mock_paginate(path, **kwargs):
+            seen.append(path)
+            if "hosts" in path:
+                return [{"id": "h1"}]
+            if "sites" in path:
+                return [{"siteId": "s1"}]
+            return [{"state": "online", "productLine": "network"}]
+
+        client.paginate = AsyncMock(side_effect=mock_paginate)
+        await _fleet_summary(client, registry)
+        assert set(seen) == {"/v1/hosts", "/v1/sites", "/v1/devices"}
+        assert not any(p.startswith("/ea/") for p in seen)
+
+    async def test_search_device_pins_v1_devices(self, client):
+        client.paginate = AsyncMock(return_value=[])
+        await _search_device(client, "anything")
+        path = client.paginate.call_args.args[0]
+        assert path == "/v1/devices"
+        assert not path.startswith("/ea/")

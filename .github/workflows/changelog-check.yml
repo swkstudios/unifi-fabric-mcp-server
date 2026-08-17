@@ -50,7 +50,7 @@ jobs:
             echo "CHANGELOG.md is updated — check passed."
           else
             echo "::error::This PR modifies src/ without a CHANGELOG.md entry."
-            echo "::error::Add an entry under [Unreleased] for any user-visible behavior change."
+            echo "::error::Add an entry under [0.6.2] (the in-flight release) or [Unreleased] for post-0.6.2 work."
             echo "::error::If this change has no user-visible effect (test-only, refactor, CI-only),"
             echo "::error::add the 'skip-changelog' label to this PR instead."
             exit 1

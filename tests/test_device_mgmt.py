@@ -76,6 +76,7 @@ def client():
 def registry():
     r = AsyncMock()
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     return r
 
@@ -114,13 +115,56 @@ class TestListSiteDevices:
         assert result["data"] == [{"id": "dev-1"}]
         assert result["totalCount"] == 1
 
+    async def test_filter_drains_with_exact_param(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_site_devices(client, registry, "h", "s", filter="state.eq('ONLINE')")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices",
+            key=None,
+            params={"filter": "state.eq('ONLINE')"},
+            page_size=200,
+        )
+
+    async def test_filter_manual_page_exact_param(self, client, registry):
+        client.get.return_value = {"data": [], "totalCount": 0}
+        await list_site_devices(
+            client, registry, "h", "s", offset=10, limit=10, filter="model.eq('U7PG2')"
+        )
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices",
+            key=None,
+            params={"filter": "model.eq('U7PG2')", "offset": 10, "limit": 10},
+        )
+        client.paginate_offset.assert_not_called()
+
+    async def test_filter_none_omits_param_not_string(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_site_devices(client, registry, "h", "s", filter=None)
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices", key=None, params=None, page_size=200
+        )
+
+    async def test_filter_threads_owning_key(self, client, registry):
+        sentinel = object()
+        registry.resolve_key_for_host.return_value = sentinel
+        client.paginate_offset.return_value = []
+        await list_site_devices(client, registry, "h", "s", filter="state.eq('ONLINE')")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices",
+            key=sentinel,
+            params={"filter": "state.eq('ONLINE')"},
+            page_size=200,
+        )
+
 
 class TestAdoptDevice:
     async def test_basic(self, client, registry):
         payload = {"mac": "aa:bb:cc:dd:ee:ff"}
         client.post.return_value = {"id": "dev-2", **payload}
         result = await adopt_device(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices", json=payload)
+        client.post.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/devices", json=payload, key=None
+        )
         assert result["mac"] == "aa:bb:cc:dd:ee:ff"
 
 
@@ -128,7 +172,7 @@ class TestGetDevice:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "dev-1", "model": "USW-24"}
         result = await get_device(client, registry, "h", "s", "dev-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/dev-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/dev-1", key=None)
         assert result["id"] == "dev-1"
 
     async def test_mac_bare_resolves_to_uuid(self, client, registry):
@@ -182,13 +226,13 @@ class TestGetDevice:
         result = await get_device(client, registry, "h", "s", "DEADBEEF0001")
         assert result["id"] == uuid
         # Only one call (the device detail) — device list was skipped via cache
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/{uuid}")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/{uuid}", key=None)
 
 
 class TestUnadoptDevice:
     async def test_basic(self, client, registry):
         await unadopt_device(client, registry, "h", "s", "dev-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/dev-1")
+        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/devices/dev-1", key=None)
 
 
 class TestExecuteDeviceAction:
@@ -197,7 +241,7 @@ class TestExecuteDeviceAction:
         client.post.return_value = {"status": "ok"}
         result = await execute_device_action(client, registry, "h", "s", "dev-1", action)
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json=action
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json=action, key=None
         )
         assert result["status"] == "ok"
 
@@ -207,7 +251,7 @@ class TestGetDeviceStatistics:
         client.get.return_value = {"cpu": 12, "mem": 45}
         result = await get_device_statistics(client, registry, "h", "s", "dev-1")
         client.get.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/statistics/latest"
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/statistics/latest", key=None
         )
         assert result["cpu"] == 12
 
@@ -234,6 +278,7 @@ class TestExecutePortAction:
         client.post.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/devices/dev-1/interfaces/ports/3/actions",
             json=action,
+            key=None,
         )
         assert result["status"] == "ok"
 
@@ -243,7 +288,7 @@ class TestRestartDevice:
         client.post.return_value = {"status": "ok"}
         result = await restart_device(client, registry, "h", "s", "dev-1")
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "restart"}
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "restart"}, key=None
         )
         assert result["status"] == "ok"
 
@@ -255,6 +300,7 @@ class TestLocateDevice:
         client.post.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions",
             json={"action": "locate", "enabled": True},
+            key=None,
         )
         assert result["status"] == "ok"
 
@@ -264,6 +310,7 @@ class TestLocateDevice:
         client.post.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions",
             json={"action": "locate", "enabled": False},
+            key=None,
         )
 
 
@@ -272,7 +319,7 @@ class TestUpgradeDevice:
         client.post.return_value = {"status": "ok"}
         result = await upgrade_device(client, registry, "h", "s", "dev-1")
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "upgrade"}
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "upgrade"}, key=None
         )
         assert result["status"] == "ok"
 
@@ -281,7 +328,7 @@ class TestListPendingDevices:
     async def test_basic(self, client, registry):
         client.get.return_value = [{"mac": "aa:bb:cc:dd:ee:ff"}]
         result = await list_pending_devices(client, registry, "h")
-        client.get.assert_called_once_with(f"{BASE}/pending-devices")
+        client.get.assert_called_once_with(f"{BASE}/pending-devices", key=None)
         assert len(result) == 1
 
 
@@ -290,7 +337,9 @@ class TestCreateDeviceTag:
         tag = {"name": "AP-Floor1", "color": "blue"}
         client.post.return_value = {"id": "tag-1", **tag}
         result = await create_device_tag(client, registry, "h", "s", tag)
-        client.post.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags", json=tag)
+        client.post.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/device-tags", json=tag, key=None
+        )
         assert result["name"] == "AP-Floor1"
 
 
@@ -299,7 +348,9 @@ class TestUpdateDeviceTag:
         tag = {"name": "AP-Floor2"}
         client.put.return_value = {"id": "tag-1", **tag}
         result = await update_device_tag(client, registry, "h", "s", "tag-1", tag)
-        client.put.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags/tag-1", json=tag)
+        client.put.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/device-tags/tag-1", json=tag, key=None
+        )
         assert result["name"] == "AP-Floor2"
 
 
@@ -307,7 +358,7 @@ class TestDeleteDeviceTag:
     async def test_basic(self, client, registry):
         client.delete.return_value = None
         result = await delete_device_tag(client, registry, "h", "s", "tag-1")
-        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags/tag-1")
+        client.delete.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/device-tags/tag-1", key=None)
         assert result == {"deleted": True, "tagId": "tag-1"}
 
 
@@ -316,7 +367,7 @@ class TestApprovePendingDevice:
         client.post.return_value = {"status": "ok"}
         result = await approve_pending_device(client, registry, "h", "s", "dev-1")
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "approve"}
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "approve"}, key=None
         )
         assert result["status"] == "ok"
 
@@ -326,6 +377,6 @@ class TestRejectPendingDevice:
         client.post.return_value = {"status": "ok"}
         result = await reject_pending_device(client, registry, "h", "s", "dev-1")
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "reject"}
+            f"{BASE}/sites/{SITE_ID}/devices/dev-1/actions", json={"action": "reject"}, key=None
         )
         assert result["status"] == "ok"

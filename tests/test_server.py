@@ -319,9 +319,26 @@ class TestListNetworksWrapper:
             result = await server.list_networks("myhost", "mysite")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "myhost", "mysite", offset=None, limit=None
+            mock_client, mock_registry, "myhost", "mysite", offset=None, limit=None, filter=None
         )
         assert result is expected
+
+    async def test_forwards_filter_to_network(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch("unifi_fabric.server.network.list_networks", new_callable=AsyncMock) as mock_fn:
+            mock_fn.return_value = {"data": []}
+            await server.list_networks(
+                "myhost", "mysite", offset=5, limit=25, filter="metadata.origin.eq('USER')"
+            )
+        mock_fn.assert_awaited_once_with(
+            mock_client,
+            mock_registry,
+            "myhost",
+            "mysite",
+            offset=5,
+            limit=25,
+            filter="metadata.origin.eq('USER')",
+        )
 
 
 class TestCreateNetworkWrapper:
@@ -543,8 +560,19 @@ class TestListWifiBroadcastsWrapper:
             mock_fn.return_value = expected
             result = await server.list_wifi_broadcasts("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", filter=None)
         assert result is expected
+
+    async def test_forwards_filter_to_network(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch(
+            "unifi_fabric.server.network.list_wifi_broadcasts", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {"data": []}
+            await server.list_wifi_broadcasts("h1", "s1", filter="enabled.eq(true)")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", filter="enabled.eq(true)"
+        )
 
 
 class TestCreateWifiBroadcastWrapper:
@@ -744,7 +772,9 @@ class TestListFirewallPoliciesWrapper:
             mock_fn.return_value = expected
             result = await server.list_firewall_policies("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", None, None)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", None, None, filter=None
+        )
         assert result is expected
 
     async def test_delegates_to_firewall_proxy_explicit_paging(self, mock_globals):
@@ -757,8 +787,21 @@ class TestListFirewallPoliciesWrapper:
             mock_fn.return_value = expected
             result = await server.list_firewall_policies("h1", "s1", offset=50, limit=50)
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", 50, 50)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", 50, 50, filter=None
+        )
         assert result is expected
+
+    async def test_forwards_filter_to_firewall_proxy(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch(
+            "unifi_fabric.server.firewall_proxy.list_firewall_policies", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {"data": []}
+            await server.list_firewall_policies("h1", "s1", filter="action.eq('ALLOW')")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", None, None, filter="action.eq('ALLOW')"
+        )
 
 
 class TestCreateFirewallPolicyWrapper:
@@ -868,9 +911,13 @@ class TestSetFirewallPolicyOrderingWrapper:
             new_callable=AsyncMock,
         ) as mock_fn:
             mock_fn.return_value = expected
-            result = await server.set_firewall_policy_ordering("h1", "s1", ordering)
+            result = await server.set_firewall_policy_ordering(
+                "h1", "s1", "src-zone", "dst-zone", ordering
+            )
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", ordering)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", "src-zone", "dst-zone", ordering
+        )
         assert result is expected
 
 

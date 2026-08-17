@@ -5,7 +5,8 @@ WORKDIR /app
 COPY requirements.lock pyproject.toml ./
 COPY src/ ./src/
 
-RUN apt-get update \
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --require-hashes -r requirements.lock \

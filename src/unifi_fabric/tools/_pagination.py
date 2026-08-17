@@ -14,7 +14,7 @@ manual paging available and never masking a capped drain as complete.
 
 Two pagination families, one contract
 -------------------------------------
-* ``collect_cursor`` — Site Manager ``/ea/*`` (+ ``/v1``) endpoints that page
+* ``collect_cursor`` — Site Manager ``/v1/*`` endpoints that page
   with an opaque ``nextToken`` cursor. Drains via ``UniFiClient.paginate``.
 * ``collect_offset`` — Network *Integration* proxy endpoints that page with
   ``offset``/``limit`` and report ``totalCount``. Drains via

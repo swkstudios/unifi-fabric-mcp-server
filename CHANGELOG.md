@@ -7,7 +7,161 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Add entries here as work lands on dev -->
+<!-- Post-0.6.2 (0.6.3+) work goes here. -->
+
+## [0.6.2] - 2026-08-16
+
+### Added
+- Optional `filter` argument on five Network Integration collection tools (`list_networks`, `list_clients`, `list_site_devices`, `list_firewall_policies`, `list_wifi_broadcasts`); expression forwarded unchanged to the upstream UniFi filter parameter; applied in both drain and single-page modes. (#187)
+- Two port-profile VLAN-tagging tools: `allow_network_on_port_profile` (removes a network from a profile's exclusion list, atomically fixing the D12 auto-exclusion footgun) and `exclude_network_on_port_profile` (inverse). Both require `confirm=True`. (#197)
+- Eight **Mobility** tools (workspace-scoped -- `workspace_id`/`device_id`, not host/site) for UMR mobile routers: 5 reads (`list_mobility_workspaces`, `list_mobility_admins`, `list_mobility_devices`, `get_mobility_device`, `list_mobility_clients`) and 3 guarded writes (`update_mobility_device_name`, `update_mobility_device_network`, `update_mobility_device_wireless`). Writes require `confirm=true` + `UNIFI_ENABLE_MOBILITY_WRITE` (default off, #186). (#196)
+- Eleven **Carrier / ISP Fabric** subscriber tools (org-scoped, no host/site): 4 reads (`list_carrier_subscribers`, `get_carrier_subscriber`, `list_carrier_service_plans`, `get_carrier_service_plan`) and 7 guarded writes (`create_carrier_subscriber`, `update_carrier_subscriber`, `attach_carrier_subscriber_host`, `detach_carrier_subscriber_host`, `assign_carrier_subscriber_plan`, `suspend_carrier_subscriber`, `resume_carrier_subscriber`). Writes require `confirm=true` + `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` (default off). Not testable against the maintainer's live hardware; hermetic/spec-conformance tested only. (#201, #207)
+- Five **Fabric connector relay** tools (`fabric_connector_get/post/put/patch/delete`) -- a guarded escape hatch to reach console routes without a typed wrapper. GET always available; mutations require `confirm=true` + `UNIFI_ENABLE_CONNECTOR_WRITE` (default off). Guards: Registry-only identity, namespace allowlist, positive-charset path validation, scope guard, credential-field redaction, per-mutation audit log. (#189)
+- 41 **Protect Integration API** tools via the published v7.1.87 API: arm profiles (8), sirens (6), fobs (3), relays (4), speakers (4), bridges (3), link stations (3), alarm hubs (4), Protect users (2), ULP users (2), application metadata (1), POS ingestion (1). Write/action tools gated by `UNIFI_PROTECT_MUTATIONS_ENABLED` (default on); physical/irreversible actions additionally require `confirm=true`. (#185)
+- Three read-only stat convenience tools (no new controller routes): `get_client_link_diagnostics` (per-client link/QoS record from `/stat/sta`), `get_device_port_state` (port table + LLDP + thermal/power from `/stat/device`), `get_device_stp_state` (per-device and per-port STP/RSTP fields). (#183, #184, #188)
+- Five **InnerSpace** read tools completing the GET-only Integration API v1.3.23 coverage: `list_innerspace_floor_plans`, `list_innerspace_access_points`, `list_innerspace_switches`, `list_innerspace_inventory`, `get_innerspace_asset` (floor-plan image, base64 inline under 10 MiB cap).
+- Catalog regression check (`unifi_fabric._catalog_audit`, `scripts/check_catalog_regression.py`) comparing registered tools against what the MCP gateway serves -- catches phantom/stale drift the static checks cannot see.
+- Testing-procedure documentation: app-family testability matrix (noting which families cannot be live-tested on the maintainer's hardware) and namespace testing (`/v1` vs. `/ea`) sections.
+- Testing procedure: added explicit Tier 2 rule prohibiting use of the MCP session tool list as gateway catalog evidence (session-start snapshot goes stale when a deployment lands mid-session); documented all three authoritative catalog sources with exact invocations (the deployed gateway's catalog database, the catalog-refresh job log, check_catalog_regression.py --live); added required verification protocol before filing a missing-tool finding; added new bullet to "What a reviewer must never do" for session-catalog escalation; added new "General Evidence Integrity Principle" section with three concrete dated examples of stale artifacts being mistaken for live state (2026-08-15). (#222)
+- Spec-drift watcher (`unifi_fabric._spec_drift`, `scripts/check_spec_drift.py`) that tracks the published UniFi OpenAPI contracts per app family. It parses the `developer.ui.com/llms.txt` root index (so a **new** family publishing an API for the first time is detected, not just version bumps within known ones), fetches each service's OpenAPI spec, and diffs the signed path+method set against a committed baseline snapshot -- reporting NEW / CHANGED / REMOVED endpoints, VERSION_DRIFT, NEW/REMOVED services, and (informational) published-vs-console version gaps. A per-service coverage overlay flags a CHANGED/REMOVED endpoint we implement as breakage and a NEW write route on a covered family (e.g. the day InnerSpace grows one) as an unimplemented capability. Runs hermetically (`--snapshot`, CI-safe) or live (`--live`, public specs, no credentials), mirroring the `check_catalog_regression.py` precedent (#190 / PR #195). (#199)
+- URL-pinning tests for all five Site Manager families asserting the exact `/v1/` path each tool constructs (in `test_site_manager.py`, `test_registry.py`, `test_aggregation.py`), so a future namespace regression fails at Tier 1 rather than in a live run. (#198)
+- Testing procedure: documented Tier-2 host-scoped coverage requirements (required env vars per family, ephemeral run recipe); documented intentional exclusion of live VLAN CRUD under the standing no-live-mutation constraint, distinguishing it from STP reads and per-console Network reads that must run; added source-pinning section requiring all test claims to cite code at the build-under-test revision. (#228)
+
+### Changed
+- `allow_network_on_port_profile` and `exclude_network_on_port_profile` now require `confirm=True` -- each writes to a shared port profile affecting every assigned port. (#197)
+- Port-profile tools (`list_port_profiles`, `get_port_profile`, `update_port_profile`) resolve networkconf id fields (`excluded_networkconf_ids`, `native_networkconf_id`, `voice_networkconf_id`) to `{id, name, vlan}` objects instead of bare 24-hex ids. Write path unchanged. (#197)
+- `create_network` responses carry a `warnings.D12_AUTO_EXCLUSION` entry listing every custom-tagged port profile that UniFi silently auto-excluded the new network from. (#197)
+- InnerSpace read tools now try the documented Integration API path first, falling back to the legacy `/api` path on a 403; error message now names both plausible causes and both attempted paths.
+- `create_firewall_policy` / `update_firewall_policy` docstrings document the `trafficFilter` schema and the port-filter placement footgun (source vs. destination port targeting). ([swkstudios#17](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/17))
+- `update_port_profile` and `execute_port_action` docstrings gained explicit scope guards (shared-profile and operational-action-only warnings respectively).
+- `get_innerspace_asset` docstring clarifies that `plan_id` is the asset-group id from `image_url`, not the floor plan's own `id`.
+- **Versioning scheme**: dev-branch pushes now cut semver pre-release tags
+  (`vX.Y.Z-dev.N`) against the in-flight release target declared in `pyproject.toml`,
+  instead of bumping the patch and cutting a full release tag on every push. The clean
+  release tag (`vX.Y.Z`, no suffix) is cut only as a deliberate release step. Docker
+  stable aliases (`:latest`, `:X.Y`) move only for clean releases; pre-release builds
+  publish an immutable `:X.Y.Z-dev.N` image plus the `:dev` branch tag. The public
+  release publish rejects pre-release tags outright.
+- Migrated the five Site Manager endpoint families (`hosts`, `sites`, `devices`, `isp-metrics`, `sd-wan-configs`) from the Early Access `/ea/` namespace to the stable Official `/v1/` namespace **in place** — same tool names, no behavioral change. Call sites updated in `tools/site_manager.py`, `registry.py`, and `tools/aggregation.py`. Live-verified against a test console: `/ea/*` and `/v1/*` return identical response envelopes, and both `/ea/sites` and `/v1/sites` return the **same Fabric ObjectId** `siteId` (disproving the earlier assumption that `/v1/sites` returns a UUID — the UUID used in proxy URLs comes only from the per-console connector `/sites` endpoint and is unaffected). Codifies the standing policy: new Site Manager tools target `/v1/`; `/ea/` is permitted only where no `/v1/` equivalent is served and must carry an "Early Access — endpoint may change" note in its docstring. (#198, #192)
+- `list_sites` / server tool guidance no longer describes `siteId` as an "EA-internal" ID; it is a Site Manager Fabric ObjectId served on `/v1/sites`. (#192)
+- Reworded the `exclude_network_on_port_profile` docstring (and the generated `docs/TOOLS.md`) to describe it as the inverse of `allow_network_on_port_profile`; the paired `tools/network_services_proxy.py` implementation docstring was updated to match. Documentation-only cross-reference wording; no behavioral change.
+- Replaced real captured InnerSpace asset-group and plan GUIDs in the `get_innerspace_asset` docstring example and test fixtures with synthetic RFC 4122 values; reworded the example so it is not presented as an observed live value; replaced a truncated fragment of the same real GUID in filename examples. Pre-publication hygiene; no behavior change. (#256)
+- Replaced a QA label and possessive phrasing in tool docstrings, the AI-facing INSTRUCTIONS block, and a runtime gated-write message with plain language describing the testability limitation ("not testable against the maintainer's live hardware; hermetic/spec-conformance tested only") -- wording already used in the README. `docs/TOOLS.md` regenerated accordingly. The technical caveat (spec/hermetic-conformance tested, never exercised against real hardware) is preserved; no behavior change. (#259)
+
+### Fixed
+- `get_innerspace_asset` filename validation changed from a blocklist to a positive allowlist (`[A-Za-z0-9._-]` only), closing novel path-traversal sequences by construction. (#180)
+- `get_innerspace_summary` now correctly recovers per-plan scale from the Integration API schema (indexed scale-type shapes) rather than reporting `null`; also surfaces `id`, `title`, `createdAt`, `updatedAt` from the project block.
+- `set_firewall_policy_ordering` now forwards `sourceFirewallZoneId` and `destinationFirewallZoneId` as query parameters; previously dropped, causing every reorder call to fail with HTTP 400.
+- `list_clients` `client_type` (WIRED/WIRELESS/ALL) was a silent no-op: it sent a `type` query parameter the UniFi Integration API ignores, so every value returned the full mixed client set (verified live: WIRED, WIRELESS and ALL all returned the identical 45-record dataset). It is now translated into the upstream `type.eq('WIRED'|'WIRELESS')` filter expression that actually narrows (live: WIRED -> 15 all-wired, WIRELESS -> 30 all-wireless). `client_type='ALL'` adds no filter. Because the upstream filter grammar has no conjunction operator (`and`/`&&` both HTTP 400), `client_type` and an explicit `filter` are now mutually exclusive and passing both raises `ValueError` rather than silently dropping one. (#223)
+- Corrected filter-expression examples in tool docstrings (and the generated `docs/TOOLS.md`) that the upstream grammar rejects or that never match. `list_firewall_policies` documented `enabled.eq(true)` and `action.eq('ALLOW')` — both HTTP 400 `unknown filter property` (properties are per-schema; `enabled`/`action` are not filterable on firewall policies) — replaced with the live-verified `name.like('*guest*')` and `metadata.origin.eq('USER_DEFINED')`. `list_clients` documented `name.like('*phone*')` — `name` is HTTP 400 `unknown filter property` on the clients schema — replaced with `macAddress.eq(...)`. `list_networks` `metadata.origin.eq('USER')` (property valid, value never matched) corrected to `USER_DEFINED`; `list_site_devices` `model.eq('U7PG2')` (never matched the display-name field) corrected to `model.eq('U6 Pro')`. All published examples were re-verified live against the console. (#223)
+- Test suite: scoped the module-wide `pytest.mark.asyncio(loop_scope="module")` in `test_console_integration.py` to the async test classes only. It was applied via `pytestmark` across the whole module, which stamped the five synchronous `TestKeyIsolation` tests and made pytest-asyncio emit "marked with '@pytest.mark.asyncio' but it is not an async function" on each when the suite runs with `UNIFI_API_KEY` set. The shared module-scoped event loop is preserved on the async classes; the sync tests are left unmarked (not converted to async). (#227)
+- Publish workflow: fixed a GHCR blob-upload race condition where a semver-cron `create` trigger and a CI-success `workflow_run` trigger could fire concurrently against the same image layers. Concurrent runs are now serialized via a workflow-level `concurrency:` group. (#224)
+- Corrected README domain-capability table: each of the 19 domain rows now matches the actual tool count from `docs/TOOLS.md` (server total unchanged at 283). Seven rows changed: Fleet & Aggregation 6→10, Device Management 16→21, DNS & Traffic 21→24, Protect 69→79, Hotspot 4→11, Settings & Monitoring 8→5, Utilities 7→6. The catch-all Other row (count 4) removed — those tools are accounted for in their proper domains. Domain descriptions updated to reflect additions. (#237)
+- Publish workflow: added `timeout-minutes: 30` to the `publish` job in `.github/workflows/publish.yml`. Under the PR #224 concurrency fix (`cancel-in-progress: false`), a wedged buildx/push could head-of-line-block the Publish queue for up to GitHub's 6-hour default; a 30-minute job timeout reaps a stuck run in bounded time with generous headroom for legitimate builds (observed healthy runs complete in minutes). (#225)
+- Spec-drift baseline writer (`write_snapshot_file()`) now synthesizes committed console version strings at the write boundary instead of persisting observed values: a synthetic build is derived deterministically from the published spec version alone (public input only); an observed value matching the published version is kept, a distinct value is replaced with the synthetic, and orphan services are dropped. Applied at the single persist boundary shared by every path including `--update-baseline`, so a live baseline refresh can no longer write a real running console version into the committed fixture. A fixed-point CI invariant asserts the committed baseline equals the synthesis rule, catching any distinct real value without a denylist. (#257)
+
+### Removed
+- InnerSpace write scaffold (`set_innerspace_wall_materials`, `UNIFI_ENABLE_INNERSPACE_WRITE`, `UNIFI_INNERSPACE_BACKUP_DIR`) -- the Integration API is read-only and the tool never had a working live-write path.
+- Internal dead code in `tools/hotspot.py`: `_list_vouchers`, `_create_vouchers`, `_delete_voucher` (targeting `/ea/vouchers`, which the console does not serve). Live hotspot tools unaffected.
+
+## [0.6.1] - 2026-08-08
+
+### Changed
+- Tool descriptions are the interface this server presents to the AI agents that call
+  it, and were hardened across every tool so a caller can pick arguments correctly from
+  the description alone:
+  - Every required parameter is now named in its tool's description — not only in the
+    machine-readable schema — with a pointer to where its value comes from. For example
+    `list_recognition_detections` now states up front that `group_id` is required and is
+    obtained from `list_recognition_groups`. A test enforces this for every tool.
+  - Time parameters state their exact unit and type wherever they appear, and call out a
+    deliberate inconsistency between tools: `list_protect_events`, `list_client_sessions`,
+    `get_historical_stats` and `list_recognition_detections` take epoch **seconds** as
+    integers, while `query_isp_metrics` takes ISO 8601 **strings**
+    (e.g. `"2026-07-23T00:00:00Z"`). A value copied from one tool to another now errors
+    clearly instead of misbehaving.
+  - Enum-valued parameters enumerate their accepted values rather than implying them by a
+    single example, and parameters the upstream API silently ignores on a bad value are
+    flagged as such (a typo there reads as a clean but wrong result).
+  - Similarly-named tools now cross-reference each other so the right one is easy to find
+    (`get_isp_metrics` vs `query_isp_metrics`; the `list_hotspot_vouchers` family). There
+    is no `list_vouchers` — the voucher-listing tool is `list_hotspot_vouchers`.
+- Every `create_*` tool now applies one consistent required-field policy: it fails fast
+  with a clear, self-correcting error naming the missing field(s) instead of forwarding an
+  incomplete body and surfacing an opaque upstream error — or, on the Classic REST
+  endpoints that enforce nothing server-side, silently creating a broken object. Each
+  tool's required set was checked against a live controller and its description now lists
+  exactly the fields it validates. Notable corrections: `create_port_forward` no longer
+  lists `proto` as required (the controller defaults it); `create_traffic_rule` now
+  documents and requires `target_devices` (previously undocumented) and no longer treats
+  `description`/`enabled` as required; `create_traffic_route` documents its snake_case
+  field names; the polymorphic tools (`create_network`, `create_wifi_broadcast`,
+  `create_acl_rule`, `create_dns_policy`, `create_traffic_matching_list`) validate the
+  discriminator the controller checks first and document the type-specific fields beyond it.
+- `get_setting` and `update_setting` now document the common controller setting keys and
+  their notable enum fields, explain that reading a setting group is how to discover what
+  fields and values it accepts, and warn that the controller silently drops any field or
+  enum value it does not recognise.
+
+### Fixed
+- When `update_setting` detects that the controller silently dropped a submitted value — a
+  write that returns success but leaves the setting unchanged — the error now names the
+  rejected field, explains the silent-drop behaviour, and points the caller at
+  `get_setting` to read the valid current values before retrying.
+- `query_isp_metrics` now rejects a `start_time`/`end_time` supplied as a bare epoch
+  string (for example `"1690000000000"`) with a message showing the expected ISO 8601
+  format, instead of forwarding a meaningless timestamp that the API silently ignored
+  while returning the full default range.
+- Write tools that accept a previously-read object now strip the empty-string
+  placeholders the API pads list fields with, so a `get → modify → update`
+  round-trip no longer fails validation. For example `get_network` returns
+  `"dns_servers": ["192.168.1.1", "", ""]`; passing that straight back into
+  `update_network` previously returned HTTP 400 `must be valid IPv4 address`.
+  Real values are kept in order, a list that was entirely placeholders is sent as
+  an empty list (clearing the field) rather than dropped, and scalar fields are
+  left untouched. The same guard is applied across the network write tools
+  (`update_network`, `update_wifi_broadcast`, `update_wan_interface`,
+  `update_dns_policy`, `update_traffic_matching_list`, `update_port_forward`,
+  `update_traffic_rule`, `update_traffic_route`, `update_user`, `update_setting`,
+  `update_dynamic_dns`, `update_port_profile`, `update_wlan_config`,
+  `update_firewall_policy`, `update_firewall_zone`, `update_acl_rule`), extending
+  the earlier read-only-field stripping from public issue #17.
+- Updating a firewall zone, firewall policy, ACL rule, WiFi broadcast, DNS policy,
+  traffic-matching list, VPN server, or site-to-site tunnel by passing back an
+  object you had just read now succeeds. These endpoints return server-managed
+  fields (`id`, `metadata`, the network `default` flag, and the firewall/ACL
+  ordering `index`) that the API rejects when they appear in a write body — a plain
+  `get → modify → update` round-trip previously failed with HTTP 400
+  `unknown-property`. Those fields are now stripped from the request (only at the
+  top level, so nested references are untouched), matching what `update_network`
+  already did and applying it consistently across every network write tool. Field
+  ordering is changed through the dedicated `set_firewall_policy_ordering` /
+  `set_acl_rule_ordering` tools, so dropping `index` from a normal update loses
+  nothing.
+- `update_setting` no longer misreports a successful write as a rejected one. When
+  a setting group carried a list field that the controller pads with placeholder
+  empty strings, resubmitting it unchanged — or changing a different field while it
+  rode along — could raise a spurious "silent no-op" error even though the write
+  was accepted. The before/after comparison now ignores that padding, so a real
+  change is confirmed and a genuine no-op is recognised and skipped.
+- Per-host tools (listing and acting on networks, clients, devices, and Protect
+  cameras/sensors/lights and their siblings) now send their request on the API key
+  that actually owns the target console instead of always using the first
+  configured key. In a multi-key deployment a console owned by a non-first key
+  previously failed with `403 forbidden: host not found`; it now routes on the
+  correct key ([#19](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/19)).
+- The same owning-key routing now covers the remaining per-host tools: firewall
+  policies, zones and ACL rules; DNS policies, traffic-matching lists, port forwards,
+  traffic rules and routes, users, port profiles, WLAN configs and the other network
+  services; VPN servers, site-to-site tunnels and RADIUS profiles; hotspot operators;
+  face and vehicle recognition; per-site statistics; InnerSpace floor plans; and the
+  Site Manager tools that act on a single console (host lookup, per-host device
+  listing, site health summary, and site inventory). Every tool that targets a
+  specific console now resolves the key that owns it and sends the request on that
+  key, so a multi-key deployment can reach a console owned by any configured key, not
+  just the first. Single-key deployments are unchanged — with one key there is
+  nothing to disambiguate and every request rides that key exactly as before.
+  Single-key deployments are unaffected.
 
 ## [0.6.0] - 2026-08-03
 

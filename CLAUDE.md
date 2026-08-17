@@ -30,7 +30,7 @@ written here before and had to be removed):
 - **If you think output should be restricted, you are probably right for *your*
   deployment — so restrict it in *your* deployment,** not in this shared access
   layer. A reviewer may argue for narrowing what a tool returns; the data-survival
-  tests (see `docs/internal/testing-procedure.md`) are the check on that, and they
+  tests are the check on that, and they
   are meant to fail such a change loudly.
 
 Scope note: this invariant is about tool *response bodies*. It is unrelated to
@@ -137,7 +137,7 @@ a regression tripwire, not a quality target. Measure before raising it.
 **Hermetic credential isolation (hard rule):** An autouse fixture `_hermetic_credentials_env`
 in `tests/conftest.py` strips `UNIFI_*`, `MCP_*`, and `FASTMCP_*` from the process environment
 before every unit test. Do not remove or weaken it. A unit test that reads a real credential
-from the environment is an SR-8 violation — it will print it on assertion failure and write it
+from the environment violates hermetic isolation — it will print it on assertion failure and write it
 to the coverage report.
 
 **Multi-key coverage is required, not optional:** Any tool that resolves hosts, sites, or API

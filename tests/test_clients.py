@@ -48,6 +48,7 @@ def client():
 def registry():
     r = AsyncMock()
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
+    r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
     return r
@@ -73,8 +74,8 @@ class TestListClients:
     async def test_resolves_names(self, client, registry):
         client.paginate_offset.return_value = []
         await list_clients(client, registry, "UDM-Pro", "Office")
-        registry.resolve_host_id.assert_called_once_with("UDM-Pro")
-        registry.resolve_site_id.assert_called_once_with("Office", HOST_ID)
+        registry.resolve_host_id.assert_called_once_with("UDM-Pro", key=None)
+        registry.resolve_site_id.assert_called_once_with("Office", HOST_ID, key=None)
 
     async def test_explicit_offset_and_limit_single_page(self, client, registry):
         # Explicit paging: one page only, API totalCount surfaced for manual paging.
@@ -86,13 +87,25 @@ class TestListClients:
         client.paginate_offset.assert_not_called()
         assert result == {"data": [{"id": "cl-9"}], "totalCount": 51}
 
-    async def test_client_type_wireless_filter_drains(self, client, registry):
+    async def test_client_type_wireless_translated_to_filter(self, client, registry):
+        # client_type is translated into the upstream type.eq(...) filter — the raw
+        # `type` query param is a no-op upstream, so this is what actually narrows.
         client.paginate_offset.return_value = []
         await list_clients(client, registry, "h", "s", client_type="WIRELESS")
         client.paginate_offset.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/clients",
             key=None,
-            params={"type": "WIRELESS"},
+            params={"filter": "type.eq('WIRELESS')"},
+            page_size=200,
+        )
+
+    async def test_client_type_wired_translated_to_filter(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_clients(client, registry, "h", "s", client_type="WIRED")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"filter": "type.eq('WIRED')"},
             page_size=200,
         )
 
@@ -109,9 +122,15 @@ class TestListClients:
         client.paginate_offset.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/clients",
             key=None,
-            params={"type": "WIRED"},
+            params={"filter": "type.eq('WIRED')"},
             page_size=200,
         )
+
+    async def test_client_type_invalid_raises(self, client, registry):
+        with pytest.raises(ValueError, match="client_type must be one of"):
+            await list_clients(client, registry, "h", "s", client_type="ETHERNET")
+        client.paginate_offset.assert_not_called()
+        client.get.assert_not_called()
 
     async def test_cap_exceeded_marked_incomplete(self, client, registry):
         client.paginate_offset.side_effect = PaginationAbortedError(
@@ -123,12 +142,86 @@ class TestListClients:
         assert result["data"] == [{"id": "cl-1"}]
         assert result["totalCount"] == 1
 
+    async def test_filter_drains_with_exact_param(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_clients(client, registry, "h", "s", filter="ipAddress.eq('10.0.0.5')")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"filter": "ipAddress.eq('10.0.0.5')"},
+            page_size=200,
+        )
+
+    async def test_filter_manual_page_exact_param(self, client, registry):
+        client.get.return_value = {"data": [], "totalCount": 0}
+        await list_clients(
+            client, registry, "h", "s", offset=0, limit=25, filter="ipAddress.eq('10.0.0.5')"
+        )
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"filter": "ipAddress.eq('10.0.0.5')", "offset": 0, "limit": 25},
+        )
+        client.paginate_offset.assert_not_called()
+
+    async def test_client_type_and_filter_mutually_exclusive(self, client, registry):
+        # Both together cannot compose upstream; must error, never silently drop one.
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            await list_clients(
+                client,
+                registry,
+                "h",
+                "s",
+                client_type="WIRED",
+                filter="macAddress.eq('aa:bb:cc:dd:ee:ff')",
+            )
+        client.paginate_offset.assert_not_called()
+        client.get.assert_not_called()
+
+    async def test_client_type_all_with_filter_uses_filter(self, client, registry):
+        # ALL means "no type restriction", so it composes trivially with an explicit
+        # filter rather than erroring.
+        client.paginate_offset.return_value = []
+        await list_clients(
+            client,
+            registry,
+            "h",
+            "s",
+            client_type="ALL",
+            filter="macAddress.eq('aa:bb:cc:dd:ee:ff')",
+        )
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=None,
+            params={"filter": "macAddress.eq('aa:bb:cc:dd:ee:ff')"},
+            page_size=200,
+        )
+
+    async def test_filter_none_omits_param_not_string(self, client, registry):
+        client.paginate_offset.return_value = []
+        await list_clients(client, registry, "h", "s", filter=None)
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients", key=None, params=None, page_size=200
+        )
+
+    async def test_filter_threads_owning_key(self, client, registry):
+        sentinel = object()
+        registry.resolve_key_for_host.return_value = sentinel
+        client.paginate_offset.return_value = []
+        await list_clients(client, registry, "h", "s", filter="macAddress.eq('aa:bb:cc:dd:ee:ff')")
+        client.paginate_offset.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/clients",
+            key=sentinel,
+            params={"filter": "macAddress.eq('aa:bb:cc:dd:ee:ff')"},
+            page_size=200,
+        )
+
 
 class TestGetClient:
     async def test_basic(self, client, registry):
         client.get.return_value = {"id": "cl-1", "hostname": "laptop"}
         result = await get_client(client, registry, "h", "s", "cl-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1", key=None)
         assert result["id"] == "cl-1"
 
 
@@ -138,7 +231,7 @@ class TestExecuteClientAction:
         client.post.return_value = {"status": "ok"}
         result = await execute_client_action(client, registry, "h", "s", "cl-1", action)
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/clients/cl-1/actions", json=action
+            f"{BASE}/sites/{SITE_ID}/clients/cl-1/actions", json=action, key=None
         )
         assert result["status"] == "ok"
 
@@ -147,7 +240,7 @@ class TestExecuteClientAction:
         client.post.return_value = {"status": "ok"}
         result = await execute_client_action(client, registry, "h", "s", "cl-1", action)
         client.post.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/clients/cl-1/actions", json=action
+            f"{BASE}/sites/{SITE_ID}/clients/cl-1/actions", json=action, key=None
         )
         assert result["status"] == "ok"
 
@@ -157,9 +250,9 @@ class TestBlockClient:
         client.get.return_value = {"id": "cl-1", "mac": CLIENT_MAC}
         client.post.return_value = {"status": "ok"}
         result = await block_client(client, registry, "h", "s", "cl-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1", key=None)
         client.post.assert_called_once_with(
-            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "block-sta", "mac": CLIENT_MAC}
+            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "block-sta", "mac": CLIENT_MAC}, key=None
         )
         assert result["status"] == "ok"
 
@@ -181,9 +274,9 @@ class TestUnblockClient:
         client.get.return_value = {"id": "cl-1", "mac": CLIENT_MAC}
         client.post.return_value = {"status": "ok"}
         result = await unblock_client(client, registry, "h", "s", "cl-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1", key=None)
         client.post.assert_called_once_with(
-            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "unblock-sta", "mac": CLIENT_MAC}
+            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "unblock-sta", "mac": CLIENT_MAC}, key=None
         )
         assert result["status"] == "ok"
 
@@ -198,9 +291,9 @@ class TestReconnectClient:
         client.get.return_value = {"id": "cl-1", "mac": CLIENT_MAC}
         client.post.return_value = {"status": "ok"}
         result = await reconnect_client(client, registry, "h", "s", "cl-1")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1")
+        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/clients/cl-1", key=None)
         client.post.assert_called_once_with(
-            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "kick-sta", "mac": CLIENT_MAC}
+            f"{CLASSIC_CMD_BASE}/stamgr", json={"cmd": "kick-sta", "mac": CLIENT_MAC}, key=None
         )
         assert result["status"] == "ok"
 

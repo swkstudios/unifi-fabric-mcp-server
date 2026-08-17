@@ -43,12 +43,19 @@ pytestmark = [
         not os.environ.get("UNIFI_API_KEY"),
         reason="UNIFI_API_KEY not set — skipping live integration tests",
     ),
-    # Share ONE event loop across every test in the module so the module-scoped client
-    # (and its lazily-created httpx.AsyncClient) stays valid for all tests. Without this,
-    # pytest-asyncio's default function-scoped loop closes after the first test and every
-    # subsequent test dies in httpx teardown with "Event loop is closed".
-    pytest.mark.asyncio(loop_scope="module"),
 ]
+
+# Share ONE event loop across every test in a class so the module-scoped client
+# (and its lazily-created httpx.AsyncClient) stays valid for all tests. Without this,
+# pytest-asyncio's default function-scoped loop closes after the first test and every
+# subsequent test dies in httpx teardown with "Event loop is closed".
+#
+# This mark is applied per async test class rather than module-wide via pytestmark:
+# TestKeyIsolation holds purely synchronous tests, and stamping asyncio on a sync test
+# makes pytest-asyncio warn "marked with '@pytest.mark.asyncio' but it is not an async
+# function" on every one. Scoping the mark to the async classes keeps the shared loop
+# where it is needed without touching the sync tests.
+_module_loop = pytest.mark.asyncio(loop_scope="module")
 
 _TEST_HOST = os.environ.get("UNIFI_TEST_HOST", "")
 _TEST_SITE = os.environ.get("UNIFI_TEST_SITE", "")
@@ -113,6 +120,7 @@ class TestKeyIsolation:
 # ---------------------------------------------------------------------------
 
 
+@_module_loop
 class TestListWifiBroadcastsIntegration:
     async def test_returns_broadcasts(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
@@ -130,6 +138,7 @@ class TestListWifiBroadcastsIntegration:
         assert "name" in items[0], "Broadcast must have a name field"
 
 
+@_module_loop
 class TestGetWifiBroadcastIntegration:
     async def test_get_broadcast_by_id(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
@@ -151,6 +160,7 @@ class TestGetWifiBroadcastIntegration:
 # ---------------------------------------------------------------------------
 
 
+@_module_loop
 class TestListSiteDevicesIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
@@ -171,6 +181,7 @@ class TestListSiteDevicesIntegration:
         )
 
 
+@_module_loop
 class TestListPendingDevicesIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST:
@@ -184,6 +195,7 @@ class TestListPendingDevicesIntegration:
 # ---------------------------------------------------------------------------
 
 
+@_module_loop
 class TestListClientsIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
@@ -207,6 +219,7 @@ class TestListClientsIntegration:
 # ---------------------------------------------------------------------------
 
 
+@_module_loop
 class TestKeyConsistencyIntegration:
     async def test_list_hosts_consistent_across_calls(self, client, registry):
         """Two calls with the same key should return the same host set."""
@@ -236,6 +249,7 @@ class TestKeyConsistencyIntegration:
 # ---------------------------------------------------------------------------
 
 
+@_module_loop
 class TestInnerSpaceIntegration:
     """InnerSpace is a licensed add-on. On an estate without it the API returns 403.
 

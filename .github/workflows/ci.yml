@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -78,7 +78,11 @@ jobs:
 
   # Phase G: primary secret-scanning gate. Runs in CI on every push and PR so a
   # secret is caught at the source, before it can ever reach a build artifact or a
-  # published release. This is a working-tree scan and does not rely on git history.
+  # published release. It runs a working-tree file scan on every event, a PR-diff
+  # scan on pull_request, and a full-history scan on push. Suppressions for known
+  # historical FALSE POSITIVES only (a fake test-fixture literal already immutable
+  # in history) live in .gitleaksignore as opaque commit:path:rule:line fingerprints,
+  # so the gate flags exactly NEW secrets -- full sensitivity going forward.
   #
   # gitleaks/gitleaks-action is intentionally NOT used: as of action v2+ it
   # requires a paid GITLEAKS_LICENSE for GitHub *organization* accounts
@@ -122,8 +126,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: gitleaks detect --source . --redact --exit-code 1 -v --log-opts="${BASE_SHA}..${HEAD_SHA}"
 
-      # Push to default branch / manual dispatch: full-history baseline scan.
-      - name: Secret scan -- full history (baseline)
+      # Push to default branch / manual dispatch: full-history scan. Suppressions for
+      # immutable historical false positives live in .gitleaksignore (auto-read from the
+      # repo root); no --baseline-path so no commit provenance is carried in-repo.
+      - name: Secret scan -- full history
         if: ${{ github.event_name != 'pull_request' }}
         run: gitleaks detect --source . --redact --exit-code 1 -v
 

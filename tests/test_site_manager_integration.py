@@ -163,7 +163,7 @@ class TestListSitesIntegration:
     async def test_populates_registry_cache(self, client, registry):
         registry.invalidate()
         await list_sites(client, registry)
-        # list_sites drains the MSP /ea/sites list and primes the EA-sites cache
+        # list_sites drains the MSP /v1/sites list and primes the EA-sites cache
         # (Registry.set_ea_sites -> _ea_sites, keyed by API-key label). The separate
         # _sites cache is the per-console PROXY site list (keyed by (label, host_id))
         # and is only populated by the per-host proxy path, not by list_sites.
@@ -189,7 +189,7 @@ class TestListDevicesIntegration:
         result = await list_devices(client, registry)
         if result["count"] == 0:
             pytest.skip("No device host-wrappers returned — skipping field check")
-        # /ea/devices returns HOST-WRAPPER objects: {hostId, hostName, devices[], updatedAt}.
+        # /v1/devices returns HOST-WRAPPER objects: {hostId, hostName, devices[], updatedAt}.
         # The actual device items are nested one level deeper at wrapper["devices"][*] and
         # carry the "id" field — the wrapper itself does not. Assert at the correct depth.
         wrapper = result["devices"][0]
@@ -243,7 +243,7 @@ class TestGetISPMetricsIntegration:
 class TestQueryISPMetricsIntegration:
     async def test_query_no_sites_rejected(self, client):
         # The UniFi Site Manager API requires at least one site filter on
-        # POST /ea/isp-metrics/{interval}/query; an empty body returns an opaque
+        # POST /v1/isp-metrics/{interval}/query; an empty body returns an opaque
         # HTTP 400 "error while parsing request" (verified live). The tool rejects
         # a no-sites call up front with a clear ValueError rather than forwarding
         # the empty POST.
