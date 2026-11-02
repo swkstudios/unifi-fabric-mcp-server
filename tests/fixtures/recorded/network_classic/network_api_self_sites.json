@@ -1,0 +1,32 @@
+{
+ "recorded_by_tool": "delete_site",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/self/sites",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-c200-000000000001",
+    "anonymous_id": "00000000-0000-4000-c200-000000000002",
+    "external_id": "00000000-0000-4000-c200-000000000003",
+    "name": "name-0012",
+    "desc": "desc-0004",
+    "attr_hidden_id": "default",
+    "location_lng": 0.0,
+    "location_accuracy": 0,
+    "attr_no_delete": true,
+    "location_lat": 0.0,
+    "role": "admin",
+    "role_hotspot": false,
+    "device_count": 6
+   }
+  ]
+ }
+}

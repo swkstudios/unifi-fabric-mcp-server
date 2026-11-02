@@ -1,0 +1,93 @@
+{
+ "recorded_by_tool": "get_protect_event",
+ "args": [
+  "00000000-0000-4000-9000-000000000001"
+ ],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/events/00000000-0000-4000-9000-000000000001",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": {
+  "camera": "000000000000000000fa0002",
+  "critical": null,
+  "deletionType": null,
+  "end": 1791767603865,
+  "favoriteObjectIds": null,
+  "heatmap": "e-00000000-0000-4000-9000-000000000001",
+  "id": "00000000-0000-4000-9000-000000000001",
+  "isFavorite": false,
+  "metadata": {
+   "count": null,
+   "detectedAreas": [
+    {
+     "areaIndexes": [
+      76,
+      86,
+      96,
+      106
+     ],
+     "smartDetectObject": "00000000-0000-4000-9000-000000000002"
+    }
+   ],
+   "detectedThumbnails": [
+    {
+     "attributes": {
+      "objectType": "person",
+      "trackerId": 1,
+      "zone": [
+       1
+      ]
+     },
+     "clockBestWall": 1791767596087,
+     "confidence": 86,
+     "coord": [
+      615,
+      730,
+      36,
+      197
+     ],
+     "croppedId": "000000FA0003-1791767610893",
+     "labels": [
+      "labels-0001",
+      "labels-0002"
+     ],
+     "objectId": "00000000-0000-4000-9000-000000000002",
+     "type": "person"
+    }
+   ],
+   "hallwayMode": "disabled",
+   "hallway_mode": "disabled",
+   "linesSettings": null,
+   "linesStatus": null,
+   "loiterStatus": null,
+   "ramDescription": "",
+   "tamperStatus": null,
+   "weather": {
+    "iconCode": "27",
+    "temperature": 24.4,
+    "temperatureUnit": "C"
+   },
+   "zonesStatus": {
+    "1": {
+     "level": 76,
+     "status": "leave"
+    }
+   }
+  },
+  "modelKey": "event",
+  "partition": null,
+  "score": 76,
+  "smartDetectTypes": [
+   "person"
+  ],
+  "start": 1791767594087,
+  "thumbnail": "e-00000000-0000-4000-9000-000000000001",
+  "timestamp": null,
+  "type": "smartDetectZone",
+  "user": null
+ }
+}

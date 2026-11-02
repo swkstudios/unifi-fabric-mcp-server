@@ -1,0 +1,77 @@
+name: Documentation checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "41 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  docs-checks:
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Provenance and image-tag currency
+        run: |
+          python scripts/check_doc_provenance.py
+          python scripts/check_doc_images.py
+      - name: Markdown tables, literal pipes and anchors
+        run: python scripts/check_markdown.py
+      - name: Mutation checks (no development installation)
+        run: python tests/test_doc_provenance.py
+      - name: External reference links
+        run: python scripts/check_doc_links.py
+      - name: Build artifacts
+        run: |
+          python -m venv "$RUNNER_TEMP/docs-build"
+          # Build and hatchling by exact version and hash, wheels only; --no-isolation builds
+          # with that pinned backend instead of fetching one unpinned.
+          "$RUNNER_TEMP/docs-build/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/publish-pypi-requirements.txt
+          "$RUNNER_TEMP/docs-build/bin/python" -m build --no-isolation --outdir "$RUNNER_TEMP/docs-dist"
+      - name: Import and version from built wheel without optional extras
+        run: |
+          python -m venv "$RUNNER_TEMP/docs-no-extras"
+          # Runtime dependencies by exact version and hash (no extras), then the built wheel
+          # alone: nothing is resolved unpinned from the index.
+          "$RUNNER_TEMP/docs-no-extras/bin/python" -m pip install --require-hashes -r requirements-runtime.lock
+          "$RUNNER_TEMP/docs-no-extras/bin/python" -m pip install --no-deps "$RUNNER_TEMP"/docs-dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/docs-no-extras/bin/python" -I -c "import unifi_fabric; import unifi_fabric.server; import unifi_fabric.entrypoint"
+          "$RUNNER_TEMP/docs-no-extras/bin/unifi-fabric-mcp" --version
+      - name: Remove temporary environments and artifacts
+        if: always()
+        run: |
+          rm -rf -- "${RUNNER_TEMP:?}/docs-build" "${RUNNER_TEMP:?}/docs-dist" "${RUNNER_TEMP:?}/docs-no-extras"
+  reference-report:
+    if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_doc_links.py --report reference-report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: documentation-reference-report
+          path: reference-report.json

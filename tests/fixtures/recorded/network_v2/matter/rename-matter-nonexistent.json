@@ -1,0 +1,21 @@
+{
+  "recorded_by_tool": "rename-matter-nonexistent",
+  "request": {
+    "method": "PUT",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/matter/nodes/999999999999999999",
+    "query": {},
+    "json": {
+      "name": "name-0011"
+    }
+  },
+  "status": 404,
+  "content_type": "application/json",
+  "body": {
+    "code": "api.err.MatterNodeNotFound",
+    "details": {
+      "_id": "000000000000000001"
+    },
+    "errorCode": 404,
+    "message": "Matter node not found"
+  }
+}

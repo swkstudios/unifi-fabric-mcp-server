@@ -84,6 +84,7 @@ class TestCreatePortForward:
 class TestUpdatePortForward:
     async def test_basic(self, client, registry):
         payload = {"enabled": False}
+        client.get.return_value = {"data": [{"_id": "pf-1"}]}  # write target resolved first
         client.put.return_value = {"_id": "pf-1", "enabled": False}
         result = await update_port_forward(client, registry, "h", "s", "pf-1", payload)
         client.put.assert_called_once_with(
@@ -94,6 +95,7 @@ class TestUpdatePortForward:
 
 class TestDeletePortForward:
     async def test_basic(self, client, registry):
+        client.get.return_value = {"data": [{"_id": "pf-1"}]}  # write target resolved first
         client.delete.return_value = None
         await delete_port_forward(client, registry, "h", "s", "pf-1")
         client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None)
@@ -133,6 +135,7 @@ class TestCreateTrafficRule:
 class TestUpdateTrafficRule:
     async def test_basic(self, client, registry):
         payload = {"enabled": False}
+        client.get.return_value = [{"_id": "tr-1"}]  # write target resolved first
         client.put.return_value = {"_id": "tr-1", "enabled": False}
         result = await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
         client.put.assert_called_once_with(
@@ -143,6 +146,7 @@ class TestUpdateTrafficRule:
 
 class TestDeleteTrafficRule:
     async def test_basic(self, client, registry):
+        client.get.return_value = [{"_id": "tr-1"}]  # write target resolved first
         client.delete.return_value = None
         await delete_traffic_rule(client, registry, "h", "s", "tr-1")
         client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", key=None)

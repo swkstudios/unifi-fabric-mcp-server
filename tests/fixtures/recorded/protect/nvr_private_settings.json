@@ -1,0 +1,33 @@
+{
+  "recorded_by_tool": "get_nvr_private",
+  "source": "Live private Protect GETs 2026-10-11; identity fields replaced before recording; camera/NVR/sensor settings only",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/nvr",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "doorbellSettings": {
+      "defaultMessageText": "Example message",
+      "defaultMessageResetTimeoutMs": 60000,
+      "customMessages": [],
+      "customImages": [],
+      "allMessages": [
+        {
+          "type": "LEAVE_PACKAGE_AT_DOOR",
+          "text": "Example message 1"
+        },
+        {
+          "type": "DO_NOT_DISTURB",
+          "text": "Example message 2"
+        }
+      ]
+    },
+    "isInsightsEnabled": true,
+    "analyticsData": "none",
+    "autoRetentionEnabled": false,
+    "recordingRetentionDurationMs": null
+  }
+}

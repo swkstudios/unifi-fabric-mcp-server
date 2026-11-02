@@ -1,0 +1,41 @@
+{
+ "recorded_by_tool": "list_dpi_categories",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/dpi/categories",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 5,
+  "totalCount": 5,
+  "data": [
+   {
+    "id": 0,
+    "name": "name-0339"
+   },
+   {
+    "id": 1,
+    "name": "name-0340"
+   },
+   {
+    "id": 3,
+    "name": "name-0341"
+   },
+   {
+    "id": 4,
+    "name": "name-0342"
+   },
+   {
+    "id": 5,
+    "name": "name-0343"
+   }
+  ]
+ }
+}

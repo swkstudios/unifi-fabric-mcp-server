@@ -1,0 +1,21 @@
+{
+ "recorded_by_tool": "list_protect_users",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/users",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "id": "000000000000000000fa01c5",
+   "name": "name-0349",
+   "firstName": "firstName-0001",
+   "lastName": "lastName-0001",
+   "email": "email-0001",
+   "ucoreUserId": "00000000-0000-4000-8000-000000000002",
+   "modelKey": "user"
+  }
+ ]
+}

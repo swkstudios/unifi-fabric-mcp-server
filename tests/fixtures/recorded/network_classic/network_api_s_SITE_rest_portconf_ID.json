@@ -1,0 +1,59 @@
+{
+ "recorded_by_tool": "get_port_profile",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/portconf/00000000-0000-4000-b000-000000000120",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-b000-000000000120",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "name": "name-0250",
+    "forward": "forward-0001",
+    "native_networkconf_id": "00000000-0000-4000-8000-000000000122",
+    "op_mode": "switch",
+    "setting_preference": "manual",
+    "autoneg": true,
+    "excluded_networkconf_ids": [
+     "00000000-0000-4000-8000-000000000123",
+     "00000000-0000-4000-a000-000000000124",
+     "00000000-0000-4000-a000-000000000125",
+     "00000000-0000-4000-b000-000000000126"
+    ],
+    "port_security_enabled": false,
+    "poe_mode": "auto",
+    "stormctrl_ucast_rate": 100,
+    "stormctrl_bcast_rate": 100,
+    "stormctrl_mcast_enabled": false,
+    "stormctrl_ucast_enabled": false,
+    "egress_rate_limit_kbps_enabled": false,
+    "isolation": false,
+    "lldpmed_notify_enabled": false,
+    "tagged_vlan_mgmt": "tagged-vlan-mgmt-0001",
+    "multicast_router_mode": "NONE",
+    "stormctrl_bcast_enabled": false,
+    "stp_uplink": false,
+    "stp_port_mode": true,
+    "port_keepalive_enabled": false,
+    "stp_bpdu_guard_enabled": false,
+    "stormctrl_mcast_rate": 100,
+    "qos_profile": {
+     "qos_policies": [],
+     "qos_profile_mode": "custom"
+    },
+    "dot1x_idle_timeout": 300,
+    "port_security_mac_address": [],
+    "stp_edge_state": "disabled",
+    "dot1x_ctrl": "force_authorized",
+    "lldpmed_enabled": true
+   }
+  ]
+ }
+}

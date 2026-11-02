@@ -1,0 +1,29 @@
+{
+ "recorded_by_tool": "get_protect_stream_url",
+ "args": [
+  "video_prepare",
+  "000000000000000000fa0002"
+ ],
+ "kwargs": {
+  "channel": 0,
+  "end": 1791767604,
+  "fps": 0,
+  "start": 1791767594,
+  "stream_type": "rotating"
+ },
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/tcp/video/prepare",
+  "query": {
+   "camera": "000000000000000000fa0002",
+   "channel": "0",
+   "start": "1791767594000",
+   "end": "1791767604000",
+   "type": "rotating",
+   "fps": "0"
+  }
+ },
+ "status": 404,
+ "content_type": "text/html",
+ "text": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /api/tcp/video/prepare</pre>\n</body>\n</html>\n"
+}

@@ -16,7 +16,6 @@ from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.tools.innerspace import (
     INNERSPACE_INTEGRATION_BASE,
     INNERSPACE_PROXY_BASE,
-    MAX_ASSET_INLINE_BYTES,
     get_innerspace_asset,
     get_innerspace_project,
     get_innerspace_summary,
@@ -102,6 +101,11 @@ def registry():
     return r
 
 
+def _doc(**extra) -> dict:
+    """A minimal well-formed project document carrying ``extra`` top-level fields."""
+    return {"shapes": [], "plans": [], "products": [], "wallTypes": [], **extra}
+
+
 class TestGeometryPassThrough:
     """The project document is returned verbatim — the server withholds nothing.
 
@@ -110,31 +114,31 @@ class TestGeometryPassThrough:
     """
 
     async def test_mac_and_ip_survive_at_any_depth(self, client, registry):
-        client.get.return_value = {
-            "device": {"meta": {"mac": "aa:bb:cc:dd:ee:ff", "ip": "192.0.2.1", "ok": 1}}
-        }
+        client.get.return_value = _doc(
+            device={"meta": {"mac": "aa:bb:cc:dd:ee:ff", "ip": "192.0.2.1", "ok": 1}}
+        )
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        meta = result["project"]["device"]["meta"]
+        meta = result["device"]["meta"]
         assert meta["mac"] == "aa:bb:cc:dd:ee:ff"
         assert meta["ip"] == "192.0.2.1"
         assert meta["ok"] == 1
 
     async def test_asset_urls_survive(self, client, registry):
-        client.get.return_value = {"image": "https://example.invalid/x.png", "name": "keep"}
+        client.get.return_value = _doc(image="https://example.invalid/x.png", name="keep")
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        assert result["project"]["image"] == "https://example.invalid/x.png"
-        assert result["project"]["name"] == "keep"
+        assert result["image"] == "https://example.invalid/x.png"
+        assert result["name"] == "keep"
 
     async def test_data_uri_survives(self, client, registry):
-        client.get.return_value = {"image": "data:image/png;base64,AAAA"}
+        client.get.return_value = _doc(image="data:image/png;base64,AAAA")
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        assert result["project"]["image"] == "data:image/png;base64,AAAA"
+        assert result["image"] == "data:image/png;base64,AAAA"
 
     async def test_preserves_coordinates_and_numbers(self, client, registry):
-        payload = {"position": [{"x": -10.5, "y": 2.0, "z": 2.5}]}
+        payload = _doc(position=[{"x": -10.5, "y": 2.0, "z": 2.5}])
         client.get.return_value = copy.deepcopy(payload)
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        assert result["project"] == payload
+        assert result == payload
 
 
 class TestGetInnerspaceProject:
@@ -145,7 +149,7 @@ class TestGetInnerspaceProject:
         client.get.assert_called_once_with(
             f"{INTEGRATION_BASE}/v1/project", key=None, params={"mode": "3D"}
         )
-        assert result["mode"] == "3D"
+        assert result == _sample_project("3D")
 
     async def test_2d_mode_passes_param(self, client, registry):
         client.get.return_value = _sample_project("2D")
@@ -153,7 +157,7 @@ class TestGetInnerspaceProject:
         client.get.assert_called_once_with(
             f"{INTEGRATION_BASE}/v1/project", key=None, params={"mode": "2D"}
         )
-        assert result["mode"] == "2D"
+        assert result == _sample_project("2D")
 
     async def test_default_mode_is_3d(self, client, registry):
         client.get.return_value = _sample_project("3D")
@@ -165,12 +169,12 @@ class TestGetInnerspaceProject:
     async def test_2d_device_height_is_zero_3d_is_real(self, client, registry):
         client.get.return_value = _sample_project("2D")
         result_2d = await get_innerspace_project(client, registry, "myhost", "2D")
-        device_2d = next(s for s in result_2d["project"]["shapes"] if s["type"] == "device")
+        device_2d = next(s for s in result_2d["shapes"] if s["type"] == "device")
         assert device_2d["position"][0]["z"] == 0
 
         client.get.return_value = _sample_project("3D")
         result_3d = await get_innerspace_project(client, registry, "myhost", "3D")
-        device_3d = next(s for s in result_3d["project"]["shapes"] if s["type"] == "device")
+        device_3d = next(s for s in result_3d["shapes"] if s["type"] == "device")
         assert device_3d["position"][0]["z"] == 2.5
 
     async def test_mac_ip_and_asset_urls_survive(self, client, registry):
@@ -178,7 +182,7 @@ class TestGetInnerspaceProject:
         # human-meaningful payload — they must reach the caller unchanged.
         client.get.return_value = _sample_project("3D")
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        shapes = result["project"]["shapes"]
+        shapes = result["shapes"]
         device = next(s for s in shapes if s["type"] == "device")
         assert device["meta"]["mac"] == "aa:bb:cc:00:11:22"
         assert device["meta"]["ip"] == "192.0.2.55"
@@ -223,6 +227,9 @@ class TestGetInnerspaceProject:
         assert "/proxy/innerspace/integration/v1/project" in message
         assert "/proxy/innerspace/api/project" in message
         assert "does NOT mean InnerSpace is uninstalled" in message
+        # The upstream reason is kept verbatim, not replaced by the hint.
+        assert message.startswith("Upstream responses: HTTP 403 from GET")
+        assert '"message":"forbidden: host not found"' in message
         # Both candidate paths were actually tried.
         assert client.get.call_count == 2
 
@@ -242,7 +249,7 @@ class TestGetInnerspaceProject:
         )
         client.get.side_effect = [forbidden, _sample_project("3D")]
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        assert result["mode"] == "3D"
+        assert result == _sample_project("3D")
         assert client.get.call_count == 2
         # Second call targeted the legacy /api path.
         second_call = client.get.call_args_list[1]
@@ -256,13 +263,19 @@ class TestGetInnerspaceProject:
             await get_innerspace_project(client, registry, "myhost", "3D")
         client.get.assert_called_once()
 
-    async def test_unwraps_data_envelope_from_integration(self, client, registry):
+    async def test_returns_the_integration_envelope_verbatim(self, client, registry):
         # The documented /v1/project wraps the project in a {"data": …} envelope;
-        # get_innerspace_project must return it unwrapped.
-        client.get.return_value = {"data": _sample_project("3D")}
+        # get_innerspace_project returns the upstream body as-is (pass-through), with
+        # every envelope field beside data.
+        body = {"data": _sample_project("3D"), "traceId": "t-inner"}
+        client.get.return_value = copy.deepcopy(body)
         result = await get_innerspace_project(client, registry, "myhost", "3D")
-        assert "shapes" in result["project"]
-        assert "data" not in result["project"]
+        assert result == body
+
+    async def test_enveloped_project_is_still_shape_checked(self, client, registry):
+        client.get.return_value = {"data": {"shapes": "nope"}}
+        with pytest.raises(UniFiConnectionError, match="expected 'shapes' to be an array"):
+            await get_innerspace_project(client, registry, "myhost", "3D")
 
 
 class TestGetInnerspaceSummary:
@@ -324,23 +337,23 @@ class TestListInnerspaceDevices:
     async def test_filters_device_shapes_only(self, client, registry):
         client.get.return_value = _sample_project("3D")
         result = await list_innerspace_devices(client, registry, "myhost", "3D")
-        assert result["count"] == 1
-        assert result["devices"][0]["type"] == "device"
-        assert result["devices"][0]["title"] == "AP Test 1"
+        assert result["_count"] == 1
+        assert result["shapes"][0]["type"] == "device"
+        assert result["shapes"][0]["title"] == "AP Test 1"
 
     async def test_device_meta_survives(self, client, registry):
         # Data-survival: device meta.mac / meta.ip pass through verbatim.
         client.get.return_value = _sample_project("3D")
         result = await list_innerspace_devices(client, registry, "myhost", "3D")
-        meta = result["devices"][0]["meta"]
+        meta = result["shapes"][0]["meta"]
         assert meta["mac"] == "aa:bb:cc:00:11:22"
         assert meta["ip"] == "192.0.2.55"
 
     async def test_2d_flattens_height(self, client, registry):
         client.get.return_value = _sample_project("2D")
         result = await list_innerspace_devices(client, registry, "myhost", "2D")
-        assert result["devices"][0]["position"][0]["z"] == 0
-        assert result["mode"] == "2D"
+        assert result["shapes"][0]["position"][0]["z"] == 0
+        assert result["_mode"] == "2D"
 
     async def test_input_payload_not_mutated(self, client, registry):
         payload = _sample_project("3D")
@@ -350,7 +363,7 @@ class TestListInnerspaceDevices:
         assert payload == original
 
 
-# --- Documented Integration API schema (#178 + new read endpoints) ---------
+# --- Documented Integration API schema (new read endpoints) ---------
 
 
 def _integration_project() -> dict:
@@ -359,7 +372,7 @@ def _integration_project() -> dict:
     Differs from the legacy _sample_project: no top-level planScales, plans carry
     ``title``/``id`` (no embedded scale), per-plan scale lives on ``scale``-type
     shapes keyed by planId, and the project meta is {id,title,createdAt,updatedAt}
-    with no unit/migrated. This is the shape issue #178 must handle.
+    with no unit/migrated. This is the shape the documented schema must handle.
     """
     return {
         "shapes": [
@@ -403,7 +416,7 @@ def _integration_project() -> dict:
 
 
 class TestInnerspaceScaleMappingIssue178:
-    """Scale moved onto scale-type shapes; plans/project meta reshaped (#178)."""
+    """Scale moved onto scale-type shapes; plans/project meta reshaped."""
 
     async def test_per_plan_scale_from_scale_shape(self, client, registry):
         client.get.return_value = _integration_project()
@@ -434,7 +447,7 @@ class TestInnerspaceScaleMappingIssue178:
 
     async def test_legacy_payload_still_reads_embedded_scale(self, client, registry):
         # Backward-compat: the legacy /api payload (embedded plan scale + top-level
-        # planScales + unit/migrated) must be unchanged by the #178 rewire.
+        # planScales + unit/migrated) must be unchanged by the rewire.
         client.get.return_value = _sample_project("3D")
         result = await get_innerspace_summary(client, registry, "myhost", "3D")
         scales = {p["name"]: p["scale"] for p in result["plans"]}
@@ -471,7 +484,7 @@ class TestListInnerspaceFloorPlans:
         client.get.assert_called_once_with(
             f"{INTEGRATION_BASE}/v1/floor_plans", key=None, params=None
         )
-        assert result["count"] == 1
+        assert result["_count"] == 1
         assert result["floor_plans"][0]["ppm"] == 57.25
         # image_url passes through verbatim (asset path preserved).
         assert result["floor_plans"][0]["image_url"].endswith("/assets/plan-a/ground.png")
@@ -486,12 +499,12 @@ class TestListInnerspaceFloorPlans:
     async def test_tolerates_data_envelope(self, client, registry):
         client.get.return_value = {"data": _fp_response()}
         result = await list_innerspace_floor_plans(client, registry, "myhost")
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_empty_response(self, client, registry):
         client.get.return_value = {"floor_plans": []}
         result = await list_innerspace_floor_plans(client, registry, "myhost")
-        assert result == {"floor_plans": [], "count": 0}
+        assert result == {"floor_plans": [], "_count": 0}
 
     async def test_namespace_403_gives_two_cause_error(self, client, registry):
         client.get.side_effect = UniFiConnectionError(
@@ -535,7 +548,7 @@ class TestListInnerspaceAccessPoints:
         client.get.assert_called_once_with(
             f"{INTEGRATION_BASE}/v1/access_points", key=None, params=None
         )
-        assert result["count"] == 1
+        assert result["_count"] == 1
         ap = result["access_points"][0]
         assert ap["mac"] == "aa:bb:cc:00:11:22"
         assert ap["serial"] == "AABBCC001122"
@@ -569,7 +582,7 @@ class TestListInnerspaceSwitches:
         }
         result = await list_innerspace_switches(client, registry, "myhost")
         client.get.assert_called_once_with(f"{INTEGRATION_BASE}/v1/switches", key=None, params=None)
-        assert result["count"] == 1
+        assert result["_count"] == 1
         assert result["switches"][0]["mac"] == "aa:bb:cc:33:44:55"
 
 
@@ -590,7 +603,7 @@ class TestListInnerspaceInventory:
         client.get.assert_called_once_with(
             f"{INTEGRATION_BASE}/v1/inventory", key=None, params=None
         )
-        assert result["count"] == 1
+        assert result["_count"] == 1
         assert result["devices"][0]["serial"] == "AABBCC667788"
 
 
@@ -611,7 +624,7 @@ class TestGetInnerspaceAsset:
         assert result["path"].endswith("/v1/assets/plan-a/ground.png")
 
     async def test_asset_group_id_forwarded_verbatim(self, client, registry):
-        """#180: the {planId} segment is the asset-group id from image_url (NOT the floor
+        """the {planId} segment is the asset-group id from image_url (NOT the floor
         plan's own id). Whatever id the caller passes is forwarded verbatim as the path
         segment, so callers must pass the asset-group id parsed from image_url."""
         asset_group_id = "22222222-2222-4222-8222-222222222222"
@@ -623,83 +636,72 @@ class TestGetInnerspaceAsset:
             f"{INTEGRATION_BASE}/v1/assets/{asset_group_id}/11111111-abc.png", key=None
         )
         assert result["path"].endswith(f"/v1/assets/{asset_group_id}/11111111-abc.png")
-        assert result["plan_id"] == asset_group_id
+        assert result["_plan_id"] == asset_group_id
 
-    async def test_oversize_asset_omits_base64_with_note(self, client, registry, monkeypatch):
-        # Force a tiny cap so a small payload trips the over-cap branch deterministically.
-        monkeypatch.setattr("unifi_fabric.tools.innerspace.MAX_ASSET_INLINE_BYTES", 4, raising=True)
+    async def test_large_asset_returned_in_full_no_cap(self, client, registry):
+        big = b"\x89PNG" + b"x" * (11 * 1024 * 1024)  # larger than the former 10 MiB cap
+        client.get_binary.return_value = (big, "image/png")
+        result = await get_innerspace_asset(client, registry, "myhost", "plan-a", "big.png")
+        assert base64.b64decode(result["image_base64"]) == big
+        assert result["size_bytes"] == len(big)
+        assert "note" not in result
+
+    async def test_metadata_only_omits_bytes(self, client, registry):
         client.get_binary.return_value = (b"12345", "image/jpeg")
-        result = await get_innerspace_asset(client, registry, "myhost", "plan-a", "big.jpg")
+        result = await get_innerspace_asset(
+            client, registry, "myhost", "plan-a", "big.jpg", metadata_only=True
+        )
         assert result["image_base64"] is None
         assert result["size_bytes"] == 5
-        assert "exceeding" in result["note"]
+        assert result["content_type"] == "image/jpeg"
         assert result["path"].endswith("/v1/assets/plan-a/big.jpg")
 
-    async def test_cap_constant_is_sane(self):
-        assert MAX_ASSET_INLINE_BYTES >= 1024 * 1024
-
-    async def test_rejects_bare_dotdot(self, client, registry):
-        # A whole-name ".." can never resolve to the parent directory.
-        with pytest.raises(ValueError, match=r"must not be '\.' or '\.\.'"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "..")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_bare_dot(self, client, registry):
-        with pytest.raises(ValueError, match=r"must not be '\.' or '\.\.'"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", ".")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_filename_with_traversal(self, client, registry):
-        # "../secret" is caught by the allowlist (it contains '/'), not by name equality.
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "../secret")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_filename_with_slash(self, client, registry):
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "sub/dir.png")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_filename_with_backslash(self, client, registry):
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "sub\\dir.png")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_percent_encoded_filename(self, client, registry):
-        # A percent-encoded separator carries no literal '/' or '..'; the positive
-        # allowlist excludes '%' outright, so it can never be decoded into a separator.
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "%2Fetc%2Fpasswd")
-        client.get_binary.assert_not_called()
-
-    async def test_rejects_bare_percent(self, client, registry):
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "a%b.png")
-        client.get_binary.assert_not_called()
-
-    @pytest.mark.parametrize("ctrl", ["\x00", "\r", "\n"])
-    async def test_rejects_control_characters(self, client, registry, ctrl):
-        with pytest.raises(ValueError, match="only ASCII letters"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", f"a{ctrl}b.png")
-        client.get_binary.assert_not_called()
-
-    @pytest.mark.parametrize(
-        "bad",
-        ["a b.png", "café.png", "a;b.png", "a?b.png", "a#b.png", "a(1).png", "a&b.png"],
-    )
-    async def test_rejects_disallowed_characters(self, client, registry, bad):
-        # Space, unicode, semicolon, '?', '#', parens, '&' are all outside the allowlist.
-        with pytest.raises(ValueError, match="only ASCII letters"):
+    # The published {filename} is a string of 1-255 characters: any such name without a
+    # control character is accepted and percent-encoded as ONE path segment; only a
+    # '.'/'..' traversal segment (also after percent-decoding) is refused.
+    @pytest.mark.parametrize("bad", ["..", ".", "../secret", "sub/../x.png", "%2e%2e", "a\\..\\b"])
+    async def test_rejects_traversal_segments(self, client, registry, bad):
+        with pytest.raises(ValueError, match="path traversal"):
             await get_innerspace_asset(client, registry, "myhost", "plan-a", bad)
         client.get_binary.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("name", "segment"),
+        [
+            ("a b.png", "a%20b.png"),
+            ("café.png", "caf%C3%A9.png"),
+            ("sub/dir.png", "sub%2Fdir.png"),
+            ("sub\\dir.png", "sub%5Cdir.png"),
+            ("%2Fetc%2Fpasswd", "%252Fetc%252Fpasswd"),
+            ("a%b.png", "a%25b.png"),
+            ("a?b#c.png", "a%3Fb%23c.png"),
+            ("a..png", "a%2E%2Epng"),
+            ("  ", "%20%20"),
+        ],
+    )
+    async def test_any_spec_string_is_sent_as_one_encoded_segment(
+        self, client, registry, name, segment
+    ):
+        client.get_binary.return_value = (b"x", "image/png")
+        result = await get_innerspace_asset(client, registry, "myhost", "plan-a", name)
+        client.get_binary.assert_called_once_with(
+            f"{INTEGRATION_BASE}/v1/assets/plan-a/{segment}", key=None
+        )
+        assert result["_filename"] == name
+
+    @pytest.mark.parametrize("ctrl", ["\x00", "\r", "\n"])
+    async def test_rejects_control_characters(self, client, registry, ctrl):
+        with pytest.raises(ValueError, match="control character"):
+            await get_innerspace_asset(client, registry, "myhost", "plan-a", f"a{ctrl}b.png")
+        client.get_binary.assert_not_called()
+
     async def test_rejects_empty_filename(self, client, registry):
-        with pytest.raises(ValueError, match="non-empty string"):
-            await get_innerspace_asset(client, registry, "myhost", "plan-a", "  ")
+        with pytest.raises(ValueError, match="must not be empty"):
+            await get_innerspace_asset(client, registry, "myhost", "plan-a", "")
         client.get_binary.assert_not_called()
 
     async def test_rejects_overlong_filename(self, client, registry):
-        with pytest.raises(ValueError, match="exceeds 255 characters"):
+        with pytest.raises(ValueError, match="at most 255"):
             await get_innerspace_asset(client, registry, "myhost", "plan-a", "a" * 256)
         client.get_binary.assert_not_called()
 
@@ -718,7 +720,7 @@ class TestGetInnerspaceAsset:
         # Realistic published asset filenames pass validation and reach the fetch.
         client.get_binary.return_value = (b"\x89PNG", "image/png")
         result = await get_innerspace_asset(client, registry, "myhost", "plan-a", good)
-        assert result["filename"] == good
+        assert result["_filename"] == good
         client.get_binary.assert_awaited_once()
 
     async def test_rejects_bad_plan_id(self, client, registry):
@@ -762,7 +764,7 @@ class TestInnerspaceReadToolsMultiKey:
         )
         assert captured["key"] == "beta"
         assert "console-beta-1" in captured["path"]
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_get_asset_routes_beta_host(self, multikey_client, multikey_registry):
         self._wire_hosts(multikey_client)
@@ -796,7 +798,7 @@ class TestInnerspaceReadToolsMultiKey:
         )
         assert captured["key"] == "beta"
         assert "console-beta-1" in captured["path"]
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_list_switches_routes_beta_host(self, multikey_client, multikey_registry):
         self._wire_hosts(multikey_client)
@@ -811,7 +813,7 @@ class TestInnerspaceReadToolsMultiKey:
         result = await list_innerspace_switches(multikey_client, multikey_registry, "Beta-Branch")
         assert captured["key"] == "beta"
         assert "console-beta-1" in captured["path"]
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_list_inventory_routes_beta_host(self, multikey_client, multikey_registry):
         self._wire_hosts(multikey_client)
@@ -826,4 +828,50 @@ class TestInnerspaceReadToolsMultiKey:
         result = await list_innerspace_inventory(multikey_client, multikey_registry, "Beta-Branch")
         assert captured["key"] == "beta"
         assert "console-beta-1" in captured["path"]
-        assert result["count"] == 1
+        assert result["_count"] == 1
+
+
+# --- Project document shape is checked once -------------------------------------
+
+
+class TestProjectShapeValidation:
+    @pytest.mark.parametrize("body", [["shapes"], "text", None, 3])
+    async def test_non_object_document_raises(self, client, registry, body):
+        client.get.return_value = body
+        with pytest.raises(UniFiConnectionError, match="expected an object"):
+            await get_innerspace_project(client, registry, "myhost")
+
+    async def test_non_object_data_envelope_raises(self, client, registry):
+        client.get.return_value = {"data": [_doc()]}
+        with pytest.raises(UniFiConnectionError, match="expected 'data' to be the project object"):
+            await get_innerspace_project(client, registry, "myhost")
+
+    @pytest.mark.parametrize("key", ["shapes", "plans", "products", "wallTypes"])
+    @pytest.mark.parametrize("bad", ["missing", None, {"a": 1}, "x"])
+    async def test_summary_never_counts_a_bad_collection_as_zero(self, client, registry, key, bad):
+        doc = _doc()
+        if bad == "missing":
+            del doc[key]
+        else:
+            doc[key] = bad
+        client.get.return_value = {"data": doc}
+        with pytest.raises(UniFiConnectionError, match=f"expected '{key}' to be an array"):
+            await get_innerspace_summary(client, registry, "myhost")
+
+    @pytest.mark.parametrize("key,bad", [("attenuationObjectTypes", {"a": 1}), ("project", [1])])
+    async def test_optional_member_with_wrong_shape_raises(self, client, registry, key, bad):
+        client.get.return_value = {"data": _doc(**{key: bad})}
+        with pytest.raises(UniFiConnectionError, match=f"expected '{key}'"):
+            await get_innerspace_summary(client, registry, "myhost")
+
+    async def test_absent_attenuation_types_is_null_not_zero(self, client, registry):
+        client.get.return_value = {"data": _doc(products=[{"id": "p"}], wallTypes=[{}, {}])}
+        summary = await get_innerspace_summary(client, registry, "myhost")
+        assert summary["product_count"] == 1
+        assert summary["wall_type_count"] == 2
+        assert summary["attenuation_object_type_count"] is None
+
+    async def test_device_list_rejects_bad_document_before_selecting(self, client, registry):
+        client.get.return_value = {"data": {"shapes": [], "plans": []}}
+        with pytest.raises(UniFiConnectionError, match="expected 'products' to be an array"):
+            await list_innerspace_devices(client, registry, "myhost")

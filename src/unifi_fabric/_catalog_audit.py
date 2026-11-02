@@ -25,8 +25,10 @@ network and no credentials:
 
 The **live** fetch of a real deployed catalog is deliberately NOT here — it lives in
 ``scripts/check_catalog_regression.py`` and the integration-marked test — so this
-module stays free of I/O and is fully unit-testable. The default slug is the dev
-gateway's; callers pass the prod slug (or any other) explicitly.
+module stays free of I/O and is fully unit-testable. The default slug is the generic
+``unifi-fabric``; callers pass any other slug explicitly. Overlapping slugs require
+caller-supplied ``other_gateway_slugs`` to resolve ownership by longest matching prefix.
+Without that metadata, the historical prefix-only interpretation is preserved.
 """
 
 from __future__ import annotations
@@ -34,46 +36,62 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-# Default federation slug for the development gateway. Prod (and any other gateway)
-# is passed explicitly by the caller; this default only spares the common dev case.
-DEFAULT_GATEWAY_SLUG = "unifi-fabric-dev"
+# Default federation slug used when the caller does not pass one explicitly.
+# Any other gateway is passed explicitly by the caller; this default only spares
+# the common case.
+DEFAULT_GATEWAY_SLUG = "unifi-fabric"
 
 
 def federated_tool_name(registered_name: str, gateway_slug: str = DEFAULT_GATEWAY_SLUG) -> str:
     """Return the name the gateway federates ``registered_name`` under.
 
     The gateway prefixes the gateway slug and renders the whole identifier hyphenated,
-    so ``("list_lags", "unifi-fabric-dev")`` becomes ``"unifi-fabric-dev-list-lags"``.
+    so ``("list_lags", "unifi-fabric")`` becomes ``"unifi-fabric-list-lags"``.
     Registered names are snake_case Python identifiers (never contain a hyphen), which
     is what makes the transform losslessly invertible by :func:`base_tool_name`.
     """
     return f"{gateway_slug}-{registered_name.replace('_', '-')}"
 
 
-def base_tool_name(catalog_name: str, gateway_slug: str = DEFAULT_GATEWAY_SLUG) -> str | None:
+def base_tool_name(
+    catalog_name: str,
+    gateway_slug: str = DEFAULT_GATEWAY_SLUG,
+    *,
+    other_gateway_slugs: Iterable[str] = (),
+) -> str | None:
     """Invert :func:`federated_tool_name` for one gateway.
 
     Returns the registered-style (snake_case) base name, or ``None`` when
-    ``catalog_name`` does not carry this gateway's slug prefix (i.e. it belongs to a
-    different federated gateway and must not be compared against this server).
+    ``catalog_name`` does not carry this gateway's slug prefix, or when a longer
+    matching slug in ``other_gateway_slugs`` identifies a different owner. The caller
+    supplies ownership metadata; without it, matching uses only this gateway's prefix.
     """
     prefix = f"{gateway_slug}-"
     if not catalog_name.startswith(prefix):
+        return None
+    if any(
+        len(slug) > len(gateway_slug) and catalog_name.startswith(f"{slug}-")
+        for slug in other_gateway_slugs
+    ):
         return None
     return catalog_name[len(prefix) :].replace("-", "_")
 
 
 def catalog_base_names(
-    catalog_names: Iterable[str], gateway_slug: str = DEFAULT_GATEWAY_SLUG
+    catalog_names: Iterable[str],
+    gateway_slug: str = DEFAULT_GATEWAY_SLUG,
+    *,
+    other_gateway_slugs: Iterable[str] = (),
 ) -> set[str]:
     """Return the registered-style base names for one gateway from a catalog listing.
 
-    Names belonging to other gateways (no matching slug prefix) are dropped, so a
-    full multi-gateway catalog can be passed and only this server's entries compared.
+    Names without a matching prefix are dropped. For overlapping slugs, supply
+    ``other_gateway_slugs`` so the longest matching known slug determines ownership.
     """
+    other_gateway_slugs = tuple(other_gateway_slugs)
     result: set[str] = set()
     for name in catalog_names:
-        base = base_tool_name(name, gateway_slug)
+        base = base_tool_name(name, gateway_slug, other_gateway_slugs=other_gateway_slugs)
         if base is not None:
             result.add(base)
     return result
@@ -160,10 +178,14 @@ def diff_catalog(
     registered: Iterable[str],
     catalog_names: Iterable[str],
     gateway_slug: str = DEFAULT_GATEWAY_SLUG,
+    *,
+    other_gateway_slugs: Iterable[str] = (),
 ) -> CatalogDiff:
     """Compare the registered tool set against a deployed catalog for one gateway."""
     registered_set = set(registered)
-    catalog_set = catalog_base_names(catalog_names, gateway_slug)
+    catalog_set = catalog_base_names(
+        catalog_names, gateway_slug, other_gateway_slugs=other_gateway_slugs
+    )
     return CatalogDiff(
         missing_from_catalog=sorted(registered_set - catalog_set),
         unexpected_in_catalog=sorted(catalog_set - registered_set),

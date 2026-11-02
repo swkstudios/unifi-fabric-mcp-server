@@ -1,0 +1,968 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "dashboard_meta": {
+      "end_timestamp": 1791773902836,
+      "layout": "layout-0001",
+      "start_timestamp": 1791687600000,
+      "widgets": [
+        "widgets-0001",
+        "widgets-0002",
+        "widgets-0003",
+        "widgets-0004",
+        "widgets-0005"
+      ]
+    },
+    "internet": {
+      "downtime_history": [
+        {
+          "downtime_in_seconds": 7565,
+          "id": "00000000-0000-4000-8000-000000fa0021",
+          "timestamp": 1791766318158,
+          "wan_network_group": "wan-network-group-0001"
+        }
+      ],
+      "health_history": [
+        {
+          "failover_wan_active": false,
+          "high_latency": false,
+          "packet_loss": false,
+          "timestamp": 1791684000000,
+          "wan2_failover_active": false,
+          "wan_downtime": false
+        },
+        {
+          "failover_wan_active": false,
+          "high_latency": false,
+          "packet_loss": false,
+          "timestamp": 1791684300000,
+          "wan2_failover_active": false,
+          "wan_downtime": false
+        },
+        {
+          "failover_wan_active": false,
+          "high_latency": false,
+          "packet_loss": false,
+          "timestamp": 1791684600000,
+          "wan2_failover_active": false,
+          "wan_downtime": false
+        },
+        {
+          "failover_wan_active": false,
+          "high_latency": false,
+          "packet_loss": false,
+          "timestamp": 1791684900000,
+          "wan2_failover_active": false,
+          "wan_downtime": false
+        },
+        {
+          "not_reported": true,
+          "timestamp": 1791726900000
+        }
+      ],
+      "monitors": [
+        {
+          "service_latencies": [
+            {
+              "latency": 16,
+              "service_name": "service-name-0001"
+            },
+            {
+              "latency": 15,
+              "service_name": "service-name-0002"
+            },
+            {
+              "latency": 4,
+              "service_name": "service-name-0003"
+            }
+          ],
+          "wan_networkgroup": "wan-networkgroup-0001"
+        },
+        {
+          "service_latencies": [
+            {
+              "latency": 48,
+              "service_name": "service-name-0001"
+            },
+            {
+              "latency": 34,
+              "service_name": "service-name-0002"
+            },
+            {
+              "latency": 44,
+              "service_name": "service-name-0003"
+            }
+          ],
+          "wan_networkgroup": "wan-networkgroup-0002"
+        },
+        {
+          "service_latencies": [],
+          "wan_networkgroup": "wan-networkgroup-0003"
+        }
+      ],
+      "speed_test": {
+        "cron_schedule": "cron-schedule-0001",
+        "latest": {
+          "download_mbps": 1735,
+          "id": "00000000-0000-4000-8000-000000000020",
+          "interface_name": "interface-name-0001",
+          "latency_ms": 4,
+          "network_conf_id": "00000000-0000-4000-8000-000000fa0002",
+          "time": 1791743600464,
+          "upload_mbps": 1826,
+          "wan_networkgroup": "wan-networkgroup-0001",
+          "wan_provider_capabilities": {
+            "download_kilobits_per_second": 2000000,
+            "upload_kilobits_per_second": 2000000
+          }
+        }
+      }
+    },
+    "isp_metrics": {
+      "no_stats_reason": "no-stats-reason-0001"
+    },
+    "most_active_aps": {
+      "total_bytes": 0
+    },
+    "most_active_clients": {
+      "total_bytes": 600245187557,
+      "usage_by_client": [
+        {
+          "display_name": "02:00:5e:00:00:06",
+          "fingerprint": {
+            "has_override": false
+          },
+          "is_wired": true,
+          "mac": "02:00:5e:00:00:06",
+          "oui": "oui-0001",
+          "received_bytes": 388558885276,
+          "satisfaction": 90,
+          "total_bytes": 405216579531,
+          "transmitted_bytes": 16657694255
+        },
+        {
+          "display_name": "display-name-0001",
+          "fingerprint": {
+            "computed_dev_id": 1,
+            "computed_engine": 1,
+            "dev_cat": 1,
+            "dev_family": 4,
+            "dev_id": 1,
+            "dev_vendor": 11,
+            "has_override": false,
+            "os_class": 7,
+            "os_name": 12
+          },
+          "hostname": "hostname-0001",
+          "is_wired": true,
+          "mac": "02:00:5e:00:00:07",
+          "oui": "oui-0002",
+          "received_bytes": 31786606478,
+          "satisfaction": 90,
+          "total_bytes": 40372783269,
+          "transmitted_bytes": 8586176791
+        },
+        {
+          "display_name": "display-name-0002",
+          "fingerprint": {
+            "computed_dev_id": 2,
+            "computed_engine": 0,
+            "confidence": 90,
+            "dev_cat": 1,
+            "dev_family": 13,
+            "dev_id": 2,
+            "dev_vendor": 43,
+            "has_override": false,
+            "os_name": 18
+          },
+          "hostname": "hostname-0002",
+          "is_wired": false,
+          "mac": "02:00:5e:00:00:08",
+          "oui": "",
+          "received_bytes": 35852324877,
+          "satisfaction": 99,
+          "total_bytes": 36373454885,
+          "transmitted_bytes": 521130008
+        },
+        {
+          "display_name": "display-name-0003",
+          "fingerprint": {
+            "computed_dev_id": 3,
+            "computed_engine": 0,
+            "confidence": 60,
+            "dev_cat": 1,
+            "dev_family": 13,
+            "dev_id": 3,
+            "dev_vendor": 66,
+            "has_override": false,
+            "os_name": 3
+          },
+          "is_wired": true,
+          "mac": "02:00:5e:00:00:09",
+          "oui": "oui-0001",
+          "received_bytes": 24681226292,
+          "satisfaction": 90,
+          "total_bytes": 25334743353,
+          "transmitted_bytes": 653517061
+        },
+        {
+          "display_name": "display-name-0004",
+          "fingerprint": {
+            "computed_dev_id": 4,
+            "computed_engine": 0,
+            "confidence": 60,
+            "dev_cat": 44,
+            "dev_family": 22,
+            "dev_id": 4,
+            "dev_vendor": 7,
+            "has_override": false,
+            "os_name": 56
+          },
+          "hostname": "hostname-0003",
+          "is_wired": false,
+          "mac": "02:00:5e:00:00:0a",
+          "oui": "",
+          "received_bytes": 21686788438,
+          "satisfaction": 100,
+          "total_bytes": 22158043618,
+          "transmitted_bytes": 471255180
+        }
+      ]
+    },
+    "radio_activity": {
+      "access_points": [
+        {
+          "mac": "02:00:5e:00:00:03",
+          "model": "UAPA6A4",
+          "name": "name-0022"
+        },
+        {
+          "mac": "02:00:5e:00:00:04",
+          "model": "UAPA6A4",
+          "name": "name-0023"
+        },
+        {
+          "mac": "02:00:5e:00:00:05",
+          "model": "UAP6MP",
+          "name": "name-0024"
+        }
+      ],
+      "activity_by_radio": {
+        "6e": {
+          "history": [
+            {
+              "avg_interf_cu_pct": 0.55,
+              "avg_self_cu_pct": 3.34,
+              "avg_total_cu_pct": 3.89,
+              "mcast_bcast_rx_packets": 236,
+              "mcast_bcast_rx_pct": 1.08,
+              "mcast_bcast_total_pct": 7.43,
+              "mcast_bcast_tx_packets": 8600,
+              "mcast_bcast_tx_pct": 8.85,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_interf_cu_pct": 0.77,
+              "avg_self_cu_pct": 4.44,
+              "avg_total_cu_pct": 5.2,
+              "mcast_bcast_rx_packets": 232,
+              "mcast_bcast_rx_pct": 0.75,
+              "mcast_bcast_total_pct": 4.92,
+              "mcast_bcast_tx_packets": 8205,
+              "mcast_bcast_tx_pct": 5.84,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_interf_cu_pct": 0.46,
+              "avg_self_cu_pct": 3.64,
+              "avg_total_cu_pct": 4.1,
+              "mcast_bcast_rx_packets": 133,
+              "mcast_bcast_rx_pct": 0.53,
+              "mcast_bcast_total_pct": 10.48,
+              "mcast_bcast_tx_packets": 7944,
+              "mcast_bcast_tx_pct": 15.33,
+              "timestamp": 1791684600000
+            },
+            {
+              "timestamp": 1791726900000
+            },
+            {
+              "avg_interf_cu_pct": 0.75,
+              "avg_self_cu_pct": 2.25,
+              "avg_total_cu_pct": 3.0,
+              "mcast_bcast_rx_packets": 0,
+              "mcast_bcast_tx_packets": 0,
+              "timestamp": 1791766200000
+            }
+          ],
+          "summary": {
+            "avg_interf_cu_pct": 0.52,
+            "avg_self_cu_pct": 3.7,
+            "avg_total_cu_pct": 4.22,
+            "mcast_bcast_rx_packets": 58985,
+            "mcast_bcast_rx_pct": 0.7,
+            "mcast_bcast_total_pct": 8.26,
+            "mcast_bcast_tx_packets": 2346891,
+            "mcast_bcast_tx_pct": 11.37
+          }
+        },
+        "na": {
+          "history": [
+            {
+              "avg_interf_cu_pct": 2.53,
+              "avg_self_cu_pct": 16.67,
+              "avg_total_cu_pct": 19.2,
+              "mcast_bcast_rx_packets": 2253,
+              "mcast_bcast_rx_pct": 0.43,
+              "mcast_bcast_total_pct": 1.06,
+              "mcast_bcast_tx_packets": 13502,
+              "mcast_bcast_tx_pct": 1.41,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_interf_cu_pct": 2.68,
+              "avg_self_cu_pct": 15.83,
+              "avg_total_cu_pct": 18.51,
+              "mcast_bcast_rx_packets": 2011,
+              "mcast_bcast_rx_pct": 0.37,
+              "mcast_bcast_total_pct": 1.04,
+              "mcast_bcast_tx_packets": 12953,
+              "mcast_bcast_tx_pct": 1.45,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_interf_cu_pct": 2.77,
+              "avg_self_cu_pct": 16.38,
+              "avg_total_cu_pct": 19.15,
+              "mcast_bcast_rx_packets": 2021,
+              "mcast_bcast_rx_pct": 0.38,
+              "mcast_bcast_total_pct": 0.99,
+              "mcast_bcast_tx_packets": 12486,
+              "mcast_bcast_tx_pct": 1.34,
+              "timestamp": 1791684600000
+            },
+            {
+              "avg_interf_cu_pct": 2.4,
+              "avg_self_cu_pct": 13.79,
+              "avg_total_cu_pct": 16.19,
+              "mcast_bcast_rx_packets": 2035,
+              "mcast_bcast_rx_pct": 0.41,
+              "mcast_bcast_total_pct": 1.14,
+              "mcast_bcast_tx_packets": 12637,
+              "mcast_bcast_tx_pct": 1.6,
+              "timestamp": 1791684900000
+            },
+            {
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "avg_interf_cu_pct": 1.13,
+            "avg_self_cu_pct": 14.43,
+            "avg_total_cu_pct": 15.56,
+            "mcast_bcast_rx_packets": 667352,
+            "mcast_bcast_rx_pct": 0.8,
+            "mcast_bcast_total_pct": 2.51,
+            "mcast_bcast_tx_packets": 3855379,
+            "mcast_bcast_tx_pct": 3.98
+          }
+        },
+        "ng": {
+          "history": [
+            {
+              "avg_interf_cu_pct": 16.34,
+              "avg_self_cu_pct": 46.51,
+              "avg_total_cu_pct": 62.85,
+              "mcast_bcast_rx_packets": 1420,
+              "mcast_bcast_rx_pct": 0.27,
+              "mcast_bcast_total_pct": 1.99,
+              "mcast_bcast_tx_packets": 15134,
+              "mcast_bcast_tx_pct": 4.82,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_interf_cu_pct": 15.72,
+              "avg_self_cu_pct": 46.71,
+              "avg_total_cu_pct": 62.43,
+              "mcast_bcast_rx_packets": 1470,
+              "mcast_bcast_rx_pct": 0.29,
+              "mcast_bcast_total_pct": 2.02,
+              "mcast_bcast_tx_packets": 14787,
+              "mcast_bcast_tx_pct": 4.82,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_interf_cu_pct": 16.85,
+              "avg_self_cu_pct": 46.93,
+              "avg_total_cu_pct": 63.79,
+              "mcast_bcast_rx_packets": 1396,
+              "mcast_bcast_rx_pct": 0.3,
+              "mcast_bcast_total_pct": 2.0,
+              "mcast_bcast_tx_packets": 13872,
+              "mcast_bcast_tx_pct": 4.77,
+              "timestamp": 1791684600000
+            },
+            {
+              "avg_interf_cu_pct": 17.68,
+              "avg_self_cu_pct": 44.37,
+              "avg_total_cu_pct": 62.05,
+              "mcast_bcast_rx_packets": 1411,
+              "mcast_bcast_rx_pct": 0.27,
+              "mcast_bcast_total_pct": 1.87,
+              "mcast_bcast_tx_packets": 14440,
+              "mcast_bcast_tx_pct": 4.52,
+              "timestamp": 1791684900000
+            },
+            {
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "avg_interf_cu_pct": 16.71,
+            "avg_self_cu_pct": 41.37,
+            "avg_total_cu_pct": 58.07,
+            "mcast_bcast_rx_packets": 404785,
+            "mcast_bcast_rx_pct": 0.33,
+            "mcast_bcast_total_pct": 2.05,
+            "mcast_bcast_tx_packets": 3863419,
+            "mcast_bcast_tx_pct": 4.58
+          }
+        }
+      },
+      "radio_bands": [
+        "radio-bands-0001",
+        "radio-bands-0002",
+        "radio-bands-0003"
+      ],
+      "total_activity": {
+        "history": [
+          {
+            "avg_interf_cu_pct": 6.47,
+            "avg_self_cu_pct": 22.18,
+            "avg_total_cu_pct": 28.65,
+            "mcast_bcast_rx_packets": 3909,
+            "mcast_bcast_rx_pct": 0.37,
+            "mcast_bcast_total_pct": 1.69,
+            "mcast_bcast_tx_packets": 37236,
+            "mcast_bcast_tx_pct": 2.72,
+            "timestamp": 1791684000000
+          },
+          {
+            "avg_interf_cu_pct": 6.39,
+            "avg_self_cu_pct": 22.33,
+            "avg_total_cu_pct": 28.72,
+            "mcast_bcast_rx_packets": 3713,
+            "mcast_bcast_rx_pct": 0.34,
+            "mcast_bcast_total_pct": 1.64,
+            "mcast_bcast_tx_packets": 35945,
+            "mcast_bcast_tx_pct": 2.68,
+            "timestamp": 1791684300000
+          },
+          {
+            "avg_interf_cu_pct": 6.69,
+            "avg_self_cu_pct": 22.32,
+            "avg_total_cu_pct": 29.01,
+            "mcast_bcast_rx_packets": 3550,
+            "mcast_bcast_rx_pct": 0.34,
+            "mcast_bcast_total_pct": 1.64,
+            "mcast_bcast_tx_packets": 34302,
+            "mcast_bcast_tx_pct": 2.7,
+            "timestamp": 1791684600000
+          },
+          {
+            "avg_interf_cu_pct": 6.91,
+            "avg_self_cu_pct": 20.61,
+            "avg_total_cu_pct": 27.52,
+            "mcast_bcast_rx_packets": 3576,
+            "mcast_bcast_rx_pct": 0.34,
+            "mcast_bcast_total_pct": 1.75,
+            "mcast_bcast_tx_packets": 35107,
+            "mcast_bcast_tx_pct": 3.0,
+            "timestamp": 1791684900000
+          },
+          {
+            "timestamp": 1791726900000
+          }
+        ],
+        "summary": {
+          "avg_interf_cu_pct": 6.12,
+          "avg_self_cu_pct": 19.83,
+          "avg_total_cu_pct": 25.95,
+          "mcast_bcast_rx_packets": 1131122,
+          "mcast_bcast_rx_pct": 0.52,
+          "mcast_bcast_total_pct": 2.68,
+          "mcast_bcast_tx_packets": 10065689,
+          "mcast_bcast_tx_pct": 4.98
+        }
+      }
+    },
+    "traffic_identification": {
+      "rx_bytes": 549020017376,
+      "tx_bytes": 29896362785,
+      "usage_by_app": [
+        {
+          "application": 185,
+          "bytes_received": 184498791665,
+          "bytes_transmitted": 19404054707,
+          "category": 20,
+          "total_bytes": 203902846372
+        },
+        {
+          "application": 69,
+          "bytes_received": 154701792595,
+          "bytes_transmitted": 433667964,
+          "category": 13,
+          "total_bytes": 155135460559
+        },
+        {
+          "application": 56,
+          "bytes_received": 63600745862,
+          "bytes_transmitted": 57540432,
+          "category": 17,
+          "total_bytes": 63658286294
+        },
+        {
+          "application": 41,
+          "bytes_received": 35240943332,
+          "bytes_transmitted": 1563829675,
+          "category": 3,
+          "total_bytes": 36804773007
+        },
+        {
+          "application": 62,
+          "bytes_received": 27678337055,
+          "bytes_transmitted": 230161979,
+          "category": 8,
+          "total_bytes": 27908499034
+        }
+      ]
+    },
+    "upgradable_device_count": {
+      "device_count": 0
+    },
+    "wan_activity": {
+      "activity_by_network_group": {
+        "WAN": {
+          "history": [
+            {
+              "avg_latency_ms": 4.2,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 6672362.0,
+              "avg_tx_rate_bps": 209956.0,
+              "max_latency_ms": 5.0,
+              "max_rx_rate_bps": 13218854.0,
+              "max_tx_rate_bps": 380080.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_latency_ms": 4.1,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 9303398.0,
+              "avg_tx_rate_bps": 223636.0,
+              "max_latency_ms": 5.0,
+              "max_rx_rate_bps": 38295392.0,
+              "max_tx_rate_bps": 380080.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 12667611.0,
+              "avg_tx_rate_bps": 248223.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 30272099.0,
+              "max_tx_rate_bps": 227581.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791684600000
+            },
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 7207016.0,
+              "avg_tx_rate_bps": 323933.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 65245388.0,
+              "max_tx_rate_bps": 297698.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791684900000
+            },
+            {
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "has_lte_mbb_stats": false,
+            "has_nr_mbb_stats": false,
+            "rx_bytes": 614627398407,
+            "tx_bytes": 41898956209
+          }
+        },
+        "WAN2": {
+          "history": [
+            {
+              "avg_latency_ms": 35.4,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 107.0,
+              "avg_tx_rate_bps": 67.0,
+              "max_latency_ms": 40.0,
+              "max_rx_rate_bps": 466.0,
+              "max_tx_rate_bps": 267.0,
+              "min_latency_ms": 30.0,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_latency_ms": 38.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 108.0,
+              "avg_tx_rate_bps": 68.0,
+              "max_latency_ms": 46.0,
+              "max_rx_rate_bps": 357.0,
+              "max_tx_rate_bps": 233.0,
+              "min_latency_ms": 33.0,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_latency_ms": 34.2,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 108.0,
+              "avg_tx_rate_bps": 69.0,
+              "max_latency_ms": 42.0,
+              "max_rx_rate_bps": 200.0,
+              "max_tx_rate_bps": 132.0,
+              "min_latency_ms": 29.0,
+              "timestamp": 1791684600000
+            },
+            {
+              "avg_latency_ms": 38.2,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 110.0,
+              "avg_tx_rate_bps": 70.0,
+              "max_latency_ms": 42.0,
+              "max_rx_rate_bps": 224.0,
+              "max_tx_rate_bps": 132.0,
+              "min_latency_ms": 33.0,
+              "timestamp": 1791684900000
+            },
+            {
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "has_lte_mbb_stats": false,
+            "has_nr_mbb_stats": false,
+            "rx_bytes": 676181555,
+            "tx_bytes": 117398895
+          }
+        },
+        "WAN3": {
+          "history": [
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 22.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 57.0,
+              "timestamp": 1791684000000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 21.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 106.0,
+              "timestamp": 1791684300000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 23.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 57.0,
+              "timestamp": 1791684600000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 21.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 58.0,
+              "timestamp": 1791684900000
+            },
+            {
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "has_lte_mbb_stats": false,
+            "has_nr_mbb_stats": false,
+            "rx_bytes": 0,
+            "tx_bytes": 1900317
+          }
+        }
+      },
+      "network_groups": [
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "isp_asn": [
+            64496
+          ],
+          "isp_name": [
+            "isp-name-0001"
+          ],
+          "name": "name-0019"
+        },
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "isp_asn": [
+            64497
+          ],
+          "isp_name": [
+            "isp-name-0002"
+          ],
+          "name": "name-0020"
+        },
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "name": "name-0021"
+        }
+      ],
+      "total_activity": {
+        "history": [
+          {
+            "avg_latency_ms": 19.8,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 6672469.0,
+            "avg_tx_rate_bps": 210045.0,
+            "client_count": 48,
+            "max_latency_ms": 40.0,
+            "max_rx_rate_bps": 13218943.0,
+            "max_tx_rate_bps": 380181.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791684000000
+          },
+          {
+            "avg_latency_ms": 21.1,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 9303506.0,
+            "avg_tx_rate_bps": 223725.0,
+            "client_count": 48,
+            "max_latency_ms": 46.0,
+            "max_rx_rate_bps": 38295436.0,
+            "max_tx_rate_bps": 380181.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791684300000
+          },
+          {
+            "avg_latency_ms": 19.1,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 12667719.0,
+            "avg_tx_rate_bps": 248315.0,
+            "client_count": 48,
+            "max_latency_ms": 42.0,
+            "max_rx_rate_bps": 30272188.0,
+            "max_tx_rate_bps": 227670.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791684600000
+          },
+          {
+            "avg_latency_ms": 21.1,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 7207126.0,
+            "avg_tx_rate_bps": 324024.0,
+            "client_count": 48,
+            "max_latency_ms": 42.0,
+            "max_rx_rate_bps": 65245612.0,
+            "max_tx_rate_bps": 297793.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791684900000
+          },
+          {
+            "avg_rx_rate_bps": 0.0,
+            "avg_tx_rate_bps": 0.0,
+            "client_count": 0,
+            "timestamp": 1791726900000
+          }
+        ],
+        "summary": {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "rx_bytes": 615303579963,
+          "tx_bytes": 42018255421
+        }
+      }
+    },
+    "wan_routability_info": [
+      {
+        "double_nat_type": "double-nat-type-0001",
+        "ipv6_detection": {
+          "detected": false,
+          "enabled": false
+        },
+        "isp_asn": 64496,
+        "isp_name": "isp-name-0001",
+        "network_group": "network-group-0001",
+        "network_id": "00000000-0000-4000-8000-000000fa0002"
+      },
+      {
+        "double_nat_type": "double-nat-type-0002",
+        "ipv6_detection": {
+          "detected": true,
+          "enabled": false,
+          "method": "method-0003"
+        },
+        "isp_asn": 64497,
+        "isp_name": "isp-name-0002",
+        "network_group": "network-group-0002",
+        "network_id": "00000000-0000-4000-b000-000000fa0004"
+      }
+    ],
+    "wifi_channels": {
+      "radio_channels": [
+        {
+          "active_channels": [
+            {
+              "ap_count": 1,
+              "channel": 1,
+              "client_count": 2
+            },
+            {
+              "ap_count": 1,
+              "channel": 11,
+              "client_count": 12
+            }
+          ],
+          "available_channels": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "radio": "ng"
+        },
+        {
+          "active_channels": [
+            {
+              "ap_count": 1,
+              "channel": 64,
+              "client_count": 3
+            },
+            {
+              "ap_count": 1,
+              "channel": 100,
+              "client_count": 9
+            }
+          ],
+          "available_channels": [
+            36,
+            40,
+            44,
+            48,
+            52
+          ],
+          "radio": "na"
+        },
+        {
+          "active_channels": [
+            {
+              "ap_count": 1,
+              "channel": 37,
+              "client_count": 0
+            },
+            {
+              "ap_count": 1,
+              "channel": 101,
+              "client_count": 4
+            }
+          ],
+          "available_channels": [
+            1,
+            5,
+            9,
+            13,
+            17
+          ],
+          "radio": "6e"
+        }
+      ]
+    },
+    "wifi_doctor": {
+      "actions": [
+        {
+          "id": "id-0001",
+          "optimization_status": "optimization-status-0001"
+        },
+        {
+          "id": "id-0002",
+          "optimization_status": "optimization-status-0002",
+          "upgradable_devices": []
+        },
+        {
+          "id": "id-0003",
+          "optimization_status": "optimization-status-0002"
+        },
+        {
+          "id": "id-0004",
+          "optimization_status": "optimization-status-0001"
+        }
+      ],
+      "in_progress": false,
+      "in_progress_in_site": false
+    },
+    "wifi_technology": {
+      "summary": [
+        {
+          "num_sta": 18,
+          "radio": "ng",
+          "rx_bytes": 138818463099,
+          "satisfaction": 99,
+          "standard": "standard-0001",
+          "tx_bytes": 12819928409
+        },
+        {
+          "num_sta": 9,
+          "radio": "na",
+          "rx_bytes": 77893061875,
+          "satisfaction": 100,
+          "standard": "standard-0002",
+          "tx_bytes": 65389581668
+        },
+        {
+          "num_sta": 5,
+          "radio": "na",
+          "rx_bytes": 195821983,
+          "satisfaction": 96,
+          "standard": "standard-0001",
+          "tx_bytes": 492393147
+        },
+        {
+          "num_sta": 4,
+          "radio": "na",
+          "rx_bytes": 466495707,
+          "satisfaction": 100,
+          "standard": "standard-0003",
+          "tx_bytes": 16606502252
+        },
+        {
+          "num_sta": 5,
+          "radio": "ng",
+          "rx_bytes": 323160155,
+          "satisfaction": 100,
+          "standard": "standard-0003",
+          "tx_bytes": 2786155860
+        }
+      ]
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_site_dashboard",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/aggregated-dashboard",
+    "query": {}
+  },
+  "status": 200
+}

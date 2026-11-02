@@ -20,10 +20,12 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+import pytest
+
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.registry import Registry
+from unifi_fabric.registry import FetchedRecords, Registry
 from unifi_fabric.tools.clients import _list_clients
 from unifi_fabric.tools.device_mgmt import _list_site_devices
 from unifi_fabric.tools.firewall_proxy import list_acl_rules
@@ -129,19 +131,42 @@ async def test_alpha_owned_host_routes_to_alpha(multikey_client, multikey_regist
     _assert_rode(captured, "alpha")
 
 
-async def test_unknown_host_falls_back_to_default_key(multikey_client, multikey_registry):
-    # A host no configured key claims resolves to None, preserving the prior behaviour
-    # of riding the default (first) key rather than raising.
+async def test_unknown_host_fails_fast_listing_every_key(multikey_client, multikey_registry):
+    # A host no configured key claims fails fast BEFORE any upstream data call, listing
+    # every console across all keys (not just the default key's consoles).
     await _seed_host_caches(multikey_client, multikey_registry)
     _stub_resolution(multikey_registry, "console-unknown")
     captured = _capture_key_on_get(multikey_client)
-    await list_networks(multikey_client, multikey_registry, "Ghost-Console", "Default")
-    assert captured.get("key") is None
+    with pytest.raises(ValueError) as exc:
+        await list_networks(multikey_client, multikey_registry, "Ghost-Console", "Default")
+    msg = str(exc.value)
+    assert "unknown host 'Ghost-Console'; valid (all API keys):" in msg
+    assert "console-alpha-1" in msg and "console-beta-1" in msg
+    assert "key" not in captured
 
 
-# --- Remaining per-host modules (issue #172) ---------------------------------------------
+async def test_unknown_host_error_names_each_keys_incomplete_console_list(
+    multikey_client, multikey_registry
+):
+    # A key whose console list stopped at the opt-in page cap may own the host past the
+    # cap: the unknown-host error says so for that key, so the choices are not read as
+    # complete.
+    await _seed_host_caches(multikey_client, multikey_registry)
+    # The beta list stopped short: the list itself carries the reason.
+    multikey_registry._hosts["beta"] = FetchedRecords(  # noqa: SLF001
+        MULTIKEY_HOSTS_BY_LABEL["beta"], "page cap of 2 reached"
+    )
+    with pytest.raises(ValueError) as exc:
+        await multikey_registry.resolve_key_for_host("Ghost-Console")
+    msg = str(exc.value)
+    assert "valid (all API keys):" in msg
+    assert "API key 'beta' (the console list is incomplete: page cap of 2 reached)" in msg
+    assert "API key 'alpha' (the console list" not in msg
+
+
+# --- Remaining per-host modules ---------------------------------------------
 # Each of the eight modules below now resolves the owning key first and threads it through
-# its data request, exactly like the four modules fixed in #169. A beta-owned host must
+# its data request, exactly like the four modules fixed earlier. A beta-owned host must
 # therefore ride the beta credential; a single-key deployment (resolve_key_for_host -> None)
 # is structurally unaffected and is proven separately by every module's own unit suite.
 
@@ -168,7 +193,11 @@ async def test_create_site_to_site_tunnel_routes_to_owning_key(multikey_client, 
     _stub_resolution(multikey_registry, _BETA_HOST_ID)
     captured = _capture_key_on(multikey_client, "post")
     await _create_site_to_site_tunnel(
-        multikey_client, multikey_registry, "Beta-Branch", "Default", {"name": "t"}
+        multikey_client,
+        multikey_registry,
+        "Beta-Branch",
+        "Default",
+        {"name": "t", "vpn_type": "openvpn-vpn"},
     )
     _assert_rode(captured, "beta")
 
@@ -212,6 +241,12 @@ async def test_innerspace_project_routes_to_owning_key(multikey_client, multikey
     # InnerSpace is per-host (no site); the project fetch must ride the owning key.
     await _seed_host_caches(multikey_client, multikey_registry)
     multikey_registry.resolve_host_id = AsyncMock(return_value=_BETA_HOST_ID)
-    captured = _capture_key_on(multikey_client, "get")
+    captured: dict[str, APIKeyConfig | None] = {}
+
+    async def _get(path, *, key=None, params=None):
+        captured["key"] = key
+        return {"data": {"shapes": [], "plans": [], "products": [], "wallTypes": []}}
+
+    multikey_client.get = AsyncMock(side_effect=_get)  # type: ignore[method-assign]
     await get_innerspace_project(multikey_client, multikey_registry, "Beta-Branch")
     _assert_rode(captured, "beta")

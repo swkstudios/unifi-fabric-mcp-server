@@ -1,0 +1,28 @@
+{
+  "provenance": "synthetic shape (no production capture); live validation pending",
+  "request": {
+    "method": "GET",
+    "path": "/proxy/network/v2/api/site/{site}/wifi-tethering/scan/{gatewayMac}",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": [
+    {
+      "ssid": "ssid-0001",
+      "bssid": "02:00:5e:00:00:c1",
+      "band": "RADIO_NA",
+      "security": "WPA2_PERSONAL",
+      "signal": -61,
+      "channel": 36
+    },
+    {
+      "ssid": "ssid-0002",
+      "bssid": "02:00:5e:00:00:c2",
+      "band": "RADIO_NG",
+      "security": "OPEN",
+      "signal": -74,
+      "channel": 6
+    }
+  ]
+}

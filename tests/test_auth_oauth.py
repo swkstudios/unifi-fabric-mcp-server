@@ -10,11 +10,10 @@ Design notes:
 * Tokens are signed with FastMCP's bundled ``RSAKeyPair`` — the same JWT stack the
   ``JWTVerifier`` validates against (``joserfc``). No second JWT library (e.g. PyJWT) is
   introduced, so there is exactly one signing/verifying implementation under test.
-* The production ``build_auth`` wires a **JWKS-URI** verifier (the resource server fetches
-  the IdP's public keys), so the IdP JWKS endpoint is stubbed with ``respx``. The stub is
-  configured with ``assert_all_mocked=False`` so the in-process ``/mcp`` requests pass
-  straight through to the ASGI app, and ``assert_all_called=False`` so reject paths that
-  401 *before* any JWKS fetch happens do not trip respx's call assertion.
+* The production ``build_auth`` wires a **JWKS-URI** verifier. Tests serve the
+  synthetic IdP document through ``httpx2.MockTransport`` inside the production
+  capped JWKS client, so downloading/parsing/signature/claim checks all run without
+  DNS, sockets or retries against an actual IdP.
 * The harness (``auth_http_client`` factory + ``post_initialize``) is reused verbatim from
   Phase 1, imported below.
 
@@ -25,7 +24,6 @@ credential, endpoint, or secret.
 from __future__ import annotations
 
 import pytest
-import respx
 from fastmcp.server.auth.providers.jwt import RSAKeyPair
 from joserfc.jwk import RSAKey
 
@@ -45,7 +43,7 @@ _REQUIRED_SCOPE = "fabric:read"
 # FastMCP mounts the streamable-http app at ``/mcp``; the RFC 9728 protected-resource
 # metadata is therefore published at the *path-aware* well-known URI
 # ``/.well-known/oauth-protected-resource/mcp`` — NOT the bare well-known path. This
-# is the FastMCP #1348 behaviour, pinned empirically by the discovery tests below.
+# is the FastMCP 1348 behaviour, pinned empirically by the discovery tests below.
 _MCP_PATH = "/mcp"
 _DISCOVERY_PATH = "/.well-known/oauth-protected-resource/mcp"
 _BARE_DISCOVERY_PATH = "/.well-known/oauth-protected-resource"
@@ -95,16 +93,9 @@ def _bearer(
 
 
 async def _initialize_oauth(auth_http_client, authorization, *, env=None):
-    """Drive an oauth-mode ``initialize`` through the real request path, JWKS stubbed.
-
-    ``respx`` mocks only the IdP JWKS endpoint; ``assert_all_mocked=False`` lets the
-    in-process ``/mcp`` POST pass through to the ASGI app, and ``assert_all_called=False``
-    tolerates the reject cases that never reach the JWKS fetch.
-    """
-    with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
-        router.get(_JWKS_URI).respond(json=_jwks_document())
-        async with auth_http_client("oauth", env=env or _oauth_env()) as client:
-            return await post_initialize(client, authorization=authorization)
+    """Drive real OAuth initialization using the synthetic IdP HTTP transport."""
+    async with auth_http_client("oauth", env=env or _oauth_env(), jwks=_jwks_document()) as client:
+        return await post_initialize(client, authorization=authorization)
 
 
 # ---------------------------------------------------------------------------
@@ -113,11 +104,20 @@ async def _initialize_oauth(auth_http_client, authorization, *, env=None):
 
 
 class TestOAuthAccept:
-    """A valid signed JWT (good issuer / audience / expiry / scopes) is accepted."""
+    """A valid signed JWT (good issuer / audience / expiry / scopes) is accepted.
+
+    Regression guard for the bearer-verification accept path: a valid signed JWT
+    MUST verify to HTTP 200 on the live oauth request path. The synthetic IdP
+    responds over the production JWKS client's mock transport. A future bump that
+    breaks downloading keys or bearer verification therefore fails this assertion.
+    """
 
     async def test_valid_signed_jwt_accepted(self, auth_http_client):
         resp = await _initialize_oauth(auth_http_client, _bearer())
-        assert resp.status_code == 200
+        assert resp.status_code == 200, (
+            f"valid signed JWT rejected with HTTP {resp.status_code}; expected 200 "
+            "(bearer-verification accept-path regression)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ class TestOAuthReject:
 
 
 # ---------------------------------------------------------------------------
-# Discovery — /.well-known/oauth-protected-resource (RFC 9728 / FastMCP #1348)
+# Discovery — /.well-known/oauth-protected-resource (RFC 9728 / FastMCP 1348)
 # ---------------------------------------------------------------------------
 
 
@@ -169,7 +169,7 @@ class TestOAuthDiscovery:
         assert meta["resource"].rstrip("/") == f"{_RESOURCE_BASE_URL}{_MCP_PATH}"
 
     async def test_bare_well_known_path_not_served(self, auth_http_client):
-        # Pin the FastMCP #1348 behaviour: the protected-resource metadata is path-scoped
+        # Pin the FastMCP 1348 behaviour: the protected-resource metadata is path-scoped
         # to the /mcp mount, so the *bare* well-known path is not served. This guards the
         # discovery contract against a silent FastMCP change to the route shape.
         async with auth_http_client("oauth", env=_oauth_env()) as client:

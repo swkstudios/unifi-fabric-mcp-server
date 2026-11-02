@@ -1,0 +1,226 @@
+name: Publish to MCP Registry
+
+# Publishes the server.json metadata to the official MCP registry. Runs only on
+# the public repository, where the GitHub OIDC claim proves ownership of the
+# io.github.swkstudios namespace. The github-oidc login needs no stored secret.
+#
+# Ordering: the registry validates the OCI image that server.json names, and the
+# release tag is created BEFORE the image build ("Publish", dispatched with that
+# tag) runs. So this workflow never fires on the tag push. It runs when a
+# dispatched "Publish" run completes successfully, consumes its exact built tag/SHA
+# receipt, and then confirms the exact image tag is in GHCR before anything is
+# sent to the registry. It also waits for the exact PyPI version that server.json
+# advertises, so the registry never resolves a package that is not yet served.
+# A manual dispatch with a tag re-runs the registry publish for that release; the
+# same tag, server.json and image checks apply.
+
+on:
+  workflow_run:
+    workflows: ["Publish"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (vX.Y.Z); its image must already be in GHCR"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-mcp
+  cancel-in-progress: false
+
+jobs:
+  publish-mcp:
+    # Only the public repository owns the io.github.swkstudios namespace, so the
+    # private source repository skips this job entirely. On the workflow_run path
+    # only a successful, dispatched image build qualifies.
+    if: >-
+      github.repository == 'swkstudios/unifi-fabric-mcp-server'
+      && (github.event_name == 'workflow_dispatch'
+          || (github.event.workflow_run.conclusion == 'success'
+              && github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC token used to authenticate to the registry
+      contents: read
+      actions: read    # Download the receipt from the exact completed build run
+    env:
+      # mcp-publisher is pinned to an exact release and verified by sha256 before it
+      # runs next to the OIDC token. Bump both together, from the release's
+      # registry_<version>_checksums.txt.
+      MCP_PUBLISHER_VERSION: "1.8.1"
+      MCP_PUBLISHER_SHA256: "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"
+    steps:
+      - name: Validate the dispatch tag
+        if: github.event_name == 'workflow_dispatch'
+        # The input reaches the shell only through an env var, never as an inline
+        # expression, so a crafted tag cannot inject commands before validation.
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [[ ! "${INPUT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag must match vX.Y.Z (clean releases only)"
+            exit 1
+          fi
+
+      - name: Resolve the exact built release
+        id: source
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            gh run download "${BUILD_RUN_ID}" --repo "${GITHUB_REPOSITORY}" \
+              --name built-release --dir "${RUNNER_TEMP}/built-release"
+            python3 - <<'PY_SOURCE'
+          import json, os, re
+          from pathlib import Path
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "built-release/built-release.json").read_text())
+          tag, sha = data["tag"], data["sha"]
+          if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+              raise SystemExit("Built receipt has an invalid clean release tag")
+          if not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("Built receipt has an invalid commit SHA")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"tag={tag}\nsha={sha}\n")
+          PY_SOURCE
+          else
+            echo "tag=${INPUT_TAG}" >> "${GITHUB_OUTPUT}"
+            echo "sha=${INPUT_TAG}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The release resolver reads pyproject.toml with tomllib (Python 3.11+).
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Resolve the release tag and the image server.json names
+        id: release
+        env:
+          INPUT_TAG: ${{ steps.source.outputs.tag }}
+          BUILT_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG}"
+          TAG_SHA=$(git rev-parse "refs/tags/${TAG}^{commit}")
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ] && [ "${TAG_SHA}" != "${BUILT_SHA}" ]; then
+            echo "::error::Built tag no longer resolves to the commit that was built"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          python3 - "${VERSION}" <<'PY'
+          import json, os, sys, tomllib
+          def fail(msg):
+              print(f"::error::{msg}")
+              sys.exit(1)
+          version = sys.argv[1]
+          data = json.load(open("server.json"))
+          if data.get("version") != version:
+              fail(f"server.json version {data.get('version')!r} does not match tag v{version}")
+          oci = [p for p in data.get("packages", []) if p.get("registryType") == "oci"]
+          if len(oci) != 1:
+              fail(f"server.json must name exactly one OCI package, found {len(oci)}")
+          ident = oci[0]["identifier"]
+          expected = f"ghcr.io/swkstudios/unifi-fabric-mcp-server:{version}"
+          if ident != expected:
+              fail(f"OCI identifier {ident!r} does not match {expected!r}")
+          pypi = [p for p in data.get("packages", []) if p.get("registryType") == "pypi"]
+          if len(pypi) != 1:
+              fail(f"server.json must name exactly one PyPI package, found {len(pypi)}")
+          if pypi[0].get("version") != version:
+              fail(f"server.json PyPI version {pypi[0].get('version')!r} does not match tag v{version}")
+          with open("pyproject.toml", "rb") as fh:
+              project_name = tomllib.load(fh)["project"]["name"]
+          if pypi[0].get("identifier") != project_name:
+              fail(f"server.json PyPI identifier {pypi[0].get('identifier')!r} is not the pyproject.toml name {project_name!r}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"tag=v{version}\nimage={ident}\npypi_package={project_name}\npypi_version={version}\n")
+          PY
+
+      - name: Wait for the release image in GHCR
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          umask 077
+          AUTH_DIR=$(mktemp -d)
+          trap 'rm -rf -- "$AUTH_DIR"' EXIT
+          auth_header() {
+            printf 'Authorization: %s %s\n' "$1" "$2" > "$AUTH_DIR/$3"
+            printf '%s' "$AUTH_DIR/$3"
+          }
+          REST="${IMAGE#ghcr.io/}"
+          NAME="${REST%:*}"
+          REF="${REST##*:}"
+          ACCEPT="application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json"
+          while :; do
+            TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:${NAME}:pull" | jq -r '.token // empty' || true)
+            # The pull token travels in a private header file, never in curl's argv.
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" -I \
+              -H @"$(auth_header Bearer "${TOKEN}" TOKEN)" -H "Accept: ${ACCEPT}" \
+              "https://ghcr.io/v2/${NAME}/manifests/${REF}" || true)
+            if [ "${CODE}" = "200" ]; then
+              echo "Image ${IMAGE} is published."
+              break
+            fi
+            echo "Image ${IMAGE} not available yet (HTTP ${CODE}); retrying in 30s."
+            sleep 30
+          done
+
+      - name: Wait for the release version on PyPI
+        # server.json also advertises the PyPI package, and the registry resolves it at
+        # publish time, so publishing before PyPI serves the exact version races the
+        # upload. Like the GHCR wait this has no wall-clock bound (repo no-timeout
+        # policy): it polls until PyPI answers 200 for the exact version, and a manual
+        # cancel is the stop.
+        env:
+          PYPI_PACKAGE: ${{ steps.release.outputs.pypi_package }}
+          PYPI_VERSION: ${{ steps.release.outputs.pypi_version }}
+        run: |
+          set -euo pipefail
+          URL="https://pypi.org/pypi/${PYPI_PACKAGE}/${PYPI_VERSION}/json"
+          while :; do
+            CODE=$(curl -s -o "${RUNNER_TEMP}/pypi-release.json" -w "%{http_code}" "${URL}" || true)
+            if [ "${CODE}" = "200" ]; then
+              SERVED=$(jq -r '.info.version // empty' "${RUNNER_TEMP}/pypi-release.json" || true)
+              if [ "${SERVED}" = "${PYPI_VERSION}" ]; then
+                echo "${PYPI_PACKAGE} ${PYPI_VERSION} is published on PyPI."
+                break
+              fi
+              echo "PyPI served version ${SERVED:-<none>} for ${PYPI_PACKAGE} ${PYPI_VERSION}; retrying in 30s."
+            else
+              echo "${PYPI_PACKAGE} ${PYPI_VERSION} not on PyPI yet (HTTP ${CODE}); retrying in 30s."
+            fi
+            sleep 30
+          done
+
+      - name: Install mcp-publisher (pinned, sha256-verified)
+        run: |
+          set -euo pipefail
+          if [ "$(uname -s)-$(uname -m)" != "Linux-x86_64" ]; then
+            echo "::error::the pinned mcp-publisher digest is for linux/amd64; this runner is $(uname -s)-$(uname -m)"
+            exit 1
+          fi
+          ASSET="mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "${RUNNER_TEMP}/${ASSET}" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/${ASSET}"
+          echo "${MCP_PUBLISHER_SHA256}  ${RUNNER_TEMP}/${ASSET}" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/${ASSET}" -C "${RUNNER_TEMP}" mcp-publisher
+          "${RUNNER_TEMP}/mcp-publisher" --version || true
+
+      - name: Authenticate to MCP Registry (GitHub OIDC)
+        run: '"${RUNNER_TEMP}/mcp-publisher" login github-oidc'
+
+      - name: Publish server.json to MCP Registry
+        run: '"${RUNNER_TEMP}/mcp-publisher" publish'

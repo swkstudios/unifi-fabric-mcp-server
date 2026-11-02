@@ -1,0 +1,76 @@
+{
+ "recorded_by_tool": "get_firewall_policy",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/firewall/policies/00000000-0000-4000-9000-000000fa0045",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "id": "00000000-0000-4000-9000-000000fa0045",
+  "enabled": true,
+  "name": "name-0038",
+  "description": "description-0001",
+  "index": 10000,
+  "action": {
+   "type": "ALLOW",
+   "allowReturnTraffic": true
+  },
+  "source": {
+   "zoneId": "00000000-0000-4000-a000-000000fa003b",
+   "trafficFilter": {
+    "type": "MAC_ADDRESS",
+    "macAddressFilter": {
+     "macAddresses": [
+      "02:00:5e:00:00:0d"
+     ]
+    }
+   }
+  },
+  "destination": {
+   "zoneId": "00000000-0000-4000-a000-000000fa003b",
+   "trafficFilter": {
+    "type": "IP_ADDRESS",
+    "ipAddressFilter": {
+     "type": "IP_ADDRESSES",
+     "matchOpposite": false,
+     "items": [
+      {
+       "type": "SUBNET",
+       "value": "10.0.2.0/24"
+      }
+     ]
+    },
+    "portFilter": {
+     "type": "PORTS",
+     "matchOpposite": false,
+     "items": [
+      {
+       "type": "PORT_NUMBER",
+       "value": 5540
+      },
+      {
+       "type": "PORT_NUMBER",
+       "value": 5353
+      }
+     ]
+    }
+   }
+  },
+  "ipProtocolScope": {
+   "ipVersion": "IPV4",
+   "protocolFilter": {
+    "type": "PRESET",
+    "preset": {
+     "name": "TCP_UDP"
+    }
+   }
+  },
+  "loggingEnabled": false,
+  "reportFlowEnabled": true,
+  "metadata": {
+   "origin": "origin-0002"
+  }
+ }
+}

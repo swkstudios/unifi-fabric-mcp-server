@@ -1,0 +1,173 @@
+name: Install examples
+
+on:
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_rehearsal:
+        description: Run macOS and Windows install rehearsals too
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Build local artifacts and install only smoke tooling
+        run: |
+          python -m venv "$RUNNER_TEMP/install-tooling"
+          # Exact versions and hashes, wheels only (test_install_smoke_execution imports yaml).
+          "$RUNNER_TEMP/install-tooling/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+          python -m venv "$RUNNER_TEMP/install-build"
+          BUILD_BIN="$RUNNER_TEMP/install-build/bin"
+          if [ -d "$RUNNER_TEMP/install-build/Scripts" ]; then
+            BUILD_BIN="$RUNNER_TEMP/install-build/Scripts"
+          fi
+          "$BUILD_BIN/python" -m pip install --require-hashes --only-binary :all: -r .github/install-build-requirements.txt
+          "$BUILD_BIN/python" -m build --no-isolation --outdir .install-dist
+      - name: Validate case extraction and mutation tests
+        run: |
+          "$RUNNER_TEMP/install-tooling/bin/python" scripts/extract_install_cases.py --out install-cases.json
+          "$RUNNER_TEMP/install-tooling/bin/python" -m pytest --noconftest -q -n 2 --max-worker-restart=0 tests/test_install_cases_extracted.py tests/test_install_cases.py tests/test_install_smoke_execution.py tests/test_install_smoke_docker.py tests/test_doc_provenance.py
+      - name: Execute non-Docker install paths
+        run: |
+          export PATH="$RUNNER_TEMP/install-tooling/bin:$PATH"
+          python scripts/install_smoke.py --wheel .install-dist/*.whl --sdist .install-dist/*.tar.gz --out install-results.json --skip-docker
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: install-linux
+          include-hidden-files: true
+          path: |
+            install-cases.json
+            install-results.json
+            .install-diagnostics/
+      - name: Remove task-owned tooling
+        if: always()
+        run: |
+          INSTALL_BUILD="$RUNNER_TEMP/install-build"
+          rm -rf -- "${INSTALL_BUILD:?}"
+          INSTALL_WORK="$RUNNER_TEMP/install-tooling"
+          rm -rf -- "${INSTALL_WORK:?}"
+          INSTALL_DIST="$PWD/.install-dist"
+          rm -rf -- "${INSTALL_DIST:?}"
+
+  linux-docker:
+    # Docker execution is limited to a protected manual ref or a published release.
+    if: >-
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && github.ref_protected)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Build local artifacts and install only smoke tooling
+        run: |
+          python -m venv "$RUNNER_TEMP/install-tooling"
+          "$RUNNER_TEMP/install-tooling/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+          python -m venv "$RUNNER_TEMP/install-build"
+          BUILD_BIN="$RUNNER_TEMP/install-build/bin"
+          if [ -d "$RUNNER_TEMP/install-build/Scripts" ]; then
+            BUILD_BIN="$RUNNER_TEMP/install-build/Scripts"
+          fi
+          "$BUILD_BIN/python" -m pip install --require-hashes --only-binary :all: -r .github/install-build-requirements.txt
+          "$BUILD_BIN/python" -m build --no-isolation --outdir .install-dist
+      - name: Execute every install path including local-wheel Docker
+        run: |
+          export PATH="$RUNNER_TEMP/install-tooling/bin:$PATH"
+          python scripts/install_smoke.py --wheel .install-dist/*.whl --sdist .install-dist/*.tar.gz --out install-results.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: install-linux-docker
+          include-hidden-files: true
+          path: |
+            install-results.json
+            .install-diagnostics/
+      - name: Remove task-owned tooling
+        if: always()
+        run: |
+          INSTALL_BUILD="$RUNNER_TEMP/install-build"
+          rm -rf -- "${INSTALL_BUILD:?}"
+          INSTALL_WORK="$RUNNER_TEMP/install-tooling"
+          rm -rf -- "${INSTALL_WORK:?}"
+          INSTALL_DIST="$PWD/.install-dist"
+          rm -rf -- "${INSTALL_DIST:?}"
+
+  release-rehearsal:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_rehearsal
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Build local wheel and source archive
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/install-tooling"
+          TOOL_BIN="$RUNNER_TEMP/install-tooling/bin"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            TOOL_BIN="$RUNNER_TEMP/install-tooling/Scripts"
+          fi
+          "$TOOL_BIN/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+          python -m venv "$RUNNER_TEMP/install-build"
+          BUILD_BIN="$RUNNER_TEMP/install-build/bin"
+          if [ -d "$RUNNER_TEMP/install-build/Scripts" ]; then
+            BUILD_BIN="$RUNNER_TEMP/install-build/Scripts"
+          fi
+          "$BUILD_BIN/python" -m pip install --require-hashes --only-binary :all: -r .github/install-build-requirements.txt
+          "$BUILD_BIN/python" -m build --no-isolation --outdir .install-dist
+      - name: Execute platform install rehearsal (Docker stays on Linux)
+        shell: bash
+        run: |
+          TOOL_BIN="$RUNNER_TEMP/install-tooling/bin"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            TOOL_BIN="$RUNNER_TEMP/install-tooling/Scripts"
+          fi
+          export PATH="$TOOL_BIN:$PATH"
+          python scripts/install_smoke.py --wheel .install-dist/*.whl --sdist .install-dist/*.tar.gz --out install-results.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: install-${{ matrix.os }}
+          path: install-results.json
+      - name: Remove task-owned tooling
+        if: always()
+        shell: bash
+        run: |
+          INSTALL_BUILD="$RUNNER_TEMP/install-build"
+          rm -rf -- "${INSTALL_BUILD:?}"
+          INSTALL_WORK="$RUNNER_TEMP/install-tooling"
+          rm -rf -- "${INSTALL_WORK:?}"
+          INSTALL_DIST="$PWD/.install-dist"
+          rm -rf -- "${INSTALL_DIST:?}"

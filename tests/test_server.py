@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,12 +55,43 @@ class TestRequire:
         assert registry is mock_registry
 
 
+class TestPlacementSnapshotNoWriteFence:
+    """The GET-only placement collector runs under every connector-write setting: no
+    refusal gate; writes are on by default."""
+
+    @pytest.mark.parametrize("write_enabled", [True, False])
+    async def test_uses_snapshot_collector_whatever_the_write_setting(self, write_enabled):
+        client = MagicMock()
+        registry = MagicMock()
+        expected = {"schema_version": "unifi.placement-snapshot/v1"}
+        with (
+            patch(
+                "unifi_fabric.server.get_settings",
+                return_value=SimpleNamespace(enable_connector_write=write_enabled),
+            ),
+            patch("unifi_fabric.server._require", return_value=(client, registry)),
+            patch(
+                "unifi_fabric.server.placement_snapshot.get_unifi_placement_snapshot",
+                AsyncMock(return_value=expected),
+            ) as collector,
+        ):
+            assert await server.get_unifi_placement_snapshot("HQ-Unifi") == expected
+        collector.assert_awaited_once_with(client, registry, "HQ-Unifi")
+
+
 # ---------------------------------------------------------------------------
 # lifespan()
 # ---------------------------------------------------------------------------
 
 
 class TestLifespan:
+    @staticmethod
+    def _lifespan_app() -> MagicMock:
+        """Minimal FastMCP double for the lifecycle's discovery-mode setup."""
+        app = MagicMock()
+        app.list_tools = AsyncMock(return_value=[])
+        return app
+
     def setup_method(self):
         self._orig_client = server_module._client
         self._orig_registry = server_module._registry
@@ -80,7 +112,7 @@ class TestLifespan:
             patch("unifi_fabric.server.UniFiClient", return_value=mock_client) as mock_client_cls,
             patch("unifi_fabric.server.Registry", return_value=mock_registry) as mock_registry_cls,
         ):
-            async with server.lifespan(MagicMock()):
+            async with server.lifespan(self._lifespan_app()):
                 assert server_module._client is mock_client
                 assert server_module._registry is mock_registry
                 mock_client_cls.assert_called_once()
@@ -99,7 +131,7 @@ class TestLifespan:
             patch("unifi_fabric.server.UniFiClient", return_value=mock_client),
             patch("unifi_fabric.server.Registry", return_value=MagicMock()),
         ):
-            async with server.lifespan(MagicMock()):
+            async with server.lifespan(self._lifespan_app()):
                 pass  # inside context
 
         assert server_module._client is None
@@ -117,9 +149,42 @@ class TestLifespan:
             patch("unifi_fabric.server.UniFiClient", return_value=mock_client),
             patch("unifi_fabric.server.Registry", return_value=MagicMock()),
         ):
-            async with server.lifespan(MagicMock()):
+            async with server.lifespan(self._lifespan_app()):
                 pass
 
+        mock_client.close.assert_awaited_once()
+
+    @pytest.mark.parametrize("body_error", [False, True])
+    async def test_closes_oauth_jwks_client_on_exit(self, body_error, monkeypatch):
+        from unifi_fabric.config import MCPTransportSettings
+
+        monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
+        auth = server.build_auth(
+            MCPTransportSettings(
+                auth_mode="oauth",
+                oauth_issuer="https://issuer.example/",
+                oauth_jwks_uri="https://issuer.example/jwks",
+                oauth_audience="https://resource.example/",
+                oauth_base_url="https://resource.example/",
+            )
+        )
+        jwks_client = auth.token_verifier._http_client
+        app = self._lifespan_app()
+        app.auth = auth
+        mock_client = AsyncMock()
+        with (
+            patch("unifi_fabric.config.Settings.get_key_configs", return_value=[{"key": "test"}]),
+            patch("unifi_fabric.server.UniFiClient", return_value=mock_client),
+            patch("unifi_fabric.server.Registry", return_value=MagicMock()),
+        ):
+            try:
+                async with server.lifespan(app):
+                    assert not jwks_client.is_closed
+                    if body_error:
+                        raise ValueError("synthetic lifecycle failure")
+            except ValueError:
+                assert body_error
+        assert jwks_client.is_closed
         mock_client.close.assert_awaited_once()
 
     async def test_clears_globals_even_on_error(self):
@@ -134,7 +199,7 @@ class TestLifespan:
             patch("unifi_fabric.server.Registry", return_value=MagicMock()),
         ):
             with pytest.raises(ValueError):
-                async with server.lifespan(MagicMock()):
+                async with server.lifespan(self._lifespan_app()):
                     raise ValueError("boom")
 
         assert server_module._client is None
@@ -147,7 +212,8 @@ class TestLifespan:
 
 
 class TestMain:
-    def test_main_calls_mcp_run(self):
+    def test_main_calls_mcp_run(self, monkeypatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "synthetic-test-key")
         with patch.object(server_module.mcp, "run") as mock_run:
             server.main()
             mock_run.assert_called_once_with()
@@ -190,7 +256,9 @@ class TestListHostsWrapper:
             mock_fn.return_value = expected
             result = await server.list_hosts(page_token="tok")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, page_token="tok")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, page_token="tok", page_size=None, key_label=None
+        )
         assert result is expected
 
 
@@ -217,7 +285,9 @@ class TestListSitesWrapper:
             mock_fn.return_value = expected
             result = await server.list_sites(page_token=None)
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, page_token=None)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, page_token=None, page_size=None, key_label=None
+        )
         assert result is expected
 
 
@@ -233,7 +303,9 @@ class TestGetIspMetricsWrapper:
             result = await server.get_isp_metrics("wan")
 
         # get_isp_metrics only uses client, not registry
-        mock_fn.assert_awaited_once_with(mock_client, "wan")
+        mock_fn.assert_awaited_once_with(
+            mock_client, "wan", duration=None, begin_timestamp=None, end_timestamp=None
+        )
         assert result is expected
 
 
@@ -248,7 +320,15 @@ class TestListDevicesWrapper:
             mock_fn.return_value = expected
             result = await server.list_devices(host="h1", page_token="p")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, host="h1", page_token="p")
+        mock_fn.assert_awaited_once_with(
+            mock_client,
+            mock_registry,
+            host="h1",
+            page_token="p",
+            time=None,
+            page_size=None,
+            key_label=None,
+        )
         assert result is expected
 
 
@@ -347,6 +427,14 @@ class TestCreateNetworkWrapper:
         cfg = {"name": "VLAN10", "vlan": 10}
         expected = {"id": "net-new"}
 
+        # networkconf links the created Integration id to its Classic _id; the same body
+        # served for portconf holds no custom-tagged profile, so no D12 warning is added.
+        mock_client.get = AsyncMock(
+            return_value={
+                "meta": {"rc": "ok"},
+                "data": [{"_id": "65f1c0ffee00000000000009", "external_id": "net-new"}],
+            }
+        )
         with patch("unifi_fabric.server.network.create_network", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = expected
             result = await server.create_network("h1", "s1", cfg)
@@ -362,7 +450,10 @@ class TestCreateNetworkWrapper:
 
 class TestQueryIspMetricsWrapper:
     async def test_delegates_with_client_only(self, mock_globals):
-        mock_client, _ = mock_globals
+        mock_client, mock_registry = mock_globals
+        mock_registry.resolve_key_for_host.return_value = None
+        mock_registry.resolve_host_id.return_value = "h1"
+        mock_registry.resolve_ea_site_id.return_value = "s1"
         expected = {"latency": []}
 
         with patch(
@@ -382,8 +473,144 @@ class TestQueryIspMetricsWrapper:
             sites=[{"hostId": "h1", "siteId": "s1"}],
             start_time="2024-01-01T00:00:00Z",
             end_time=None,
+            key=None,
         )
         assert result is expected
+
+    async def test_sites_only_scoping(self, mock_globals):
+        # A raw sites[] hostId given as a console name is resolved to its id, and the
+        # siteId is checked against that console's Site Manager sites before forwarding.
+        mock_client, mock_registry = mock_globals
+        mock_registry.resolve_key_for_host.return_value = None
+        mock_registry.resolve_host_id.return_value = "h9"
+        mock_registry.resolve_ea_site_id.return_value = "s9"
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {"latency": []}
+            await server.query_isp_metrics(
+                "5m",
+                sites=[{"hostId": "my-console", "siteId": "s9", "beginTimestamp": "T0"}],
+            )
+
+        mock_fn.assert_awaited_once_with(
+            mock_client,
+            "5m",
+            sites=[{"hostId": "h9", "siteId": "s9", "beginTimestamp": "T0"}],
+            start_time=None,
+            end_time=None,
+            key=None,
+        )
+        mock_registry.resolve_key_for_host.assert_awaited_once_with("my-console")
+        mock_registry.resolve_host_id.assert_awaited_once_with("my-console", key=None)
+        mock_registry.resolve_ea_site_id.assert_awaited_once_with("s9", host_id="h9", key=None)
+
+    @pytest.mark.parametrize("invalid_selector", ["host", "site"])
+    async def test_all_key_selectors_resolve_before_any_query(self, mock_globals, invalid_selector):
+        _mock_client, registry = mock_globals
+        alpha, beta = SimpleNamespace(label="alpha"), SimpleNamespace(label="beta")
+        registry.resolve_key_for_host.side_effect = [alpha, beta]
+
+        async def resolve_host(value, *, key):
+            if value == "bad-host" and invalid_selector == "host":
+                raise ValueError("Host 'bad-host' not found; valid: alpha-host, beta-host")
+            return value
+
+        async def resolve_site(value, *, host_id, key):
+            if value == "bad-site" and invalid_selector == "site":
+                raise ValueError("Site 'bad-site' not found; valid: Default, Office")
+            return value
+
+        registry.resolve_host_id.side_effect = resolve_host
+        registry.resolve_ea_site_id.side_effect = resolve_site
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as query:
+            with pytest.raises(ValueError, match="not found; valid:"):
+                await server.query_isp_metrics(
+                    "5m",
+                    sites=[
+                        {"hostId": "alpha-host", "siteId": "Office"},
+                        {"hostId": "bad-host", "siteId": "bad-site"},
+                    ],
+                )
+        query.assert_not_awaited()
+
+    async def test_sites_unknown_site_fails_before_the_query(self, mock_globals):
+        _mock_client, mock_registry = mock_globals
+        mock_registry.resolve_key_for_host.return_value = None
+        mock_registry.resolve_host_id.return_value = "h9"
+        mock_registry.resolve_ea_site_id.side_effect = ValueError(
+            "Site 'nope' not found; valid: Default, Office"
+        )
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as mock_fn:
+            with pytest.raises(ValueError, match="valid: Default, Office"):
+                await server.query_isp_metrics("5m", sites=[{"hostId": "h9", "siteId": "nope"}])
+        mock_fn.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "entry", [{"siteId": "s9"}, {"hostId": "h9"}, {"hostId": "", "siteId": "s9"}, "h9"]
+    )
+    async def test_sites_entry_missing_ids_fails_before_the_query(self, mock_globals, entry):
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as mock_fn:
+            with pytest.raises(
+                ValueError,
+                match=r"sites\[0\] needs a (hostId|siteId)|'sites\[0\]\.hostId' must not be empty"
+                r"|sites\[0\] must be a \{hostId, siteId\} object",
+            ):
+                await server.query_isp_metrics("5m", sites=[entry])
+        mock_fn.assert_not_awaited()
+
+    async def test_host_site_only_scoping_resolves(self, mock_globals):
+        # host+site must resolve the siteId via the Site Manager ObjectId resolver
+        # (resolve_ea_site_id), NOT the per-console proxy UUID resolver.
+        mock_client, mock_registry = mock_globals
+        mock_registry.resolve_key_for_host.return_value = None
+        mock_registry.resolve_host_id.return_value = "hid"
+        object_id = "661900ae6aec8f548d49fd54"
+        mock_registry.resolve_ea_site_id.return_value = object_id
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {"latency": []}
+            await server.query_isp_metrics("5m", host="console", site="Office")
+
+        mock_registry.resolve_key_for_host.assert_awaited_once_with("console")
+        mock_registry.resolve_host_id.assert_awaited_once_with("console", key=None)
+        # resolved via /v1/sites ObjectId resolver, scoped to the resolved host + owning key
+        mock_registry.resolve_ea_site_id.assert_awaited_once_with("Office", host_id="hid", key=None)
+        mock_registry.resolve_site_id.assert_not_called()
+        # the ObjectId (not a proxy UUID) is what lands in the request body
+        mock_fn.assert_awaited_once_with(
+            mock_client,
+            "5m",
+            sites=[{"hostId": "hid", "siteId": object_id}],
+            start_time=None,
+            end_time=None,
+            key=None,
+        )
+
+    async def test_host_site_unknown_site_no_upstream_call(self, mock_globals):
+        # unknown site -> resolver fails fast, isp-metrics query is never issued.
+        mock_client, mock_registry = mock_globals
+        mock_registry.resolve_host_id.return_value = "hid"
+        mock_registry.resolve_ea_site_id.side_effect = ValueError(
+            "Site 'Nope' not found; valid: HQ, Branch"
+        )
+        with patch(
+            "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock
+        ) as mock_fn:
+            with pytest.raises(ValueError, match="not found; valid:"):
+                await server.query_isp_metrics("5m", host="console", site="Nope")
+        mock_fn.assert_not_awaited()
+
+    async def test_no_scoping_raises(self, mock_globals):
+        with pytest.raises(ValueError, match="requires scoping"):
+            await server.query_isp_metrics("5m")
 
 
 class TestListSdwanConfigsWrapper:
@@ -397,7 +624,7 @@ class TestListSdwanConfigsWrapper:
             mock_fn.return_value = expected
             result = await server.list_sdwan_configs(page_token="tok")
 
-        mock_fn.assert_awaited_once_with(mock_client, page_token="tok")
+        mock_fn.assert_awaited_once_with(mock_client, page_token="tok", key_label=None)
         assert result is expected
 
 
@@ -502,7 +729,9 @@ class TestGetSiteInventoryWrapper:
             mock_fn.return_value = expected
             result = await server.get_site_inventory("mysite")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "mysite")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "mysite", device_filter=None, client_filter=None
+        )
         assert result is expected
 
 
@@ -539,14 +768,20 @@ class TestUpdateNetworkWrapper:
 
 
 class TestDeleteNetworkWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch("unifi_fabric.server.network.delete_network", new_callable=AsyncMock) as mock_fn:
             result = await server.delete_network("h1", "s1", "net-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "net-1")
-        assert result == "Network net-1 deleted."
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", "net-1", force=None
+        )
+        assert result == {
+            "deleted": True,
+            "message": "Network net-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestListWifiBroadcastsWrapper:
@@ -560,7 +795,9 @@ class TestListWifiBroadcastsWrapper:
             mock_fn.return_value = expected
             result = await server.list_wifi_broadcasts("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", filter=None)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
+        )
         assert result is expected
 
     async def test_forwards_filter_to_network(self, mock_globals):
@@ -571,7 +808,13 @@ class TestListWifiBroadcastsWrapper:
             mock_fn.return_value = {"data": []}
             await server.list_wifi_broadcasts("h1", "s1", filter="enabled.eq(true)")
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", filter="enabled.eq(true)"
+            mock_client,
+            mock_registry,
+            "h1",
+            "s1",
+            offset=None,
+            limit=None,
+            filter="enabled.eq(true)",
         )
 
 
@@ -623,7 +866,7 @@ class TestUpdateWifiBroadcastWrapper:
 
 
 class TestDeleteWifiBroadcastWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -631,8 +874,12 @@ class TestDeleteWifiBroadcastWrapper:
         ) as mock_fn:
             result = await server.delete_wifi_broadcast("h1", "s1", "bc-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "bc-1")
-        assert result == "WiFi broadcast bc-1 deleted."
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "bc-1", force=None)
+        assert result == {
+            "deleted": True,
+            "message": "WiFi broadcast bc-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 @pytest.mark.parametrize(
@@ -700,7 +947,7 @@ class TestListDpiWrappers:
         ) as mock_fn:
             mock_fn.return_value = {"data": [], "totalCount": 0}
             await getattr(server, wrapper_name)("h1")
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", None, None)
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", None, None, filter=None)
 
     @pytest.mark.parametrize(
         ("wrapper_name", "implementation_name"),
@@ -717,7 +964,7 @@ class TestListDpiWrappers:
         ) as mock_fn:
             mock_fn.return_value = {"data": [], "totalCount": 9}
             await getattr(server, wrapper_name)("h1", offset=5, limit=25)
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", 5, 25)
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", 5, 25, filter=None)
 
 
 @pytest.mark.parametrize(
@@ -751,7 +998,9 @@ class TestListWanInterfacesWrapper:
             mock_fn.return_value = expected
             result = await server.list_wan_interfaces("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+        )
         assert result is expected
 
 
@@ -868,7 +1117,7 @@ class TestPatchFirewallPolicyWrapper:
 
 
 class TestDeleteFirewallPolicyWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -877,7 +1126,11 @@ class TestDeleteFirewallPolicyWrapper:
             result = await server.delete_firewall_policy("h1", "s1", "fp-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "fp-1")
-        assert result == "Firewall policy fp-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Firewall policy fp-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestGetFirewallPolicyOrderingWrapper:
@@ -933,7 +1186,7 @@ class TestListFirewallZonesProxyWrapper:
             result = await server.list_firewall_zones_proxy("h1", "s1")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
         )
         assert result is expected
 
@@ -986,7 +1239,7 @@ class TestUpdateFirewallZoneProxyWrapper:
 
 
 class TestDeleteFirewallZoneProxyWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -995,7 +1248,11 @@ class TestDeleteFirewallZoneProxyWrapper:
             result = await server.delete_firewall_zone_proxy("h1", "s1", "z-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "z-1")
-        assert result == "Firewall zone z-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Firewall zone z-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestListAclRulesWrapper:
@@ -1009,7 +1266,9 @@ class TestListAclRulesWrapper:
             mock_fn.return_value = expected
             result = await server.list_acl_rules("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
+        )
         assert result is expected
 
 
@@ -1061,7 +1320,7 @@ class TestUpdateAclRuleWrapper:
 
 
 class TestDeleteAclRuleWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -1070,7 +1329,11 @@ class TestDeleteAclRuleWrapper:
             result = await server.delete_acl_rule("h1", "s1", "acl-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "acl-1")
-        assert result == "ACL rule acl-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "ACL rule acl-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestGetAclRuleOrderingWrapper:
@@ -1122,7 +1385,7 @@ class TestListDnsPoliciesWrapper:
             result = await server.list_dns_policies("h1", "s1")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
         )
         assert result is expected
 
@@ -1177,7 +1440,7 @@ class TestUpdateDnsPolicyWrapper:
 
 
 class TestDeleteDnsPolicyWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -1187,7 +1450,11 @@ class TestDeleteDnsPolicyWrapper:
             result = await server.delete_dns_policy("h1", "s1", "dns-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "dns-1")
-        assert result == "DNS policy dns-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "DNS policy dns-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestListTrafficMatchingListsWrapper:
@@ -1202,7 +1469,9 @@ class TestListTrafficMatchingListsWrapper:
             mock_fn.return_value = expected
             result = await server.list_traffic_matching_lists("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
+        )
         assert result is expected
 
 
@@ -1257,7 +1526,7 @@ class TestUpdateTrafficMatchingListWrapper:
 
 
 class TestDeleteTrafficMatchingListWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -1267,7 +1536,11 @@ class TestDeleteTrafficMatchingListWrapper:
             result = await server.delete_traffic_matching_list("h1", "s1", "tl-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "tl-1")
-        assert result == "Traffic matching list tl-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Traffic matching list tl-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestListVpnServersWrapper:
@@ -1283,7 +1556,7 @@ class TestListVpnServersWrapper:
             result = await server.list_vpn_servers("h1", "s1")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
         )
         assert result is expected
 
@@ -1300,7 +1573,9 @@ class TestListSiteToSiteTunnelsWrapper:
             mock_fn.return_value = expected
             result = await server.list_site_to_site_tunnels("h1", "s1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
+        )
         assert result is expected
 
 
@@ -1317,7 +1592,7 @@ class TestListRadiusProfilesWrapper:
             result = await server.list_radius_profiles("h1", "s1")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
         )
         assert result is expected
 
@@ -1335,7 +1610,7 @@ class TestListHotspotVouchersWrapper:
             result = await server.list_hotspot_vouchers("h1", "s1")
 
         mock_fn.assert_awaited_once_with(
-            mock_client, mock_registry, "h1", "s1", offset=None, limit=None
+            mock_client, mock_registry, "h1", "s1", offset=None, limit=None, filter=None
         )
         assert result is expected
 
@@ -1374,7 +1649,7 @@ class TestGetHotspotVoucherWrapper:
 
 
 class TestDeleteHotspotVoucherWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -1384,11 +1659,15 @@ class TestDeleteHotspotVoucherWrapper:
             result = await server.delete_hotspot_voucher("h1", "s1", "v-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "v-1")
-        assert result == "Hotspot voucher v-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Hotspot voucher v-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestBulkDeleteHotspotVouchersWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
         fp = {"expired": True}
 
@@ -1396,10 +1675,14 @@ class TestBulkDeleteHotspotVouchersWrapper:
             "unifi_fabric.server.network_services_proxy.bulk_delete_hotspot_vouchers",
             new_callable=AsyncMock,
         ) as mock_fn:
-            result = await server.bulk_delete_hotspot_vouchers("h1", "s1", fp)
+            result = await server.bulk_delete_hotspot_vouchers("h1", "s1", fp, confirm=True)
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", fp)
-        assert result == "Hotspot vouchers deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Hotspot vouchers deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestListDeviceTagsWrapper:
@@ -1430,7 +1713,9 @@ class TestListCountriesWrapper:
             mock_fn.return_value = expected
             result = await server.list_countries("h1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1")
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", offset=None, limit=None, filter=None
+        )
         assert result is expected
 
 
@@ -1483,7 +1768,7 @@ class TestUpdateCameraWrapper:
 class TestGetCameraSnapshotWrapper:
     async def test_delegates_to_protect(self, mock_globals):
         mock_client, mock_registry = mock_globals
-        expected = {"url": "https://example.com/snap.jpg"}
+        expected = {"image_base64": "dW5pdA==", "content_type": "image/jpeg", "size_bytes": 4}
 
         with patch(
             "unifi_fabric.server.protect.get_camera_snapshot", new_callable=AsyncMock
@@ -1491,8 +1776,11 @@ class TestGetCameraSnapshotWrapper:
             mock_fn.return_value = expected
             result = await server.get_camera_snapshot("h1", "cam-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1")
-        assert result is expected
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "cam-1", channel=None, high_quality=None, ts=None
+        )
+        assert result.structured_content == expected
+        assert result.content[0].type == "image"
 
 
 class TestGetRtspsStreamWrapper:
@@ -1527,7 +1815,7 @@ class TestCreateRtspsStreamWrapper:
 
 
 class TestDeleteRtspsStreamWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
         qualities = ["HIGHEST", "HIGH"]
 
@@ -1537,7 +1825,11 @@ class TestDeleteRtspsStreamWrapper:
             result = await server.delete_rtsps_stream("h1", "cam-1", qualities)
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", qualities)
-        assert result == "RTSPS stream for camera cam-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "RTSPS stream for camera cam-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 class TestStartTalkbackSessionWrapper:
@@ -1549,7 +1841,7 @@ class TestStartTalkbackSessionWrapper:
             mock_fn.return_value = expected
             result = await server.start_talkback_session("h1", "cam-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", confirm=False)
         assert result is expected
 
 
@@ -1564,7 +1856,7 @@ class TestDisableCameraMicPermanentlyWrapper:
             mock_fn.return_value = expected
             result = await server.disable_camera_mic_permanently("h1", "cam-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", confirm=False)
         assert result is expected
 
 
@@ -1577,7 +1869,9 @@ class TestPtzGotoPresetWrapper:
             mock_fn.return_value = expected
             result = await server.ptz_goto_preset("h1", "cam-1", 3)
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", 3)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "cam-1", 3, confirm=False
+        )
         assert result is expected
 
 
@@ -1592,7 +1886,9 @@ class TestPtzPatrolStartWrapper:
             mock_fn.return_value = expected
             result = await server.ptz_patrol_start("h1", "cam-1", 2)
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", 2)
+        mock_fn.assert_awaited_once_with(
+            mock_client, mock_registry, "h1", "cam-1", 2, confirm=False
+        )
         assert result is expected
 
 
@@ -1607,7 +1903,7 @@ class TestPtzPatrolStopWrapper:
             mock_fn.return_value = expected
             result = await server.ptz_patrol_stop("h1", "cam-1")
 
-        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "cam-1", confirm=False)
         assert result is expected
 
 
@@ -1867,9 +2163,18 @@ class TestTriggerAlarmWebhookWrapper:
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "wh-1")
         assert result is expected
 
-    async def test_returns_not_triggered_without_confirm(self, mock_globals):
-        result = await server.trigger_alarm_webhook("h1", "wh-1")
-        assert result["status"] == "not_triggered"
+    async def test_delegates_to_protect_without_confirm(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        expected = {"status": "triggered"}
+
+        with patch(
+            "unifi_fabric.server.protect.trigger_alarm_webhook", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = expected
+            result = await server.trigger_alarm_webhook("h1", "wh-1")
+
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "wh-1")
+        assert result is expected
 
 
 # ---------------------------------------------------------------------------
@@ -1927,7 +2232,7 @@ class TestUpdatePortForwardWrapper:
 
 
 class TestDeletePortForwardWrapper:
-    async def test_returns_string_and_delegates(self, mock_globals):
+    async def test_returns_deletion_result_and_delegates(self, mock_globals):
         mock_client, mock_registry = mock_globals
 
         with patch(
@@ -1937,7 +2242,11 @@ class TestDeletePortForwardWrapper:
             result = await server.delete_port_forward("h1", "s1", "pf-1")
 
         mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "s1", "pf-1")
-        assert result == "Port forward pf-1 deleted."
+        assert result == {
+            "deleted": True,
+            "message": "Port forward pf-1 deleted.",
+            "response": mock_fn.return_value,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1945,21 +2254,28 @@ class TestDeletePortForwardWrapper:
 # ---------------------------------------------------------------------------
 
 
-class TestTriggerAlarmWebhookConfirmGate:
-    async def test_without_confirm_returns_not_triggered(self, mock_globals):
-        result = await server.trigger_alarm_webhook("h1", "wh-1")
-        assert result["status"] == "not_triggered"
-        assert "confirm=True" in result["reason"]
-
-    async def test_confirm_false_does_not_call_api(self, mock_globals):
+class TestTriggerAlarmWebhookNoGate:
+    async def test_without_confirm_calls_api(self, mock_globals):
         mock_client, mock_registry = mock_globals
         with patch(
             "unifi_fabric.server.protect.trigger_alarm_webhook",
             new_callable=AsyncMock,
+            return_value={"status": "triggered"},
+        ) as mock_fn:
+            result = await server.trigger_alarm_webhook("h1", "wh-1")
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "wh-1")
+        assert result["status"] == "triggered"
+
+    async def test_confirm_false_still_calls_api(self, mock_globals):
+        mock_client, mock_registry = mock_globals
+        with patch(
+            "unifi_fabric.server.protect.trigger_alarm_webhook",
+            new_callable=AsyncMock,
+            return_value={"status": "triggered"},
         ) as mock_fn:
             result = await server.trigger_alarm_webhook("h1", "wh-1", confirm=False)
-        mock_fn.assert_not_awaited()
-        assert result["status"] == "not_triggered"
+        mock_fn.assert_awaited_once_with(mock_client, mock_registry, "h1", "wh-1")
+        assert result["status"] == "triggered"
 
     async def test_with_confirm_true_calls_api(self, mock_globals):
         mock_client, mock_registry = mock_globals

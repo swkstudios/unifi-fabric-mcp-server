@@ -1,0 +1,34 @@
+{
+  "args": [
+    "recent_series"
+  ],
+  "body": {
+    "code": "api.err.InvalidStatQuery",
+    "errorCode": 400,
+    "message": "failed to parse filter expression: unexpected right-bracket at 1:38"
+  },
+  "kwargs": {
+    "bucket": "OF_5_MINUTES",
+    "end": 1760227200,
+    "filter": "and(deviceMac.eq('02:00:5e:00:53:01'))",
+    "nested_projection": [
+      "byNetworkGroup"
+    ],
+    "period": "DAY",
+    "schema": "wanBySiteByDevice"
+  },
+  "recorded_by_tool": "get_controller_stats",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/stats/recent/series",
+    "query": {
+      "bucket": "bucket-0001",
+      "end": "1791773785000",
+      "filter": "filter-0004",
+      "period": "period-0001",
+      "projection": "projection-0001",
+      "schema": "schema-0002"
+    }
+  },
+  "status": 400
+}

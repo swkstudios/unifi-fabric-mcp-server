@@ -1,0 +1,14 @@
+{
+  "recorded_by_tool": "paging-probe",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/matter/nodes",
+    "query": {
+      "offset": 1,
+      "limit": 1
+    }
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": []
+}

@@ -70,11 +70,13 @@ class TestNetworkProxyUuidContract:
     @pytest.mark.asyncio
     async def test_list_networks_uuid_reaches_api(self):
         client = _make_client()
-        # Default drains via paginate_offset; assert the UUID reaches that call.
-        client.paginate_offset = AsyncMock(return_value=[])
+        # Default drain fetches bounded GET pages; assert the UUID reaches the request.
+        client.get.return_value = {"data": [], "totalCount": 0}
         registry = _make_registry()
         await network.list_networks(client, registry, "myhost", "mysite")
-        url = client.paginate_offset.call_args[0][0]
+        client.get.assert_awaited_once()
+        url = client.get.call_args.args[0]
+        assert client.get.call_args.kwargs["params"] == {"limit": 200, "offset": 0}
         assert _VALID_UUID in url
 
     @pytest.mark.asyncio
@@ -108,7 +110,7 @@ class TestNetworkProxyUuidContract:
         client = _make_client()
         registry = _make_registry_raises_objectid()
         with pytest.raises(ValueError, match="not a UUID"):
-            await network.update_network(client, registry, "h", "s", "net-1", {})
+            await network.update_network(client, registry, "h", "s", "net-1", {"name": "renamed"})
         client.put.assert_not_called()
 
     @pytest.mark.asyncio
@@ -145,11 +147,13 @@ class TestNetworkServicesProxyUuidContract:
     @pytest.mark.asyncio
     async def test_list_dns_policies_uuid_reaches_api(self):
         client = _make_client()
-        # Default drains via paginate_offset; assert the UUID reaches that call.
-        client.paginate_offset = AsyncMock(return_value=[])
+        # Default drain fetches bounded GET pages; assert the UUID reaches the request.
+        client.get.return_value = {"data": [], "totalCount": 0}
         registry = _make_registry()
         await network_services_proxy.list_dns_policies(client, registry, "h", "s")
-        url = client.paginate_offset.call_args[0][0]
+        client.get.assert_awaited_once()
+        url = client.get.call_args.args[0]
+        assert client.get.call_args.kwargs["params"] == {"limit": 200, "offset": 0}
         assert _VALID_UUID in url
 
     @pytest.mark.asyncio
@@ -202,11 +206,13 @@ class TestFirewallProxyUuidContract:
     @pytest.mark.asyncio
     async def test_list_firewall_policies_uuid_reaches_api(self):
         client = _make_client()
-        # Default drains via paginate_offset; assert the UUID reaches that call.
-        client.paginate_offset = AsyncMock(return_value=[])
+        # Default drain fetches bounded GET pages; assert the UUID reaches the request.
+        client.get.return_value = {"data": [], "totalCount": 0}
         registry = _make_registry()
         await firewall_proxy.list_firewall_policies(client, registry, "h", "s")
-        url = client.paginate_offset.call_args[0][0]
+        client.get.assert_awaited_once()
+        url = client.get.call_args.args[0]
+        assert client.get.call_args.kwargs["params"] == {"limit": 200, "offset": 0}
         assert _VALID_UUID in url
 
     @pytest.mark.asyncio
@@ -241,11 +247,11 @@ class TestFirewallProxyUuidContract:
         # site-UUID contract check that this test is about.
         policy = {
             "name": "P",
-            "action": {"type": "DENY"},
+            "action": {"type": "BLOCK"},
             "enabled": True,
             "source": {"zoneId": "z1"},
             "destination": {"zoneId": "z2"},
-            "ipProtocolScope": {"ipVersion": "BOTH"},
+            "ipProtocolScope": {"ipVersion": "IPV4_AND_IPV6"},
             "loggingEnabled": False,
         }
         with pytest.raises(ValueError, match="not a UUID"):
@@ -286,48 +292,63 @@ class TestHotspotUuidContract:
 
 
 # ---------------------------------------------------------------------------
-# vpn.py (per-console proxy endpoints — resolve_site_id + _assert_uuid)
+# vpn.py writes (Classic REST networkconf / radiusprofile — resolve_site_slug)
 # ---------------------------------------------------------------------------
 
 
-class TestVpnUuidContract:
-    @pytest.mark.asyncio
-    async def test_create_vpn_server_uuid_resolves(self):
-        client = _make_client()
-        client.post.return_value = {"data": {"id": "vpn-1"}}
+class TestVpnClassicContract:
+    """VPN-server and RADIUS writes use Classic REST networkconf/radiusprofile (site slug).
+
+    The Integration POST/PUT/DELETE routes for VPN servers and RADIUS profiles are not
+    served on Network 11.0.81 (405 / 404 "No endpoint"); the controller UI writes them
+    through Classic REST, addressed by the site slug, never the Integration site UUID.
+    """
+
+    _NETWORKCONF = {
+        "meta": {"rc": "ok"},
+        "data": [{"_id": "c-1", "external_id": "vpn-1", "purpose": "remote-user-vpn"}],
+    }
+
+    @staticmethod
+    def _registry() -> AsyncMock:
         registry = _make_registry()
+        registry.resolve_site_slug = AsyncMock(return_value="default")
+        return registry
+
+    @pytest.mark.asyncio
+    async def test_create_vpn_server_uses_site_slug(self):
+        client = _make_client()
+        registry = self._registry()
         await vpn._create_vpn_server(client, registry, "myhost", "mysite", "my-vpn", "wireguard")
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_id.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_vpn_server_uuid_resolves(self):
+    async def test_update_vpn_server_uses_site_slug(self):
         client = _make_client()
-        client.put.return_value = {"data": {"id": "vpn-1"}}
-        registry = _make_registry()
-        await vpn._update_vpn_server(client, registry, "myhost", "mysite", "vpn-1", enabled=False)
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
+        client.get.return_value = self._NETWORKCONF
+        registry = self._registry()
+        await vpn._update_vpn_server(
+            client, registry, "myhost", "mysite", "vpn-1", {"enabled": False}
+        )
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_id.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_vpn_server_uuid_resolves(self):
+    async def test_delete_vpn_server_uses_site_slug(self):
         client = _make_client()
-        registry = _make_registry()
+        client.get.return_value = self._NETWORKCONF
+        registry = self._registry()
         await vpn._delete_vpn_server(client, registry, "myhost", "mysite", "vpn-1")
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_id.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_vpn_server_objectid_raises(self):
+    async def test_create_radius_profile_uses_site_slug(self):
         client = _make_client()
-        registry = _make_registry_raises_objectid()
-        with pytest.raises(ValueError):
-            await vpn._update_vpn_server(client, registry, "h", "s", "vpn-1", enabled=False)
-        client.put.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_create_radius_profile_uuid_resolves(self):
-        client = _make_client()
-        client.post.return_value = {"data": {}}
-        registry = _make_registry()
+        registry = self._registry()
         await vpn._create_radius_profile(
             client, registry, "myhost", "mysite", "profile", "1.2.3.4", 1812, "secret"
         )
-        registry.resolve_site_id.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_slug.assert_called_once_with("mysite", _HOST_ID, key=None)
+        registry.resolve_site_id.assert_not_called()

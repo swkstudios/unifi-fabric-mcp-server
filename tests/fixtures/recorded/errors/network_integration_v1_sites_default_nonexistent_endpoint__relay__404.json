@@ -1,0 +1,18 @@
+{
+ "recorded_by_tool": "fabric_connector_get",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/default/nonexistent-endpoint",
+  "query": {}
+ },
+ "status": 404,
+ "content_type": "application/json",
+ "body": {
+  "statusCode": 404,
+  "statusName": "NOT_FOUND",
+  "code": "api.request.error",
+  "message": "No endpoint GET /integration/v1/sites/default/nonexistent-endpoint.",
+  "timestamp": "2026-10-09T19:53:55.971100609Z",
+  "requestPath": "requestPath-0003"
+ }
+}

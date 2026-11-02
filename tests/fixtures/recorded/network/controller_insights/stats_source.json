@@ -1,0 +1,14 @@
+{
+  "args": [
+    "source"
+  ],
+  "body": "body-0001",
+  "kwargs": {},
+  "recorded_by_tool": "get_controller_stats",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/stats/source",
+    "query": {}
+  },
+  "status": 200
+}

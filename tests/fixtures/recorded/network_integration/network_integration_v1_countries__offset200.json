@@ -1,0 +1,213 @@
+{
+ "recorded_by_tool": "list_countries",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/countries",
+  "query": {
+   "offset": "200",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 200,
+  "limit": 200,
+  "count": 48,
+  "totalCount": 248,
+  "data": [
+   {
+    "code": "SL",
+    "name": "name-0440"
+   },
+   {
+    "code": "SM",
+    "name": "name-0441"
+   },
+   {
+    "code": "SN",
+    "name": "name-0442"
+   },
+   {
+    "code": "SO",
+    "name": "name-0443"
+   },
+   {
+    "code": "SR",
+    "name": "name-0444"
+   },
+   {
+    "code": "SS",
+    "name": "name-0445"
+   },
+   {
+    "code": "ST",
+    "name": "name-0446"
+   },
+   {
+    "code": "SV",
+    "name": "name-0447"
+   },
+   {
+    "code": "SX",
+    "name": "name-0448"
+   },
+   {
+    "code": "SY",
+    "name": "name-0449"
+   },
+   {
+    "code": "SZ",
+    "name": "name-0450"
+   },
+   {
+    "code": "TC",
+    "name": "name-0451"
+   },
+   {
+    "code": "TD",
+    "name": "name-0452"
+   },
+   {
+    "code": "TF",
+    "name": "name-0453"
+   },
+   {
+    "code": "TG",
+    "name": "name-0454"
+   },
+   {
+    "code": "TH",
+    "name": "name-0455"
+   },
+   {
+    "code": "TJ",
+    "name": "name-0456"
+   },
+   {
+    "code": "TK",
+    "name": "name-0457"
+   },
+   {
+    "code": "TL",
+    "name": "name-0458"
+   },
+   {
+    "code": "TM",
+    "name": "name-0459"
+   },
+   {
+    "code": "TN",
+    "name": "name-0460"
+   },
+   {
+    "code": "TO",
+    "name": "name-0461"
+   },
+   {
+    "code": "TR",
+    "name": "name-0462"
+   },
+   {
+    "code": "TT",
+    "name": "name-0463"
+   },
+   {
+    "code": "TV",
+    "name": "name-0464"
+   },
+   {
+    "code": "TW",
+    "name": "name-0465"
+   },
+   {
+    "code": "TZ",
+    "name": "name-0466"
+   },
+   {
+    "code": "UA",
+    "name": "name-0467"
+   },
+   {
+    "code": "UG",
+    "name": "name-0468"
+   },
+   {
+    "code": "UM",
+    "name": "name-0469"
+   },
+   {
+    "code": "US",
+    "name": "name-0470"
+   },
+   {
+    "code": "UY",
+    "name": "name-0471"
+   },
+   {
+    "code": "UZ",
+    "name": "name-0472"
+   },
+   {
+    "code": "VA",
+    "name": "name-0473"
+   },
+   {
+    "code": "VC",
+    "name": "name-0474"
+   },
+   {
+    "code": "VE",
+    "name": "name-0475"
+   },
+   {
+    "code": "VG",
+    "name": "name-0476"
+   },
+   {
+    "code": "VI",
+    "name": "name-0477"
+   },
+   {
+    "code": "VN",
+    "name": "name-0478"
+   },
+   {
+    "code": "VU",
+    "name": "name-0479"
+   },
+   {
+    "code": "WF",
+    "name": "name-0480"
+   },
+   {
+    "code": "WS",
+    "name": "name-0481"
+   },
+   {
+    "code": "XK",
+    "name": "name-0482"
+   },
+   {
+    "code": "YE",
+    "name": "name-0483"
+   },
+   {
+    "code": "YT",
+    "name": "name-0484"
+   },
+   {
+    "code": "ZA",
+    "name": "name-0485"
+   },
+   {
+    "code": "ZM",
+    "name": "name-0486"
+   },
+   {
+    "code": "ZW",
+    "name": "name-0487"
+   }
+  ]
+ }
+}

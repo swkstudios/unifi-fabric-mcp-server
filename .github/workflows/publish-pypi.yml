@@ -1,0 +1,213 @@
+name: Publish to PyPI
+
+# PyPI publishing through PyPI Trusted Publishing (OIDC): no API token or password exists
+# anywhere. The publisher is registered on PyPI for owner swkstudios, repository
+# unifi-fabric-mcp-server, workflow publish-pypi.yml and environment pypi-upload; a
+# pending publisher creates the project on the first upload.
+#
+# NEVER dispatch this with upload=true from any other repository or copy of this tree:
+# the upload job is guarded to swkstudios/unifi-fabric-mcp-server, Trusted Publishing is
+# registered for that repository only, and a PyPI upload is immutable.
+#
+# Triggers:
+# - release (published): a published (not draft) GitHub Release uploads that release.
+#   The build checks out the release's tag, never a branch head.
+# - workflow_dispatch: a manual re-run. The default (upload=false) is a dry run: build +
+#   `twine check --strict` only. upload=true uploads only when dispatched on a release
+#   tag (`gh workflow run publish-pypi.yml --ref vX.Y.Z -f upload=true`).
+#
+# The same build job also packs the Claude Desktop bundle (plugins/claude-desktop, with a
+# pinned @anthropic-ai/mcpb), validates it, and the release-asset job attaches it to the
+# GitHub release as unifi-fabric-<version>.mcpb. No secret is involved: the asset upload
+# uses the job's own GITHUB_TOKEN with contents: write, on the public repository only.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to PyPI (false = build + twine check --strict only); dispatch on a vX.Y.Z tag"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: pypi-upload
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # A release builds its own tag, never a branch head.
+          ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || github.ref }}
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/publish-pypi-requirements.txt
+
+      - name: Install build tooling
+        # Build, twine and hatchling (and every dependency) are installed by exact version
+        # AND hash from a committed lock, wheels only: an unpinned install would build the
+        # published artifact with whatever PyPI serves next. Regenerate the lock as its
+        # header describes.
+        run: |
+          pip install --require-hashes --only-binary :all: \
+            -r .github/publish-pypi-requirements.txt
+
+      # PyPI renders the long description outside the repository: make README.md's
+      # relative links and banner absolute (main branch) in this build workspace only.
+      - name: Absolute links in the PyPI long description
+        run: |
+          python scripts/pypi_readme.py README.md
+          python scripts/pypi_readme.py --check README.md
+
+      - name: Build sdist and wheel
+        # --no-isolation: build with the hash-pinned hatchling installed above; an isolated
+        # build would fetch the backend from PyPI unpinned.
+        run: python -m build --no-isolation
+
+      - name: Validate artifacts (twine check --strict)
+        run: twine check --strict dist/*
+
+      - name: Tag matches the package version
+        # On a tag (a release, or a dispatch on a tag) the built version must be the tag's.
+        if: github.ref_type == 'tag' || github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+        run: |
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [ "v${VERSION}" != "${RELEASE_TAG}" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match the package version ${VERSION}."
+            exit 1
+          fi
+          compgen -G "dist/*-${VERSION}*" >/dev/null
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+      # Claude Desktop bundle. Built OUTSIDE dist/ so the PyPI upload never sees it.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Pack and validate the Claude Desktop bundle (.mcpb)
+        env:
+          MCPB: "@anthropic-ai/mcpb@2.1.2"
+        run: |
+          set -euo pipefail
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          MANIFEST_VERSION="$(python -c 'import json; print(json.load(open("plugins/claude-desktop/manifest.json"))["version"])')"
+          if [ "${MANIFEST_VERSION}" != "${VERSION}" ]; then
+            echo "::error::plugins/claude-desktop/manifest.json version ${MANIFEST_VERSION} != ${VERSION}"
+            exit 1
+          fi
+          npx --yes "${MCPB}" validate plugins/claude-desktop/manifest.json
+          mkdir -p mcpb
+          npx --yes "${MCPB}" pack plugins/claude-desktop "mcpb/unifi-fabric-${VERSION}.mcpb"
+          # The bundle carries exactly the manifest and README, manifest unchanged.
+          python - "mcpb/unifi-fabric-${VERSION}.mcpb" <<'PY'
+          import json, sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as bundle:
+              names = sorted(bundle.namelist())
+              packed = json.loads(bundle.read("manifest.json"))
+          assert names == ["README.md", "manifest.json"], names
+          assert packed == json.load(open("plugins/claude-desktop/manifest.json")), "manifest changed"
+          PY
+          sha256sum "mcpb/unifi-fabric-${VERSION}.mcpb"
+
+      - name: Scan the packed Claude Desktop bundle for secrets
+        run: |
+          set -euo pipefail
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          scan_dir="$(mktemp -d)"
+          trap 'rm -rf -- "${scan_dir:?}"' EXIT
+          curl -fsSL -o "${scan_dir}/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${scan_dir}/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "${scan_dir}/gitleaks.tar.gz" -C "${scan_dir}" gitleaks
+          mkdir "${scan_dir}/contents"
+          python -m zipfile -e "mcpb/unifi-fabric-${VERSION}.mcpb" "${scan_dir}/contents"
+          "${scan_dir}/gitleaks" detect --no-git --source "${scan_dir}/contents" --redact --exit-code 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mcpb
+          path: mcpb/
+          if-no-files-found: error
+
+  release-asset:
+    # Attaches the bundle to the release it was built from. Public repository only, on a
+    # published release or an upload=true dispatch on a vX.Y.Z tag (the upload job's
+    # guard). Idempotent: --clobber replaces a same-name asset from an earlier run, and
+    # the attached file is downloaded back and compared byte for byte.
+    if: >-
+      github.repository == 'swkstudios/unifi-fabric-mcp-server'
+      && (github.event_name == 'release'
+          || (github.event_name == 'workflow_dispatch'
+              && inputs.upload
+              && github.ref_type == 'tag'
+              && startsWith(github.ref_name, 'v')))
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mcpb
+          path: mcpb/
+      - name: Attach unifi-fabric-<version>.mcpb to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          ASSET="mcpb/unifi-fabric-${RELEASE_TAG#v}.mcpb"
+          test -s "${ASSET}"
+          gh release upload "${RELEASE_TAG}" "${ASSET}" --clobber --repo "${GITHUB_REPOSITORY}"
+          mkdir -p attached
+          gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "$(basename "${ASSET}")" --dir attached --clobber
+          cmp "${ASSET}" "attached/$(basename "${ASSET}")"
+          echo "attached $(basename "${ASSET}") to ${RELEASE_TAG}"
+
+  upload:
+    # Public repository only, and only from a release tag: the published release, or a
+    # dispatch with upload=true on a vX.Y.Z tag. Never on the private repository.
+    if: >-
+      github.repository == 'swkstudios/unifi-fabric-mcp-server'
+      && (github.event_name == 'release'
+          || (github.event_name == 'workflow_dispatch'
+              && inputs.upload
+              && github.ref_type == 'tag'
+              && startsWith(github.ref_name, 'v')))
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi-upload
+    permissions:
+      # OIDC: the job's identity token is exchanged for a short-lived PyPI upload token.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

@@ -1,0 +1,62 @@
+{
+  "name": "unifi-fabric",
+  "displayName": "UniFi Fabric MCP",
+  "version": "0.7.0",
+  "description": "Runs the open-source UniFi Fabric MCP server on your own machine with your own UniFi Site Manager API key, so Claude Code can read and manage your UniFi sites, devices, clients, firewall, VPN and Protect cameras through Ubiquiti's cloud API (api.ui.com). Not affiliated with Ubiquiti Inc.",
+  "author": {
+    "name": "SWK Studios",
+    "url": "https://github.com/swkstudios"
+  },
+  "homepage": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+  "repository": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "unifi",
+    "network",
+    "site-manager",
+    "protect",
+    "firewall",
+    "mcp"
+  ],
+  "documentationUrl": "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/main/plugins/claude/README.md",
+  "supportUrl": "https://github.com/swkstudios/unifi-fabric-mcp-server/issues",
+  "privacyPolicyUrl": "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/main/PRIVACY.md",
+  "userConfig": {
+    "unifi_api_key": {
+      "type": "string",
+      "title": "UniFi Site Manager API key",
+      "description": "Your own UniFi Site Manager API key. Create one at https://unifi.ui.com: choose your organization, open API Keys in the left sidebar, select Create New API Key, enable the Site Manager and Network scopes (add Protect for cameras), and copy the key. Claude Code keeps it in secure credential storage; the server sends it only to api.ui.com.",
+      "sensitive": true,
+      "required": true
+    },
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only mode",
+      "description": "Off by default: read and write tools both work. Turn on to hide every write and action tool and refuse any call to one before anything is sent to UniFi (sets UNIFI_READ_ONLY). Read tools keep working.",
+      "default": false
+    },
+    "tool_mode": {
+      "type": "string",
+      "title": "Tool mode",
+      "description": "discovery (default) advertises five discovery meta-tools; full advertises every selected domain tool. Choose full to keep the previous catalog or for gateways.",
+      "default": "discovery",
+      "required": false
+    }
+  },
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp"
+      ],
+      "env": {
+        "UNIFI_API_KEY": "${user_config.unifi_api_key}",
+        "UNIFI_READ_ONLY": "${user_config.read_only}",
+        "FASTMCP_TRANSPORT": "stdio",
+        "UNIFI_TOOL_MODE": "${user_config.tool_mode}"
+      }
+    }
+  }
+}

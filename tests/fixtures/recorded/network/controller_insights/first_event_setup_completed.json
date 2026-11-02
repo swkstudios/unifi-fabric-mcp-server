@@ -1,0 +1,14 @@
+{
+  "args": [
+    "SETUP_COMPLETED"
+  ],
+  "body": null,
+  "kwargs": {},
+  "recorded_by_tool": "get_first_system_event",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/system/event/SETUP_COMPLETED/first",
+    "query": {}
+  },
+  "status": 200
+}

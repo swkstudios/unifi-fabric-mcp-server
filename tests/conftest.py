@@ -23,15 +23,71 @@ test can actually fail when a request rides the wrong key.
 
 from __future__ import annotations
 
+import copy
+import json
 import os
-import sys
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
+from fastmcp.utilities.logging import configure_logging
 
+from tests import upstream_harness as uh
 from tests.test_auth_http import auth_http_client  # noqa: F401 -- re-exported as a shared fixture
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.registry import Registry
+
+pytest_plugins = ["tests._worker_diagnostics", "tests._report_retention"]
+
+# Synthetic upstream probes deliberately exercise many errors. Rendering their
+# tracebacks through Rich/Pygments dominates those tests; retain ordinary exception
+# logging and pytest's failure tracebacks. Explicit Rich scrubber tests opt in on
+# their own logger. Configure the existing handler too (FastMCP configures at import).
+configure_logging(enable_rich_tracebacks=False)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _warm_tool_catalog() -> None:
+    """Resolve the lazy async catalog before any test starts its event loop."""
+    from tests._tool_catalog import tools
+
+    tools()
+
+
+@pytest.fixture(scope="module")
+def large_body_cache() -> Iterator[None]:
+    """Reuse the latest immutable big responses without retaining every route."""
+    cached_items: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    cached_resolutions: dict[tuple[str, str], Any] = {}
+    original_items = uh.FakeUpstream._items
+    original_resolution = uh.FakeUpstream._big_resolution
+
+    def items(self: uh.FakeUpstream, path: str, count: int) -> list[dict[str, Any]]:
+        if self.mode != "big":
+            return original_items(self, path, count)
+        key = (path, count)
+        if key not in cached_items:
+            # Tool batches revisit a route, but the entire module visits hundreds.
+            # Keep reuse local instead of retaining all large fixture bodies.
+            cached_items.clear()
+            cached_items[key] = original_items(self, path, count)
+        return copy.deepcopy(cached_items[key])
+
+    def resolution(self: uh.FakeUpstream, path: str, body: Any) -> Any:
+        key = (path, json.dumps(body, sort_keys=True, default=str))
+        if key not in cached_resolutions:
+            cached_resolutions.clear()
+            cached_resolutions[key] = original_resolution(self, path, body)
+        return copy.deepcopy(cached_resolutions[key])
+
+    uh.FakeUpstream._items = items
+    uh.FakeUpstream._big_resolution = resolution
+    try:
+        yield
+    finally:
+        uh.FakeUpstream._items = original_items
+        uh.FakeUpstream._big_resolution = original_resolution
 
 
 @pytest.fixture(autouse=True)
@@ -58,22 +114,28 @@ def _hermetic_credentials_env(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _reset_server_singletons():
-    """Reset ``server.py`` module-level singletons after every test.
+def _reset_server_singletons(_hermetic_credentials_env, monkeypatch):
+    """Keep import-time transport/auth construction local to the test that reloads it.
 
-    ``get_settings()`` caches a process-wide ``Settings`` in ``server._settings``
-    (lazy, so importing the module never reads the environment). Because that cache
-    is global, a test that triggers construction — via ``lifespan`` or a direct
-    ``get_settings`` call — would otherwise leak its Settings/client/registry into
-    later tests. Clearing them on teardown keeps the lazy cache from breaking the
-    hermetic guarantee. No-op when the server module was never imported.
+    Bearer, auth HTTP, transport-security and FastMCP adoption tests reload server
+    under temporary environment values. Clearing only the lazy Settings/client/
+    registry leaves the rebuilt MCP auth provider and transport config behind.
+    Snapshot these three bindings without reloading or copying the catalog: tests
+    can still use their collected handler references and module-scoped fixtures.
     """
+    from unifi_fabric import server
+
+    import_state = {name: getattr(server, name) for name in ("mcp", "_mcp_transport", "_cache_ttl")}
+    for name in ("_settings", "_client", "_registry"):
+        setattr(server, name, None)
     yield
-    mod = sys.modules.get("unifi_fabric.server")
-    if mod is not None:
-        mod._settings = None
-        mod._client = None
-        mod._registry = None
+    # Undo test patches first, otherwise their finalizers can resurrect a dirty
+    # binding after this fixture resets it. This also rolls back temporary env.
+    monkeypatch.undo()
+    for name, value in import_state.items():
+        setattr(server, name, value)
+    for name in ("_settings", "_client", "_registry"):
+        setattr(server, name, None)
 
 
 # Two API keys owning DISJOINT host sets. "alpha" is a personal key (first/default),
@@ -118,3 +180,75 @@ def multikey_client() -> UniFiClient:
 def multikey_registry(multikey_client: UniFiClient) -> Registry:
     """Registry bound to the two-key ``multikey_client``."""
     return Registry(multikey_client, ttl_seconds=900)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "lazy_parametrize(argnames, thunk, **kw): parametrize with values computed by "
+        "thunk() at generate time (tests/_tool_catalog.lazy_parametrize).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "tool_where(predicate): restrict the ``tool`` argument's catalog parametrization "
+        "to tools for which predicate(tool) is true.",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    """Lazy, catalog-derived parametrization.
+
+    * ``lazy_parametrize`` marks are expanded here, in decorator order, with the same
+      ``argnames`` / ``argvalues`` / keyword arguments ``parametrize`` would get, so ids and
+      ordering are those of an eager ``@pytest.mark.parametrize``.
+    * A test that requests a ``tool`` argument is parametrized over the whole catalog
+      (sorted by name, ids = tool names), optionally narrowed by ``@pytest.mark.tool_where``.
+    """
+    from tests import _tool_catalog
+
+    marks = list(metafunc.definition.iter_markers(name="lazy_parametrize"))
+    eager = {
+        n.strip()
+        for m in metafunc.definition.iter_markers(name="parametrize")
+        for n in (m.args[0] if isinstance(m.args[0], str) else ",".join(m.args[0])).split(",")
+    }
+    eager |= {
+        n.strip()
+        for m in marks
+        for n in (m.args[0] if isinstance(m.args[0], str) else ",".join(m.args[0])).split(",")
+    }
+    wants_tool = (
+        "tool" in metafunc.fixturenames
+        and "tool" not in eager
+        and "tool" not in metafunc._arg2fixturedefs  # no fixture of that name defined
+    )
+    if not marks and not wants_tool:
+        return
+    if os.environ.get("COLLECT_GUARD_OUT"):
+        # tests/test_collect_guard.py measures IMPORT-time catalog builds only; skip the
+        # (intended, deferred) generate-time expansion to keep that collection cheap.
+        for marker in marks:
+            metafunc.parametrize(
+                marker.args[0],
+                [],
+                **{k: v for k, v in marker.kwargs.items() if k != "ids"},
+            )
+        if wants_tool:
+            metafunc.parametrize("tool", [])
+        return
+    _tool_catalog.GENERATING = True
+    try:
+        for marker in marks:
+            argnames, thunk = marker.args
+            kwargs = {
+                k: (v.thunk() if isinstance(v, _tool_catalog.LazyIds) else v)
+                for k, v in marker.kwargs.items()
+            }
+            metafunc.parametrize(argnames, thunk(), **kwargs)
+        if wants_tool:
+            catalog = sorted(_tool_catalog.tools(), key=lambda t: t.name)
+            for pred in metafunc.definition.iter_markers(name="tool_where"):
+                catalog = [t for t in catalog if pred.args[0](t)]
+            metafunc.parametrize("tool", catalog, ids=[t.name for t in catalog])
+    finally:
+        _tool_catalog.GENERATING = False

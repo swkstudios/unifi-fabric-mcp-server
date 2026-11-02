@@ -1,0 +1,109 @@
+{
+ "recorded_by_tool": "get_device",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/devices/00000000-0000-3000-8000-000000000030",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "id": "00000000-0000-3000-8000-000000000030",
+  "macAddress": "02:00:5e:00:00:03",
+  "ipAddress": "203.0.113.2",
+  "name": "name-0024",
+  "model": "UDM Pro",
+  "supported": true,
+  "state": "ONLINE",
+  "firmwareVersion": "6.0.11",
+  "firmwareUpdatable": false,
+  "provisionedAt": "2026-10-11T18:46:31Z",
+  "configurationId": "0000000000fa0017",
+  "features": {
+   "switching": {
+    "lags": []
+   }
+  },
+  "interfaces": {
+   "ports": [
+    {
+     "idx": 1,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 10,
+     "state": "UP",
+     "connector": "connector-0002",
+     "maxSpeedMbps": 10000,
+     "speedMbps": 10000
+    },
+    {
+     "idx": 11,
+     "state": "UP",
+     "connector": "connector-0002",
+     "maxSpeedMbps": 10000,
+     "speedMbps": 10000
+    },
+    {
+     "idx": 2,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 3,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 4,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 5,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 6,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 7,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 8,
+     "state": "DOWN",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 10
+    },
+    {
+     "idx": 9,
+     "state": "UP",
+     "connector": "connector-0001",
+     "maxSpeedMbps": 1000,
+     "speedMbps": 1000
+    }
+   ]
+  }
+ }
+}

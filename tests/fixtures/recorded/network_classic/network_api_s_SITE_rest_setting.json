@@ -1,0 +1,786 @@
+{
+ "recorded_by_tool": "list_settings",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/setting",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-8000-000000fa00f2",
+    "key": "super_cloudaccess",
+    "enabled": true,
+    "device_auth": "xxxxxxxx",
+    "device_id": "00000000-0000-4000-a000-000000fa00f4:836938255",
+    "ubic_uuid": "00000000-0000-4000-a000-000000fa00f5",
+    "x_certificate_arn": "xxxxxxxx",
+    "x_private_key": "xxxxxxxx",
+    "x_certificate_pem": "xxxxxxxx"
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa00f7",
+    "key": "super_identity",
+    "hostname": "hostname-0001",
+    "name": "name-0012"
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa00f8",
+    "key": "connectivity",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "mlo_mesh_enabled": true,
+    "uplink_type": "gateway",
+    "x_mesh_psk": "xxxxxxxx",
+    "x_mesh_essid": "x-mesh-essid-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000140",
+    "key": "guest_access",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "quickpay_testmode": false,
+    "portal_customized_title": "portal-customized-title-0001",
+    "auth": "auth-0001",
+    "redirect_https": true,
+    "portal_enabled": true,
+    "portal_customized_button_color": "portal-customized-button-0001",
+    "x_merchantwarrior_merchantuuid": "",
+    "payment_enabled": false,
+    "portal_hostname": "",
+    "portal_customized_bg_image_tile": false,
+    "portal_customized_button_text_color": "portal-customized-button-0002",
+    "custom_port_https": "443",
+    "portal_use_hostname": false,
+    "portal_customized_box_link_color": "portal-customized-box-li-0001",
+    "portal_customized_box_radius": 25,
+    "portal_customized_link_color": "portal-customized-link-c-0001",
+    "redirect_enabled": false,
+    "radius_enabled": false,
+    "x_merchantwarrior_apikey": "",
+    "x_paypal_password": "",
+    "password_enabled": true,
+    "authorize_use_sandbox": false,
+    "portal_customized_welcome_text_position": "portal-customized-welcom-0001",
+    "radius_disconnect_enabled": false,
+    "x_quickpay_apikey": "",
+    "portal_customized_box_opacity": 50,
+    "ec_enabled": true,
+    "portal_customized_bg_type": "portal-customized-bg-typ-0001",
+    "expire": 10080,
+    "portal_customized_tos_enabled": false,
+    "template_engine": "template-engine-0001",
+    "portal_customized_box_color": "portal-customized-box-co-0001",
+    "custom_ip": "",
+    "facebook_enabled": false,
+    "redirect_url": "",
+    "radius_auth_type": "mschapv2",
+    "portal_customized_text_color": "portal-customized-text-c-0001",
+    "portal_customized_logo_enabled": true,
+    "portal_customized_welcome_text_enabled": true,
+    "radius_disconnect_port": 3799,
+    "x_paypal_signature": "",
+    "x_quickpay_merchantid": "",
+    "portal_customized": false,
+    "merchantwarrior_use_sandbox": false,
+    "portal_customized_languages": [
+     "portal-customized-langua-0001"
+    ],
+    "portal_customized_button_text": "portal-customized-button-0003",
+    "portal_customized_welcome_text": "portal-customized-welcom-0002",
+    "portal_customized_bg_image_enabled": true,
+    "ippay_use_sandbox": false,
+    "portal_customized_success_text": "portal-customized-succes-0001",
+    "expire_number": 8,
+    "x_quickpay_agreementid": "",
+    "x_password": "xxxxxxxx",
+    "x_stripe_api_key": "",
+    "x_authorize_loginid": "",
+    "portal_customized_bg_image_filename": "portal-customized-bg-ima-0001",
+    "paypal_use_sandbox": false,
+    "portal_customized_logo_size": "113",
+    "portal_customized_tos": "portal-customized-tos-0001",
+    "portal_customized_bg_color": "portal-customized-bg-col-0001",
+    "portal_customized_logo_position": "portal-customized-logo-p-0001",
+    "expire_unit": 60,
+    "restricted_subnet_3": "10.0.16.0/8",
+    "x_ippay_terminalid": "",
+    "restricted_subnet_2": "10.0.17.0/12",
+    "portal_customized_unsplash_author_name": "portal-customized-unspla-0001",
+    "restricted_subnet_1": "10.0.18.0/16",
+    "x_merchantwarrior_apipassphrase": "",
+    "x_authorize_transactionkey": "",
+    "voucher_enabled": false,
+    "custom_port_http": "80",
+    "portal_customized_box_text_color": "portal-customized-box-te-0001",
+    "redirect_to_https": false,
+    "x_paypal_username": "",
+    "portal_customized_unsplash_author_username": "portal-customized-unspla-0002",
+    "gateway": "gateway-0001",
+    "portal_customized_authentication_text": "portal-customized-authen-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000141",
+    "key": "ntp",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "setting_preference": "auto",
+    "ntp_server_1": "ntp-server-1-0001",
+    "ntp_server_2": "ntp-server-2-0001",
+    "ntp_server_3": "ntp-server-3-0001",
+    "ntp_server_4": "ntp-server-4-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000142",
+    "key": "mgmt",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "led_enabled": true,
+    "wifiman_enabled": true,
+    "x_ssh_bind_wildcard": false,
+    "direct_connect_enabled": false,
+    "advanced_feature_enabled": true,
+    "x_api_token": "xxxxxxxx",
+    "x_mgmt_key": "xxxxxxxx",
+    "x_ssh_sha512passwd": "xxxxxxxx",
+    "x_ssh_auth_password_enabled": true,
+    "unifi_idp_enabled": true,
+    "x_ssh_username": "x-ssh-username-0001",
+    "x_ssh_keys": [
+     {
+      "key": "key-0001",
+      "date": "2026-07-31",
+      "name": "name-0255",
+      "type": "ssh-ed25519",
+      "comment": "comment-0001",
+      "fingerprint": "xxxxxxxx"
+     }
+    ],
+    "alert_enabled": true,
+    "debug_tools_enabled": true,
+    "auto_upgrade": true,
+    "x_ssh_password": "xxxxxxxx",
+    "x_ssh_enabled": true,
+    "auto_upgrade_hour": 3
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000000143",
+    "key": "country",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "code": "840"
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000144",
+    "key": "locale",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "timezone": "Etc/UTC"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000145",
+    "key": "network_optimization",
+    "enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000000146",
+    "key": "rsyslogd",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "this_controller": false,
+    "log_all_contents": true,
+    "debug": true,
+    "netconsole_enabled": true,
+    "this_controller_encrypted_only": false,
+    "port": "5514",
+    "contents": [
+     "contents-0001",
+     "contents-0002",
+     "contents-0003",
+     "contents-0004",
+     "contents-0005"
+    ],
+    "netconsole_host": "10.0.5.20",
+    "ip": "10.0.5.20",
+    "netconsole_port": 5514
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000000147",
+    "key": "auto_speedtest",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "speed_test_mode": "ALL",
+    "cron_expr": "cron-expr-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000148",
+    "key": "provider_capabilities",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "download": 1000000,
+    "upload": 1000000
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000000149",
+    "key": "super_smtp",
+    "enabled": false,
+    "port": "2525",
+    "sender": "",
+    "use_ssl": true,
+    "host": "host-0001",
+    "use_auth": false,
+    "use_sender": false,
+    "x_password": "",
+    "username": ""
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa00fc",
+    "key": "dpi",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "fingerprintingEnabled": true
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000fa00fd",
+    "key": "lcm",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "brightness": 80,
+    "touch_event": true,
+    "idle_timeout": 300,
+    "sync": true
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000fa00fe",
+    "key": "super_mail",
+    "provider": "provider-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000fa00ff",
+    "key": "super_fwupdate",
+    "x_sso_token": "xxxxxxxx",
+    "sso_enabled": true,
+    "available_controller_channels": [
+     "available-controller-cha-0001",
+     "available-controller-cha-0002",
+     "available-controller-cha-0003"
+    ],
+    "firmware_channel": "beta",
+    "controller_channel": "beta",
+    "available_firmware_channels": [
+     "available-firmware-chann-0001",
+     "available-firmware-chann-0002",
+     "available-firmware-chann-0003"
+    ]
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa0101",
+    "key": "ips",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "utm_token": "xxxxxxxx",
+    "enabled_categories": [
+     "enabled-categories-0001",
+     "enabled-categories-0002",
+     "enabled-categories-0003",
+     "enabled-categories-0004",
+     "enabled-categories-0005"
+    ],
+    "advanced_filtering_preference": "manual",
+    "dns_filters": [
+     {
+      "name": "",
+      "filter": "none",
+      "version": "v4",
+      "network_id": "00000000-0000-4000-a000-000000000125",
+      "blocked_tld": [],
+      "description": "",
+      "allowed_sites": [],
+      "blocked_sites": []
+     },
+     {
+      "name": "",
+      "filter": "none",
+      "version": "v4",
+      "network_id": "00000000-0000-4000-8000-000000000123",
+      "blocked_tld": [],
+      "description": "",
+      "allowed_sites": [],
+      "blocked_sites": []
+     },
+     {
+      "name": "",
+      "filter": "none",
+      "version": "v4",
+      "network_id": "00000000-0000-4000-a000-000000000124",
+      "blocked_tld": [],
+      "description": "",
+      "allowed_sites": [],
+      "blocked_sites": []
+     }
+    ],
+    "memory_optimized": true,
+    "dns_filtering": true,
+    "last_alert_id": "last-alert-id-0001",
+    "honeypot": [],
+    "enabled_networks": [
+     "00000000-0000-4000-8000-000000000122",
+     "00000000-0000-4000-8000-000000000123",
+     "00000000-0000-4000-a000-000000000124",
+     "00000000-0000-4000-a000-000000000125",
+     "00000000-0000-4000-a000-000000000128"
+    ],
+    "ips_mode": "ids",
+    "ad_blocking_configurations": [],
+    "content_filtering_blocking_page_enabled": true,
+    "honeypot_enabled": false
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000150",
+    "key": "element_adopt",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "x_element_essid": "x-element-essid-0001",
+    "x_element_psk": "xxxxxxxx"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000151",
+    "key": "snmp",
+    "enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "enabledV3": true,
+    "x_password": "xxxxxxxx",
+    "username": "username-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000152",
+    "key": "radius",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "ca_certificate": "xxxxxxxx",
+    "acct_port": 1813,
+    "server_certificate": "xxxxxxxx",
+    "interim_update_interval": 3600,
+    "server_certificate_key": "xxxxxxxx",
+    "auth_port": 1812,
+    "tunneled_reply": true,
+    "dh_key": null,
+    "x_secret": "xxxxxxxx",
+    "configure_whole_network": true
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000153",
+    "key": "ugw",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "supports_vlan_group": false
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000154",
+    "key": "radio_ai",
+    "enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "setting_preference": "auto",
+    "channels_na": [
+     "36",
+     "40",
+     "44",
+     "48",
+     "52"
+    ],
+    "auto_adjust_channels_to_country": true,
+    "ht_modes_na": [
+     "20",
+     "40"
+    ],
+    "ht_modes_ng": [
+     "20"
+    ],
+    "auto_channel_presets_type": "custom",
+    "channels_ng": [
+     "1",
+     "6",
+     "11"
+    ],
+    "default": true,
+    "optimize": [
+     "optimize-0001"
+    ],
+    "channels_blacklist": [
+     {
+      "radio": "ng",
+      "channel": 2,
+      "channel_width": 20
+     },
+     {
+      "radio": "ng",
+      "channel": 3,
+      "channel_width": 20
+     },
+     {
+      "radio": "ng",
+      "channel": 4,
+      "channel_width": 20
+     },
+     {
+      "radio": "ng",
+      "channel": 5,
+      "channel_width": 20
+     },
+     {
+      "radio": "ng",
+      "channel": 7,
+      "channel_width": 20
+     }
+    ],
+    "radios_configuration": [
+     {
+      "dfs": true,
+      "radio": "na",
+      "channel_width": 160
+     },
+     {
+      "dfs": false,
+      "radio": "ng",
+      "channel_width": 20
+     },
+     {
+      "dfs": false,
+      "radio": "6e",
+      "channel_width": 320
+     }
+    ],
+    "radios": [
+     "radios-0001",
+     "radios-0002",
+     "radios-0003"
+    ],
+    "cron_expr": "cron-expr-0002",
+    "auto_enabled": false,
+    "channels_6e": [
+     "1",
+     "5",
+     "9",
+     "13",
+     "17"
+    ],
+    "exclude_devices": []
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000155",
+    "key": "usg",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "h323_module": true,
+    "send_redirects": true,
+    "upnp_enabled": false,
+    "dhcp_relay_hop_count": "",
+    "broadcast_ping": false,
+    "mss_clamp_mss": 1452,
+    "tcp_close_timeout": 10,
+    "upnp_secure_mode": false,
+    "tcp_fin_wait_timeout": 120,
+    "unbind_wan_monitors": false,
+    "upnp_wan_interface": "upnp-wan-interface-0001",
+    "dhcp_relay_port": "",
+    "offload_sch": true,
+    "other_timeout": 600,
+    "arp_cache_timeout": "arp-cache-timeout-0001",
+    "icmp_timeout": 30,
+    "echo_server": "echo-server-0001",
+    "udp_other_timeout": 30,
+    "dhcpd_hostfile_update": true,
+    "gre_module": true,
+    "timeout_setting_preference": "auto",
+    "tcp_time_wait_timeout": 120,
+    "dhcp_relay_agents_packets": "",
+    "ftp_module": true,
+    "dhcpd_use_dnsmasq": false,
+    "mss_clamp": "auto",
+    "offload_accounting": true,
+    "udp_stream_timeout": 180,
+    "receive_redirects": false,
+    "syn_cookies": true,
+    "tcp_last_ack_timeout": 30,
+    "upnp_nat_pmp_enabled": false,
+    "tftp_module": true,
+    "dns_verification": {
+     "domain": "domain-0001",
+     "primary_dns_server": "1.1.1.1",
+     "setting_preference": "auto",
+     "secondary_dns_server": "8.8.8.8"
+    },
+    "offload_l2_blocking": true,
+    "tcp_syn_recv_timeout": 60,
+    "tcp_syn_sent_timeout": 120,
+    "tcp_close_wait_timeout": 60,
+    "lldp_enable_all": true,
+    "tcp_established_timeout": 7440,
+    "pptp_module": true,
+    "sip_module": false
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000000156",
+    "key": "teleport",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "subnet_cidr": "10.0.19.1/24"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000157",
+    "key": "global_switch",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "forward_unknown_mcast_router_ports": true,
+    "jumboframe_enabled": false,
+    "auto_stp_edge_detection_enabled": false,
+    "radiusprofile_id": "00000000-0000-4000-a000-000000000136",
+    "switch_exclusions": [],
+    "stp_version": "rstp",
+    "flowctrl_enabled": false,
+    "dot1x_portctrl_enabled": false,
+    "dot1x_fallback_networkconf_id": "",
+    "link_debounce": 0,
+    "flood_known_protocols": true,
+    "dhcp_snoop": true,
+    "acl_device_isolation": [
+     "00000000-0000-4000-a000-000000000124"
+    ],
+    "poe_staging_delay_msec": 200,
+    "acl_l3_isolation": []
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000158",
+    "key": "magic_site_to_site_vpn",
+    "enabled": true,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "public_key": "xxxxxxxx",
+    "x_private_key": "xxxxxxxx"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000159",
+    "key": "doh",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "server_names": [
+     "server-names-0001",
+     "server-names-0002"
+    ],
+    "custom_servers": [],
+    "state": "auto"
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa0105",
+    "key": "openvpn",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "x_pregenerated_dh_key": "xxxxxxxx"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000fa0106",
+    "key": "peer_to_peer",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "psk": "xxxxxxxx",
+    "ssid": "ssid-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000fa0107",
+    "key": "ssl_inspection",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "identity_certificate_groups": [],
+    "identity_certificate_users": [],
+    "state": "off",
+    "identity_certificate_all_users": false
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa0108",
+    "key": "dashboard",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "layout_preference": "auto"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000fa0109",
+    "key": "global_nat",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "mode": "auto",
+    "excluded_network_ids": []
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa010a",
+    "key": "netflow",
+    "enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "auto_engine_id_enabled": true,
+    "port": 2055,
+    "refresh_rate": 20,
+    "version": 10,
+    "export_frequency": 5
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000160",
+    "key": "traffic_flow",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "unifi_services_enabled": true,
+    "unifi_device_management_enabled": true,
+    "enabled_allowed_traffic": true,
+    "gateway_dns_enabled": true
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000161",
+    "key": "mdns",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "mode": "all",
+    "predefined_services": [],
+    "enabled_for_network_ids": [
+     "00000000-0000-4000-a000-000000000124",
+     "00000000-0000-4000-a000-000000000125"
+    ],
+    "custom_services": [],
+    "enabled_for": "enabled-for-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000162",
+    "key": "global_network",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "default_security_posture": "ALLOW_ALL"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000163",
+    "key": "super_fabric_system_log",
+    "enabled": true
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000164",
+    "key": "igmp_snooping",
+    "enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "querier_switches": [],
+    "subscription_mode": "subscription-mode-0001",
+    "forward_unknown_mcast_router_ports": true,
+    "failover_querier": "",
+    "switches": [],
+    "querier_subscription_mode": "querier-subscription-mod-0001",
+    "querier_addresses": [],
+    "fastleave_for_network_ids": [],
+    "querier_mode": "OFF",
+    "flood_unknown_multicast_for_network_ids": [],
+    "flood_known_protocols": true,
+    "auto_unknown_traffic_handling": true,
+    "primary_querier": "",
+    "network_ids": []
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000165",
+    "key": "ips_suppression",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "alerts": [],
+    "whitelist": []
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000166",
+    "key": "usg_geo",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "ip_filtering": {
+     "action": "block",
+     "enabled": true,
+     "countries": "countries-0001",
+     "traffic_direction": "both"
+    }
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000167",
+    "key": "device_supervision",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "heartbeat_interval_seconds": 60,
+    "power_off_duration_seconds": 120,
+    "silence_threshold_seconds": 900,
+    "global_supervision_enabled": true
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000168",
+    "key": "ipsec",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "ikev2_reauthentication_method": "ikev2-reauthentication-m-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000169",
+    "key": "super_stats",
+    "stat_time_zone_id": "Etc/UTC"
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa010b",
+    "key": "super_mgmt",
+    "analytics_disapproved_for": "analytics-disapproved-fo-0001",
+    "data_retention_time_in_hours_for_5minutes_scale": 24,
+    "enable_analytics": false,
+    "data_retention_time_in_hours_for_hourly_scale": 168,
+    "data_retention_time_in_hours_for_daily_scale": 2160,
+    "multiple_sites_enabled": false,
+    "minimum_usable_hd_space": 500,
+    "autobackup_max_files": 5,
+    "data_retention_setting_preference": "auto",
+    "live_chat": "live-chat-0001",
+    "live_updates": "auto",
+    "override_inform_host": false,
+    "autobackup_cron_expr": "autobackup-cron-expr-0001",
+    "override_inform_host_type": "override-inform-host-typ-0001",
+    "data_retention_time_in_hours_for_monthly_scale": 8760,
+    "autobackup_enabled": true,
+    "store_enabled": "store-enabled-0001",
+    "time_series_per_client_stats_enabled": true,
+    "autobackup_timezone": "Etc/UTC",
+    "data_retention_time_in_hours_for_others": 2160,
+    "discoverable": false,
+    "google_maps_api_key": "xxxxxxxx",
+    "autobackup_days": 30,
+    "backup_to_cloud_enabled": false,
+    "override_inform_host_location": "override-inform-host-loc-0001"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000fa010c",
+    "key": "ether_lighting",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "network_defaults": [
+     {
+      "key": "00000000-0000-4000-8000-000000000122",
+      "raw_color_hex": "raw-color-hex-0001"
+     },
+     {
+      "key": "none",
+      "raw_color_hex": "raw-color-hex-0002"
+     },
+     {
+      "key": "00000000-0000-4000-8000-000000000123",
+      "raw_color_hex": "raw-color-hex-0003"
+     },
+     {
+      "key": "00000000-0000-4000-a000-000000000124",
+      "raw_color_hex": "raw-color-hex-0004"
+     },
+     {
+      "key": "00000000-0000-4000-a000-000000000125",
+      "raw_color_hex": "raw-color-hex-0005"
+     }
+    ],
+    "network_overrides": [],
+    "speed_defaults": [
+     {
+      "key": "10M",
+      "raw_color_hex": "raw-color-hex-0006"
+     },
+     {
+      "key": "FE",
+      "raw_color_hex": "raw-color-hex-0006"
+     },
+     {
+      "key": "GbE",
+      "raw_color_hex": "raw-color-hex-0007"
+     },
+     {
+      "key": "2.5GbE",
+      "raw_color_hex": "raw-color-hex-0008"
+     },
+     {
+      "key": "5GbE",
+      "raw_color_hex": "raw-color-hex-0009"
+     }
+    ],
+    "speed_overrides": []
+   }
+  ]
+ }
+}

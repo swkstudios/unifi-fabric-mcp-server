@@ -1,0 +1,21 @@
+{
+ "recorded_by_tool": "fabric_connector_get",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/networks",
+  "query": {
+   "filter": "filter-0001"
+  }
+ },
+ "status": 400,
+ "content_type": "application/json",
+ "body": {
+  "statusCode": 400,
+  "statusName": "BAD_REQUEST",
+  "code": "api.request.invalid-filter",
+  "message": "failed to parse filter expression: unexpected left-bracket at 1:10",
+  "timestamp": "2026-10-09T19:53:58.073008140Z",
+  "requestPath": "requestPath-0004",
+  "requestId": "00000000-0000-4000-8000-000000000215"
+ }
+}

@@ -1,0 +1,182 @@
+{
+ "recorded_by_tool": "get_protect_event_media",
+ "args": [
+  "00000000-0000-4000-9000-000000000001",
+  "smart_detect_track"
+ ],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/events/00000000-0000-4000-9000-000000000001/smartDetectTrack",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": {
+  "camera": "000000000000000000fa0002",
+  "event": "00000000-0000-4000-9000-000000000001",
+  "id": "00000000-0000-4000-9000-000000000004",
+  "payload": [
+   {
+    "attributes": null,
+    "confidence": 86,
+    "coord": [
+     615,
+     730,
+     36,
+     197
+    ],
+    "coord3d": [
+     -1,
+     -1
+    ],
+    "depth": null,
+    "duration": 241,
+    "firstShownTimeMs": 1791767595295,
+    "id": "000002",
+    "idleSinceTimeMs": 0,
+    "intelligenceZones": [],
+    "licensePlate": null,
+    "lines": [],
+    "loiterZones": [],
+    "matchedId": null,
+    "name": "",
+    "objectType": "person",
+    "speed": null,
+    "stationary": false,
+    "timestamp": 1791767596087,
+    "zones": [
+     1
+    ]
+   },
+   {
+    "attributes": null,
+    "confidence": 85,
+    "coord": [
+     603,
+     736,
+     46,
+     193
+    ],
+    "coord3d": [
+     -1,
+     -1
+    ],
+    "depth": null,
+    "duration": 243,
+    "firstShownTimeMs": 1791767595295,
+    "id": "000002",
+    "idleSinceTimeMs": 0,
+    "intelligenceZones": [],
+    "licensePlate": null,
+    "lines": [],
+    "loiterZones": [],
+    "matchedId": null,
+    "name": "",
+    "objectType": "person",
+    "speed": null,
+    "stationary": false,
+    "timestamp": 1791767596357,
+    "zones": [
+     1
+    ]
+   },
+   {
+    "attributes": null,
+    "confidence": 83,
+    "coord": [
+     601,
+     744,
+     44,
+     182
+    ],
+    "coord3d": [
+     -1,
+     -1
+    ],
+    "depth": null,
+    "duration": 242,
+    "firstShownTimeMs": 1791767595295,
+    "id": "000002",
+    "idleSinceTimeMs": 0,
+    "intelligenceZones": [],
+    "licensePlate": null,
+    "lines": [],
+    "loiterZones": [],
+    "matchedId": null,
+    "name": "",
+    "objectType": "person",
+    "speed": null,
+    "stationary": false,
+    "timestamp": 1791767596602,
+    "zones": [
+     1
+    ]
+   },
+   {
+    "attributes": null,
+    "confidence": 60,
+    "coord": [
+     610,
+     686,
+     47,
+     253
+    ],
+    "coord3d": [
+     -1,
+     -1
+    ],
+    "depth": null,
+    "duration": 240,
+    "firstShownTimeMs": 1791767595295,
+    "id": "000002",
+    "idleSinceTimeMs": 0,
+    "intelligenceZones": [],
+    "licensePlate": null,
+    "lines": [],
+    "loiterZones": [],
+    "matchedId": null,
+    "name": "",
+    "objectType": "person",
+    "speed": null,
+    "stationary": false,
+    "timestamp": 1791767598769,
+    "zones": [
+     1
+    ]
+   },
+   {
+    "attributes": null,
+    "confidence": 70,
+    "coord": [
+     610,
+     686,
+     45,
+     249
+    ],
+    "coord3d": [
+     -1,
+     -1
+    ],
+    "depth": null,
+    "duration": 243,
+    "firstShownTimeMs": 1791767595295,
+    "id": "000002",
+    "idleSinceTimeMs": 0,
+    "intelligenceZones": [],
+    "licensePlate": null,
+    "lines": [],
+    "loiterZones": [],
+    "matchedId": null,
+    "name": "",
+    "objectType": "person",
+    "speed": null,
+    "stationary": false,
+    "timestamp": 1791767599040,
+    "zones": [
+     1
+    ]
+   }
+  ]
+ }
+}

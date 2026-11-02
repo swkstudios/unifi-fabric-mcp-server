@@ -1,0 +1,36 @@
+{
+ "recorded_by_tool": "list_radius_profiles",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/radius/profiles",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 2,
+  "totalCount": 2,
+  "data": [
+   {
+    "id": "00000000-0000-4000-8000-000000fa01b1",
+    "name": "name-0338",
+    "metadata": {
+     "origin": "origin-0003"
+    }
+   },
+   {
+    "id": "00000000-0000-4000-a000-000000fa01b2",
+    "name": "Default",
+    "metadata": {
+     "origin": "origin-0001",
+     "configurable": true
+    }
+   }
+  ]
+ }
+}

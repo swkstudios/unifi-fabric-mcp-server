@@ -1,0 +1,27 @@
+{
+  "args": [
+    "Default",
+    "00000000-0000-d000-d000-000000000019"
+  ],
+  "body": {
+    "blueprint_dark_image_id": "",
+    "blueprint_image_id": "",
+    "default_image_id": "",
+    "id": "",
+    "left_nopadding_image_id": "",
+    "model_name": "model-name-0006",
+    "model_sysid": "0",
+    "nopadding_image_id": "",
+    "rack_image_id": "",
+    "right_nopadding_image_id": "",
+    "topology_image_id": ""
+  },
+  "kwargs": {},
+  "recorded_by_tool": "list_device_models",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/models/00000000-0000-d000-d000-000000000019",
+    "query": {}
+  },
+  "status": 200
+}

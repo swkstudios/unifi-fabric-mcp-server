@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/devmgr",
+    "json": {
+      "cmd": "speedtest-status"
+    }
+  },
+  "status": 200,
+  "body": {
+    "meta": {
+      "rc": "ok"
+    },
+    "data": [
+      {
+        "latency": 4,
+        "rundate": 1791743600,
+        "runtime": 15,
+        "server": {
+          "cc": "US",
+          "city": "example-city",
+          "country": "United States",
+          "lat": 0.0,
+          "lon": 0.0,
+          "provider": "example-provider",
+          "provider_url": "https://example.com/metadata"
+        },
+        "source_interface": "",
+        "status_download": 2,
+        "status_ping": 2,
+        "status_summary": 2,
+        "status_upload": 2,
+        "xput_download": 1735.0,
+        "xput_upload": 1826.0,
+        "timestamp": 1791743648489
+      }
+    ]
+  },
+  "source": "Recorded live controller response; sanitized before writing",
+  "content_type": "application/json",
+  "recorded_by_tool": "get_speedtest_status"
+}

@@ -1,0 +1,24 @@
+{
+ "recorded_by_tool": "list_device_tags",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/device-tags",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "_id": "00000000-0000-4000-c000-000000000001",
+   "member_device_macs": [
+    "02:00:5e:00:0c:01"
+   ],
+   "name": "name-0901"
+  },
+  {
+   "_id": "00000000-0000-4000-c000-000000000002",
+   "member_device_macs": [],
+   "name": "name-0902"
+  }
+ ]
+}

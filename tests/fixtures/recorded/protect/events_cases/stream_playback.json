@@ -1,0 +1,29 @@
+{
+ "recorded_by_tool": "get_protect_stream_url",
+ "args": [
+  "playback",
+  "000000000000000000fa0002"
+ ],
+ "kwargs": {
+  "channel": 0,
+  "end": 1791767604,
+  "start": 1791767594,
+  "stream_format": "FMP4"
+ },
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/ws/playback",
+  "query": {
+   "camera": "000000000000000000fa0002",
+   "channel": "0",
+   "start": "1791767594000",
+   "end": "1791767604000",
+   "format": "FMP4"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": {
+  "url": "ws://host3.example.invalid/path3"
+ }
+}

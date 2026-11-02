@@ -1,0 +1,20 @@
+{
+  "args": [
+    "log_levels"
+  ],
+  "body": {
+    "device": "device-0001",
+    "mgmt": "mgmt-0001",
+    "sdn": "sdn-0001",
+    "setting_preference": "auto",
+    "system": "system-0001"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/log-levels/defaults",
+    "query": {}
+  },
+  "status": 200
+}

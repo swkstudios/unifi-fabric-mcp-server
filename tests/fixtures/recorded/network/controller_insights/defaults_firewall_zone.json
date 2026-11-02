@@ -1,0 +1,78 @@
+{
+  "args": [
+    "firewall_zone",
+    "Default"
+  ],
+  "body": [
+    {
+      "_id": "00000000-0000-4000-b000-000000000001",
+      "attr_no_edit": false,
+      "cloud_template": null,
+      "default_zone": true,
+      "external_id": "00000000-0000-4000-a000-000000000002",
+      "name": "Internal",
+      "network_ids": [
+        "00000000-0000-4000-8000-000000000003",
+        "00000000-0000-4000-9000-000000000004",
+        "00000000-0000-4000-8000-000000000005",
+        "00000000-0000-4000-9000-000000000006",
+        "00000000-0000-4000-a000-000000000007"
+      ],
+      "zone_key": "xxxxxxxx"
+    },
+    {
+      "_id": "00000000-0000-4000-9000-000000000008",
+      "attr_no_edit": true,
+      "cloud_template": null,
+      "default_zone": true,
+      "external_id": "00000000-0000-4000-9000-000000000009",
+      "name": "External",
+      "network_ids": [
+        "00000000-0000-4000-8000-000000fa0002",
+        "00000000-0000-4000-b000-000000fa0003",
+        "00000000-0000-4000-b000-000000fa0004"
+      ],
+      "zone_key": "xxxxxxxx"
+    },
+    {
+      "_id": "00000000-0000-4000-b000-000000fa0005",
+      "attr_no_edit": true,
+      "cloud_template": null,
+      "default_zone": true,
+      "external_id": "00000000-0000-4000-8000-000000fa0006",
+      "name": "Gateway",
+      "network_ids": [],
+      "zone_key": "xxxxxxxx"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000fa0007",
+      "attr_no_edit": true,
+      "cloud_template": null,
+      "default_zone": true,
+      "external_id": "00000000-0000-4000-9000-000000000010",
+      "name": "Vpn",
+      "network_ids": [
+        "00000000-0000-4000-9000-000000000011"
+      ],
+      "zone_key": "xxxxxxxx"
+    },
+    {
+      "_id": "00000000-0000-4000-a000-000000000012",
+      "attr_no_edit": false,
+      "cloud_template": null,
+      "default_zone": true,
+      "external_id": "00000000-0000-4000-b000-000000000013",
+      "name": "Hotspot",
+      "network_ids": [],
+      "zone_key": "xxxxxxxx"
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/firewall/zone/defaults",
+    "query": {}
+  },
+  "status": 200
+}

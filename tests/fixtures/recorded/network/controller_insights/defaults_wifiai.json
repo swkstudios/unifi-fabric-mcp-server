@@ -1,0 +1,69 @@
+{
+  "args": [
+    "wifiai",
+    "Default"
+  ],
+  "body": [
+    {
+      "auto_adjust_channels_to_country": true,
+      "channels_6e": [
+        "1",
+        "5",
+        "9",
+        "13",
+        "17"
+      ],
+      "channels_blacklist": [
+        {
+          "channel": 2,
+          "channel_width": 20,
+          "radio": "ng"
+        },
+        {
+          "channel": 3,
+          "channel_width": 20,
+          "radio": "ng"
+        },
+        {
+          "channel": 4,
+          "channel_width": 20,
+          "radio": "ng"
+        },
+        {
+          "channel": 5,
+          "channel_width": 20,
+          "radio": "ng"
+        },
+        {
+          "channel": 7,
+          "channel_width": 20,
+          "radio": "ng"
+        }
+      ],
+      "channels_na": [
+        "36",
+        "40",
+        "44",
+        "48",
+        "149"
+      ],
+      "channels_ng": [
+        "1",
+        "6",
+        "11"
+      ],
+      "cron_expr": "cron-expr-0001",
+      "enabled": false,
+      "exclude_devices": [],
+      "high_priority_devices": []
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/wifiai/defaults",
+    "query": {}
+  },
+  "status": 200
+}

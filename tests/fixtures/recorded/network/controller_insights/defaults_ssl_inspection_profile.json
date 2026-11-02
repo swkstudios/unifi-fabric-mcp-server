@@ -1,0 +1,44 @@
+{
+  "args": [
+    "ssl_inspection_profile",
+    "Default"
+  ],
+  "body": {
+    "block_website_types": [
+      "block-website-types-0001"
+    ],
+    "default_profile": false,
+    "enabled": true,
+    "exclude_apple_domains": true,
+    "exclude_domains": [],
+    "exclude_forced_validation": true,
+    "exclude_microsoft_domains": true,
+    "exclude_ubiquiti_domains": true,
+    "filters": [],
+    "include_application_ids": [
+      "01",
+      "02",
+      "03",
+      "4",
+      "05"
+    ],
+    "include_domains": [],
+    "inspect_domains": "inspect-domains-0001",
+    "invalid": false,
+    "invalid_reason": [],
+    "name": "",
+    "target_network_ids": [],
+    "target_network_ids_all": false,
+    "target_protocols": [],
+    "target_protocols_all": false,
+    "target_traffic_all": false
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/ssl-inspection/profiles/defaults",
+    "query": {}
+  },
+  "status": 200
+}

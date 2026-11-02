@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import pytest_asyncio
 
-from unifi_fabric.client import UniFiClient
+from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
 from unifi_fabric.registry import Registry
 from unifi_fabric.tools.site_manager import (
@@ -79,27 +79,27 @@ def registry(client, settings):
 class TestListHostsIntegration:
     async def test_returns_at_least_one_host(self, client, registry):
         result = await list_hosts(client, registry)
-        assert "hosts" in result
-        assert "count" in result
-        assert result["count"] >= 1, "Expected at least one host on test console"
+        assert "data" in result
+        assert "_count" in result
+        assert result["_count"] >= 1, "Expected at least one host on test console"
 
     async def test_host_has_required_fields(self, client, registry):
         result = await list_hosts(client, registry)
-        host = result["hosts"][0]
+        host = result["data"][0]
         assert "id" in host, "Host must have an id field"
 
     async def test_gps_passed_through(self, client, registry):
         # Faithful pass-through: host records are returned verbatim. Any GPS
         # coordinates the controller reports survive rather than being stripped.
         result = await list_hosts(client, registry)
-        for host in result["hosts"]:
+        for host in result["data"]:
             reported = host.get("reportedState", {})
             if "latitude" in reported:
                 assert isinstance(reported["latitude"], (int, float))
 
     async def test_count_matches_hosts_length(self, client, registry):
         result = await list_hosts(client, registry)
-        assert result["count"] == len(result["hosts"])
+        assert result["_count"] == len(result["data"])
 
     async def test_populates_registry_cache(self, client, registry):
         registry.invalidate()
@@ -115,28 +115,31 @@ class TestListHostsIntegration:
 class TestGetHostIntegration:
     async def test_get_host_by_id(self, client, registry):
         hosts_result = await list_hosts(client, registry)
-        first_id = hosts_result["hosts"][0]["id"]
+        first_id = hosts_result["data"][0]["id"]
 
+        # 0.7.0 returns the upstream body verbatim: the host record is under "data",
+        # beside the envelope's httpStatusCode and traceId.
         host = await get_host(client, registry, first_id)
-        assert host.get("id") == first_id
+        assert host["data"].get("id") == first_id
 
     async def test_get_host_gps_passed_through(self, client, registry):
         hosts_result = await list_hosts(client, registry)
-        first_id = hosts_result["hosts"][0]["id"]
+        first_id = hosts_result["data"][0]["id"]
 
         host = await get_host(client, registry, first_id)
-        reported = host.get("reportedState", {})
+        reported = host["data"].get("reportedState", {})
         if "latitude" in reported:
             assert isinstance(reported["latitude"], (int, float))
 
     async def test_get_host_by_hostname(self, client, registry):
         hosts_result = await list_hosts(client, registry)
-        hostname = hosts_result["hosts"][0].get("reportedState", {}).get("hostname")
+        hostname = hosts_result["data"][0].get("reportedState", {}).get("hostname")
         if not hostname:
             pytest.skip("First host has no reportedState.hostname — cannot test name resolution")
 
         host = await get_host(client, registry, hostname)
-        assert "id" in host
+        assert "id" in host["data"]
+        assert host["data"]["id"] == hosts_result["data"][0]["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -147,18 +150,18 @@ class TestGetHostIntegration:
 class TestListSitesIntegration:
     async def test_returns_sites(self, client, registry):
         result = await list_sites(client, registry)
-        assert "sites" in result
-        assert "count" in result
-        assert result["count"] >= 1, "Expected at least one site on test console"
+        assert "data" in result
+        assert "_count" in result
+        assert result["_count"] >= 1, "Expected at least one site on test console"
 
     async def test_site_has_required_fields(self, client, registry):
         result = await list_sites(client, registry)
-        site = result["sites"][0]
+        site = result["data"][0]
         assert "siteId" in site or "id" in site, "Site must have siteId or id"
 
     async def test_count_matches_sites_length(self, client, registry):
         result = await list_sites(client, registry)
-        assert result["count"] == len(result["sites"])
+        assert result["_count"] == len(result["data"])
 
     async def test_populates_registry_cache(self, client, registry):
         registry.invalidate()
@@ -178,21 +181,25 @@ class TestListSitesIntegration:
 class TestListDevicesIntegration:
     async def test_returns_devices(self, client, registry):
         result = await list_devices(client, registry)
-        assert "devices" in result
-        assert "count" in result
+        assert "data" in result
+        assert "_count" in result
 
     async def test_count_matches_devices_length(self, client, registry):
+        # 0.7.0: "data" holds the /v1/devices console wrappers verbatim
+        # ({hostId, hostName, devices: [...]}); "_count" counts the devices inside them and
+        # "_consoleCount" counts the wrappers.
         result = await list_devices(client, registry)
-        assert result["count"] == len(result["devices"])
+        assert result["_consoleCount"] == len(result["data"])
+        assert result["_count"] == sum(len(w.get("devices") or []) for w in result["data"])
 
     async def test_device_has_id(self, client, registry):
         result = await list_devices(client, registry)
-        if result["count"] == 0:
+        if result["_count"] == 0:
             pytest.skip("No device host-wrappers returned — skipping field check")
         # /v1/devices returns HOST-WRAPPER objects: {hostId, hostName, devices[], updatedAt}.
         # The actual device items are nested one level deeper at wrapper["devices"][*] and
         # carry the "id" field — the wrapper itself does not. Assert at the correct depth.
-        wrapper = result["devices"][0]
+        wrapper = result["data"][0]
         assert "devices" in wrapper, (
             "Expected a host-wrapper with a nested devices[] list; "
             f"got keys {sorted(wrapper.keys())}"
@@ -205,12 +212,12 @@ class TestListDevicesIntegration:
 
     async def test_filter_by_host(self, client, registry):
         hosts_result = await list_hosts(client, registry)
-        first_host_id = hosts_result["hosts"][0]["id"]
+        first_host_id = hosts_result["data"][0]["id"]
 
         result = await list_devices(client, registry, host=first_host_id)
-        assert "devices" in result
+        assert "data" in result
         # All returned devices should belong to the specified host
-        for device in result["devices"]:
+        for device in result["data"]:
             host_id_field = device.get("hostId") or device.get("host_id")
             if host_id_field:
                 assert host_id_field == first_host_id
@@ -230,10 +237,6 @@ class TestGetISPMetricsIntegration:
         result = await get_isp_metrics(client, "1h")
         assert isinstance(result, dict)
 
-    async def test_invalid_interval_rejected(self, client):
-        with pytest.raises(ValueError, match="interval must be"):
-            await get_isp_metrics(client, "wan")
-
 
 # ---------------------------------------------------------------------------
 # query_isp_metrics
@@ -243,18 +246,20 @@ class TestGetISPMetricsIntegration:
 class TestQueryISPMetricsIntegration:
     async def test_query_no_sites_rejected(self, client):
         # The UniFi Site Manager API requires at least one site filter on
-        # POST /v1/isp-metrics/{interval}/query; an empty body returns an opaque
-        # HTTP 400 "error while parsing request" (verified live). The tool rejects
-        # a no-sites call up front with a clear ValueError rather than forwarding
-        # the empty POST.
-        with pytest.raises(ValueError, match="at least one site"):
+        # POST /v1/isp-metrics/{interval}/query; an empty sites list returns an opaque
+        # HTTP 400 "error while parsing request" (verified live). 0.7.0 sends the empty
+        # list for the upstream to judge and raises the upstream error verbatim with an
+        # actionable hint appended that names the missing site filter.
+        with pytest.raises(
+            UniFiConnectionError, match=r"HTTP 400 .* -- Hint: the query names no site"
+        ):
             await query_isp_metrics(client, "5m")
 
     async def test_query_1h_with_time_range(self, client, registry):
         sites_result = await list_sites(client, registry)
-        if sites_result["count"] == 0:
+        if sites_result["_count"] == 0:
             pytest.skip("No sites available to filter by")
-        site = sites_result["sites"][0]
+        site = sites_result["data"][0]
         host_id = site.get("hostId", "")
         site_id = site.get("siteId") or site.get("id", "")
         if not host_id or not site_id:
@@ -277,9 +282,9 @@ class TestQueryISPMetricsIntegration:
 
     async def test_query_with_sites(self, client, registry):
         sites_result = await list_sites(client, registry)
-        if sites_result["count"] == 0:
+        if sites_result["_count"] == 0:
             pytest.skip("No sites available to filter by")
-        site = sites_result["sites"][0]
+        site = sites_result["data"][0]
         host_id = site.get("hostId", "")
         site_id = site.get("siteId") or site.get("id", "")
         if not host_id or not site_id:
@@ -299,12 +304,12 @@ class TestQueryISPMetricsIntegration:
 class TestListSDWANConfigsIntegration:
     async def test_returns_configs(self, client):
         result = await list_sdwan_configs(client)
-        assert "configs" in result
-        assert "count" in result
+        assert "data" in result
+        assert "_count" in result
 
     async def test_count_matches_configs_length(self, client):
         result = await list_sdwan_configs(client)
-        assert result["count"] == len(result["configs"])
+        assert result["_count"] == len(result["data"])
 
 
 # ---------------------------------------------------------------------------
@@ -315,12 +320,12 @@ class TestListSDWANConfigsIntegration:
 class TestGetSDWANConfigIntegration:
     async def test_get_config_by_id(self, client):
         configs_result = await list_sdwan_configs(client)
-        if configs_result["count"] == 0:
+        if configs_result["_count"] == 0:
             pytest.skip("No SD-WAN configs available on test console")
 
-        config_id = configs_result["configs"][0]["id"]
+        config_id = configs_result["data"][0]["id"]
         config = await get_sdwan_config(client, config_id)
-        assert config.get("id") == config_id
+        assert config["data"]["id"] == config_id
 
 
 # ---------------------------------------------------------------------------
@@ -331,9 +336,9 @@ class TestGetSDWANConfigIntegration:
 class TestGetSDWANConfigStatusIntegration:
     async def test_get_config_status(self, client):
         configs_result = await list_sdwan_configs(client)
-        if configs_result["count"] == 0:
+        if configs_result["_count"] == 0:
             pytest.skip("No SD-WAN configs available on test console")
 
-        config_id = configs_result["configs"][0]["id"]
+        config_id = configs_result["data"][0]["id"]
         status = await get_sdwan_config_status(client, config_id)
         assert isinstance(status, dict), "SD-WAN status must be a dict"

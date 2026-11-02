@@ -1,28 +1,57 @@
 #!/usr/bin/env python3
-"""Phase G fixtures-sanitization gate.
+"""Fixtures-sanitization gate.
 
 Fail CI if real secrets or PII appear in committed test fixtures or example
-configuration files. The point is to keep the (currently synthetic) fixtures
-clean so real secret material can never reach the public release
-boundary via example data. This complements the `gitleaks` job with denylist
-checks tuned to this repo's data shapes.
+configuration files. The fixtures under tests/fixtures/recorded/ are sanitized
+captures of REAL upstream responses, so this gate must recognise every identifier
+class those captures carry; it complements the `gitleaks` job with denylist checks
+tuned to this repo's data shapes.
 
 Scope (intentionally excludes src/ and the test *code* under tests/*.py -- those
 are covered by gitleaks; this job only inspects data/config files):
   - tests/fixtures/**
+  - docs/evidence/** (committed probe / live-run evidence)
   - config/**
   - repo-root .mcp.json
   - any *.example.* / *.sample.* / .env.example / .env.sample anywhere in tree
 
+Checks on every target: secrets (PEM, JWT, bearer, API key), numeric hardware and
+subscriber identifiers (IMEI, IMEISV, EID, ICCID, ASN), public IPv4 addresses, and
+vendor MAC addresses (colon, dash or dotted form) that are not locally administered,
+not in the IANA 00:00:5e OUI and not a listed documentation value (DOC_MACS), also
+inside a longer colon run unless that run is a valid IPv6 literal (a vendor EUI-64 of
+eight 2-hex groups is flagged even though it parses as IPv6). Also on every target:
+IPv6 addresses in any form whose modified EUI-64 interface id encodes a MAC the MAC
+rule rejects (fe80::xxxx:xxff:fexx:xxxx), public IPv6 outside 2001:db8::/32, SSH
+host-key fingerprints (SHA256:..., MD5 colon hex) and public keys, UniFi x_* secret
+fields (x_authkey, x_vwirekey, x_ssh_hostkey_fingerprint, ...) holding anything but a
+placeholder, serial-number fields that are not placeholders/fakes, and the release
+battery's estate / internal names (.github/forbidden-names.txt; the battery seed
+fixtures are exempt). Captures recorded by hand (not by the recorder) get the same
+checks: the rule is on the data, not on the tool that produced it.
+Checks on recorded captures (tests/fixtures/recorded/), whose identifiers are all
+replaced with stable fakes: MAC addresses (any separator or none) outside the fake
+02:00:5e / 00:00:00 prefixes, ObjectIds, UUIDs and console host ids that are not the
+zero-padded fakes, email addresses, latitude/longitude values other than the fake
+pair, private IPv4 addresses outside the fake 10.0.0.0/16 range, and free-text name
+fields (name, hostname, email, owner, first/last/full name) that are not placeholders.
+
 Findings print only "<file>:<line>: <category>" -- never the matched value --
 so no secret is echoed to CI logs.
 """
+
 from __future__ import annotations
 
+# Keep this import block in its current order (isort is disabled for it).
+# isort: off
 import ipaddress
+import json
+import tomllib
 import re
+import shlex
 import sys
 from pathlib import Path
+# isort: on
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,12 +75,577 @@ DENYLIST = [
         "UniFi / api.ui.com API key",
         re.compile(r"(?i)(?:x-api-key|api[_-]?key)\s*[:=]\s*[\"']?[A-Za-z0-9]{30,}"),
     ),
+    # SSH host-key material identifies one physical device as surely as its MAC does.
+    # Zero-padded fakes (SHA256:0000...0001, 00:00:...:01) carry no identity and pass.
+    (
+        "SSH host-key fingerprint (SHA256)",
+        re.compile(r"SHA256:(?![0A]{20})[A-Za-z0-9+/]{43}(?![A-Za-z0-9+/])"),
+    ),
+    (
+        "SSH host-key fingerprint (MD5 colon hex)",
+        re.compile(
+            r"(?<![0-9A-Fa-f:])(?:MD5:)?(?!(?:00:){10})"
+            r"(?:[0-9A-Fa-f]{2}:){15}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:])"
+        ),
+    ),
+    (
+        "SSH public key",
+        re.compile(
+            r"\b(?:ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-nistp\d{3}|sk-ssh-ed25519@openssh\.com)"
+            r"\s+AAAA[A-Za-z0-9+/]{16,}"
+        ),
+    ),
 ]
 
 IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
+# Numeric hardware / subscriber identifiers. A digit run is only a candidate when it
+# is not part of a longer number or a decimal fraction: a digit-dot-digit adjacency
+# on either side (so the fraction digits of a float such as 1.234567890123456 are
+# never read as an identifier, while a run that ends a sentence or follows a
+# non-digit dot is).
+DIGIT_RUN_RE = re.compile(r"(?<!\d)(?<!\d\.)\d{15,32}(?!\d)(?!\.\d)")
+# Well-known numeric sentinels that are not identifiers (2**53 - 1 / 2**53: the largest
+# integers a JSON double holds exactly, used as "unbounded" markers).
+SENTINEL_NUMBERS = {"9007199254740991", "9007199254740992"}
+# A line whose JSON key is an endpoint ("/v1/..." or "GET /v1/...") maps that endpoint
+# to a 16-hex-digit spec hash (the spec-drift baseline), never to a hardware identifier.
+PATH_KEY_RE = re.compile(r'^\s*"(?:[A-Z]+ )?/[^"]*"\s*:')
+# Autonomous system numbers are matched by key name, never by digit count (an ASN can
+# be 1-10 digits): any key containing ``asn`` in any case (``ispAsn``,
+# ``asns``, ``asn_number``). The value may carry an ``AS`` prefix.
+# Values in the private / documentation ranges are allowed.
+KEYED_NUMBER_RE = re.compile(r'"([A-Za-z0-9_-]+)"\s*:\s*"?((?:[Aa][Ss])?)(\d+)"?')
+# "AS<digits>" string values (whole string, or the leading word of one such as
+# "AS64500 Example Net"), under any key.
+AS_STRING_RE = re.compile(r'"AS(\d{1,10})(?=["\s])')
+ALLOWED_ASN_RANGES = (
+    (0, 0),
+    (64496, 65534),
+    (65536, 65551),
+    (4200000000, 4294967294),
+)
+
+
+def is_asn_key(key):
+    """True for an autonomous-system-number key name in any of its spellings."""
+    return "asn" in re.sub(r"[^a-z0-9]", "", key.lower())
+
+
+def asn_allowed(value):
+    return any(lo <= value <= hi for lo, hi in ALLOWED_ASN_RANGES)
+
+
+def luhn_valid(digits):
+    total = 0
+    for i, ch in enumerate(reversed(digits)):
+        d = int(ch)
+        if i % 2 == 1:
+            d = d * 2 - 9 if d > 4 else d * 2
+        total += d
+    return total % 10 == 0
+
+
+def numeric_identifier_hits(line):
+    """Categories of real-looking numeric identifiers on ``line`` (values never returned)."""
+    hits = []
+    if not PATH_KEY_RE.match(line):
+        for match in DIGIT_RUN_RE.finditer(line):
+            run = match.group(0)
+            if run in SENTINEL_NUMBERS:
+                continue
+            if len(run) == 15 and luhn_valid(run):
+                hits.append("15-digit Luhn-valid number (IMEI-shaped)")
+            elif len(run) == 16 and not run.startswith("000"):
+                hits.append("16-digit number (IMEISV-shaped)")
+            elif len(run) == 32 and run.startswith("89"):
+                hits.append("32-digit number starting 89 (eSIM EID-shaped)")
+            elif 18 <= len(run) <= 22 and run.startswith("89"):
+                hits.append("18-22 digit number starting 89 (ICCID-shaped)")
+    for match in KEYED_NUMBER_RE.finditer(line):
+        if is_asn_key(match.group(1)) and not asn_allowed(int(match.group(3))):
+            hits.append("ASN outside the private/documentation ranges")
+    for match in AS_STRING_RE.finditer(line):
+        if not asn_allowed(int(match.group(1))):
+            hits.append("AS-number string outside the private/documentation ranges")
+    return hits
+
+
+# ---------------------------------------------------------------- recorded captures
+RECORDED_DIR = "tests/fixtures/recorded/"
+# The recorder's fakes: MACs 02:00:5e:xx:xx:xx (or all-zero), ids zero-padded, the
+# coordinate pair 12.345678 / -98.765432, private addresses in 10.0.0.0/16.
+FAKE_MAC_PREFIXES = ("02005e", "000000")
+# A bare 12-hex string value (MAC without separators, or a device serial: UniFi
+# serials are the device MAC). Digit-only values are checked structurally by key.
+MAC_BARE_RE = re.compile(r'"([0-9A-Fa-f]{12})"')
+OBJECT_ID_RE = re.compile(r'"([0-9a-fA-F]{24})"')
+UUID_RE = re.compile(
+    r"\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b"
+)
+# Site Manager console host id: <hardware hex>:<number>.
+CONSOLE_ID_RE = re.compile(r"\b([0-9A-Fa-f]{40,}):(\d+)\b")
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+COORD_KEYS = {"lat", "latitude", "lng", "lon", "long", "longitude"}
+COORD_RE = re.compile(r'"([A-Za-z_]+)"\s*:\s*"?(-?\d+(?:\.\d+)?)"?')
+FAKE_COORDS = {"12.345678", "-98.765432", "0", "0.0"}
+FAKE_PRIVATE_NET = ipaddress.ip_network("10.0.0.0/16")
+PRIVATE_NETS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("100.64.0.0/10"),  # carrier-grade NAT (a WAN address)
+)
+# Free-text fields the recorder replaces with "<key>-NNNN" placeholders. Values the
+# controller itself assigns (system zone and network names) are allowed as-is.
+NAME_KEYS = {
+    "name",
+    "hostname",
+    "displayname",
+    "email",
+    "owner",
+    "firstname",
+    "lastname",
+    "fullname",
+    "username",
+}
+NAME_RE = re.compile(r'"([A-Za-z_]+)"\s*:\s*"([^"]*)"')
+ID_VALUE_RE = re.compile(
+    r"^(?:[0-9a-fA-F]{24}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\Z"
+)
+PLACEHOLDER_RE = re.compile(r"^[A-Za-z_]+-\d+\Z")
+CONTROLLER_NAMES = {
+    "default",
+    "internal",
+    "external",
+    "gateway",
+    "hotspot",
+    "vpn",
+    "dmz",
+    # A published enum constant named "name", not free text: the firewall-policy
+    # protocol preset (Network 10.6.106 ...ProtocolPresetTcpUdpDto, the only preset).
+    "tcp_udp",
+}
+
+
+def _mac_is_fake(hex12):
+    return hex12.lower().startswith(FAKE_MAC_PREFIXES)
+
+
+# ------------------------------------------------------------ MACs on every target
+# A MAC in colon, dash or dotted (xxxx.xxxx.xxxx) form. Outside the recorded captures
+# (which carry only the recorder's fakes) a MAC is allowed only when it can never name
+# a real device: a locally administered address (second-lowest bit of the first octet
+# set: 02:..., aa:bb:cc:dd:ee:ff, ...), the IANA OUI 00:00:5e (RFC 7042 reserves
+# 00:00:5e:00:53:xx for documentation), or one of the documentation values below.
+# Anything else is a vendor (globally unique) address and may be a real device.
+_HEX = "[0-9A-Fa-f]"
+_WORD = "[0-9A-Za-z_]"
+
+
+def _mac_form(body, sep, widths):
+    # A MAC must not sit inside a longer hex token, and a separator next to it is
+    # excluded only when it continues a longer hex group (a standalone hex group of
+    # one of ``widths`` digits, as in an IPv6 address or an EUI-64): "mac:<MAC>",
+    # "uplink-<MAC>", ".<MAC>" and "<MAC>." are all still matched.
+    before = "".join(f"(?<!(?<!{_WORD}){_HEX}{{{n}}}{sep})" for n in widths)
+    after = f"(?!{sep}{_HEX}{{{min(widths)},{max(widths)}}}(?!{_WORD}))"
+    return f"(?:{before}(?<!{_HEX}){body}(?!{_HEX}){after})"
+
+
+MAC_ANY_RE = re.compile(
+    "("
+    + _mac_form(f"(?:{_HEX}{{2}}:){{5}}{_HEX}{{2}}", ":", (1, 2, 3, 4))
+    + "|"
+    + _mac_form(f"(?:{_HEX}{{2}}-){{5}}{_HEX}{{2}}", "-", (2,))
+    + "|"
+    + _mac_form(f"{_HEX}{{4}}\\.{_HEX}{{4}}\\.{_HEX}{{4}}", "\\.", (4,))
+    + ")"
+)
+# The recorded-capture check covers the colon and dash forms (the recorder writes no
+# dotted MACs) with the same boundary rule.
+MAC_SEP_RE = re.compile(
+    "("
+    + _mac_form(f"(?:{_HEX}{{2}}:){{5}}{_HEX}{{2}}", ":", (1, 2, 3, 4))
+    + "|"
+    + _mac_form(f"(?:{_HEX}{{2}}-){{5}}{_HEX}{{2}}", "-", (2,))
+    + ")"
+)
+DOC_MAC_PREFIXES = ("00005e",)
+DOC_MACS = {
+    "000000000000",  # all-zero (unset)
+    "ffffffffffff",  # broadcast
+    "112233445566",
+    "001122334455",
+    "001a2b3c4d5e",
+}
+
+
+def mac_is_documentation(hex12):
+    """True for a MAC (12 hex digits, no separators) that cannot name a real device."""
+    value = hex12.lower()
+    return (
+        bool(int(value[:2], 16) & 0x02) or value in DOC_MACS or value.startswith(DOC_MAC_PREFIXES)
+    )
+
+
+# A MAC inside a longer colon run ("<MAC>:1", "1:<MAC>") escapes the bounded patterns
+# above (the neighbouring group looks like IPv6 / EUI-64). Every maximal colon run is
+# therefore also checked: a window of exactly six 2-hex groups whose address the rule
+# does not allow is flagged, unless the whole run is a valid IPv6 literal. A run of
+# exactly eight 2-hex groups with a vendor first octet is an EUI-64 MAC and is flagged
+# even though it parses as IPv6 (real IPv6 literals almost never have all-2-hex groups).
+COLON_RUN_RE = re.compile(r"[0-9A-Fa-f:]*:[0-9A-Fa-f:]*")
+
+
+def _ipv6_literal(run):
+    for cand in (run, run.strip(":")):
+        try:
+            ipaddress.ip_address(cand)
+            return True
+        except ValueError:
+            pass
+    return False
+
+
+def _eui64(run, allowed):
+    """True for exactly eight 2-hex groups whose leading six-octet address ``allowed``
+    rejects (a vendor EUI-64), even though the run parses as IPv6."""
+    groups = run.strip(":").split(":")
+    return (
+        len(groups) == 8 and all(len(g) == 2 for g in groups) and not allowed("".join(groups[:6]))
+    )
+
+
+def embedded_colon_macs(line, allowed, taken):
+    """Number of colon runs on ``line`` holding a six-group MAC window that ``allowed``
+    rejects, not already matched by a bounded MAC pattern (``taken`` spans) and not a
+    valid IPv6 literal, or that are a vendor EUI-64 (see ``_eui64``)."""
+    count = 0
+    for match in COLON_RUN_RE.finditer(line):
+        if any(s < match.end() and match.start() < e for s, e in taken):
+            continue
+        groups = match.group(0).split(":")
+        bad = any(
+            all(len(g) == 2 for g in groups[i : i + 6]) and not allowed("".join(groups[i : i + 6]))
+            for i in range(len(groups) - 5)
+        )
+        if (bad and not _ipv6_literal(match.group(0))) or _eui64(match.group(0), allowed):
+            count += 1
+    return count
+
+
+# ------------------------------------------------------------ IPv6 on every target
+# An IPv6 address in any textual form (compressed "fe80::...", zone or prefix suffix
+# stripped by the run boundary). Its interface identifier may be a modified EUI-64
+# (ff:fe in bytes 11-12), which encodes the device MAC (universal/local bit flipped):
+# that MAC must pass the same rule as a literal MAC. Public addresses (2000::/3) must
+# sit in the documentation prefix 2001:db8::/32. In recorded captures, link-local
+# addresses must be the recorder's fakes (fe80::<small n>) and unique-local (fc00::/7)
+# addresses never appear (the recorder maps every non-link-local address into
+# 2001:db8::/32).
+DOC_IPV6 = ipaddress.ip_network("2001:db8::/32")
+GLOBAL_UNICAST_IPV6 = ipaddress.ip_network("2000::/3")
+LINK_LOCAL_IPV6 = ipaddress.ip_network("fe80::/10")
+UNIQUE_LOCAL_IPV6 = ipaddress.ip_network("fc00::/7")
+RECORDED_FAKE_LL_MAX = 0xFFFF
+
+
+def _ipv6_in_run(run):
+    """The IPv6 address a colon run holds, also after a leading key ("ipv6:fe80::1")."""
+    candidates = [run, run.strip(":")]
+    for index, char in enumerate(run):
+        if char == ":":
+            candidates.append(run[index + 1 :])
+            candidates.append(run[index:])
+    for candidate in candidates:
+        if candidate.count(":") < 2:
+            continue
+        try:
+            return ipaddress.IPv6Address(candidate)
+        except ValueError:
+            continue
+    return None
+
+
+def eui64_mac(ip):
+    """The 12-hex MAC a modified EUI-64 interface id encodes, or None."""
+    iid = ip.packed[8:]
+    if iid[3] == 0xFF and iid[4] == 0xFE:
+        return bytes([iid[0] ^ 0x02]).hex() + iid[1:3].hex() + iid[5:].hex()
+    return None
+
+
+def ipv6_hits(line, recorded=False):
+    """Categories of real-looking IPv6 addresses on ``line`` (values never returned)."""
+    hits = []
+    allowed = _mac_is_fake if recorded else mac_is_documentation
+    for match in COLON_RUN_RE.finditer(line):
+        ip = _ipv6_in_run(match.group(0))
+        if ip is None:
+            continue
+        mac = eui64_mac(ip)
+        if mac and not allowed(mac):
+            hits.append(
+                "EUI-64 IPv6 address encoding a MAC outside the synthetic/documentation values"
+            )
+        if ip in GLOBAL_UNICAST_IPV6 and ip not in DOC_IPV6:
+            hits.append("public IPv6 address outside the documentation prefix 2001:db8::/32")
+        elif recorded and ip in UNIQUE_LOCAL_IPV6:
+            hits.append("unique-local IPv6 address in a recorded capture (not a recorder fake)")
+        elif (
+            recorded
+            and ip in LINK_LOCAL_IPV6
+            and not mac
+            and int(ip) & ((1 << 64) - 1) > RECORDED_FAKE_LL_MAX
+        ):
+            hits.append("link-local IPv6 address that is not a recorder fake (fe80::<n>)")
+    return hits
+
+
+# ------------------------------------------------- UniFi x_* fields on every target
+# UniFi prefixes every secret-bearing setting with "x_" (x_passphrase, x_authkey,
+# x_vwirekey, x_iapp_key, x_ssh_hostkey_fingerprint, x_ssh_keys, ...). Every string
+# under such a key (and inside any list / record it holds) must be a placeholder.
+X_FIELD_RE = re.compile(
+    r"""(?<![A-Za-z0-9_])["']?(x_[A-Za-z0-9_]+)["']?\s*[:=]\s*["']([^"']*)["']"""
+)
+X_PLACEHOLDER_RE = re.compile(
+    r"^(?:|[xX*]+|REDACTED|redacted|<[^<>]*>|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|"
+    r"[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\d{1,6}|"  # recorder placeholder (key-0001)
+    r"0+|0{6,}(?:fa)?[0-9a-fA-F]{1,6}|"  # zero-padded fakes (recorder: 0...0fa0001)
+    r"\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?|"  # ISO date/time
+    r"ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-nistp\d{3}|"  # SSH key type
+    r"SHA256:(?:x+|[0A]{20,}[A-Za-z0-9+/]{0,23}=?)|MD5:x+)\Z"  # fingerprint fakes
+)
+
+
+def x_field_hits(value, inside=False):
+    """Categories of non-placeholder strings held by UniFi x_* keys (structured)."""
+    hits = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "properties" and isinstance(item, dict):
+                for name, schema in item.items():
+                    if str(name).startswith("x_") and isinstance(schema, dict):
+                        for literal in ("default", "const", "enum", "examples"):
+                            if literal in schema:
+                                hits.extend(x_field_hits(schema[literal], True))
+                        for child_key, child in schema.items():
+                            if child_key not in {"default", "const", "enum", "examples"}:
+                                hits.extend(x_field_hits(child, inside))
+                    else:
+                        hits.extend(x_field_hits(schema, inside or str(name).startswith("x_")))
+                continue
+            hits.extend(x_field_hits(item, inside or str(key).startswith("x_")))
+    elif isinstance(value, list):
+        for item in value:
+            hits.extend(x_field_hits(item, inside))
+    elif inside and isinstance(value, str) and not X_PLACEHOLDER_RE.fullmatch(value):
+        hits.append("UniFi x_* secret field holds a non-placeholder value")
+    return hits
+
+
+def x_field_line_hits(line):
+    """The text form of ``x_field_hits`` for files that are not JSON documents."""
+    return [
+        "UniFi x_* secret field holds a non-placeholder value"
+        for match in X_FIELD_RE.finditer(line)
+        if not X_PLACEHOLDER_RE.fullmatch(match.group(2))
+    ]
+
+
+# ----------------------------------------------------- serial numbers on every target
+SERIAL_PLACEHOLDER_RE = re.compile(
+    r"^(?:|[xX*]+|REDACTED|<[^<>]*>|[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\d{1,6}|"
+    r"0+\d{0,6}|(?:02005e|000000)[0-9a-fA-F]{6})\Z"
+)
+
+
+def _serial_key(key):
+    normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+    return normalized == "sn" or "serial" in normalized
+
+
+def serial_hits(value):
+    """Categories of serial-number fields whose value is not a placeholder/fake."""
+    hits = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if _serial_key(key):
+                scalars = item if isinstance(item, list) else [item]
+                for scalar in scalars:
+                    if isinstance(scalar, str) and not SERIAL_PLACEHOLDER_RE.fullmatch(scalar):
+                        hits.append("serial-number field that is not a placeholder or fake")
+            hits.extend(serial_hits(item))
+    elif isinstance(value, list):
+        for item in value:
+            hits.extend(serial_hits(item))
+    return hits
+
+
+# ------------------------------------------- estate names in fixture data
+# The release battery's forbidden names (.github/forbidden-names.txt: estate console,
+# site and people names, estate device MACs, internal service names) must not appear
+# in any fixture or committed evidence either. When the list file is absent the check
+# is a no-op. The battery seed fixtures carry the names on purpose (they prove the
+# battery fires) and are exempt.
+FORBIDDEN_NAMES_FILE = REPO_ROOT / ".github" / "forbidden-names.txt"
+FORBIDDEN_SCOPE_PREFIXES = ("tests/fixtures/", "docs/evidence/")
+FORBIDDEN_EXEMPT_PREFIXES = ("tests/fixtures/battery_seed/",)
+
+
+def _load_forbidden_names():
+    patterns = []
+    if FORBIDDEN_NAMES_FILE.is_file():
+        for raw in FORBIDDEN_NAMES_FILE.read_text(encoding="utf-8").splitlines():
+            raw = raw.strip()
+            if raw and not raw.startswith("#"):
+                patterns.append(re.compile(raw, re.I))
+    return patterns
+
+
+FORBIDDEN_NAMES = _load_forbidden_names()
+
+
+def estate_name_hits(line):
+    return [
+        "estate / internal name from forbidden-names.txt" for p in FORBIDDEN_NAMES if p.search(line)
+    ]
+
+
+def mac_hits(line):
+    """Categories of vendor (globally unique) MACs on ``line`` (values never returned)."""
+    hits = []
+    taken = []
+    for match in MAC_ANY_RE.finditer(line):
+        taken.append(match.span())
+        if not mac_is_documentation(re.sub(r"[:.-]", "", match.group(1))):
+            hits.append("vendor MAC address (not locally administered, not a documentation value)")
+    for _ in range(embedded_colon_macs(line, mac_is_documentation, taken)):
+        hits.append("vendor MAC address inside a longer colon run (not IPv6, or a vendor EUI-64)")
+    return hits
+
+
+def recorded_identifier_hits(line):
+    """Categories of real-looking identifiers on a recorded-capture line (values never
+    returned). Recorded captures carry only the recorder's fakes, so anything else is
+    a sanitization miss."""
+    hits = []
+    taken = []
+    for match in MAC_SEP_RE.finditer(line):
+        taken.append(match.span())
+        if not _mac_is_fake(re.sub(r"[:-]", "", match.group(1))):
+            hits.append("MAC address outside the fake 02:00:5e / 00:00:00 prefixes")
+    for _ in range(embedded_colon_macs(line, _mac_is_fake, taken)):
+        hits.append("MAC address outside the fake prefixes inside a longer colon run")
+    for match in MAC_BARE_RE.finditer(line):
+        value = match.group(1)
+        if not value.isdigit() and not _mac_is_fake(value):
+            hits.append("12-hex MAC/serial outside the fake 02005e / 000000 prefixes")
+    for match in OBJECT_ID_RE.finditer(line):
+        if not match.group(1).startswith("0000000000"):
+            hits.append("ObjectId that is not a zero-padded fake")
+    for match in UUID_RE.finditer(line):
+        if not match.group(1).startswith("00000000-"):
+            hits.append("UUID that is not a zero-padded fake")
+    for match in CONSOLE_ID_RE.finditer(line):
+        if not match.group(1).startswith("0" * 40):
+            hits.append("console host id that is not a zero-padded fake")
+    if EMAIL_RE.search(line):
+        hits.append("email address")
+    for match in COORD_RE.finditer(line):
+        if match.group(1).lower() in COORD_KEYS and match.group(2) not in FAKE_COORDS:
+            hits.append("latitude/longitude other than the fake pair")
+    for match in IPV4_RE.finditer(line):
+        try:
+            ip = ipaddress.ip_address(match.group(0))
+        except ValueError:
+            continue
+        if any(ip in net for net in PRIVATE_NETS) and ip not in FAKE_PRIVATE_NET:
+            hits.append("private IPv4 address outside the fake 10.0.0.0/16 range")
+    for match in NAME_RE.finditer(line):
+        key, value = match.group(1).lower(), match.group(2)
+        if (
+            key in NAME_KEYS
+            and value
+            and not PLACEHOLDER_RE.match(value)
+            and not ID_VALUE_RE.match(value)  # an id (owner = ObjectId); id checks cover it
+            and value.lower() not in CONTROLLER_NAMES
+        ):
+            hits.append(f"free-text {match.group(1)!r} value that is not a placeholder")
+    return hits
+
+
+def json_identifier_hits(value, recorded=False, hardware=False, asn=False):
+    """Check identifiers structurally, carrying key meaning through containers.
+
+    Hardware keys establish identifier meaning even for all-digit values; unrelated
+    counters and timestamps do not. ASN containers inherit the enclosing ASN key.
+    Findings contain categories only, never identifier values.
+    """
+    hits = []
+    if isinstance(value, list):
+        for item in value:
+            hits.extend(json_identifier_hits(item, recorded, hardware, asn))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            normalized = re.sub(r"[^a-z0-9]", "", key.lower())
+            hardware_key = normalized == "sn" or any(
+                part in normalized for part in ("mac", "bssid", "hwaddr", "chassis", "serial")
+            )
+            hits.extend(
+                json_identifier_hits(
+                    item, recorded, hardware or hardware_key, asn or is_asn_key(key)
+                )
+            )
+    elif isinstance(value, (str, int)) and not isinstance(value, bool):
+        text = str(value)
+        if asn and re.fullmatch(r"(?:[Aa][Ss])?\d+", text):
+            number = int(re.sub(r"^[Aa][Ss]", "", text))
+            if not asn_allowed(number):
+                hits.append("ASN outside the private/documentation ranges")
+        if hardware:
+            hex12 = re.sub(r"[:.-]", "", text)
+            if re.fullmatch(r"[0-9a-fA-F]{12}", hex12):
+                allowed = _mac_is_fake(hex12) or (not recorded and mac_is_documentation(hex12))
+                if not allowed:
+                    hits.append("MAC/serial field outside the synthetic/documentation values")
+    return hits
+
+
+def iter_json_records(text):
+    """Parse JSON regardless of extension, including JSONL and fenced captures.
+
+    Decode a complete record at every ``{`` / ``[`` offset (a line start, or inline in
+    prose such as ``see {"asn": 64500} here``), allowing pretty-printed multiline records.
+    Consume each record once so nested objects are not repeated.
+    The ordinary text checks still inspect lines that are not valid JSON.
+    """
+    try:
+        yield json.loads(text)
+        return
+    except (ValueError, TypeError):
+        pass
+    decoder = json.JSONDecoder()
+    consumed = 0
+    for match in re.finditer(r"[\[{]", text):
+        start = match.start()
+        if start < consumed:
+            continue
+        try:
+            value, end = decoder.raw_decode(text, start)
+        except ValueError:
+            continue
+        consumed = end
+        yield value
+
+
 GLOBS = [
     "tests/fixtures/**/*",
+    # Captured evidence committed beside docs (probe output, live-run records) is
+    # fixture data too.
+    "docs/evidence/**/*",
     "config/**/*",
     "**/*.example.*",
     "**/*.sample.*",
@@ -88,6 +682,368 @@ def public_ip_hits(text):
     return hits
 
 
+# Credential keys are checked as structured fields, independently of value shape.
+# Normalize case/separators so JSON camelCase, HTTP headers and env spellings agree.
+_CREDENTIAL_NAMES = {
+    "accesstoken",
+    "apikey",
+    "apitoken",
+    "authorization",
+    "authtoken",
+    "bearertoken",
+    "clientsecret",
+    "deviceauth",
+    "idtoken",
+    "ipsecpresharedkey",
+    "openvpnconfiguration",
+    "passphrase",
+    "passwd",
+    "password",
+    "presharedkey",
+    "privatekey",
+    "psk",
+    "radiussecret",
+    "refreshtoken",
+    "saepsk",
+    "secret",
+    "servercertificatekey",
+    "sshpassword",
+    "syslogkey",
+    "token",
+    "wpapsk",
+    "xapikey",
+    "xapitoken",
+    "xauthtoken",
+    "xcacrt",
+    "xcakey",
+    "xcertificatecrt",
+    "xcertificatekey",
+    "xiappkey",
+    "xipsecpresharedkey",
+    "xmeshpsk",
+    "xpassphrase",
+    "xpassword",
+    "xprivatekey",
+    "xpsk",
+    "xradiussecret",
+    "xsecret",
+    "xsshpassword",
+    "xsshsudopassword",
+    "xwep",
+}
+
+_CREDENTIAL_FIELD_RE = re.compile(
+    r"""^\s*(?:export\s+|[-]\s*)?["']?([A-Za-z_][A-Za-z0-9_.-]*)["']?\s*[:=]\s*(.*?)\s*\Z"""
+)
+# Match whole values only. Command substitutions need a separate literal check.
+_CREDENTIAL_PLACEHOLDER_RE = re.compile(
+    r"""^(?:<[^<>]+>|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*|"""
+    r"""YOUR_[A-Z][A-Z0-9_]*|your-api-key-here|"""
+    r"""example-(?:api-key|token|secret|password)|"""
+    r"""\*{3}REDACTED\*{3}|(?:token|secret|api-key|access-key|private-key|placeholder|fake|example)-\d+)\Z"""
+)
+
+
+_SHELL_SUBSTITUTION_RE = re.compile(r"^\$\(([^()\r\n]*)\)\Z")
+_SHELL_CREDENTIAL_LITERAL_RE = re.compile(r"[A-Za-z0-9._~+/-]{16,}={0,2}")
+# Command separators and pipes delimit commands even without surrounding spaces
+# ("true;echo x", "true||echo x", "true|echo x"). Angle brackets stay word
+# characters so "<your-password>" placeholders remain a single word.
+_SHELL_OPERATOR_CHARS = ";|&"
+
+
+def _is_shell_operator(token):
+    return bool(token) and all(char in _SHELL_OPERATOR_CHARS for char in token)
+
+
+def _shell_operator_tokens(expression):
+    """Tokenize with control operators split off as their own tokens."""
+    lexer = shlex.shlex(expression, posix=True, punctuation_chars=_SHELL_OPERATOR_CHARS)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def _emits_literal_data(tokens, *, segmented):
+    """True when an echo/printf command word emits a non-placeholder argument.
+
+    In the segmented view an unquoted control operator ends the command. The
+    plain view never trusts operator-looking words, which may be quoted data.
+    """
+    # These commands emit literal arguments, even short/low-entropy passwords.
+    # Options belong only to the initial option position; a leading hyphen in
+    # emitted data never makes that data safe.
+    for index, word in enumerate(tokens):
+        if segmented and _is_shell_operator(word):
+            continue
+        command = word.rsplit("/", 1)[-1]
+        if command not in {"echo", "printf"}:
+            continue
+        arguments = []
+        for token in tokens[index + 1 :]:
+            if segmented and _is_shell_operator(token):
+                break
+            arguments.append(token)
+        if command == "echo":
+            while arguments and re.fullmatch(r"-[neE]+", arguments[0]):
+                arguments = arguments[1:]
+            # echo does not recognize -- as an end-of-options delimiter.
+        else:
+            if arguments and arguments[0] == "--":
+                arguments = arguments[1:]
+            if arguments and arguments[0] in {"%s", "%s\\n", "%b"}:
+                arguments = arguments[1:]
+        for argument in arguments:
+            if _CREDENTIAL_PLACEHOLDER_RE.fullmatch(argument):
+                continue
+            return True
+    return False
+
+
+def _safe_shell_substitution(value):
+    """Allow unevaluated expressions only when their words contain no credentials."""
+    match = _SHELL_SUBSTITUTION_RE.fullmatch(value)
+    if not match:
+        return False
+    expression = match.group(1)
+    if any(pattern.search(expression) for _, pattern in DENYLIST):
+        return False
+    # A backtick opens a nested, evaluated substitution: never a placeholder.
+    if "`" in expression:
+        return False
+    try:
+        words = shlex.split(expression)
+        segmented = _shell_operator_tokens(expression)
+    except ValueError:
+        return False
+    for word in words:
+        # Angle brackets cannot disguise embedded token-shaped material.
+        if not word.startswith("<") and _CREDENTIAL_PLACEHOLDER_RE.fullmatch(word):
+            continue
+        if _SHELL_CREDENTIAL_LITERAL_RE.search(word):
+            return False
+    # Both views must be clean: plain words keep quoted operator characters as
+    # data ("echo ';'"), while the segmented view exposes command words that are
+    # attached to a separator ("true;echo -fixture"). Either finding fails closed.
+    if _emits_literal_data(words, segmented=False) or _emits_literal_data(
+        segmented, segmented=True
+    ):
+        return False
+    return bool(words)
+
+
+def _credential_key(key):
+    normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+    # Custom prefixes occur in env/config keys; match credential endings only.
+    return (
+        normalized in _CREDENTIAL_NAMES
+        or normalized.endswith(
+            (
+                "token",
+                "secret",
+                "password",
+                "passphrase",
+                "apikey",
+                "secretkey",
+                "accesskey",
+                "privatekey",
+            )
+        )
+        # Wi-Fi and device keys (ppsk, wlanPsk, authkey, vwirekey). The x_* forms are
+        # already held to the stricter x_field_hits placeholder rule.
+        or (not str(key).startswith("x_") and normalized.endswith(("psk", "authkey", "vwirekey")))
+        or (normalized.startswith("x") and normalized[1:] in _CREDENTIAL_NAMES)
+    )
+
+
+def voucher_code_hits(rel, parsed):
+    """A hotspot voucher ``code`` is a guest credential: only all-zero codes may ship."""
+    if "voucher" not in rel.lower():
+        return []
+    hits = []
+
+    def walk(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).lower() == "code" and not isinstance(child, (dict, list, bool)):
+                    text = str(child).strip()
+                    if child is not None and set(text) - {"0", "-"} and _credential_value(text):
+                        hits.append("voucher code is not an all-zero placeholder")
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(parsed)
+    return hits
+
+
+def _credential_value(value):
+    if not isinstance(value, str):
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    value = value.strip()
+    if value.startswith("Bearer "):
+        value = value[7:].strip()
+    if value in {"REDACTED", "xxxxxxxx"}:
+        return False
+    return bool(value) and not (
+        _CREDENTIAL_PLACEHOLDER_RE.fullmatch(value) or _safe_shell_substitution(value)
+    )
+
+
+_FENCED_BLOCK_RE = re.compile(
+    r"^ {0,3}(?:```|~~~)[^\n]*\n(.*?)^ {0,3}(?:```|~~~)[ \t]*$", re.M | re.S
+)
+
+
+def credential_hits(text):
+    """Find credential fields in JSON/JSONL, TOML, YAML and env/text fixtures.
+
+    Return categories only; neither keys nor sensitive values reach logs.
+    The text fallback also handles configuration snippets in Markdown.
+    """
+    hits = []
+
+    def walk(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                synthetic_cursor = (
+                    key == "nextToken"
+                    and isinstance(child, str)
+                    and re.fullmatch(r"fixture-page-cursor-[0-9]{8,}", child) is not None
+                )
+                if _credential_key(key) and _credential_value(child) and not synthetic_cursor:
+                    hits.append("credential-like field contains non-placeholder material")
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    try:
+        walk(json.loads(text))
+        return hits
+    except (ValueError, TypeError):
+        pass
+    try:
+        walk(tomllib.loads(text))
+        return hits
+    except tomllib.TOMLDecodeError:
+        pass
+    # Records embedded in prose or Markdown: a capture after a label ("Example: {...}"),
+    # a pretty-printed record spanning lines, or a fenced block. Each is checked as a
+    # structured document; the line checks below still see everything else.
+    for record in iter_json_records(text):
+        walk(record)
+    for block in _FENCED_BLOCK_RE.findall(text):
+        try:
+            walk(tomllib.loads(block))
+        except tomllib.TOMLDecodeError:
+            pass
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        try:
+            walk(json.loads(line))
+            continue
+        except (ValueError, TypeError):
+            pass
+        match = _CREDENTIAL_FIELD_RE.match(line)
+        if not match or not _credential_key(match.group(1)):
+            continue
+        value = match.group(2).strip()
+        if value in {"|", "|-", "|+", ">", ">-", ">+"}:
+            # A YAML block scalar belongs to this field until indentation returns.
+            indent = len(line) - len(line.lstrip())
+            parts = []
+            for following in lines[index + 1 :]:
+                if following.strip() and len(following) - len(following.lstrip()) <= indent:
+                    break
+                parts.append(following.strip())
+            value = " ".join(parts)
+        else:
+            value = value.removesuffix(",").strip()
+            if value[:1] in {'"', "'"} and value[-1:] == value[:1]:
+                value = value[1:-1]
+            else:
+                value = value.split(" #", 1)[0].strip()
+            if value in {"null", "None", "~"}:
+                continue
+        if _credential_value(value):
+            hits.append("credential-like field contains non-placeholder material")
+    return hits
+
+
+def inventory_build_version_line(rel, line):
+    """The pinned Network CDN build is a release version, not an estate IP.
+
+    Exempt only these three complete metadata records in this one inventory.
+    Other keys, files, versions and addresses appended to a record stay scanned.
+    CDN URLs must retain the upstream release path for reproducible provenance.
+    """
+    if rel != "tests/fixtures/private_api/inventory_network_11.0.81.json":
+        return False
+    cdn = "https://net-fe-static-assets.network-controller.svc.ui.com/release/11.0.81.0"
+    return line.strip().removesuffix(",") in {
+        '"build": "11.0.81.0"',
+        f'"base_url": "{cdn}"',
+        f'"entry": "{cdn}/unifi/react/js/swai.2a25194af20cf3b62663.js"',
+    }
+
+
+def scan_text(rel, text, recorded=None):
+    """Every finding for one file's text (``rel`` is its repo-relative path).
+
+    ``recorded`` forces the recorded-capture rules (the recorder runs this on its own
+    output before it is committed); by default they apply under tests/fixtures/recorded/.
+    Findings carry the path, line and category only, never a matched value.
+    """
+    if recorded is None:
+        recorded = rel.startswith(RECORDED_DIR)
+    findings = []
+    for label in credential_hits(text):
+        findings.append(f"{rel}: structured credential: {label}")
+    try:
+        json.loads(text)
+        whole_json = True
+    except (ValueError, TypeError):
+        whole_json = False
+    for parsed in iter_json_records(text):
+        for label in json_identifier_hits(parsed, recorded):
+            findings.append(f"{rel}: {label}")
+        for label in x_field_hits(parsed) + serial_hits(parsed):
+            findings.append(f"{rel}: {label}")
+        for label in voucher_code_hits(rel, parsed):
+            findings.append(f"{rel}: {label}")
+    # Fixture data only: example configs and the private-only .mcp.json (stripped from
+    # the public tree) may name the private services they configure.
+    check_names = rel.startswith(FORBIDDEN_SCOPE_PREFIXES) and not rel.startswith(
+        FORBIDDEN_EXEMPT_PREFIXES
+    )
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for label, pattern in DENYLIST:
+            if pattern.search(line):
+                findings.append(f"{rel}:{lineno}: {label}")
+        for label in numeric_identifier_hits(line):
+            findings.append(f"{rel}:{lineno}: {label}")
+        if recorded:
+            # The stricter recorded-capture rule (fake prefixes only) covers MACs.
+            for label in recorded_identifier_hits(line):
+                findings.append(f"{rel}:{lineno}: {label}")
+        else:
+            for label in mac_hits(line):
+                findings.append(f"{rel}:{lineno}: {label}")
+        for label in ipv6_hits(line, recorded):
+            findings.append(f"{rel}:{lineno}: {label}")
+        if not whole_json:
+            for label in x_field_line_hits(line):
+                findings.append(f"{rel}:{lineno}: {label}")
+        if check_names:
+            for label in estate_name_hits(line):
+                findings.append(f"{rel}:{lineno}: {label}")
+        if public_ip_hits(line) and not inventory_build_version_line(rel, line):
+            findings.append(f"{rel}:{lineno}: public IP not in placeholder allowlist")
+    return findings
+
+
 def main() -> int:
     findings = []
     targets = iter_target_files()
@@ -98,14 +1054,7 @@ def main() -> int:
         except OSError as exc:
             findings.append(f"{rel}: unreadable ({exc})")
             continue
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            for label, pattern in DENYLIST:
-                if pattern.search(line):
-                    findings.append(f"{rel}:{lineno}: {label}")
-            if public_ip_hits(line):
-                findings.append(
-                    f"{rel}:{lineno}: public IP not in placeholder allowlist"
-                )
+        findings.extend(scan_text(rel, text))
 
     print(f"Scanned {len(targets)} fixture/example-config file(s).")
     if findings:

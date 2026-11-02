@@ -1,0 +1,21 @@
+{
+  "id": "00000000-0000-4000-8000-0000000000aa",
+  "_id": "0000000000000000000000aa",
+  "mac": "02:00:5e:00:00:aa",
+  "macAddress": "02:00:5e:00:00:aa",
+  "key": "probe-object",
+  "name": "probe-object",
+  "subsystem": "wan",
+  "hostId": "00000000-0000-4000-8000-0000000000aa",
+  "nested": {
+    "list": [
+      1,
+      "two",
+      {
+        "three": null
+      }
+    ],
+    "flag": false,
+    "ratio": 1.25
+  }
+}

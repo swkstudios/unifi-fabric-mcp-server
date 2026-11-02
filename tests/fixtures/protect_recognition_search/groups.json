@@ -1,0 +1,18 @@
+[
+  {
+    "id": "face_1",
+    "name": "synthetic-face-one",
+    "matchedName": "synthetic-face-one",
+    "detectionsCount": 3,
+    "createdAt": 1718000000000,
+    "settings": {"notificationEnabled": true}
+  },
+  {
+    "id": "face_2",
+    "name": null,
+    "matchedName": null,
+    "detectionsCount": 1,
+    "createdAt": 1718000600000,
+    "settings": {"notificationEnabled": false}
+  }
+]

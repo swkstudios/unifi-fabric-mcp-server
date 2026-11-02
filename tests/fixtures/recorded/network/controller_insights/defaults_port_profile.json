@@ -1,0 +1,37 @@
+{
+  "args": [
+    "port_profile",
+    "Default"
+  ],
+  "body": {
+    "autoneg": true,
+    "dot1x_ctrl": "force_authorized",
+    "egress_rate_limit_kbps": 100,
+    "egress_rate_limit_kbps_enabled": false,
+    "flow_control_enabled": true,
+    "isolation": false,
+    "lldpmed_enabled": true,
+    "lldpmed_notify_enabled": false,
+    "op_mode": "switch",
+    "poe_mode": null,
+    "port_keepalive_enabled": false,
+    "stormctrl_bcast_enabled": false,
+    "stormctrl_bcast_rate": 100,
+    "stormctrl_mcast_enabled": false,
+    "stormctrl_mcast_rate": 100,
+    "stormctrl_ucast_enabled": false,
+    "stormctrl_ucast_rate": 100,
+    "stp_edge_state": "disabled",
+    "stp_port_mode": true,
+    "tagged_vlan_mgmt": "auto",
+    "voice_networkconf_id": ""
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/port-profiles/defaults",
+    "query": {}
+  },
+  "status": 200
+}

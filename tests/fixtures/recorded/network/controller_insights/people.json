@@ -1,0 +1,20 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": [
+    {
+      "client_macs": [],
+      "id": "00000000-0000-4000-9000-000000000024",
+      "name": "name-0027"
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "get_observability_people",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/observability/people",
+    "query": {}
+  },
+  "status": 200
+}

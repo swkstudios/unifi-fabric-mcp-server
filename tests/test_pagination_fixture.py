@@ -153,15 +153,29 @@ class TestOffsetDrivenPagination:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_short_page_terminates_without_extra_request(self, client):
-        # A page shorter than the limit is unambiguously the last page.
-        page1 = _load("proxy_clients_page1.json")
-        route = respx.get(f"{BASE}{_PROXY_CLIENTS_PATH}").mock(
-            return_value=Response(200, json=page1)
-        )
+    async def test_short_page_with_more_reported_keeps_draining(self, client):
+        # A page shorter than requested is NOT the last page while totalCount says more
+        # (the server clamped ``limit``): the drain continues from offset += len(page).
+        page1 = _load("proxy_clients_page1.json")  # 2 items, totalCount 4
+        page2 = _load("proxy_clients_page2.json")
+        route = respx.get(f"{BASE}{_PROXY_CLIENTS_PATH}")
+        route.side_effect = [Response(200, json=page1), Response(200, json=page2)]
 
         items = await client.paginate_offset(_PROXY_CLIENTS_PATH, page_size=50)
 
+        assert route.call_count == 2
+        assert route.calls[1].request.url.params["offset"] == "2"
+        assert len(items) == 4
+        assert items.total_count == 4
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_short_page_reaching_total_terminates_without_extra_request(self, client):
+        page = {"data": [{"id": "a"}, {"id": "b"}], "totalCount": 2}
+        route = respx.get(f"{BASE}{_PROXY_CLIENTS_PATH}").mock(
+            return_value=Response(200, json=page)
+        )
+        items = await client.paginate_offset(_PROXY_CLIENTS_PATH, page_size=50)
         assert route.call_count == 1
         assert len(items) == 2
 
@@ -173,11 +187,13 @@ class TestOffsetDrivenPagination:
         route.side_effect = [
             Response(200, json=[{"id": "a"}, {"id": "b"}]),
             Response(200, json=[{"id": "c"}]),
+            Response(200, json=[]),
         ]
 
         items = await client.paginate_offset(_PROXY_CLIENTS_PATH, page_size=2)
 
-        assert route.call_count == 2
+        # Without a total, a short page may be a clamped limit: drain to an empty page.
+        assert route.call_count == 3
         assert [i["id"] for i in items] == ["a", "b", "c"]
 
     @respx.mock

@@ -13,8 +13,8 @@ fields the tool claims to surface. The unit suite covers the same tools with moc
 responses; this is the only place the extraction is checked against live data.
 
 Requires ``UNIFI_API_KEY``. Host-scoped: also requires ``UNIFI_TEST_HOST`` and
-``UNIFI_TEST_SITE`` (all skip cleanly when unset, exactly like the other integration
-modules). Grounded on a representative UniFi controller payload: the USW Pro 24 PoE
+``UNIFI_TEST_SITE`` (missing prerequisites fail once the live tier is enabled). Grounded on a
+representative UniFi controller payload: the USW Pro 24 PoE
 (``US24PRO``) reports ``stp_version=rstp``, ``stp_priority=4096`` and is the root
 bridge; its ``port_table`` carries PoE fields (``poe_enable``/``poe_good``/...); and
 ``/stat/sta`` carries per-client ``rssi``/``signal``/``noise``/``satisfaction`` for
@@ -46,13 +46,13 @@ from unifi_fabric.tools.statistics import (
 )
 
 # Gated on UNIFI_API_KEY so they always skip in credential-less CI; host-scoped tests
-# additionally self-skip without UNIFI_TEST_HOST/SITE. Module-scoped event loop keeps the
+# additionally fail without UNIFI_TEST_HOST/SITE. Module-scoped event loop keeps the
 # module-scoped client valid across every test (mirrors test_console_integration.py).
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
         not os.environ.get("UNIFI_API_KEY"),
-        reason="UNIFI_API_KEY not set - skipping live integration tests",
+        reason="UNIFI_API_KEY not set - required for live integration tests",
     ),
     pytest.mark.asyncio(loop_scope="module"),
 ]
@@ -122,16 +122,20 @@ async def _find_wireless_clients(client, registry) -> list[dict]:
 class TestDeviceStpStateIntegration:
     async def test_envelope_and_device_stp_populated(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping STP projection")
+            pytest.fail("No switch with a port_table on this site - required for STP projection")
         result = await _get_device_stp_state(
             client, registry, _TEST_HOST, _TEST_SITE, _selector(switch)
         )
-        assert set(result) >= {"device", "source", "stp", "ports"}, "STP envelope keys missing"
-        assert result["source"] == "/stat/device"
-        stp = result["stp"]
+        # 0.7.0 envelope: the projections ride under additive underscore keys beside the
+        # complete verbatim device record (_device_record) and the upstream meta.
+        assert set(result) >= {"_device", "_source", "_stp", "_ports", "_device_record"}, (
+            "STP envelope keys missing"
+        )
+        assert result["_source"] == "/stat/device"
+        stp = result["_stp"]
         assert isinstance(stp, dict) and stp, "device-level STP projection must not be empty"
         # The projection must have EXTRACTED the STP mode, not just returned a 200.
         assert "stp_version" in stp, "stp_version was not projected from /stat/device"
@@ -142,14 +146,14 @@ class TestDeviceStpStateIntegration:
 
     async def test_per_port_stp_slice_populated(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping per-port STP")
+            pytest.fail("No switch with a port_table on this site - required for per-port STP")
         result = await _get_device_stp_state(
             client, registry, _TEST_HOST, _TEST_SITE, _selector(switch)
         )
-        ports = result["ports"]
+        ports = result["_ports"]
         assert isinstance(ports, list) and ports, "per-port STP list must be populated"
         # Every entry carries its port_idx envelope key ...
         assert all("port_idx" in p for p in ports), "each port entry must carry port_idx"
@@ -167,15 +171,15 @@ class TestDeviceStpStateIntegration:
         validates extraction without pinning to a specific priority.
         """
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping root-bridge check")
+            pytest.fail("No switch with a port_table on this site - required for root-bridge check")
         if switch.get("stp_version") is None:
-            pytest.skip("Discovered switch reports no STP - skipping root-bridge check")
+            pytest.fail("Discovered switch reports no STP - required for root-bridge check")
         stp = (
             await _get_device_stp_state(client, registry, _TEST_HOST, _TEST_SITE, _selector(switch))
-        )["stp"]
+        )["_stp"]
         assert "stp_priority" in stp, "stp_priority was not projected"
         # The controller sends stp_priority verbatim as a numeric STRING (e.g. "4096"); the
         # tool passes it through unchanged (no coercion). Assert it is a scalar that reads
@@ -196,23 +200,26 @@ class TestDeviceStpStateIntegration:
 class TestDevicePortStateIntegration:
     async def test_device_view_projects_port_table_with_poe(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping port projection")
+            pytest.fail("No switch with a port_table on this site - required for port projection")
         result = await _get_device_port_state(
             client, registry, _TEST_HOST, _TEST_SITE, _selector(switch)
         )
+        # 0.7.0 envelope: verbatim port_table / lldp_table beside the additive underscore
+        # keys and the complete verbatim device record.
         assert set(result) >= {
-            "device",
-            "port_idx",
-            "source",
+            "_device",
+            "_port_idx",
+            "_source",
             "port_table",
             "lldp_table",
-            "thermal_power",
+            "_thermal_power",
+            "_device_record",
         }, "port device-view envelope keys missing"
-        assert result["port_idx"] is None, "device view must report port_idx=None"
-        assert result["source"] == "/stat/device"
+        assert result["_port_idx"] is None, "device view must report _port_idx=None"
+        assert result["_source"] == "/stat/device"
         ports = result["port_table"]
         assert isinstance(ports, list) and ports, "port_table projection must be populated"
         assert all("port_idx" in p for p in ports), "each port row must carry port_idx"
@@ -223,10 +230,10 @@ class TestDevicePortStateIntegration:
 
     async def test_single_port_view_returns_that_row(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping single-port view")
+            pytest.fail("No switch with a port_table on this site - required for single-port view")
         device_view = await _get_device_port_state(
             client, registry, _TEST_HOST, _TEST_SITE, _selector(switch)
         )
@@ -235,16 +242,18 @@ class TestDevicePortStateIntegration:
         one = await _get_device_port_state(
             client, registry, _TEST_HOST, _TEST_SITE, _selector(switch), target_idx
         )
-        assert set(one) >= {"device", "port_idx", "source", "port"}, "single-port envelope missing"
-        assert one["port_idx"] == target_idx
-        assert isinstance(one["port"], dict) and one["port"].get("port_idx") == target_idx
+        assert set(one) >= {"_device", "_port_idx", "_source", "_port"}, (
+            "single-port envelope missing"
+        )
+        assert one["_port_idx"] == target_idx
+        assert isinstance(one["_port"], dict) and one["_port"].get("port_idx") == target_idx
 
     async def test_unknown_port_idx_raises(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping unknown-port check")
+            pytest.fail("A switch with port_table is required for unknown-port check")
         with pytest.raises(ValueError):
             await _get_device_port_state(
                 client, registry, _TEST_HOST, _TEST_SITE, _selector(switch), 9999
@@ -254,21 +263,30 @@ class TestDevicePortStateIntegration:
         """Optics/SFP fields exist only on SFP ports; assert they survive projection if
         any exist, otherwise skip cleanly (a PoE-only access switch has none)."""
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         switch = await _find_switch(client, registry)
         if switch is None:
-            pytest.skip("No switch with a port_table on this site - skipping SFP check")
+            pytest.fail("No switch with a port_table on this site - required for SFP check")
+        # Determine hardware eligibility from the raw controller record, before the
+        # projection under test. A dropped field must fail rather than cause a skip.
+        source_rows = [row for row in switch["port_table"] if "SFP" in row.get("media", "").upper()]
+        if not source_rows:
+            pytest.fail("No SFP hardware ports exposed on this switch")
+        expected = {
+            row["port_idx"]: {key: value for key, value in row.items() if "sfp" in key.lower()}
+            for row in source_rows
+        }
+        assert any(expected.values()), "SFP hardware exposes no optics fields to check"
         ports = (
             await _get_device_port_state(
                 client, registry, _TEST_HOST, _TEST_SITE, _selector(switch)
             )
         )["port_table"]
-        sfp_rows = [row for row in ports if any("sfp" in k for k in row)]
-        if not sfp_rows:
-            pytest.skip("No SFP/optics ports exposed on this switch - nothing to project")
-        assert any(any("sfp" in k for k in row) for row in sfp_rows), (
-            "SFP fields dropped in projection"
-        )
+        projected = {row["port_idx"]: row for row in ports}
+        for port_idx, fields in expected.items():
+            assert port_idx in projected, f"SFP port {port_idx} dropped in projection"
+            assert fields.keys() <= projected[port_idx].keys()
+            assert {key: projected[port_idx][key] for key in fields} == fields
 
 
 # ---------------------------------------------------------------------------
@@ -279,30 +297,38 @@ class TestDevicePortStateIntegration:
 class TestClientLinkDiagnosticsIntegration:
     async def test_single_client_link_quality_populated(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         wireless = await _find_wireless_clients(client, registry)
         if not wireless:
-            pytest.skip("No wireless clients with link data on this site")
+            pytest.fail("No wireless clients with link data on this site")
         result = await _get_client_link_diagnostics(
             client, registry, _TEST_HOST, _TEST_SITE, client_id=_selector(wireless[0])
         )
-        assert isinstance(result, dict), "single-client selection must return one record dict"
+        # 0.7.0 returns the upstream /stat/sta {meta, data} envelope with data narrowed to
+        # the selected record, unchanged.
+        assert isinstance(result, dict) and isinstance(result.get("data"), list)
+        assert len(result["data"]) == 1, "single-client selection must return one record"
+        record = result["data"][0]
+        assert _selector(record) == _selector(wireless[0]), "the wrong client was selected"
         # The record is returned unchanged, so its link-quality fields must be present.
-        assert "rssi" in result or "signal" in result, "no rssi/signal on a wireless client record"
-        assert "noise" in result, "noise was not present on the projected client record"
-        assert "satisfaction" in result, "satisfaction was not present on the client record"
+        assert "rssi" in record or "signal" in record, "no rssi/signal on a wireless client record"
+        assert "noise" in record, "noise was not present on the projected client record"
+        assert "satisfaction" in record, "satisfaction was not present on the client record"
 
     async def test_multi_client_selection_preserves_order(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         wireless = await _find_wireless_clients(client, registry)
         if len(wireless) < 2:
-            pytest.skip("Need >=2 wireless clients for the multi-select test")
+            pytest.fail("Need >=2 wireless clients for the multi-select test")
         selectors = [_selector(wireless[0]), _selector(wireless[1])]
         result = await _get_client_link_diagnostics(
             client, registry, _TEST_HOST, _TEST_SITE, client_ids=selectors
         )
-        assert isinstance(result, list) and len(result) == 2, "multi-select must return 2 records"
+        # 0.7.0 returns the upstream envelope with data narrowed to the selected records.
+        assert isinstance(result, dict) and isinstance(result.get("data"), list)
+        assert len(result["data"]) == 2, "multi-select must return 2 records"
+        assert [_selector(r) for r in result["data"]] == selectors, "requested order not kept"
 
     async def test_mutual_exclusion_guard(self, client, registry):
         # Neither selector supplied -> the tool must reject before any network call.

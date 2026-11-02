@@ -1,0 +1,22 @@
+{
+ "recorded_by_tool": "get_client",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients/00000000-0000-3000-b000-000000000017",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "type": "WIRED",
+  "id": "00000000-0000-3000-b000-000000000017",
+  "name": "name-0030",
+  "connectedAt": "2026-10-03T09:02:15Z",
+  "ipAddress": "10.0.2.26",
+  "macAddress": "02:00:5e:00:00:04",
+  "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+  "access": {
+   "type": "DEFAULT"
+  }
+ }
+}

@@ -1,0 +1,119 @@
+{
+ "recorded_by_tool": "list_site_devices",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/devices",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 6,
+  "totalCount": 6,
+  "data": [
+   {
+    "id": "00000000-0000-3000-8000-000000000030",
+    "macAddress": "02:00:5e:00:00:03",
+    "ipAddress": "203.0.113.2",
+    "name": "name-0024",
+    "model": "UDM Pro",
+    "state": "ONLINE",
+    "supported": true,
+    "firmwareVersion": "6.0.11",
+    "firmwareUpdatable": false,
+    "features": [
+     "features-0001"
+    ],
+    "interfaces": [
+     "interfaces-0001"
+    ]
+   },
+   {
+    "id": "00000000-0000-3000-a000-000000000031",
+    "macAddress": "02:00:5e:00:00:09",
+    "ipAddress": "10.0.1.139",
+    "name": "name-0025",
+    "model": "U6 Pro",
+    "state": "OFFLINE",
+    "supported": true,
+    "firmwareVersion": "6.9.1",
+    "firmwareUpdatable": false,
+    "features": [
+     "features-0002"
+    ],
+    "interfaces": [
+     "interfaces-0002"
+    ]
+   },
+   {
+    "id": "00000000-0000-3000-8000-000000000032",
+    "macAddress": "02:00:5e:00:00:0a",
+    "ipAddress": "10.0.1.63",
+    "name": "name-0026",
+    "model": "U5G Max Outdoor",
+    "state": "ONLINE",
+    "supported": true,
+    "firmwareVersion": "8.0.2",
+    "firmwareUpdatable": false,
+    "features": [],
+    "interfaces": []
+   },
+   {
+    "id": "00000000-0000-3000-9000-000000000033",
+    "macAddress": "02:00:5e:00:00:0b",
+    "ipAddress": "10.0.1.229",
+    "name": "name-0027",
+    "model": "USW Pro 24 PoE",
+    "state": "ONLINE",
+    "supported": true,
+    "firmwareVersion": "7.6.5",
+    "firmwareUpdatable": false,
+    "features": [
+     "features-0001"
+    ],
+    "interfaces": [
+     "interfaces-0001"
+    ]
+   },
+   {
+    "id": "00000000-0000-3000-8000-000000000034",
+    "macAddress": "02:00:5e:00:00:0c",
+    "ipAddress": "10.0.1.183",
+    "name": "name-0028",
+    "model": "U7 Pro XGS",
+    "state": "ONLINE",
+    "supported": true,
+    "firmwareVersion": "8.8.11",
+    "firmwareUpdatable": false,
+    "features": [
+     "features-0002"
+    ],
+    "interfaces": [
+     "interfaces-0002"
+    ]
+   },
+   {
+    "id": "00000000-0000-3000-b000-000000fa0016",
+    "macAddress": "02:00:5e:00:00:0d",
+    "ipAddress": "10.0.1.88",
+    "name": "name-0029",
+    "model": "U7 Pro XGS",
+    "state": "ONLINE",
+    "supported": true,
+    "firmwareVersion": "8.8.11",
+    "firmwareUpdatable": false,
+    "features": [
+     "features-0002"
+    ],
+    "interfaces": [
+     "interfaces-0002"
+    ]
+   }
+  ]
+ }
+}

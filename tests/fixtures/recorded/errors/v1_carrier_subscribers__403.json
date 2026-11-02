@@ -1,0 +1,19 @@
+{
+ "recorded_by_tool": "list_carrier_subscribers",
+ "request": {
+  "method": "GET",
+  "path": "/v1/carrier/subscribers",
+  "query": {
+   "limit": "500"
+  }
+ },
+ "status": 403,
+ "content_type": "application/json",
+ "body": {
+  "error": {
+   "code": "insufficient_scope",
+   "message": "insufficient permissions"
+  },
+  "traceId": "00000000000000000000000000fa01dd"
+ }
+}

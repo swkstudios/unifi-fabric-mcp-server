@@ -1,0 +1,169 @@
+{
+ "recorded_by_tool": "get_system_log",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/system-log/all",
+  "query": {},
+  "json": {
+   "pageNumber": 0,
+   "pageSize": 3
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": [
+   {
+    "category": "SECURITY",
+    "event": "THREAT_DETECTED",
+    "external_id": "00000000-0000-4000-c100-000000000001",
+    "id": "00000000-0000-4000-c100-000000000002",
+    "key": "THREAT_DETECTED_KNOWN_SOURCE_CLIENT",
+    "message_raw": "message_raw-0003",
+    "parameters": {
+     "SRC_CLIENT": {
+      "id": "02:00:5e:00:00:04",
+      "name": "name-0001"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "CONSOLE_WITH_DEVICE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "DEVICE": {
+      "device_fingerprint_id": 3522,
+      "fingerprint_source": 0,
+      "id": "02:00:5e:00:00:05",
+      "ip": "192.0.2.7",
+      "model": "model-0007",
+      "model_name": "UDMPRO",
+      "name": "console_name-0001",
+      "version": "version-0008"
+     },
+     "DST_IP": {
+      "id": "192.0.2.10",
+      "name": "name-0002",
+      "not_actionable": true
+     },
+     "INITIATOR_ID": {
+      "id": "00000000-0000-4000-c100-00000000000a"
+     }
+    },
+    "severity": "HIGH",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SECURITY_INTRUSION_PREVENTION",
+    "target": "DEVICE",
+    "timestamp": 1791744347224,
+    "title_raw": "title_raw-0011",
+    "type": "THREAT_DETECTION_AND_PREVENTION"
+   },
+   {
+    "category": "SECURITY",
+    "event": "THREAT_DETECTED",
+    "external_id": "00000000-0000-4000-c100-00000000000c",
+    "id": "00000000-0000-4000-c100-00000000000d",
+    "key": "THREAT_DETECTED_KNOWN_SOURCE_CLIENT",
+    "message_raw": "message_raw-0003",
+    "parameters": {
+     "SRC_CLIENT": {
+      "id": "02:00:5e:00:00:04",
+      "name": "name-0003"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "CONSOLE_WITH_DEVICE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "DEVICE": {
+      "device_fingerprint_id": 3522,
+      "fingerprint_source": 0,
+      "id": "02:00:5e:00:00:05",
+      "ip": "192.0.2.7",
+      "model": "model-0007",
+      "model_name": "UDMPRO",
+      "name": "console_name-0001",
+      "version": "version-0008"
+     },
+     "DST_IP": {
+      "id": "192.0.2.10",
+      "name": "name-0004",
+      "not_actionable": true
+     },
+     "INITIATOR_ID": {
+      "id": "00000000-0000-4000-c100-00000000000e"
+     }
+    },
+    "severity": "HIGH",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SECURITY_INTRUSION_PREVENTION",
+    "target": "DEVICE",
+    "timestamp": 1791744346863,
+    "title_raw": "title_raw-0011",
+    "type": "THREAT_DETECTION_AND_PREVENTION"
+   },
+   {
+    "category": "AUDIT",
+    "event": "REMOVED_ENTITY",
+    "id": "00000000-0000-4000-c100-00000000000f",
+    "key": "REMOVED_ENTITY",
+    "message_raw": "message_raw-0016",
+    "parameters": {
+     "ADMIN": {
+      "id": "00000000-0000-4000-c100-000000000011",
+      "name": "name-0018",
+      "not_actionable": true
+     },
+     "ADMIN_ACTIVITY_ID": {
+      "id": "00000000-0000-4000-c100-000000000013"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "COUNT": {
+      "name": "name-0020",
+      "not_actionable": true
+     },
+     "IP": {
+      "id": "192.0.2.22",
+      "name": "name-0005",
+      "not_actionable": true
+     },
+     "OBJECT": {
+      "id": "00000000-0000-4000-c100-000000000016",
+      "name": "name-0023",
+      "not_actionable": true
+     },
+     "PLATFORM": {
+      "id": "WEB",
+      "name": "name-0024",
+      "not_actionable": true
+     },
+     "SECTION": {
+      "id": "PORT_CONFIGURATION",
+      "not_actionable": true
+     }
+    },
+    "severity": "MEDIUM",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SYSTEM_ADMIN",
+    "target": "ADMIN",
+    "timestamp": 1791744345959,
+    "title_raw": "title_raw-0025",
+    "type": "ADMIN_ACCESS"
+   }
+  ],
+  "page_number": 0,
+  "total_element_count": 19241,
+  "total_page_count": 6414
+ }
+}

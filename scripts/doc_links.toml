@@ -1,0 +1,15 @@
+# Pre-publication references already excluded by the release link policy.
+# Private source URLs are covered only by the private link policy when present.
+exclude = [
+  # Private source URLs are rewritten by the release transform.
+  '^https://github\.com/swkstudios/unifi-fabric-mcp-server/blob/main/PRIVACY\.md$',
+  '^https://pypi\.org/project/unifi-fabric-mcp-server/?$',
+  '^https://img\.shields\.io/pypi/[^?]*/unifi-fabric-mcp-server',
+  '^https://github\.com/swkstudios/unifi-fabric-mcp-server/blob/main/docs/(CONFIGURATION|AUTH-TLS|PAGINATION|RETRY|COVERAGE)\.md',
+  # RFC 2606 reserved placeholder embedded in indented JSON request examples, not a live reference.
+  '^http://controller\.example:8080/inform$',
+]
+
+[[anonymous_blocked]]
+url = "https://chatgpt.com/plugins"
+reason = "Authenticated client UI endpoint returns HTTP 403 to anonymous automation; NOT-TESTED anonymously. The companion official Apps SDK documentation remains checked."

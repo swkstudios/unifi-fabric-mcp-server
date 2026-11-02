@@ -1,0 +1,23 @@
+{
+ "recorded_by_tool": "create_hotspot_vouchers",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/hotspot/vouchers",
+  "query": {}
+ },
+ "status": 201,
+ "content_type": "application/json",
+ "body": {
+  "vouchers": [
+   {
+    "id": "00000000-0000-4000-a000-000000fa0999",
+    "createdAt": "2026-10-11T19:04:08Z",
+    "name": "name-0001",
+    "code": "00000000",
+    "authorizedGuestCount": 0,
+    "expired": false,
+    "timeLimitMinutes": 1
+   }
+  ]
+ }
+}

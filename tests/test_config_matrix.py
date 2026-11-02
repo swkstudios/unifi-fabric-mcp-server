@@ -266,7 +266,7 @@ def test_build_auth_oauth(monkeypatch):
 
 def test_build_uvicorn_config_none(monkeypatch):
     cfg = _settings(monkeypatch)
-    assert build_uvicorn_config(cfg) is None
+    assert build_uvicorn_config(cfg) == {"access_log": False, "ws": "none"}
 
 
 def test_build_uvicorn_config_https(monkeypatch):
@@ -280,6 +280,8 @@ def test_build_uvicorn_config_https(monkeypatch):
     )
     out = build_uvicorn_config(cfg)
     assert out == {
+        "access_log": False,
+        "ws": "none",
         "ssl_certfile": "/c/cert.pem",
         "ssl_keyfile": "/c/key.pem",
         "ssl_keyfile_password": "hunter2",

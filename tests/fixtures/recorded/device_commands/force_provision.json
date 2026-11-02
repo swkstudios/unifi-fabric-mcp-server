@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/devmgr",
+    "json": {
+      "cmd": "force-provision"
+    }
+  },
+  "status": 200,
+  "body": {
+    "meta": {
+      "rc": "ok"
+    },
+    "data": []
+  },
+  "source": "Recorded live controller response; sanitized before writing",
+  "content_type": "application/json",
+  "recorded_by_tool": "provision_device"
+}

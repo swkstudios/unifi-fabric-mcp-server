@@ -4,7 +4,7 @@ These assert the *fixed* behavior: empty-string padding that the UniFi APIs add
 to list fields is removed before a write, while every legitimate value — scalar
 empty strings, numbers, booleans, order — survives. Each test names what it
 proves so a future reader cannot mistake a padding-preserving regression for a
-pass. See issue #164 (split from public #17).
+pass. See public issue #17.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from unifi_fabric.tools._payload import (
 
 
 class TestRequireFields:
-    """The shared create/write required-field guard (issue #173)."""
+    """The shared create/write required-field guard."""
 
     def test_passes_when_all_present(self):
         require_fields("create_x", {"a": 1, "b": 2, "extra": 3}, {"a", "b"})
@@ -77,9 +77,9 @@ class TestStripEmptyListValues:
     def test_recurses_into_nested_objects(self):
         """Padding buried inside a sub-object is cleaned too (e.g. a DHCP block),
         not just top-level list fields."""
-        payload = {"ipV4Configuration": {"dhcp": {"dnsServers": ["10.0.0.1", "", ""]}}}
+        payload = {"ipv4Configuration": {"dhcp": {"dnsServers": ["10.0.0.1", "", ""]}}}
         assert strip_empty_list_values(payload) == {
-            "ipV4Configuration": {"dhcp": {"dnsServers": ["10.0.0.1"]}}
+            "ipv4Configuration": {"dhcp": {"dnsServers": ["10.0.0.1"]}}
         }
 
     def test_recurses_into_list_of_objects(self):

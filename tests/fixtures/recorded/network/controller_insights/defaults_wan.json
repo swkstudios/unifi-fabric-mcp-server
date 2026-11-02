@@ -1,0 +1,46 @@
+{
+  "args": [
+    "wan",
+    "Default"
+  ],
+  "body": {
+    "attr_no_delete": false,
+    "igmpProxyUpstream": false,
+    "igmp_proxy_downstream_networkconf_ids": [],
+    "igmp_proxy_for": "none",
+    "igmp_proxy_upstream": false,
+    "ipv6_wan_delegation_type": "none",
+    "is_wifi_tethering": false,
+    "lanTunnelWanNetwork": false,
+    "mac_override_enabled": false,
+    "purpose": "wan",
+    "report_wan_event": false,
+    "setting_preference": "auto",
+    "wan5gNetwork": false,
+    "wanMagicEnabled": false,
+    "wan_dhcp_options": [],
+    "wan_dns_preference": "auto",
+    "wan_dslite_remote_host_auto": false,
+    "wan_failover_priority": 0,
+    "wan_ip_aliases": [],
+    "wan_ipv6_dns_preference": "auto",
+    "wan_magic_enabled": false,
+    "wan_provider_capabilities": {
+      "download_kilobits_per_second": 0,
+      "upload_kilobits_per_second": 0
+    },
+    "wan_smartq_enabled": false,
+    "wan_type": "dhcp",
+    "wan_type_v6": "disabled",
+    "wan_vlan_enabled": false,
+    "wifiTetheringWan": false
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/wan/defaults",
+    "query": {}
+  },
+  "status": 200
+}

@@ -1,0 +1,19 @@
+{
+  "name": "unifi-fabric",
+  "owner": {
+    "name": "SWK Studios",
+    "url": "https://github.com/swkstudios"
+  },
+  "metadata": {
+    "description": "The open-source UniFi Fabric MCP server as a Claude Code plugin. Not affiliated with Ubiquiti Inc."
+  },
+  "plugins": [
+    {
+      "name": "unifi-fabric",
+      "source": "./plugins/claude",
+      "description": "Ask Claude Code about your UniFi network. Runs the open-source UniFi Fabric MCP server on your own machine with your own UniFi Site Manager API key. Not affiliated with Ubiquiti Inc.",
+      "category": "development",
+      "homepage": "https://github.com/swkstudios/unifi-fabric-mcp-server"
+    }
+  ]
+}

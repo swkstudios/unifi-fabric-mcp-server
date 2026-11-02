@@ -1,0 +1,52 @@
+{
+  "args": [
+    "lan",
+    "Default"
+  ],
+  "body": {
+    "auto_scale_enabled": true,
+    "dhcp_relay_enabled": false,
+    "dhcpd_boot_enabled": false,
+    "dhcpd_conflict_checking": true,
+    "dhcpd_dns_enabled": false,
+    "dhcpd_enabled": true,
+    "dhcpd_gateway_enabled": false,
+    "dhcpd_leasetime": 86400,
+    "dhcpd_ntp_enabled": false,
+    "dhcpd_tftp_server": "",
+    "dhcpd_time_offset_enabled": false,
+    "dhcpd_unifi_controller": "",
+    "dhcpd_wins_enabled": false,
+    "dhcpd_wpad_url": "",
+    "dhcpdv6_dns_auto": true,
+    "dhcpdv6_enabled": false,
+    "dhcpdv6_leasetime": 86400,
+    "dhcpguard_enabled": false,
+    "domain_name": "",
+    "igmp_snooping": false,
+    "ipv6_client_address_assignment": "slaac",
+    "ipv6_interface_type": "none",
+    "ipv6_pd_interface": "ipv6-pd-interface-0001",
+    "ipv6_pd_start": "ipv6-pd-start-0001",
+    "ipv6_pd_stop": "ipv6-pd-stop-0001",
+    "ipv6_ra_enabled": true,
+    "ipv6_ra_preferred_lifetime": "14400",
+    "ipv6_ra_priority": "high",
+    "ipv6_setting_preference": "auto",
+    "is_nat": true,
+    "lte_lan_enabled": true,
+    "mdns_enabled": true,
+    "networkgroup": "networkgroup-0001",
+    "purpose": "corporate",
+    "setting_preference": "auto",
+    "upnp_lan_enabled": false
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/lan/defaults",
+    "query": {}
+  },
+  "status": 200
+}

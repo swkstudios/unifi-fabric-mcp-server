@@ -1,0 +1,30 @@
+{
+ "recorded_by_tool": "list_guests",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/guest",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-c000-000000000001",
+    "site_id": "00000000-0000-4000-c000-000000000002",
+    "mac": "02:00:5e:00:00:03",
+    "start": 1791744342,
+    "end": 1791744642,
+    "authorized_by": "authorized_by-0004",
+    "qos_overwrite": false,
+    "expired": false,
+    "tx_bytes": 0,
+    "rx_bytes": 0,
+    "bytes": 0
+   }
+  ]
+ }
+}

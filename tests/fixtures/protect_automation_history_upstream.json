@@ -1,0 +1,38 @@
+{
+  "version": "5.3.18",
+  "source": {
+    "bundle_sha256": "89cf915bb3b339bd91ad676dcd999a8ba92bf31be2a480f3ea83313dd37345dc",
+    "ui_cdn": "https://cdn.pkg.svc.ui.com/unifi-protect-ui/5.3.18_91717fd7b5/"
+  },
+  "operations": [
+    {
+      "body_dynamic": false,
+      "body_keys": [],
+      "call_sites": 4,
+      "cmd": null,
+      "evidence": [
+        {
+          "file": "f5afa0f4eccbb98bfb70.531.js",
+          "offset": 46681
+        },
+        {
+          "file": "index.js",
+          "offset": 2050795
+        },
+        {
+          "file": "swai.js",
+          "offset": 2050794
+        }
+      ],
+      "id": "GET /proxy/protect/api/automations/{}/history",
+      "method": "GET",
+      "path": "/proxy/protect/api/automations/{}/history",
+      "query_keys": [
+        "limit"
+      ],
+      "recognizers": [
+        "fetch"
+      ]
+    }
+  ]
+}

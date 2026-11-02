@@ -1,0 +1,16 @@
+{
+ "recorded_by_tool": "get_rtsps_stream",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/cameras/000000000000000000fa0016/rtsps-stream",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "high": "high-0001",
+  "medium": "medium-0001",
+  "low": null,
+  "package": null
+ }
+}

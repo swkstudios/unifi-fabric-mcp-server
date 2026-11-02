@@ -1,0 +1,66 @@
+{
+ "recorded_by_tool": "get_system_info",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/sysinfo",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "timezone": "Etc/UTC",
+    "autobackup": false,
+    "build": "atag_11.0.81_37038",
+    "version": "11.0.81",
+    "previous_version": "10.6.106",
+    "data_retention_days": 90,
+    "data_retention_time_in_hours_for_5minutes_scale": 24,
+    "data_retention_time_in_hours_for_hourly_scale": 168,
+    "data_retention_time_in_hours_for_daily_scale": 2160,
+    "data_retention_time_in_hours_for_monthly_scale": 8760,
+    "data_retention_time_in_hours_for_others": 2160,
+    "update_available": false,
+    "update_downloaded": false,
+    "live_chat": "live-chat-0001",
+    "store_enabled": "store-enabled-0001",
+    "hostname": "hostname-0001",
+    "name": "name-0012",
+    "ip_addrs": [
+     "10.0.12.1",
+     "10.0.14.1",
+     "10.0.11.1",
+     "10.0.4.1",
+     "10.0.6.25"
+    ],
+    "inform_port": 8080,
+    "https_port": 8443,
+    "portal_http_port": 8880,
+    "override_inform_host": false,
+    "google_maps_api_key": "xxxxxxxx",
+    "image_maps_use_google_engine": false,
+    "radius_disconnect_running": false,
+    "sso_app_id": "sso-app-id-0001",
+    "uptime": 557462,
+    "anonymous_controller_id": "00000000-0000-4000-a000-000000fa0148",
+    "has_webrtc_support": true,
+    "debug_device": "debug-device-0001",
+    "debug_mgmt": "debug-mgmt-0001",
+    "debug_system": "debug-system-0001",
+    "debug_sdn": "debug-sdn-0001",
+    "debug_setting_preference": "warn",
+    "ubnt_device_type": "UDMPRO",
+    "udm_version": "UDMPRO.al324.v6.0.11.dd9ab55.260930.0750",
+    "unsupported_device_count": 0,
+    "unsupported_device_list": [],
+    "default_site_device_auth_password_alert": false,
+    "is_cloud_console": false,
+    "console_display_version": "6.0.11"
+   }
+  ]
+ }
+}

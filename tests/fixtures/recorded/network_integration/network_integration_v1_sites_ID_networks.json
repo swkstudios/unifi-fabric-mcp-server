@@ -1,0 +1,262 @@
+{
+ "recorded_by_tool": "list_networks",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/networks",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 20,
+  "totalCount": 20,
+  "data": [
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-a000-000000fa003a",
+    "name": "Default",
+    "enabled": true,
+    "vlanId": 1,
+    "metadata": {
+     "origin": "SYSTEM_DEFINED",
+     "configurable": true
+    },
+    "zoneId": "00000000-0000-4000-a000-000000fa000d",
+    "default": true
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-a000-000000fa000e",
+    "name": "name-0001",
+    "enabled": true,
+    "vlanId": 2,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-a000-000000fa000d",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-8000-000000000020",
+    "name": "name-0002",
+    "enabled": true,
+    "vlanId": 3,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000000022",
+    "name": "name-0003",
+    "enabled": true,
+    "vlanId": 4,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000000023",
+    "name": "name-0004",
+    "enabled": true,
+    "vlanId": 5,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-a000-000000fa000d",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000fa000f",
+    "name": "name-0005",
+    "enabled": true,
+    "vlanId": 6,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-8000-000000fa0010",
+    "name": "name-0006",
+    "enabled": true,
+    "vlanId": 7,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000fa0011",
+    "name": "name-0007",
+    "enabled": true,
+    "vlanId": 8,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-a000-000000fa0012",
+    "name": "name-0008",
+    "enabled": true,
+    "vlanId": 9,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-9000-000000fa0013",
+    "name": "name-0009",
+    "enabled": true,
+    "vlanId": 10,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-a000-000000000020",
+    "name": "name-0010",
+    "enabled": true,
+    "vlanId": 11,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-8000-000000000022",
+    "name": "name-0011",
+    "enabled": true,
+    "vlanId": 12,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000000024",
+    "name": "name-0012",
+    "enabled": true,
+    "vlanId": 13,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-9000-000000000023",
+    "name": "name-0013",
+    "enabled": true,
+    "vlanId": 14,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-a000-000000000024",
+    "name": "name-0014",
+    "enabled": true,
+    "vlanId": 15,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000000026",
+    "name": "name-0015",
+    "enabled": true,
+    "vlanId": 16,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-b000-000000000027",
+    "name": "name-0016",
+    "enabled": true,
+    "vlanId": 17,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-8000-000000000021",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-8000-000000000028",
+    "name": "name-0017",
+    "enabled": true,
+    "vlanId": 18,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-b000-000000000028",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-8000-000000000029",
+    "name": "name-0018",
+    "enabled": true,
+    "vlanId": 19,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-a000-000000fa000d",
+    "default": false
+   },
+   {
+    "management": "GATEWAY",
+    "id": "00000000-0000-4000-9000-000000fa0014",
+    "name": "name-0019",
+    "enabled": true,
+    "vlanId": 20,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "zoneId": "00000000-0000-4000-a000-000000fa000d",
+    "default": false
+   }
+  ]
+ }
+}

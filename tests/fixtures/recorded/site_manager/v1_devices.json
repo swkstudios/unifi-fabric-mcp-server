@@ -1,0 +1,557 @@
+{
+ "recorded_by_tool": "list_devices",
+ "request": {
+  "method": "GET",
+  "path": "/v1/devices",
+  "query": {
+   "pageSize": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": [
+   {
+    "hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",
+    "hostName": "hostName-0001",
+    "devices": [
+     {
+      "id": "000000000000000000fa0016",
+      "mac": "000000FA0017",
+      "name": "name-0068",
+      "model": "G4 Instant",
+      "shortname": "UVC G4 Instant",
+      "ip": "10.0.8.155",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.SAV530q.v5.5.31.67.66558b0.261001.1419",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-11T18:39:15Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-a000-000000000007",
+       "iconId": "00000000-0000-4000-9000-000000000150",
+       "id": "00000000-0000-4000-b000-000000000151",
+       "images": {
+        "default": "00000000000000000000000000fa012c",
+        "nopadding": "00000000000000000000000000fa012d",
+        "topology": "00000000000000000000000000fa012e"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa012f",
+      "mac": "000000FA0130",
+      "name": "name-0502",
+      "model": "USL Entry",
+      "shortname": "USL-Entry-US",
+      "ip": "",
+      "productLine": "protect",
+      "status": "online",
+      "version": "1.2.0.54f7836",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-08-20T16:27:57Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000000152",
+       "iconId": "00000000-0000-4000-a000-000000000153",
+       "id": "00000000-0000-4000-8000-000000000154",
+       "images": {
+        "default": "00000000000000000000000000fa0131",
+        "nopadding": "00000000000000000000000000fa0132",
+        "topology": "00000000000000000000000000fa0133"
+       }
+      }
+     },
+     {
+      "id": "000000FA0134",
+      "mac": "000000FA0134",
+      "name": "name-0028",
+      "model": "U7 Pro XGS",
+      "shortname": "U7PROXGS",
+      "ip": "10.0.1.183",
+      "productLine": "network",
+      "status": "online",
+      "version": "8.8.11",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-06T08:23:02Z",
+      "adoptionTime": "2025-07-16T17:26:15Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-5000-9000-000000000155",
+       "iconId": "00000000-0000-4000-9000-000000000156",
+       "id": "00000000-0000-d000-d000-000000000157",
+       "images": {
+        "default": "00000000000000000000000000fa0135",
+        "nopadding": "00000000000000000000000000fa0136",
+        "topology": "00000000000000000000000000fa0137"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa002a",
+      "mac": "000000FA002B",
+      "name": "name-0056",
+      "model": "G6 Instant",
+      "shortname": "UVC G6 Instant",
+      "ip": "10.0.1.53",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.SAV539g.v5.5.31.67.66558b0.261001.1419",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-03T08:53:51Z",
+      "adoptionTime": "2025-07-16T22:54:22Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-d000-3000-000000000010",
+       "iconId": "00000000-0000-5000-2000-000000000158",
+       "id": "00000000-0000-4000-b000-000000000159",
+       "images": {
+        "default": "00000000000000000000000000fa0138",
+        "nopadding": "00000000000000000000000000fa0139",
+        "topology": "00000000000000000000000000fa013a"
+       }
+      }
+     },
+     {
+      "id": "000000FA013B",
+      "mac": "000000FA013B",
+      "name": "name-0026",
+      "model": "U5G Max Outdoor",
+      "shortname": "U5GMAXO",
+      "ip": "10.0.1.63",
+      "productLine": "network",
+      "status": "online",
+      "version": "8.0.2",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-09-09T08:59:32Z",
+      "adoptionTime": "2026-08-02T21:43:29Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000fa013c",
+       "iconId": "00000000-0000-4000-9000-000000fa013d",
+       "id": "00000000-0000-4000-a000-000000fa013e",
+       "images": {
+        "default": "00000000000000000000000000fa013f",
+        "nopadding": "00000000000000000000000000fa0140",
+        "topology": "00000000000000000000000000fa0141"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa0142",
+      "mac": "000000FA0143",
+      "name": "name-0043",
+      "model": "SuperLink Gateway",
+      "shortname": "UP-SuperLink-US",
+      "ip": "10.0.1.20",
+      "productLine": "protect",
+      "status": "online",
+      "version": "LS.sav530q.v1.11.0.0.55db326.260429.1404",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-06-04T08:44:08Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-9000-4000-000000fa0144",
+       "iconId": "00000000-0000-4000-9000-000000fa0145",
+       "id": "00000000-0000-c000-3000-000000fa0146",
+       "images": {
+        "default": "00000000000000000000000000fa0147",
+        "nopadding": "00000000000000000000000000fa0148",
+        "topology": "00000000000000000000000000fa0149"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa014a",
+      "mac": "000000FA014B",
+      "name": "name-0503",
+      "model": "USL Entry",
+      "shortname": "USL-Entry-US",
+      "ip": "",
+      "productLine": "protect",
+      "status": "online",
+      "version": "1.2.0.54f7836",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-05-13T08:33:48Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000000152",
+       "iconId": "00000000-0000-4000-a000-000000000153",
+       "id": "00000000-0000-4000-8000-000000000154",
+       "images": {
+        "default": "00000000000000000000000000fa0131",
+        "nopadding": "00000000000000000000000000fa0132",
+        "topology": "00000000000000000000000000fa0133"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa014c",
+      "mac": "000000FA014D",
+      "name": "name-0504",
+      "model": "USL Entry",
+      "shortname": "USL-Entry-US",
+      "ip": "",
+      "productLine": "protect",
+      "status": "online",
+      "version": "1.2.0.54f7836",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-05-13T08:41:35Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000000152",
+       "iconId": "00000000-0000-4000-a000-000000000153",
+       "id": "00000000-0000-4000-8000-000000000154",
+       "images": {
+        "default": "00000000000000000000000000fa0131",
+        "nopadding": "00000000000000000000000000fa0132",
+        "topology": "00000000000000000000000000fa0133"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa014e",
+      "mac": "000000FA014F",
+      "name": "name-0505",
+      "model": "USL Entry",
+      "shortname": "USL-Entry-US",
+      "ip": "",
+      "productLine": "protect",
+      "status": "online",
+      "version": "1.2.0.54f7836",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-05-13T08:50:18Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000000152",
+       "iconId": "00000000-0000-4000-a000-000000000153",
+       "id": "00000000-0000-4000-8000-000000000154",
+       "images": {
+        "default": "00000000000000000000000000fa0131",
+        "nopadding": "00000000000000000000000000fa0132",
+        "topology": "00000000000000000000000000fa0133"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa0150",
+      "mac": "000000FA0151",
+      "name": "name-0506",
+      "model": "USL Entry",
+      "shortname": "USL-Entry-US",
+      "ip": "",
+      "productLine": "protect",
+      "status": "online",
+      "version": "1.2.0.54f7836",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-05-13T08:44:59Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000000152",
+       "iconId": "00000000-0000-4000-a000-000000000153",
+       "id": "00000000-0000-4000-8000-000000000154",
+       "images": {
+        "default": "00000000000000000000000000fa0131",
+        "nopadding": "00000000000000000000000000fa0132",
+        "topology": "00000000000000000000000000fa0133"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa0152",
+      "mac": "000000FA0153",
+      "name": "name-0041",
+      "model": "Siren PoE",
+      "shortname": "UP-Siren-PoE",
+      "ip": "10.0.1.125",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UPSP.esp32.v1.6.1.0.2e47a0.260622.1330",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-07-31T18:42:32Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-8000-000000000160",
+       "iconId": "00000000-0000-4000-a000-000000000161",
+       "id": "00000000-0000-4000-8000-000000000162",
+       "images": {
+        "default": "00000000000000000000000000fa0154",
+        "nopadding": "00000000000000000000000000fa0155",
+        "topology": "00000000000000000000000000fa0156"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa0157",
+      "mac": "000000FA0158",
+      "name": "name-0052",
+      "model": "G6 Instant",
+      "shortname": "UVC G6 Instant",
+      "ip": "10.0.1.75",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.SAV539g.v5.5.31.67.66558b0.261001.1419",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-08T01:16:14Z",
+      "adoptionTime": "2026-08-02T02:06:02Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-d000-3000-000000000010",
+       "iconId": "00000000-0000-5000-2000-000000000158",
+       "id": "00000000-0000-4000-b000-000000000159",
+       "images": {
+        "default": "00000000000000000000000000fa0138",
+        "nopadding": "00000000000000000000000000fa0139",
+        "topology": "00000000000000000000000000fa013a"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa01b7",
+      "mac": "000000FA01B8",
+      "name": "name-0046",
+      "model": "G6 Instant",
+      "shortname": "UVC G6 Instant",
+      "ip": "10.0.1.89",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.SAV539g.v5.5.31.67.66558b0.261001.1419",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-03T08:57:37Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-d000-3000-000000000010",
+       "iconId": "00000000-0000-5000-2000-000000000158",
+       "id": "00000000-0000-4000-b000-000000000159",
+       "images": {
+        "default": "00000000000000000000000000fa0138",
+        "nopadding": "00000000000000000000000000fa0139",
+        "topology": "00000000000000000000000000fa013a"
+       }
+      }
+     },
+     {
+      "id": "000000FA0159",
+      "mac": "000000FA0159",
+      "name": "name-0029",
+      "model": "U7 Pro XGS",
+      "shortname": "U7PROXGS",
+      "ip": "10.0.1.88",
+      "productLine": "network",
+      "status": "online",
+      "version": "8.8.11",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-06T08:25:43Z",
+      "adoptionTime": "2026-08-01T22:39:19Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-5000-9000-000000000155",
+       "iconId": "00000000-0000-4000-9000-000000000156",
+       "id": "00000000-0000-d000-d000-000000000157",
+       "images": {
+        "default": "00000000000000000000000000fa0135",
+        "nopadding": "00000000000000000000000000fa0136",
+        "topology": "00000000000000000000000000fa0137"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa01b4",
+      "mac": "000000FA01B6",
+      "name": "name-0039",
+      "model": "G5 Bullet",
+      "shortname": "UVC G5 Bullet",
+      "ip": "10.0.1.85",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.SAV530q.v5.5.31.67.66558b0.261001.1419",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-03T08:53:25Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-8000-000000fa015a",
+       "iconId": "00000000-0000-4000-a000-000000000163",
+       "id": "00000000-0000-4000-b000-000000000164",
+       "images": {
+        "default": "00000000000000000000000000fa015b",
+        "nopadding": "00000000000000000000000000fa015c",
+        "topology": "00000000000000000000000000fa015d"
+       }
+      }
+     },
+     {
+      "id": "000000FA015E",
+      "mac": "000000FA015E",
+      "name": "name-0027",
+      "model": "USW Pro 24 PoE",
+      "shortname": "US24PRO",
+      "ip": "10.0.1.229",
+      "productLine": "network",
+      "status": "online",
+      "version": "7.6.5",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-06T08:34:15Z",
+      "adoptionTime": "2024-06-21T00:47:32Z",
+      "note": "",
+      "uidb": {
+       "guid": null,
+       "iconId": "00000000-0000-4000-9000-000000000165",
+       "id": "00000000-0000-4000-a000-000000000166",
+       "images": {
+        "default": "00000000000000000000000000fa015f",
+        "nopadding": "00000000000000000000000000fa0160",
+        "topology": "00000000000000000000000000fa0161"
+       }
+      }
+     },
+     {
+      "id": "000000FA0162",
+      "mac": "000000FA0162",
+      "name": "name-0025",
+      "model": "U6 Pro",
+      "shortname": "UAP6MP",
+      "ip": "10.0.1.139",
+      "productLine": "network",
+      "status": "offline",
+      "version": "",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": null,
+      "adoptionTime": "2023-03-30T11:33:15Z",
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-9000-000000000167",
+       "iconId": "00000000-0000-c000-b000-000000000168",
+       "id": "00000000-0000-4000-a000-000000000169",
+       "images": {
+        "default": "00000000000000000000000000fa0163",
+        "nopadding": "00000000000000000000000000fa0164",
+        "topology": "00000000000000000000000000fa0165"
+       }
+      }
+     },
+     {
+      "id": "000000000000000000fa01b9",
+      "mac": "000000FA01BA",
+      "name": "name-0045",
+      "model": "G4 Dome",
+      "shortname": "UVC G4 Dome",
+      "ip": "10.0.1.167",
+      "productLine": "protect",
+      "status": "online",
+      "version": "UVC.S5L.v5.5.31.67.66558b0.261001.1416",
+      "firmwareStatus": "upToDate",
+      "updateAvailable": "",
+      "isConsole": false,
+      "isManaged": true,
+      "startupTime": "2026-10-03T08:55:54Z",
+      "adoptionTime": "2026-08-04T00:08:06Z",
+      "note": "",
+      "uidb": {
+       "guid": null,
+       "iconId": "00000000-0000-4000-b000-000000fa0166",
+       "id": "00000000-0000-4000-b000-000000fa0167",
+       "images": {
+        "default": "00000000000000000000000000fa0168",
+        "nopadding": "00000000000000000000000000fa0169",
+        "topology": "00000000000000000000000000fa016a"
+       }
+      }
+     },
+     {
+      "id": "000000FA00C3",
+      "mac": "000000FA00C3",
+      "name": "name-0024",
+      "model": "UDM Pro",
+      "shortname": "UDMPRO",
+      "ip": "10.0.13.133",
+      "productLine": "network",
+      "status": "online",
+      "version": "6.0.11",
+      "firmwareStatus": "updateAvailable",
+      "updateAvailable": "updateAvailable-0002",
+      "isConsole": true,
+      "isManaged": true,
+      "startupTime": "2026-10-03T09:00:58Z",
+      "adoptionTime": null,
+      "note": "",
+      "uidb": {
+       "guid": "00000000-0000-4000-b000-000000fa011e",
+       "iconId": "00000000-0000-4000-9000-000000fa016b",
+       "id": "00000000-0000-4000-a000-000000fa011f",
+       "images": {
+        "default": "00000000000000000000000000fa0122",
+        "nopadding": "00000000000000000000000000fa0126",
+        "topology": "00000000000000000000000000fa0128"
+       }
+      }
+     }
+    ],
+    "updatedAt": "2026-10-11T18:43:05Z"
+   }
+  ],
+  "httpStatusCode": 200,
+  "traceId": "00000000000000000000000000fa016c"
+ }
+}

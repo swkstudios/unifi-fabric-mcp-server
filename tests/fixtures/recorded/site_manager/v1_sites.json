@@ -1,0 +1,1836 @@
+{
+ "recorded_by_tool": "list_sites",
+ "request": {
+  "method": "GET",
+  "path": "/v1/sites",
+  "query": {
+   "pageSize": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": [
+   {
+    "siteId": "000000000000000000fa012a",
+    "hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",
+    "meta": {
+     "desc": "Default",
+     "gatewayMac": "02:00:5e:00:00:03",
+     "name": "default",
+     "timezone": "Etc/UTC"
+    },
+    "statistics": {
+     "counts": {
+      "criticalNotification": 0,
+      "gatewayDevice": 1,
+      "guestClient": 0,
+      "lanConfiguration": 20,
+      "offlineDevice": 1,
+      "offlineGatewayDevice": 0,
+      "offlineWifiDevice": 1,
+      "offlineWiredDevice": 0,
+      "pendingUpdateDevice": 0,
+      "totalDevice": 6,
+      "wanConfiguration": 3,
+      "wifiClient": 27,
+      "wifiConfiguration": 5,
+      "wifiDevice": 3,
+      "wiredClient": 14,
+      "wiredDevice": 2
+     },
+     "features": [
+      "features-0003",
+      "features-0004"
+     ],
+     "gateway": {
+      "hardwareId": "00000000-0000-5000-9000-000000fa00c2",
+      "inspectionState": "off",
+      "ipsMode": "ids",
+      "ipsSignature": {
+       "rulesCount": 33130,
+       "type": "ET"
+      },
+      "shortname": "UDMPRO"
+     },
+     "internetIssues": [
+      {
+       "index": 5972423,
+       "notReported": true
+      },
+      {
+       "index": 5972424
+      }
+     ],
+     "ispInfo": {
+      "asn": 64496,
+      "name": "name-0500",
+      "organization": "organization-0001"
+     },
+     "percentages": {
+      "wanUptime": 100
+     },
+     "wanLoadBalancingMode": "FAILOVER_ONLY",
+     "wanMagic": {
+      "available": true,
+      "enabled": false,
+      "subscribed": false,
+      "updateAt": 1791018160000
+     },
+     "wans": {
+      "WAN": {
+       "externalIp": "203.0.113.2",
+       "failoverPriority": 1,
+       "ispInfo": {
+        "asn": 64496,
+        "name": "name-0500",
+        "organization": "organization-0001"
+       },
+       "portUp": true,
+       "wanIssues": [
+        {
+         "index": 5972423,
+         "notReported": true
+        },
+        {
+         "index": 5972424
+        }
+       ],
+       "wanUptime": 100
+      },
+      "WAN2": {
+       "externalIp": "203.0.113.13",
+       "failoverPriority": 2,
+       "ispInfo": {
+        "asn": 64497,
+        "name": "name-0501",
+        "organization": "organization-0002"
+       },
+       "portUp": true,
+       "wanIssues": [
+        {
+         "highLatency": true,
+         "index": 5972191,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972192,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972193,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972194,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972196,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972197,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972198,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972199,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972200,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972201,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972202,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972203,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972204,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972205,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972206,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972207,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972208,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972209,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972210,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972211,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972212,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972213,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972214,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972215,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972216,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972217,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972218,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972219,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972220,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972221,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972222,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 34
+        },
+        {
+         "highLatency": true,
+         "index": 5972223,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 35
+        },
+        {
+         "highLatency": true,
+         "index": 5972224,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 35
+        },
+        {
+         "highLatency": true,
+         "index": 5972225,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972226,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972227,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972228,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972229,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972231,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972232,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972233,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972234,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972235,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972236,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972237,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972238,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972239,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972240,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972241,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972242,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972243,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972244,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972245,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972246,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972247,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972248,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972249,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972250,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972251,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972252,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972253,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972254,
+         "latencyAvgMs": 43,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972255,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972256,
+         "latencyAvgMs": 42,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972257,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972258,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972259,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972260,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972261,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972262,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972263,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972264,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972265,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972266,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972267,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972268,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972269,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 34
+        },
+        {
+         "highLatency": true,
+         "index": 5972270,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972271,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972272,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972273,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972274,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972275,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972276,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972277,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972278,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972279,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972280,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972281,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972282,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972283,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972284,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 50
+        },
+        {
+         "highLatency": true,
+         "index": 5972285,
+         "latencyAvgMs": 42,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972286,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972287,
+         "latencyAvgMs": 44,
+         "latencyMaxMs": 49
+        },
+        {
+         "highLatency": true,
+         "index": 5972288,
+         "latencyAvgMs": 42,
+         "latencyMaxMs": 50
+        },
+        {
+         "highLatency": true,
+         "index": 5972289,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972290,
+         "latencyAvgMs": 43,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972291,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972292,
+         "latencyAvgMs": 44,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972293,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972294,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972295,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972296,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 49
+        },
+        {
+         "highLatency": true,
+         "index": 5972297,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972298,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972299,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972300,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972301,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972302,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972303,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972304,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972305,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972306,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972307,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972308,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972309,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972310,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972311,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972312,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972313,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972314,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972315,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972316,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972317,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972318,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972319,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972320,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 32
+        },
+        {
+         "highLatency": true,
+         "index": 5972321,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972322,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972323,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972325,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972326,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972327,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972328,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972329,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972330,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972331,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972332,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972333,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 35
+        },
+        {
+         "highLatency": true,
+         "index": 5972334,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972335,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972336,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972337,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972338,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972339,
+         "latencyAvgMs": 42,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972340,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972341,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972342,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972343,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972344,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972345,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972346,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972347,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972348,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972349,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972350,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972351,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972352,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972353,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972354,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972355,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972356,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972357,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972358,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 43
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972359,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972361,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972362,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972363,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972364,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972365,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972366,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972367,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972368,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972369,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972370,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972371,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972372,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972373,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972374,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972375,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972376,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972377,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972378,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972379,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972380,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 47
+        },
+        {
+         "highLatency": true,
+         "index": 5972381,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972382,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972383,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972384,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972385,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972386,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972387,
+         "latencyAvgMs": 40,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972388,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972389,
+         "latencyAvgMs": 43,
+         "latencyMaxMs": 48
+        },
+        {
+         "highLatency": true,
+         "index": 5972390,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972391,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972393,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972394,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972395,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 39
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972396,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972398,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972399,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972400,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972401,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 36
+        },
+        {
+         "highLatency": true,
+         "index": 5972402,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972403,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972404,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972405,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972406,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972407,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972408,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972409,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972410,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972411,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972412,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972414,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972415,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972416,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972417,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "count": 2,
+         "highLatency": true,
+         "index": 5972418,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972420,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972421,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972422,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 40
+        },
+        {
+         "index": 5972423,
+         "notReported": true
+        },
+        {
+         "highLatency": true,
+         "index": 5972424,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972425,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972426,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 35
+        },
+        {
+         "highLatency": true,
+         "index": 5972427,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972428,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972429,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972430,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972431,
+         "latencyAvgMs": 48,
+         "latencyMaxMs": 67
+        },
+        {
+         "highLatency": true,
+         "index": 5972432,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972433,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 35
+        },
+        {
+         "highLatency": true,
+         "index": 5972434,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972435,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972436,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972437,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972438,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972439,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972440,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972441,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972442,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972443,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972444,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972445,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972446,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972447,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972448,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972449,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972450,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972451,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972452,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 44
+        },
+        {
+         "highLatency": true,
+         "index": 5972453,
+         "latencyAvgMs": 33,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972454,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 34
+        },
+        {
+         "highLatency": true,
+         "index": 5972455,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 38
+        },
+        {
+         "highLatency": true,
+         "index": 5972456,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972457,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972458,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972459,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972460,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972461,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972462,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972463,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972464,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972465,
+         "latencyAvgMs": 39,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972466,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972467,
+         "latencyAvgMs": 31,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972468,
+         "latencyAvgMs": 32,
+         "latencyMaxMs": 34
+        },
+        {
+         "highLatency": true,
+         "index": 5972469,
+         "latencyAvgMs": 41,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972470,
+         "latencyAvgMs": 37,
+         "latencyMaxMs": 45
+        },
+        {
+         "highLatency": true,
+         "index": 5972471,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 43
+        },
+        {
+         "highLatency": true,
+         "index": 5972472,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 42
+        },
+        {
+         "highLatency": true,
+         "index": 5972473,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 37
+        },
+        {
+         "highLatency": true,
+         "index": 5972474,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972475,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 41
+        },
+        {
+         "highLatency": true,
+         "index": 5972476,
+         "latencyAvgMs": 34,
+         "latencyMaxMs": 39
+        },
+        {
+         "highLatency": true,
+         "index": 5972477,
+         "latencyAvgMs": 36,
+         "latencyMaxMs": 40
+        },
+        {
+         "highLatency": true,
+         "index": 5972478,
+         "latencyAvgMs": 38,
+         "latencyMaxMs": 46
+        },
+        {
+         "highLatency": true,
+         "index": 5972479,
+         "latencyAvgMs": 35,
+         "latencyMaxMs": 45
+        }
+       ],
+       "wanUptime": 100
+      },
+      "WAN3": {
+       "failoverPriority": 3,
+       "portUp": false,
+       "wanIssues": [
+        {
+         "count": 232,
+         "index": 5972191,
+         "wanDowntime": true
+        },
+        {
+         "index": 5972423,
+         "notReported": true
+        },
+        {
+         "count": 56,
+         "index": 5972424,
+         "wanDowntime": true
+        }
+       ],
+       "wanUptime": 0
+      }
+     }
+    },
+    "permission": "admin",
+    "isOwner": true
+   }
+  ],
+  "httpStatusCode": 200,
+  "traceId": "00000000000000000000000000fa012b"
+ }
+}

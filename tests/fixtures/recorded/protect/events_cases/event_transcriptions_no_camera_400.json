@@ -1,0 +1,29 @@
+{
+ "recorded_by_tool": "get_protect_event_media",
+ "args": [
+  "00000000-0000-4000-9000-000000000001",
+  "transcriptions"
+ ],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/events/00000000-0000-4000-9000-000000000001/transcriptions",
+  "query": {}
+ },
+ "status": 400,
+ "content_type": "application/json",
+ "body": {
+  "body": {},
+  "entity": "entity-0002",
+  "error": "error-0003",
+  "isUserError": true,
+  "issues": [
+   {
+    "instancePath": "",
+    "keyword": "xxxxxxxx",
+    "message": "must have required property 'camera'"
+   }
+  ],
+  "name": "name-0002"
+ }
+}

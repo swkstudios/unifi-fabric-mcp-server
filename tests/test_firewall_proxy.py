@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.client import PaginationAbortedError
 from unifi_fabric.tools.firewall_proxy import (
     create_acl_rule,
     create_firewall_policy,
@@ -41,6 +40,7 @@ BASE = PROXY_BASE.format(host_id=HOST_ID)
 def client():
     c = AsyncMock()
     c.get = AsyncMock()
+    c.paginate_max_pages = None
     c.post = AsyncMock()
     c.put = AsyncMock()
     c.patch = AsyncMock()
@@ -62,66 +62,126 @@ def registry():
 
 class TestListFirewallPolicies:
     async def test_drains_all_by_default(self, client, registry):
-        client.paginate_offset.return_value = [
-            {"id": "pol-1", "name": "Allow LAN"},
-            {"id": "pol-2"},
-        ]
+        rows = [{"id": "pol-1", "name": "Allow LAN"}, {"id": "pol-2"}]
+        client.get.side_effect = [rows, []]
         result = await list_firewall_policies(client, registry, "h", "s")
-        client.paginate_offset.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies", key=None, params=None, page_size=200
+        assert all(
+            request.args == (f"{BASE}/sites/{SITE_ID}/firewall/policies",)
+            for request in client.get.call_args_list
         )
-        client.get.assert_not_called()
+        assert client.get.call_count == 2
         assert result == {
             "data": [{"id": "pol-1", "name": "Allow LAN"}, {"id": "pol-2"}],
-            "totalCount": 2,
+            "totalCount": None,  # upstream sent no totalCount: never invented
         }
 
+        assert client.get.call_count == 2
+        assert [call.kwargs["params"]["offset"] for call in client.get.call_args_list] == [0, 2]
+        for request in client.get.call_args_list:
+            assert request.args == (f"{BASE}/sites/{SITE_ID}/firewall/policies",)
+            assert request.kwargs == {
+                "key": None,
+                "params": {"offset": request.kwargs["params"]["offset"], "limit": 200},
+            }
+        assert result["data"] == rows
+        assert result["totalCount"] is None
+        assert "incomplete" not in result
+        assert "_incomplete" not in result
+
     async def test_resolves_names(self, client, registry):
-        client.paginate_offset.return_value = []
+        client.get.return_value = []
         await list_firewall_policies(client, registry, "MyHost", "Office")
         registry.resolve_host_id.assert_called_once_with("MyHost", key=None)
         registry.resolve_site_id.assert_called_once_with("Office", HOST_ID, key=None)
 
-    async def test_pagination_params_single_page(self, client, registry):
-        client.get.return_value = {"data": [{"id": "pol-9"}], "totalCount": 102}
-        result = await list_firewall_policies(client, registry, "h", "s", offset=50, limit=50)
-        client.get.assert_called_once_with(
+    async def test_requested_total_advances_by_records_returned(self, client, registry):
+        # The old offset+limit batching assertion encoded extra requests for a manual page.
+        # Keep the exact 50-record gather and all physical request checks with limit alone.
+        rows = [{"id": f"pol-{i}"} for i in range(102)]
+
+        async def get(path, *, key=None, params):
+            offset = params.get("offset", 0)
+            size = min(params["limit"], 2)
+            return {"data": rows[offset : offset + size], "limit": size, "totalCount": 102}
+
+        client.get.side_effect = get
+        result = await list_firewall_policies(client, registry, "h", "s", limit=50)
+        assert client.get.call_count == 25
+        for index, request in enumerate(client.get.call_args_list):
+            assert request.args == (f"{BASE}/sites/{SITE_ID}/firewall/policies",)
+            assert request.kwargs == {
+                "key": None,
+                "params": {"limit": 50} if index == 0 else {"offset": index * 2, "limit": 2},
+            }
+        assert result == {
+            "data": rows[:50],
+            "totalCount": 102,
+            "_pageSize": {"requested": 50, "sent": [50] + [2] * 24, "effective": 2, "returned": 50},
+            "_nextOffset": 50,
+        }
+        client.get.reset_mock()
+        next_page = await list_firewall_policies(
+            client, registry, "h", "s", offset=result["_nextOffset"], limit=50
+        )
+        client.get.assert_awaited_once_with(
             f"{BASE}/sites/{SITE_ID}/firewall/policies",
             key=None,
             params={"offset": 50, "limit": 50},
         )
-        client.paginate_offset.assert_not_called()
-        assert result == {"data": [{"id": "pol-9"}], "totalCount": 102}
+        assert next_page == {
+            "data": rows[50:52],
+            "limit": 2,
+            "totalCount": 102,
+            "_pageSize": {"requested": 50, "sent": [50], "effective": 2, "returned": 2},
+        }
+        assert result["data"] + next_page["data"] == rows[:52]
 
-    async def test_explicit_zero_limit_and_offset_are_sent(self, client, registry):
+    async def test_explicit_zero_limit_and_offset_are_refused_before_any_request(
+        self, client, registry
+    ):
+        # PAGING-VALIDATION-A1 rule 2 and condition 4: limit=0 is refused with the
+        # caller's argument name, with or without offset, and nothing is sent.
+        with pytest.raises(ValueError) as exc:
+            await list_firewall_policies(client, registry, "h", "s", offset=0, limit=0)
+        assert str(exc.value) == (
+            "limit must be a positive integer (1 or more); got 0. "
+            "Omit limit to read the whole collection."
+        )
+        client.get.assert_not_called()
+        registry.resolve_key_for_host.assert_not_called()
+
+    async def test_explicit_one_limit_and_zero_offset_are_sent(self, client, registry):
         client.get.return_value = {"data": [], "totalCount": 5}
-        await list_firewall_policies(client, registry, "h", "s", offset=0, limit=0)
+        await list_firewall_policies(client, registry, "h", "s", offset=0, limit=1)
         client.get.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/firewall/policies",
             key=None,
-            params={"offset": 0, "limit": 0},
+            params={"offset": 0, "limit": 1},
         )
 
     async def test_cap_exceeded_marked_incomplete(self, client, registry):
-        client.paginate_offset.side_effect = PaginationAbortedError(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies",
-            2,
-            "page cap of 2 reached",
-            items=[{"id": "pol-1"}],
-        )
+        rows = [{"id": "pol-1"}] + [
+            dict({"id": "pol-1"}, id=f"extra-{index}") for index in range(1, 2)
+        ]
+        client.paginate_max_pages = 2
+        client.get.side_effect = [{"data": [row], "limit": 1} for row in rows]
         result = await list_firewall_policies(client, registry, "h", "s")
         assert result["incomplete"] is True
-        assert result["data"] == [{"id": "pol-1"}]
-        assert result["totalCount"] == 1
+        assert result["data"] == rows
+        assert "page cap of 2" in result["incompleteReason"]
+        assert result["totalCount"] is None
+        assert client.get.call_count == 2
+        assert [call.kwargs["params"]["offset"] for call in client.get.call_args_list] == list(
+            range(2)
+        )
 
     async def test_filter_drains_with_exact_param(self, client, registry):
-        client.paginate_offset.return_value = []
+        client.get.return_value = []
         await list_firewall_policies(client, registry, "h", "s", filter="action.eq('ALLOW')")
-        client.paginate_offset.assert_called_once_with(
+        client.get.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/firewall/policies",
             key=None,
-            params={"filter": "action.eq('ALLOW')"},
-            page_size=200,
+            params={"filter": "action.eq('ALLOW')", "offset": 0, "limit": 200},
         )
 
     async def test_filter_manual_page_exact_param(self, client, registry):
@@ -137,22 +197,23 @@ class TestListFirewallPolicies:
         client.paginate_offset.assert_not_called()
 
     async def test_filter_none_omits_param_not_string(self, client, registry):
-        client.paginate_offset.return_value = []
+        client.get.return_value = []
         await list_firewall_policies(client, registry, "h", "s", filter=None)
-        client.paginate_offset.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/policies", key=None, params=None, page_size=200
+        client.get.assert_called_once_with(
+            f"{BASE}/sites/{SITE_ID}/firewall/policies",
+            key=None,
+            params={"offset": 0, "limit": 200},
         )
 
     async def test_filter_threads_owning_key(self, client, registry):
         sentinel = object()
         registry.resolve_key_for_host.return_value = sentinel
-        client.paginate_offset.return_value = []
+        client.get.return_value = []
         await list_firewall_policies(client, registry, "h", "s", filter="action.eq('ALLOW')")
-        client.paginate_offset.assert_called_once_with(
+        client.get.assert_called_once_with(
             f"{BASE}/sites/{SITE_ID}/firewall/policies",
             key=sentinel,
-            params={"filter": "action.eq('ALLOW')"},
-            page_size=200,
+            params={"filter": "action.eq('ALLOW')", "offset": 0, "limit": 200},
         )
 
 
@@ -161,11 +222,11 @@ class TestCreateFirewallPolicy:
     # naming all seven). The tool validates the same set before the request.
     _VALID = {
         "name": "Block Guest",
-        "action": {"type": "DENY", "allowReturnTraffic": False},
+        "action": {"type": "BLOCK"},
         "enabled": True,
         "source": {"zoneId": "z1"},
         "destination": {"zoneId": "z2"},
-        "ipProtocolScope": {"ipVersion": "BOTH"},
+        "ipProtocolScope": {"ipVersion": "IPV4_AND_IPV6"},
         "loggingEnabled": False,
     }
 
@@ -216,7 +277,7 @@ class TestUpdateFirewallPolicy:
         assert result["name"] == "Updated Policy"
 
     async def test_strips_empty_strings_from_list_fields(self, client, registry):
-        """Issue #164: a firewall policy read back with padded list fields (e.g.
+        """a firewall policy read back with padded list fields (e.g.
         source IP groups) round-trips cleanly without the empties."""
         payload = {"name": "P", "source": {"ips": ["10.0.0.0/8", "", ""]}}
         client.put.return_value = {"id": "pol-1"}
@@ -270,8 +331,8 @@ class TestDeleteFirewallPolicy:
 
 class TestFirewallPolicyOrdering:
     async def test_get_ordering(self, client, registry):
-        src_zone_id = "zone-uuid-1234"
-        dst_zone_id = "zone-uuid-5678"
+        src_zone_id = "3fa85f64-5717-4562-b3fc-000000001234"
+        dst_zone_id = "3fa85f64-5717-4562-b3fc-000000005678"
         client.get.return_value = {"order": ["pol-1", "pol-2"]}
         result = await get_firewall_policy_ordering(
             client, registry, "h", "s", src_zone_id, dst_zone_id
@@ -287,8 +348,8 @@ class TestFirewallPolicyOrdering:
         assert result == {"order": ["pol-1", "pol-2"]}
 
     async def test_set_ordering(self, client, registry):
-        src_zone_id = "zone-uuid-1234"
-        dst_zone_id = "zone-uuid-5678"
+        src_zone_id = "3fa85f64-5717-4562-b3fc-000000001234"
+        dst_zone_id = "3fa85f64-5717-4562-b3fc-000000005678"
         ordering = {"order": ["pol-2", "pol-1"]}
         client.put.return_value = ordering
         result = await set_firewall_policy_ordering(
@@ -306,17 +367,23 @@ class TestFirewallPolicyOrdering:
         assert result == ordering
 
     async def test_set_ordering_forwards_zone_query_params(self, client, registry):
-        """Regression for internal #181: the ordering endpoint requires the zone ids as
+        """Regression for the ordering endpoint requires the zone ids as
         query params (sourceFirewallZoneId/destinationFirewallZoneId). Before this fix
         they were dropped and the controller returned HTTP 400 on every call."""
         client.put.return_value = {}
         await set_firewall_policy_ordering(
-            client, registry, "h", "s", "zsrc", "zdst", {"order": []}
+            client,
+            registry,
+            "h",
+            "s",
+            "3fa85f64-5717-4562-b3fc-00000000a5c0",
+            "3fa85f64-5717-4562-b3fc-00000000d570",
+            {"order": []},
         )
         _, kwargs = client.put.call_args
         assert kwargs["params"] == {
-            "sourceFirewallZoneId": "zsrc",
-            "destinationFirewallZoneId": "zdst",
+            "sourceFirewallZoneId": "3fa85f64-5717-4562-b3fc-00000000a5c0",
+            "destinationFirewallZoneId": "3fa85f64-5717-4562-b3fc-00000000d570",
         }
         # zone ids must NOT be smuggled into the JSON body
         assert "sourceFirewallZoneId" not in kwargs["json"]
@@ -324,7 +391,7 @@ class TestFirewallPolicyOrdering:
 
 
 class TestSourcePortFilterWarning:
-    """Runtime warning for the source-portFilter placement footgun (public #17 / #181)."""
+    """Runtime warning for the source-portFilter placement footgun (public #17)."""
 
     @staticmethod
     def _policy(*, source_filter, action_type="ALLOW", dest_filter=None):
@@ -394,7 +461,7 @@ class TestSourcePortFilterWarning:
         client.post.return_value = {}
         policy = self._policy(
             source_filter={"type": "PORT", "portFilter": {"items": [{"port": 443}]}},
-            action_type="DENY",
+            action_type="BLOCK",
         )
         with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
             await create_firewall_policy(client, registry, "h", "s", policy)
@@ -408,33 +475,79 @@ class TestSourcePortFilterWarning:
 
 class TestListFirewallZones:
     async def test_drains_all_by_default(self, client, registry):
-        client.paginate_offset.return_value = [{"id": "zone-1", "name": "Internal"}]
+        rows = [{"id": "zone-1", "name": "Internal"}]
+        client.get.side_effect = [rows, []]
         result = await list_firewall_zones(client, registry, "h", "s")
-        client.paginate_offset.assert_called_once_with(
-            f"{BASE}/sites/{SITE_ID}/firewall/zones", key=None, params=None, page_size=200
+        assert all(
+            request.args == (f"{BASE}/sites/{SITE_ID}/firewall/zones",)
+            for request in client.get.call_args_list
         )
-        client.get.assert_not_called()
-        assert result == {"data": [{"id": "zone-1", "name": "Internal"}], "totalCount": 1}
+        assert client.get.call_count == 2
+        assert result == {"data": [{"id": "zone-1", "name": "Internal"}], "totalCount": None}
 
-    async def test_manual_page_returns_single_page(self, client, registry):
-        client.get.return_value = {"data": [{"id": "zone-1"}], "totalCount": 6}
-        result = await list_firewall_zones(client, registry, "h", "s", offset=0, limit=25)
-        client.get.assert_called_once_with(
+        assert client.get.call_count == 2
+        assert [call.kwargs["params"]["offset"] for call in client.get.call_args_list] == [0, 1]
+        for request in client.get.call_args_list:
+            assert request.args == (f"{BASE}/sites/{SITE_ID}/firewall/zones",)
+            assert request.kwargs == {
+                "key": None,
+                "params": {"offset": request.kwargs["params"]["offset"], "limit": 200},
+            }
+        assert result["data"] == rows
+        assert result["totalCount"] is None
+        assert "incomplete" not in result
+        assert "_incomplete" not in result
+
+    async def test_requested_total_returns_all_available_zones(self, client, registry):
+        # The old offset+limit batching assertion encoded extra requests for a manual page.
+        # Limit alone keeps the original exact all-available-records and request-size checks.
+        rows = [{"id": f"zone-{i}"} for i in range(1, 7)]
+
+        async def get(path, *, key=None, params):
+            offset = params.get("offset", 0)
+            size = min(params["limit"], 2)
+            return {"data": rows[offset : offset + size], "limit": size, "totalCount": 6}
+
+        client.get.side_effect = get
+        result = await list_firewall_zones(client, registry, "h", "s", limit=25)
+        assert client.get.call_count == 3
+        for index, request in enumerate(client.get.call_args_list):
+            assert request.args == (f"{BASE}/sites/{SITE_ID}/firewall/zones",)
+            assert request.kwargs == {
+                "key": None,
+                "params": {"limit": 25} if index == 0 else {"offset": index * 2, "limit": 2},
+            }
+        assert result == {
+            "data": rows,
+            "totalCount": 6,
+            "_pageSize": {"requested": 25, "sent": [25, 2, 2], "effective": 2, "returned": 6},
+        }
+        client.get.reset_mock()
+        manual_page = await list_firewall_zones(client, registry, "h", "s", offset=0, limit=25)
+        client.get.assert_awaited_once_with(
             f"{BASE}/sites/{SITE_ID}/firewall/zones", key=None, params={"offset": 0, "limit": 25}
         )
-        client.paginate_offset.assert_not_called()
-        assert result == {"data": [{"id": "zone-1"}], "totalCount": 6}
+        assert manual_page == {
+            "data": rows[:2],
+            "limit": 2,
+            "totalCount": 6,
+            "_pageSize": {"requested": 25, "sent": [25], "effective": 2, "returned": 2},
+        }
 
     async def test_cap_exceeded_marked_incomplete(self, client, registry):
-        client.paginate_offset.side_effect = PaginationAbortedError(
-            f"{BASE}/sites/{SITE_ID}/firewall/zones",
-            2,
-            "page cap of 2 reached",
-            items=[{"id": "zone-1"}],
-        )
+        rows = [{"id": "zone-1"}] + [
+            dict({"id": "zone-1"}, id=f"extra-{index}") for index in range(1, 2)
+        ]
+        client.paginate_max_pages = 2
+        client.get.side_effect = [{"data": [row], "limit": 1} for row in rows]
         result = await list_firewall_zones(client, registry, "h", "s")
         assert result["incomplete"] is True
-        assert result["data"] == [{"id": "zone-1"}]
+        assert result["data"] == rows
+        assert "page cap of 2" in result["incompleteReason"]
+        assert client.get.call_count == 2
+        assert [call.kwargs["params"]["offset"] for call in client.get.call_args_list] == list(
+            range(2)
+        )
 
 
 class TestCreateFirewallZone:
@@ -505,10 +618,24 @@ class TestDeleteFirewallZone:
 
 class TestListAclRules:
     async def test_basic(self, client, registry):
-        client.get.return_value = [{"id": "acl-1", "name": "Block SSH"}]
+        rows = [{"id": "acl-1", "name": "Block SSH"}]
+        client.get.side_effect = [rows, []]
         result = await list_acl_rules(client, registry, "h", "s")
-        client.get.assert_called_once_with(f"{BASE}/sites/{SITE_ID}/acl-rules", key=None)
-        assert result == [{"id": "acl-1", "name": "Block SSH"}]
+        assert client.get.call_args.args[0] == f"{BASE}/sites/{SITE_ID}/acl-rules"
+        assert result == {"data": [{"id": "acl-1", "name": "Block SSH"}], "totalCount": None}
+
+        assert client.get.call_count == 2
+        assert [call.kwargs["params"]["offset"] for call in client.get.call_args_list] == [0, 1]
+        for request in client.get.call_args_list:
+            assert request.args == (f"{BASE}/sites/{SITE_ID}/acl-rules",)
+            assert request.kwargs == {
+                "key": None,
+                "params": {"offset": request.kwargs["params"]["offset"], "limit": 200},
+            }
+        assert result["data"] == rows
+        assert result["totalCount"] is None
+        assert "incomplete" not in result
+        assert "_incomplete" not in result
 
     async def test_resolves_names(self, client, registry):
         client.get.return_value = []
@@ -554,7 +681,7 @@ class TestUpdateAclRule:
         assert result["name"] == "Updated Rule"
 
     async def test_strips_empty_strings_from_list_fields(self, client, registry):
-        """Issue #164: an ACL rule read back with padded list fields round-trips
+        """an ACL rule read back with padded list fields round-trips
         cleanly without the empties."""
         payload = {"name": "R", "dst_networks": ["net-1", "", ""]}
         client.put.return_value = {"id": "acl-1"}
@@ -587,3 +714,42 @@ class TestAclRuleOrdering:
             f"{BASE}/sites/{SITE_ID}/acl-rules/ordering", key=None, json=ordering
         )
         assert result == ordering
+
+
+class TestFirewallPolicyDocsMatchSpec:
+    """Docstrings must use the Network 10.6.106 enum values and filter shapes."""
+
+    def _doc(self, name):
+        from tests.test_spec_conformance import usage_section
+        from unifi_fabric import server
+
+        # Worked examples moved from shortened descriptions to docs/TOOL-USAGE.md.
+        return (getattr(server, name).__doc__ or "") + "\n" + usage_section(name)
+
+    def test_create_policy_uses_spec_enums(self):
+        doc = self._doc("create_firewall_policy")
+        assert "DENY" not in doc
+        assert "'BOTH'" not in doc and "|BOTH" not in doc
+        assert "BLOCK" in doc and "IPV4_AND_IPV6" in doc
+
+    def test_filter_shapes_carry_type_and_match_opposite(self):
+        for name in ("create_firewall_policy", "update_firewall_policy"):
+            doc = self._doc(name)
+            assert '"type": "PORTS", "matchOpposite": false' in doc, name
+            assert '"type": "IP_ADDRESSES", "matchOpposite": false' in doc, name
+
+    def test_patch_policy_documents_logging_enabled_only(self):
+        from unifi_fabric import server
+
+        tool = next(t for t in _list_tools(server) if t.name == "patch_firewall_policy")
+        desc = tool.parameters["properties"]["fields"]["description"]
+        assert "ONLY loggingEnabled" in desc
+        assert "update_firewall_policy" in desc
+
+
+def _list_tools(server):
+    import asyncio
+    import inspect
+
+    result = server.mcp.list_tools()
+    return asyncio.run(result) if inspect.isawaitable(result) else result

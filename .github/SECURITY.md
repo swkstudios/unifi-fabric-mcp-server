@@ -13,10 +13,12 @@ We provide security fixes for the latest release only.
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-Use GitHub's **Private Vulnerability Reporting** feature to disclose security issues
-privately: navigate to the **Security** tab of whichever repository you are working
-from and click **"Report a vulnerability"**. We aim to acknowledge reports within
-5 business days and will coordinate a fix and public disclosure timeline with you.
+Use GitHub's **Private Vulnerability Reporting** to disclose security issues privately:
+open <https://github.com/swkstudios/unifi-fabric-mcp-server/security/advisories/new>
+(the **Security** tab of the public repository, then **"Report a vulnerability"**). Use this
+link wherever you read this policy. We aim to
+acknowledge reports within 5 business days and will coordinate a fix and public
+disclosure timeline with you.
 
 When reporting, please include:
 
@@ -26,6 +28,10 @@ When reporting, please include:
 
 We follow responsible disclosure and will credit reporters in the release notes unless you
 prefer to remain anonymous.
+
+## Trust store (eMudhra CA incident, October 2026)
+
+The container image ships the Debian CA bundle and the build fails if it trusts a root named in the incident. Other install paths use the host: the HTTPS client for the JWKS download loads the operating system trust store, and the UniFi API client loads certifi (locked at 2026.10.23 or later). Following the FastMCP security notice, "update the CA stores in your operating system, containers, and custom TLS configuration. Rebuild affected images and restart processes after changing their trust stores"; upgrading this server alone is insufficient for a pip, uvx or Homebrew install. Update your operating system CA package (Debian bookworm `ca-certificates` 20250419~deb12u2 or later, Homebrew `ca-certificates` 2026-09-25_1 or later), and update uv to 0.13.4 or later and pip to 26.2.2 or later.
 
 ## Transport Authentication Posture
 
@@ -43,10 +49,27 @@ Pick the mode that matches where the server is reachable from:
 | `bearer` | A trusted private network (LAN / VPN), or behind a TLS-terminating authenticating reverse proxy. | A single shared secret. No per-client identity, no scopes, no expiry, no rotation. |
 | `oauth`  | Internet-exposed or multi-tenant deployments.                            | Per-client identity via signed, audience-scoped, expiring tokens from an issuer.  |
 
-Tool responses include all upstream API fields without filtering, including credential
-fields (WLAN passphrases, RADIUS secrets, DDNS passwords), GPS coordinates, and Protect
-recognition data. Transport security is therefore load-bearing — an inadequately secured
+Tool responses include all upstream API fields, including credential fields (WLAN
+passphrases, RADIUS secrets, DDNS passwords), GPS coordinates, and Protect recognition data.
+The server always replaces its own configured secrets (its API keys, `MCP_BEARER_TOKEN`,
+`MCP_TLS_KEY_PASSWORD`) with `***` wherever a response, error or log line echoes them;
+masking upstream credential fields (with `***REDACTED***`) is off by default and opt-in with `UNIFI_REDACT_SECRETS`. Authentication controls admission, not field visibility. Transport security is therefore load-bearing: an inadequately secured
 listener exposes complete network credentials and sensitive data, not just network visibility.
+
+The HTTP transports also check the `Host` and `Origin` headers by default, as a defence against DNS
+rebinding and cross-site requests: a browser request from an origin that is not loopback, the origin
+of `MCP_OAUTH_BASE_URL` or listed in `MCP_ALLOWED_ORIGINS` is refused. Unauthenticated loopback binds keep FastMCP’s automatic Host protection.
+Bearer/OAuth authentication in automatic mode accepts proxy Host values unless an explicit
+allowlist is configured; strict FastMCP protection preserves its Host checks.
+`MCP_ALLOWED_HOSTS` adds allowed names to FastMCP’s Host policy. Origin checks still apply
+to authenticated requests. `MCP_HOST_ORIGIN_PROTECTION=off` disables both checks. See
+[`docs/AUTH-TLS.md`](../docs/AUTH-TLS.md#host-and-origin-validation).
+
+Authentication admits a caller to the server; OAuth can additionally restrict writes with
+`MCP_OAUTH_WRITE_SCOPE`. To limit what all admitted callers can change, set
+`UNIFI_READ_ONLY=1` (every write and action is refused before it reaches UniFi) or opt single areas
+out of writes with `UNIFI_ENABLE_NETWORK_WRITE=0` and its siblings; both are listed in
+[`docs/CONFIGURATION.md`](../docs/CONFIGURATION.md).
 
 ### `none`
 
@@ -78,8 +101,17 @@ secret store, never commit it, and rotate it if it may have been exposed.
 
 Requests must present a signed token validated against the configured issuer, audience,
 and (optionally) required scopes. This is the mode intended for internet-exposed or
-multi-tenant deployments, because it provides per-client identity, scoped authorization,
+multi-tenant deployments, because it provides per-client identity, scope-checked admission,
 and token expiry rather than a single shared secret.
+
+OAuth scopes control admission to the whole server. `MCP_OAUTH_REQUIRED_SCOPES` decides which tokens
+get in, and a scope named `fabric:read` does not disable write tools on its own. To restrict writes per token, set `MCP_OAUTH_WRITE_SCOPE`
+(opt-in, unset by default): a write tool, or a `fabric_connector_get` call to a known state-changing
+GET route, is then refused before it runs unless the caller's token also carries that scope; read
+tools need only the admission scopes. All admitted clients use the deployment's configured UniFi
+key(s), tool catalog and write settings. For an instance with no write path at all, run it with
+`UNIFI_READ_ONLY=1`; use separate instances and keys when callers need different UniFi permissions.
+See [Scopes and write access](../docs/AUTH-OAUTH.md#scopes-and-write-access).
 
 ### Internet-exposed deployments
 
@@ -104,7 +136,7 @@ table below covers all nine combinations across the full 3 × 3 grid:
 |-----------|----------|---------|----------|
 | `none` | `none` (plain) | Development only | Local loopback (`127.0.0.1`) / single-user dev. **Never expose beyond the local host.** |
 | `none` | `https` | Not recommended as-is | Transport encryption without request auth. Only acceptable when a TLS-terminating proxy in front of the server enforces authentication. |
-| `none` | `mtls` | Not recommended as-is | mTLS enforces a transport-level peer identity; still no application-layer auth. Pair with `bearer` or `oauth` for per-client identity. |
+| `none` | `mtls` | Not recommended as-is | mTLS enforces a transport-level peer identity; still no application-layer auth. Pair with `oauth` for per-client identity (`bearer` adds one shared secret, a single identity for every caller). |
 | `bearer` | `none` (plain) | Trusted-LAN only | Shared-secret auth but token travels in cleartext. Safe only on a physically-secured private network or loopback. |
 | `bearer` | `https` | Trusted LAN / VPN | **Recommended for private deployments**: shared-secret auth plus transport encryption. |
 | `bearer` | `mtls` | High-assurance internal | Adds mutual transport identity on top of shared-secret auth. Suitable for zero-trust internal networks. |
@@ -116,8 +148,9 @@ table below covers all nine combinations across the full 3 × 3 grid:
 
 - **mTLS is a transport boundary, not an application identity system.** It verifies
   that a client's certificate was issued by a trusted CA but does not identify
-  individual users or API clients. Always pair it with `bearer` or `oauth` for
-  application-level identity.
+  individual users or API clients. Pair it with an application auth mode: `oauth` for
+  per-client identity, or `bearer` for one shared secret (every bearer caller is the
+  same identity).
 - Bearer auth is not a standalone public-internet boundary (see the warning in the
   `bearer` section above). A single static shared secret gives no way to distinguish
   or revoke individual clients.

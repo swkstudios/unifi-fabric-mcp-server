@@ -14,7 +14,7 @@ TOKEN = "test-secret-token-1234"  # noqa: S105 — test-only value
 def _reload_server(monkeypatch, *, token: str = ""):
     """Reload server module with MCP_BEARER_TOKEN set (or cleared).
 
-    Bearer auth applies to HTTP transports only (fail-closed A2 reconciliation),
+    Bearer auth applies to HTTP transports only (fail-closed),
     so whenever a token is set the transport is pinned to streamable-http to
     mirror the Docker default and keep the config valid.
     """
@@ -31,6 +31,7 @@ def _reload_server(monkeypatch, *, token: str = ""):
     import unifi_fabric.server as srv
 
     importlib.reload(srv)
+    srv._configure_transport()
     return srv
 
 

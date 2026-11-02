@@ -1,0 +1,25 @@
+{
+ "recorded_by_tool": "get_firewall_zone_proxy",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/firewall/zones/00000000-0000-4000-a000-000000fa003b",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "id": "00000000-0000-4000-a000-000000fa003b",
+  "name": "Internal",
+  "networkIds": [
+   "00000000-0000-4000-a000-000000fa003a",
+   "00000000-0000-4000-a000-000000fa003c",
+   "00000000-0000-4000-b000-000000000023",
+   "00000000-0000-4000-8000-000000000035",
+   "00000000-0000-4000-9000-000000000028"
+  ],
+  "metadata": {
+   "origin": "origin-0001",
+   "configurable": true
+  }
+ }
+}

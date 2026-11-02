@@ -24,8 +24,8 @@ docstring for the full rationale and the historical defect that motivated the sp
 
 Both gates run on every PR with no live server and no credentials — they introspect the
 imported FastMCP instance directly, which is the authoritative registered tool set. That
-makes them strictly cheaper than the live ``docs/internal/check_instructions_tools.py``
-variant while catching the same phantom-tool class (e.g. the ``update_radius_profile`` /
+makes them strictly cheaper than an equivalent live-server variant
+while catching the same phantom-tool class (e.g. the ``update_radius_profile`` /
 ``delete_radius_profile`` references that named tools which were never built).
 """
 
@@ -43,6 +43,16 @@ from unifi_fabric._instructions_audit import (
     tool_verbs,
     undocumented_required_params,
 )
+
+
+def _usage_workflows() -> str:
+    from pathlib import Path
+
+    return (
+        (Path(__file__).resolve().parents[1] / "docs/TOOL-USAGE.md")
+        .read_text()
+        .split("## create_network")[0]
+    )
 
 
 def _registered_tools() -> list:
@@ -85,9 +95,23 @@ def _registered_tool_required() -> dict[str, list[str]]:
 
 
 def test_instructions_names_no_phantom_tools() -> None:
-    names = _registered_tool_names()
+    from tests.test_discovery import clone_app
+    from unifi_fabric.discovery import apply_tool_mode
+
+    async def live_names():
+        app = await clone_app()
+        domain_names = {tool.name for tool in await app.list_tools()}
+        cleanup = await apply_tool_mode(app, "discovery")
+        try:
+            return sorted(domain_names | {tool.name for tool in await app.list_tools()})
+        finally:
+            cleanup()
+
+    names = asyncio.run(live_names())
     assert names, "no tools registered — introspection is broken"
-    phantoms = phantom_tool_refs(server.INSTRUCTIONS, names)
+    phantoms = phantom_tool_refs(_usage_workflows(), names) + phantom_tool_refs(
+        server.INSTRUCTIONS, names
+    )
     assert phantoms == [], (
         "INSTRUCTIONS references tool name(s) that are not registered: "
         f"{phantoms}. Either build the tool(s) or remove the reference from the "
@@ -103,7 +127,9 @@ def test_instructions_names_no_phantom_tools() -> None:
 def test_instructions_param_scope_matches_schema() -> None:
     tool_params = _registered_tool_params()
     assert tool_params, "no tools registered — introspection is broken"
-    violations = param_scope_violations(server.INSTRUCTIONS, tool_params)
+    violations = param_scope_violations(
+        _usage_workflows(), tool_params, _registered_tool_required()
+    )
     assert violations == [], (
         "INSTRUCTIONS 'Parameter Scope Quick Reference' files tool(s) under a bucket that "
         "disagrees with their registered host/site parameters:\n  "
@@ -132,8 +158,15 @@ def test_every_required_param_named_in_description() -> None:
 def test_param_scope_buckets_are_populated() -> None:
     # Guard against the section header being renamed/removed and the check silently
     # degrading to a no-op: the three buckets must parse and name real tools.
-    buckets = parse_param_scope_buckets(server.INSTRUCTIONS)
-    assert set(buckets) == {"host + site required", "host only", "no host/site"}
+    buckets = parse_param_scope_buckets(_usage_workflows())
+    assert set(buckets) == {
+        "host + site required",
+        "host required, site optional",
+        "host + site optional",
+        "host optional",
+        "host only",
+        "no host/site",
+    }
     registered = set(_registered_tool_names())
     # 'no host/site' names its members only by category, so it may be empty; the other two
     # explicitly name tools that must resolve to real registrations.
@@ -294,3 +327,53 @@ def test_param_scope_violations_empty_when_consistent() -> None:
         "list_hosts": {"page_token"},
     }
     assert param_scope_violations(text, params) == []
+
+
+def test_param_scope_violations_checks_required_vs_optional() -> None:
+    # A tool whose host/site exist but are OPTIONAL is not "required" (an earlier defect:
+    # query_isp_metrics and the connector relays filed as host + site required).
+    text = (
+        "## Parameter Scope Quick Reference\n"
+        "- **host + site required**: `query_isp_metrics`, `fabric_connector_get`\n"
+        "- **host only** (no site): `list_devices`\n"
+    )
+    params = {
+        "query_isp_metrics": {"interval", "host", "site", "sites"},
+        "fabric_connector_get": {"host", "path", "site"},
+        "list_devices": {"host", "page_token"},
+    }
+    required = {
+        "query_isp_metrics": {"interval"},
+        "fabric_connector_get": {"host", "path"},
+        "list_devices": set(),
+    }
+    violations = param_scope_violations(text, params, required)
+    assert sorted(violations) == sorted(
+        [
+            '`query_isp_metrics` is filed under "host + site required" (host required) but '
+            "its schema has `host` optional",
+            '`query_isp_metrics` is filed under "host + site required" (site required) but '
+            "its schema has `site` optional",
+            '`fabric_connector_get` is filed under "host + site required" (site required) '
+            "but its schema has `site` optional",
+            '`list_devices` is filed under "host only" (host required) but its schema has '
+            "`host` optional",
+        ]
+    )
+
+
+def test_param_scope_optional_buckets_accept_matching_schemas() -> None:
+    text = (
+        "## Parameter Scope Quick Reference\n"
+        "- **host required, site optional**: `fabric_connector_get`\n"
+        "- **host + site optional**: `query_isp_metrics`\n"
+        "- **host optional** (no site): `list_devices`\n"
+    )
+    params = {
+        "query_isp_metrics": {"interval", "host", "site"},
+        "fabric_connector_get": {"host", "path", "site"},
+        "list_devices": {"host"},
+    }
+    required = {"query_isp_metrics": {"interval"}, "fabric_connector_get": {"host"}}
+    required["list_devices"] = set()
+    assert param_scope_violations(text, params, required) == []

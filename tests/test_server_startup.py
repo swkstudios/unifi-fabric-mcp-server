@@ -20,7 +20,7 @@ async def test_lifespan_fails_without_api_key(monkeypatch):
     monkeypatch.setattr(server_module, "get_settings", lambda: Settings())
 
     with pytest.raises(RuntimeError, match="No API key configured"):
-        async with lifespan(None):
+        async with lifespan(server_module.mcp):
             pass  # pragma: no cover
 
 
@@ -31,6 +31,6 @@ async def test_lifespan_succeeds_with_api_key(monkeypatch):
 
     monkeypatch.setattr(server_module, "get_settings", lambda: Settings(api_key="sk-test-key"))
 
-    async with lifespan(None):
+    async with lifespan(server_module.mcp):
         assert server_module._client is not None
         assert server_module._registry is not None

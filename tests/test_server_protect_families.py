@@ -1,4 +1,4 @@
-"""Delegation tests for the extended Protect family @mcp.tool() wrappers (issue #185).
+"""Delegation tests for the extended Protect family @mcp.tool() wrappers.
 
 Each server wrapper is a thin pass-through to ``unifi_fabric.tools.protect``; the guard,
 confirm, and env-gate logic lives in that module and is tested in

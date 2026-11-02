@@ -1,0 +1,200 @@
+{
+  "_comment": "SCRUBBER-SPEC fixtures (V2, V2-A1, V3): 'captured' = the 8 captured clean-input false positives asserted PRESERVED (AT3); 'at2_bound' = the 4 bound-hit cases of the first implementation attempt (N > 128), with the root cause of each attempt-1 failure; 'at1_exact128' = V3-3 cases with exactly 128 distinct views and C_9 == C_8 (not a bound hit, AT1 equality): 4 from the fast/shallow corpora (none masks anything) and 2 from further fast-generator seeds that mask a secret occurrence.",
+  "captured": [
+    {
+      "chunk": 0,
+      "seed": 72000,
+      "index": 2056,
+      "text": "f\\13&bsol;U00000034424Kq-\\046%235%\\U000000750031\\73\\u00&#x35;cU00\\60&#x0030;00%u002535c067/\\\\x35",
+      "secrets": [
+        "4Kq-37"
+      ],
+      "reported_out": "f\\13&bsol;U0000003442***/\\\\x35",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 6,
+      "seed": 72006,
+      "index": 1990,
+      "text": "e\\134\\u0031\\134\\170\\134x&#X33;\\u003301&\\u002375;\\x5cU\\060000\\x30\\x30\\62%31",
+      "secrets": [
+        "K!"
+      ],
+      "reported_out": "e\\134\\u0031\\134\\170\\134x&#X33;\\u003301***",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 9,
+      "seed": 72009,
+      "index": 3064,
+      "text": "\\U00000025u0026bsol;U0000&#X30;03d\\134U0000005c%u00356&#037;u0026#x5C;x5cU00\\0\\066000030&#x0026;,3",
+      "secrets": [
+        ".0"
+      ],
+      "reported_out": "\\U00000025u0026bsol;U0000&#X30;03d***&#x0026;,3",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 1,
+      "seed": 72001,
+      "index": 1476,
+      "text": "%\\U00000026#x035;\\x6%u00331\\046\\x25u00230&#x030;\\13464\\U0000005cU&#x030;%30\\60\\0600038&#X\\u0033B;1\\11\\u0033!",
+      "secrets": [
+        "K!"
+      ],
+      "reported_out": "%\\U00000026#x035;\\x6%u00331\\046\\x25u00230&#x030;\\13464\\U0000005cU&#x030;%30\\60\\0600038&#X\\u0033B;1***",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 7,
+      "seed": 72007,
+      "index": 2645,
+      "text": " =7\\\\\\\\00\\x26\\41%%6\\61&#X0025;u\\U0000005cu0%30\\063\\x30\\u00305%38\\4\\u0035u0036%u003\\142&#55\\U0000003B-6",
+      "secrets": [
+        "&!%aX6;7"
+      ],
+      "reported_out": " =7\\\\\\\\00***-6",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 4,
+      "seed": 72004,
+      "index": 1068,
+      "text": "&#38;#59;\\U00000023:\\\\U0000005C\\U000000550&#X0030;00\\60\\U00000030&#092;x333Z&#92;137&#X05c;45\\x5c\\x7835&#0067;\\U000000782E\\1",
+      "secrets": [
+        "#:3Z_.\\1",
+        "2"
+      ],
+      "reported_out": "&#38;#59;***",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest line69 reached: no legacy hit; no independent sequential depth16 hit; no security-bound spans; output differs"
+    },
+    {
+      "chunk": 1,
+      "seed": 72001,
+      "index": 1007,
+      "text": "9,\n\\\\1705\\u0043\\170&#050;\\066\\&#52;3X%\\165\\60\\060\\0630\\06\\U00000032&#x026;\\x23\\0654;&#0059;\\\\\\165002&#51;\\u005c&#X078;&#X33;%u0030&percnt;&#x033;%33\\U00000038;%u005C%25%75\\060075\\U00000026&num;%58&#x0030;&#0048;3%30;&#x030;%32&\\U00000023x0033\\u003b%26&#X23;x3&#048;\\u003B\\u0039\\046#x0038&#59;\\u&#48;\\\\\\u00750\\60303\\u0042x_/",
+      "secrets": [
+        "b"
+      ],
+      "reported_out": "9,\n\\\\1705\\u0043\\170&#050;\\066\\&#52;3X%\\165\\60\\060\\0630\\0***&#x026;\\x23\\0654;&#0059;\\\\\\165002&#51;\\u005c&#X078;&#X33;%u0030&percnt;&#x033;%33\\U00000038;%u005C%25%75\\060075\\U00000026&num;%58&#x0030;&#0048;3%30;&#x030;%32&\\U00000023x0033\\u003b%26&#X23;x3&#048;\\u003B\\u0039\\046#x0038&#59;\\u&#48;\\\\\\u00750\\60303\\u0042x_/",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest assertion at tests/test_secret_scrub_oracle.py:74 reached after no legacy hit, no security-bound spans, no independent sequential depth16 secret, and no sequential auxiliary form/fragments"
+    },
+    {
+      "chunk": 2,
+      "seed": 72002,
+      "index": 2273,
+      "text": "u,,\\\\\\13\\64U0\\06\\06000003aU\\x255C6\\u0037\\46#&bsol;\\U00000031\\u\\60\\U000000303\\67\\x30&#%30048;02%35&#59;\\x3399\\13445u0\\60\\U00000032e&bsol;U0000005Cu005f\\U00000037\\45u0055a",
+      "secrets": [
+        "799._7"
+      ],
+      "reported_out": "u,,\\\\\\13\\64U0\\06\\06000003aU\\x255C6***\\45u0055a",
+      "category": "clean-unchanged false positive",
+      "evidence": "pytest assertion at tests/test_secret_scrub_oracle.py:74 reached after no legacy hit, no security-bound spans, no independent sequential depth16 secret, and no sequential auxiliary form/fragments"
+    }
+  ],
+  "at2_bound": [
+    {
+      "seed": 36100,
+      "index": 5,
+      "text": ".0&%u0062\\163ol;\\\\\\\\u0078\\x35%35\\1340&#x0036;0%30\\600\\\\U00000030600\\u\\U0000003003\\x35\\U00000063\\04534\\U0&#x30;\\6000&#48;\\U00000033\\060_\\45\\625\\65c%u0078&#50;\\x25\\&#117;0%u003033&#x0025;33\\056&bsol;x25\\\\065C%364!'=&#X25;u005c&#85;&#0048;0&#X0030;\\0600%30&#X0035;Cu%2%u0026\\U00000023x\\u00335&#X003B;3%u003005\\u0066%u005c&#x0026;%\\165%30\\u0030&#x32;%33%58\\U000000300\\634&semi;\\U000000352&#X0036;%62so&#X6c;;U00&#x30;00\\u00302\\u0043%26%&#0050;3%u0030\\u0033\\070;#\\170%u00326\\u003B\\x6c&#111;%u0077&#\\0600&#X39;8\\x3ba\\x7\\x32&#59;\\U00000026#0\\06092;\\U\\060000003043.4!';",
+      "secrets": [
+        "_#.4!"
+      ],
+      "product_out": ".***\\600***\\6000&#48;\\U00000033\\060_***\\625***\\056***!'=***\\634***.4!';",
+      "root_cause": "AT2/G5+G2: N=128 hit; every reference hit of '_#.4!' (span 428-559) lies only in uncapped views 522-638, which G2 withholds; the G5 components of the bound view break each occurrence (AT2(i) holds) and the kept '.4!' is inside that reference span (AT2(ii) holds). Attempt-1 checker defect: it demanded equality with reference-span masking, which AT2 does not require. No product G-clause violated."
+    },
+    {
+      "seed": 36101,
+      "index": 69,
+      "text": "U\\46bso&#X006C;;U00000037\\x5C%\\u003750\\x30\\U000000\\0635c\\u0034%u003527&#038;#X26%u003B#52;!!&#X0025;26#X5\\103\\U0000003B&#x75;003\\x5c\\1\\6\\U00000037&#X0030;6\\U00000031;\\\\455Cu00\\46#X33;5%26amp;#x005C;u0020!\\45&#53;\\103134x5cu0021\\41!\\&#48;46#58;&#9%u0032\\U0000003b\\613\\u0034&#49;3\\u0034&#092;&amp;#0038;b\\U00000073ol;106",
+      "secrets": [
+        "!!"
+      ],
+      "product_out": "***\\1\\6***!******\\&#48;46#58;&#9%u0032\\U0000003b\\613\\u0034&#49;3\\u0034&#092;&amp;#0038;b\\U00000073ol;106",
+      "root_cause": "AT2/G5+G2+G4: the raw-view '!!' (90-92) is masked by G3/G4; the further reference hits (203-231) lie only in uncapped views 209+, beyond N=128; G5 components plus a second G4 round leave a lone '!' and adjacent masks, all inside reference spans or components (AT2(i)/(ii) hold). Attempt-1 checker defect (exact-equality reconstruction). No product G-clause violated."
+    },
+    {
+      "seed": 36102,
+      "index": 10,
+      "text": "&#038;bsol;&#X005c;x5CU00000075\\%34%36&num;\\1700%305c\\073x\\062\\&#x\\6031;%30%u0033\\x3%39\\134U0000005C134\\u00\\u00375005&#00102;%2525u005\\103u0037\\134\\u0075&#x0030;&#X030;5\\u0038-:%u005C46bsol;%75%3\\u0030\\\\06060%u0032\\6562",
+      "secrets": [
+        "9_7X-"
+      ],
+      "product_out": "***\\603***-:%u005C46bsol;%75%3\\u0030\\\\06060%u0032\\6562",
+      "root_cause": "AT2/G5+G2: N=128 hit; every reference hit of '9_7X-' (span 81-176) lies only in uncapped views 334-394, withheld by G2; G5 components break each occurrence and the kept '-' is inside that reference span (AT2(i)/(ii) hold). Attempt-1 checker defect. No product G-clause violated."
+    },
+    {
+      "seed": 36103,
+      "index": 88,
+      "text": "\\46#x33%u\\060%u00303b\\U00000026#X05C;1\\U00000033\\064u%u003005C&#49;\\64\\61\\U0000005c\\U00000031\\062a\\x3a6@&#037;u0025\\1650026#0092;056%5cx\\\\x306\\636\\x5C046#\\U000000338&#X\\U0000003003b;bs&#x06f;\\U0000006C;U0&#0048;&#x030;0%3005c\\606%346&\\43\\u0030%3092%u003B\\U0000005C\\1250&#048;%30%u00300&#x30;\\u0033\\61\\1\\63&#x0034;&#%348;&#%u00354&semi;&#0092;x2%u0036\\u0023x&#X026;%23\\U0000005c6\\u0030\\060\\u00351&semi;0\\u003B\\U00000030.%u005c\\u\\6007\\U0&#X030;000035",
+      "secrets": [
+        "6@."
+      ],
+      "product_out": "***\\x3a6@***\\636***\\606***\\1***.%u005c\\u\\6007\\U0&#X030;000035",
+      "root_cause": "AT2/G5+G2: N=128 hit; every reference hit of '6@.' (span 102-132) lies only in uncapped views 176-553, withheld by G2; G5 components break each occurrence and the kept '6@' is inside that reference span (AT2(i)/(ii) hold). Attempt-1 checker defect. No product G-clause violated."
+    }
+  ],
+  "at1_exact128": [
+    {
+      "corpus": "fast",
+      "seed": 36100,
+      "index": 168,
+      "text": "&#X5c;54&#0038;%\\06239\\u005C\\06062%5cx\\63b\\u&#048;\\60\\\\170\\062\\065\\U\\600\\x30%30&#x030;\\x307%u0035&#0037;%750\\060\\u00330&#0038;#\\13003\\60&semi;%u0033&#051;&bsol;U\\U00000030%300000314&bsol;u&#48;0&#53;C\\u0055%30&#0092;0&#0054;00\\060\\\\%u0055\\x300\\6000%u0030\\6300\\u005c&#x075;00332&#x005c;U0000005C065\\%785C0%372~\\\\66156\\1340453\\u0036'",
+      "secrets": [
+        "~156"
+      ]
+    },
+    {
+      "corpus": "fast",
+      "seed": 36103,
+      "index": 205,
+      "text": "&#X05C;\\U00000055%300000046\\4%u0036&#0037;6\\U00000032\\u\\x30%u0030\\67&#0051;o&#X6C;;&&num;&#x058;00\\x33\\060&#X03B;&#92;U%u0030\\U0000003000\\x30%303%26\\043\\600\\U00000035\\063;7\\\\U00000026#X05c;\\613413\\6443 \\u0026amp;per\\151od;&#\\130\\u00305&#0067;;\\U00000025%75%30\\602%u0066\\\\%u0\\60%37\\070\\\\u0055%30\\u0030&#X0030;0\\60&#x30;\\U00000033&#050;%\\635\\x5c1\\x365%\\165&#048;0\\u00330\\u005c\\U00000078302%26&#0092;43&#55;\\U00000030\\x253B!  ",
+      "secrets": [
+        "/"
+      ]
+    },
+    {
+      "corpus": "shallow",
+      "seed": 36201,
+      "index": 494,
+      "text": "F7x &#x5C;u005\\x4311\\63\\4K%u\\0600\\639\\u005c46#0051;&#92;u005A-1:K&#x26;#x005c;\\U0000005c64K&#005%37\\u003b\\x33\\x5cU\\060%u0030%u0030\\x300%u00305Cx%u0035a%u002dF_",
+      "secrets": [
+        "K\\4K93Z-"
+      ]
+    },
+    {
+      "corpus": "shallow",
+      "seed": 36203,
+      "index": 94,
+      "text": "U&bsol;\\x750\\60\\62&#0053;\\\\66%u0034%\\x336F\\u0040&#x002D&semi;%\\6&#X033;72&4%u0&#x0030;5\\U00000046\\x40-\\U0000%u005cu0030037\\6\\062\\134u003da /&#X0026;percnt;u003A",
+      "secrets": [
+        "@-72"
+      ]
+    },
+    {
+      "corpus": "fast-generator",
+      "seed": 36114,
+      "index": 68,
+      "text": "UU&#x025;&#x075;&#x30;026&#X0023;\\170\\u0030\\U00000033\\U00000032\\073%2%36#X0025;2&#x037;'&#x0&#0048;25;u005C\\x750\\U0\\u0030000030%u0034\\134\\6066%255C134u0&#0048;\\U000000326#4&#38;&#X0023;X\\600\\0637%u003b;",
+      "secrets": [
+        "'"
+      ]
+    },
+    {
+      "corpus": "fast-generator",
+      "seed": 36117,
+      "index": 18,
+      "text": "&\\x26#x02&#005&#052;;;\\u0025u\\U00000030\\605%u006313%u\\0600\\x33\\064\\U0\\x300%u0030\\600\\631&#X36;\\65%u00255c55\\x5Cu00%u003255c/%u005C046&num;38&semi;\\x73\\U00000\\0606f\\x6C;&#0102\\073\\x30",
+      "secrets": [
+        "/"
+      ]
+    }
+  ]
+}

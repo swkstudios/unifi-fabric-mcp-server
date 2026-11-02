@@ -52,13 +52,20 @@ def _name_in_text(name: str, text: str) -> bool:
 # without an underscore never match, so they are excluded up front.
 _BACKTICK_SNAKE_RE = re.compile(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`")
 
+# The state a bucket requires of a parameter in each member's schema.
+REQUIRED, OPTIONAL, ABSENT = "required", "optional", "absent"
+
 # Each parameter-scope bucket, keyed by a substring that identifies its bold label, mapped
-# to the (host_required, site_required) contract its members must satisfy. ``True`` means
-# the parameter must be present, ``False`` means it must be absent.
-_SCOPE_CONTRACTS: dict[str, tuple[bool, bool]] = {
-    "host + site required": (True, True),
-    "host only": (True, False),
-    "no host/site": (False, False),
+# to the (host, site) contract its members must satisfy: the parameter is REQUIRED (in
+# the schema's ``required`` list), OPTIONAL (present but not required) or ABSENT. Matched
+# in this order, so the more specific label wins.
+_SCOPE_CONTRACTS: dict[str, tuple[str, str]] = {
+    "host + site required": (REQUIRED, REQUIRED),
+    "host required, site optional": (REQUIRED, OPTIONAL),
+    "host + site optional": (OPTIONAL, OPTIONAL),
+    "host optional": (OPTIONAL, ABSENT),
+    "host only": (REQUIRED, ABSENT),
+    "no host/site": (ABSENT, ABSENT),
 }
 
 
@@ -129,18 +136,30 @@ def parse_param_scope_buckets(instructions: str) -> dict[str, set[str]]:
     return buckets
 
 
+def _param_state(name: str, params: set[str], required: set[str]) -> str:
+    if name not in params:
+        return ABSENT
+    return REQUIRED if name in required else OPTIONAL
+
+
 def param_scope_violations(
-    instructions: str, tool_params: Mapping[str, Iterable[str]]
+    instructions: str,
+    tool_params: Mapping[str, Iterable[str]],
+    tool_required: Mapping[str, Iterable[str]] | None = None,
 ) -> list[str]:
     """Return human-readable mismatches between bucket claims and real tool parameters.
 
-    ``tool_params`` maps each registered tool name to its parameter names (from the live
-    schema). For every tool named explicitly in a parameter-scope bucket, this asserts the
-    tool's real ``host``/``site`` parameters match the bucket's contract:
+    ``tool_params`` maps each registered tool name to its parameter names and
+    ``tool_required`` to its REQUIRED parameter names (both from the live schema; when
+    ``tool_required`` is omitted every listed parameter counts as required). For every
+    tool named explicitly in a parameter-scope bucket, this asserts the state of the
+    tool's real ``host``/``site`` parameters (required, optional or absent) is the one the
+    bucket's contract in :data:`_SCOPE_CONTRACTS` names, e.g.:
 
-    - "host + site required": tool must have both ``host`` and ``site``;
-    - "host only": tool must have ``host`` and must NOT have ``site``;
-    - "no host/site": tool must have neither.
+    - "host + site required": both in the schema's required list;
+    - "host required, site optional": ``host`` required, ``site`` present but optional;
+    - "host only": ``host`` required and no ``site``;
+    - "no host/site": neither.
 
     Tools named in a bucket but absent from ``tool_params`` (i.e. not registered) are the
     phantom-name class and are left to :func:`phantom_tool_refs`; they are skipped here so
@@ -149,25 +168,19 @@ def param_scope_violations(
     """
     violations: list[str] = []
     for bucket, tools in parse_param_scope_buckets(instructions).items():
-        host_required, site_required = _SCOPE_CONTRACTS[bucket]
+        contract = dict(zip(("host", "site"), _SCOPE_CONTRACTS[bucket], strict=True))
         for tool in sorted(tools):
             if tool not in tool_params:
                 continue  # unregistered -> phantom-name class, not our concern
             params = set(tool_params[tool])
-            has_host = "host" in params
-            has_site = "site" in params
-            if has_host != host_required:
-                violations.append(
-                    f'`{tool}` is filed under "{bucket}" (host '
-                    f"{'required' if host_required else 'forbidden'}) but its schema "
-                    f"{'has no' if host_required else 'has a'} `host` parameter"
-                )
-            if has_site != site_required:
-                violations.append(
-                    f'`{tool}` is filed under "{bucket}" (site '
-                    f"{'required' if site_required else 'forbidden'}) but its schema "
-                    f"{'has no' if site_required else 'has a'} `site` parameter"
-                )
+            required = set(tool_required[tool]) if tool_required is not None else params
+            for name, expected in contract.items():
+                actual = _param_state(name, params, required)
+                if actual != expected:
+                    violations.append(
+                        f'`{tool}` is filed under "{bucket}" ({name} {expected}) but its '
+                        f"schema has `{name}` {actual}"
+                    )
     return violations
 
 

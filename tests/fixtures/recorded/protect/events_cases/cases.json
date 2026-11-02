@@ -1,0 +1,39 @@
+{
+ "recorded_by_tool": "list_protect_cases",
+ "args": [],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cases",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": [
+  {
+   "active": true,
+   "assetCount": 0,
+   "cameras": null,
+   "createdAt": 1791768338169,
+   "creator": "000000000000000000fa0007",
+   "dateOfCase": null,
+   "eventLabels": [],
+   "id": "000000000000000000fa0006",
+   "incidentSeverity": null,
+   "incidentTimestamp": null,
+   "incidentType": null,
+   "includeChainOfCustody": false,
+   "latitude": null,
+   "location": null,
+   "longitude": null,
+   "mapCenterLatitude": null,
+   "mapCenterLongitude": null,
+   "mapZoom": null,
+   "name": "name-0003",
+   "oldestReversibleActivityId": null,
+   "oldestReversibleActivitySequenceId": null,
+   "summary": "summary-0001",
+   "updatedAt": 1791768338169
+  }
+ ]
+}

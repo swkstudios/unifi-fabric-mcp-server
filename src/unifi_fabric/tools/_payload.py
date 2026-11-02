@@ -6,12 +6,12 @@ for a network that has one DNS server but a three-slot field. Those empty
 strings are placeholders, not data. Passing them straight back into an
 ``update_*`` PUT (the natural read-modify-write round-trip) makes the controller
 reject the request: an empty string is not a valid IPv4 address, so the write
-fails with HTTP 400 ``must be valid IPv4 address`` (see issue #164, split from
-public #17).
+fails with HTTP 400 ``must be valid IPv4 address`` (see public issue
+https://github.com/swkstudios/unifi-fabric-mcp-server/issues/17).
 
 ``strip_empty_list_values`` removes empty-string *elements* from every
 list-valued field, recursing through nested objects and lists so padded fields
-buried inside sub-objects (``ipV4Configuration.dhcp.dnsServers`` and the like)
+buried inside sub-objects (``ipv4Configuration.dhcp.dnsServers`` and the like)
 are handled too. It is deliberately narrow:
 
 - Only the empty string ``""`` is dropped, and only when it appears as a list
@@ -33,6 +33,7 @@ re-derived per field or per tool.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from typing import Any
 
 # Top-level fields the UniFi Network *Integration* API assigns and manages itself
@@ -46,10 +47,12 @@ from typing import Any
 #     lists, VPN servers/tunnels). Verified live: PUT rejects ``$.id`` and
 #     ``$.metadata``.
 #   * ``default`` — the read-only "is this the default network" flag on networks.
-#   * ``index`` — the server-managed ordering position on firewall policies and
-#     ACL rules (ordering is changed through the dedicated ``*_ordering`` tools,
-#     never by writing ``index`` back). Verified live: a policy round-trip PUT
-#     rejects ``$.index`` even after ``id``/``metadata`` are removed.
+#   * ``index`` — the server-managed ordering position on firewall policies
+#     (ordering is changed through ``set_firewall_policy_ordering``, never by writing
+#     ``index`` back). Verified live: a policy round-trip PUT rejects ``$.index``
+#     even after ``id``/``metadata`` are removed. ACL rules are the exception: the
+#     published "ACL rule update" schema (Network 10.6.106) lists ``index`` as a
+#     request property, so ``update_acl_rule`` keeps it (``keep={"index"}``).
 #
 # The set is deliberately a *fixed, known* list rather than "strip whatever the
 # server rejects": auto-dropping any field the API calls unknown would silently
@@ -83,8 +86,49 @@ def require_fields(tool: str, payload: Any, required: set[str]) -> None:
         raise ValueError(f"{tool} requires: {', '.join(sorted(missing))}")
 
 
-def strip_readonly_fields(value: Any) -> Any:
+def upstream_hint(exc: Exception, hint: str | None) -> Exception:
+    """``exc`` with ``hint`` appended when it is an upstream error (the server may
+    append a hint to an upstream error, never replace or drop its text); any other
+    exception, or no hint, is returned unchanged."""
+    from ..client import ResponseShapeError, UniFiConnectionError
+
+    if hint is None or not isinstance(exc, UniFiConnectionError):
+        return exc
+    if isinstance(exc, ResponseShapeError):
+        return exc
+    exc.args = (f"{exc} -- Hint: {hint}",)
+    return exc
+
+
+async def with_upstream_hint[T](call: Awaitable[T], hint: str | None) -> T:
+    """Await ``call``; an upstream error it raises gets ``hint`` appended."""
+    try:
+        return await call
+    except Exception as exc:
+        hinted = upstream_hint(exc, hint)
+        if hinted is exc:
+            raise
+        raise hinted from exc
+
+
+def missing_fields_hint(tool: str, body: Any, fields: tuple[str, ...], why: str) -> str | None:
+    """The guidance for an unspecced body the upstream rejected: the documented fields
+    ``body`` lacks (``why`` says where the list comes from), or None when it has them."""
+    if not isinstance(body, dict):
+        return f"{tool} sends a JSON object body with {', '.join(fields)} ({why})."
+    missing = [f for f in fields if f not in body]
+    if not missing:
+        return None
+    return (
+        f"{tool} was sent without {', '.join(missing)}; the body takes {', '.join(fields)} ({why})."
+    )
+
+
+def strip_readonly_fields(value: Any, keep: frozenset[str] = frozenset()) -> Any:
     """Return a copy of ``value`` without the Integration API's read-only top-level fields.
+
+    ``keep`` names fields of the read-only set that the target operation's published
+    request schema accepts (``index`` on ACL rule writes); they are forwarded as given.
 
     Only *top-level* keys are removed. Nested objects are left untouched — a
     sub-object may legitimately carry a field literally named ``id`` (a
@@ -94,18 +138,59 @@ def strip_readonly_fields(value: Any) -> Any:
     """
     if not isinstance(value, dict):
         return value
-    return {k: v for k, v in value.items() if k not in _INTEGRATION_READONLY_FIELDS}
+    dropped = _INTEGRATION_READONLY_FIELDS - keep
+    return {k: v for k, v in value.items() if k not in dropped}
 
 
-def sanitize_integration_write(value: Any) -> Any:
+def sanitize_integration_write(value: Any, keep: frozenset[str] = frozenset()) -> Any:
     """Prepare an Integration write body from a read-modify-write round-trip.
 
     Applies both round-trip guards a ``get_* -> update_*`` cycle needs:
     :func:`strip_readonly_fields` (drop server-managed top-level fields the API
     rejects) and :func:`strip_empty_list_values` (drop the placeholder empty
-    strings the API pads list fields with). Neither mutates the input.
+    strings the API pads list fields with). Neither mutates the input. ``keep`` is
+    passed to :func:`strip_readonly_fields`.
     """
-    return strip_readonly_fields(strip_empty_list_values(value))
+    return strip_readonly_fields(strip_empty_list_values(value), keep)
+
+
+#: The update tools whose body is an Integration write (sanitized by
+#: :func:`sanitize_integration_write`), mapped to the read-only fields their published
+#: request schema accepts (kept). The one source for both the tool and the empty-update
+#: guard (``write_body.EmptyUpdateMiddleware``), which judges the FINAL sanitized body, so
+#: a body of only server-managed fields (``{"id": ..., "metadata": ...}``) is refused
+#: before any request instead of being sent as ``{}``.
+INTEGRATION_UPDATE_KEEP: dict[str, frozenset[str]] = {
+    "update_network": frozenset(),
+    "update_wifi_broadcast": frozenset(),
+    "update_dns_policy": frozenset(),
+    "update_traffic_matching_list": frozenset(),
+    "update_firewall_policy": frozenset(),
+    "patch_firewall_policy": frozenset(),
+    "update_firewall_zone_proxy": frozenset(),
+    # The published "ACL rule update" schema lists ``index`` as a request property.
+    "update_acl_rule": frozenset({"index"}),
+}
+
+
+def server_managed_fields(tool: str) -> frozenset[str]:
+    """The top-level fields ``tool`` never sends (empty for a non-Integration update)."""
+    keep = INTEGRATION_UPDATE_KEEP.get(tool)
+    return frozenset() if keep is None else _INTEGRATION_READONLY_FIELDS - keep
+
+
+def integration_update_body(tool: str, value: Any) -> Any:
+    """The final Integration body ``tool`` sends; raises when it carries no field.
+
+    ``tool`` must be in :data:`INTEGRATION_UPDATE_KEEP` (``KeyError`` otherwise, so a new
+    tool cannot skip the declaration the guard reads). The empty-update check runs on the
+    sanitized body, the one the client would send. Call this helper before host/site
+    resolution or any other request.
+    """
+    from ..write_body import require_update_fields
+
+    require_update_fields(value, f"{tool} body", server_managed=server_managed_fields(tool))
+    return sanitize_integration_write(value, INTEGRATION_UPDATE_KEEP[tool])
 
 
 def strip_empty_list_values(value: Any) -> Any:

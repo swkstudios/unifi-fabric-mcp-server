@@ -1,0 +1,10 @@
+[
+  {
+    "id": "66f1a2b3c4d5e6f7a8b9c0d1",
+    "name": "mcp-gs3-p05 synthetic automation",
+    "enabled": true,
+    "settings": {"enabled": true, "level": 1},
+    "triggers": [{"type": "motion", "deviceIds": ["66f1a2b3c4d5e6f7a8b9c0d3"]}],
+    "actions": [{"type": "notify"}]
+  }
+]

@@ -1,0 +1,28 @@
+{
+ "recorded_by_tool": "get_setting",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/setting/super_cloudaccess",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-8000-000000fa00f2",
+    "key": "super_cloudaccess",
+    "enabled": true,
+    "device_auth": "xxxxxxxx",
+    "device_id": "00000000-0000-4000-a000-000000fa00f4:836938255",
+    "ubic_uuid": "00000000-0000-4000-a000-000000fa00f5",
+    "x_certificate_arn": "xxxxxxxx",
+    "x_private_key": "xxxxxxxx",
+    "x_certificate_pem": "xxxxxxxx"
+   }
+  ]
+ }
+}

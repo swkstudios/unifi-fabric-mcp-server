@@ -1,0 +1,10 @@
+{
+  "data": [
+    {"id": "00000000000000000000d001", "eventId": "00000000000000000000e001", "similarity": 0.71},
+    {"id": "00000000000000000000d002", "eventId": "00000000000000000000e002", "similarity": 0.52}
+  ],
+  "offset": 0,
+  "limit": 2,
+  "totalCount": 2,
+  "searchId": "synthetic-search-1"
+}

@@ -1,0 +1,598 @@
+{
+ "recorded_by_tool": "get_innerspace_summary",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/integration/v1/project",
+  "query": {
+   "mode": "3D"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": {
+   "shapes": [
+    {
+     "type": "map",
+     "urlImage": "urlImage-0001",
+     "urlModel": null,
+     "additionalZipUrl": null,
+     "additionalBinUrl": null,
+     "id": "00000000-0000-4000-b000-000000fa01d4",
+     "status": 0,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "planId": "00000000-0000-4000-8000-000000fa01d6",
+     "opacity": 0.7,
+     "position": [
+      {
+       "x": -532.7834087428985,
+       "y": 973.6533733201393,
+       "z": 0
+      }
+     ],
+     "scale": {
+      "x": 2.687377245140675,
+      "y": 2.687377245140675,
+      "z": 1
+     },
+     "rotation": 2.5562525,
+     "imageOffset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+     },
+     "imageScale": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+     },
+     "imageRotation": 0,
+     "createdAt": "2026-02-26T23:31:05.110Z",
+     "updatedAt": "2026-08-17T23:09:43.828Z"
+    },
+    {
+     "type": "scale",
+     "id": "00000000-0000-4000-8000-000000000200",
+     "status": 0,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "planId": "00000000-0000-4000-8000-000000fa01d6",
+     "position": [
+      {
+       "x": -226.39584106802528,
+       "y": 593.1222652225842,
+       "z": 0
+      },
+      {
+       "x": -185.0200007146633,
+       "y": 214.78021886385966,
+       "z": 0
+      }
+     ],
+     "scale": 3.8100464,
+     "height": 3.048037,
+     "computedScale": null,
+     "defaultScale": false,
+     "defaultHeight": false,
+     "createdAt": "2026-02-26T23:31:05.125Z",
+     "updatedAt": "2026-08-17T23:14:40.652Z"
+    },
+    {
+     "type": "device",
+     "optimize": false,
+     "id": "00000000-0000-4000-8000-000000000201",
+     "status": 1,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "planId": "00000000-0000-4000-8000-000000fa01d6",
+     "productId": "00000000-0000-4000-8000-000000000202",
+     "rackId": null,
+     "rackOrder": null,
+     "position": [
+      {
+       "x": -1.7847547106993527,
+       "y": 3.000000120949458,
+       "z": -2.528653289657653
+      }
+     ],
+     "title": "title-0003",
+     "meta": {
+      "ip": "10.0.2.155",
+      "mac": "000000FA0017"
+     },
+     "rotation": {
+      "pov": {
+       "w": 0.15869663133954803,
+       "x": -0.1970958408822519,
+       "y": -0.5266662433754088,
+       "z": -0.8115363681297544
+      },
+      "base": {
+       "w": 0,
+       "x": -0.4730312143306925,
+       "y": 0,
+       "z": 0.8810456686624311
+      }
+     },
+     "mount": "mount-0001",
+     "antenna": null,
+     "parentId": null,
+     "childIndex": null,
+     "createdAt": "2025-07-16T17:42:22.896Z",
+     "updatedAt": "2026-10-06T08:35:20.480Z",
+     "location": null
+    },
+    {
+     "type": "wall",
+     "id": "00000000-0000-4000-9000-000000000203",
+     "status": 0,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "planId": "00000000-0000-4000-8000-000000fa01d6",
+     "position": [
+      {
+       "x": -42.52242520488551,
+       "y": -328.90594508087565,
+       "z": 0
+      },
+      {
+       "x": -42.52242520488551,
+       "y": -363.71501220377195,
+       "z": 0
+      }
+     ],
+     "originalPosition": null,
+     "variant": "wood",
+     "wallTypeId": null,
+     "createdAt": "2026-02-26T23:36:32.329Z",
+     "updatedAt": "2026-02-26T23:36:32.329Z"
+    },
+    {
+     "type": "calibration",
+     "id": "00000000-0000-4000-a000-000000000204",
+     "status": 0,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "planId": "00000000-0000-4000-9000-000000000205",
+     "deviceId": "00000000-0000-4000-9000-000000000206",
+     "position": [
+      {
+       "x": 4.380756707515506,
+       "y": 3.5260821291442115,
+       "z": 0
+      },
+      {
+       "x": 1.8452109387963467,
+       "y": -2.6499101700006436,
+       "z": 0
+      },
+      {
+       "x": 0.31747525242853647,
+       "y": -1.0245012802089948,
+       "z": 0
+      },
+      {
+       "x": 0.9345301916970605,
+       "y": 2.396444846157414,
+       "z": 0
+      }
+     ],
+     "videoPosition": [
+      {
+       "x": 0.02,
+       "y": 0.02,
+       "z": 0
+      },
+      {
+       "x": 0.98,
+       "y": 0.02,
+       "z": 0
+      },
+      {
+       "x": 1,
+       "y": 1,
+       "z": 0
+      },
+      {
+       "x": 0.02,
+       "y": 0.98,
+       "z": 0
+      }
+     ],
+     "createdAt": "2026-08-01T21:30:14.274Z",
+     "updatedAt": "2026-08-01T21:30:14.274Z"
+    }
+   ],
+   "plans": [
+    {
+     "id": "00000000-0000-4000-8000-000000fa01d6",
+     "title": "title-0004",
+     "type": "real",
+     "ordering": 2,
+     "attenuation": null,
+     "location": null,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "siteId": null,
+     "dcSourceProjectId": null,
+     "dcImportId": null,
+     "createdAt": "2026-02-26T23:31:05.101Z",
+     "updatedAt": "2026-08-11T12:56:07.381Z"
+    },
+    {
+     "id": "00000000-0000-4000-9000-000000000205",
+     "title": "title-0005",
+     "type": "real",
+     "ordering": 3,
+     "attenuation": null,
+     "location": null,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "siteId": null,
+     "dcSourceProjectId": null,
+     "dcImportId": null,
+     "createdAt": "2026-08-01T20:23:45.356Z",
+     "updatedAt": "2026-08-11T12:56:07.381Z"
+    },
+    {
+     "id": "00000000-0000-4000-a000-000000000207",
+     "title": "title-0006",
+     "type": "geo",
+     "ordering": 0,
+     "attenuation": null,
+     "location": {
+      "zoom": 19.940169070520454,
+      "address": "",
+      "latitude": 12.345678,
+      "longitude": -98.765432
+     },
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "siteId": "000000000000000000fa0014",
+     "dcSourceProjectId": null,
+     "dcImportId": null,
+     "createdAt": "2026-08-01T21:15:40.679Z",
+     "updatedAt": "2026-08-01T21:19:42.657Z"
+    },
+    {
+     "id": "00000000-0000-4000-8000-000000000208",
+     "title": "title-0007",
+     "type": "real",
+     "ordering": 1,
+     "attenuation": null,
+     "location": null,
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "siteId": null,
+     "dcSourceProjectId": null,
+     "dcImportId": null,
+     "createdAt": "2026-08-09T18:41:58.781Z",
+     "updatedAt": "2026-08-11T12:56:07.381Z"
+    }
+   ],
+   "products": [
+    {
+     "assets": {
+      "images": {
+       "rack": null,
+       "editor": "editor-0001"
+      },
+      "models": {
+       "gltf": "gltf-0001",
+       "usdz": "usdz-0001"
+      }
+     },
+     "ports": [],
+     "portGrid": null,
+     "released": true,
+     "featuredGroup": null,
+     "featuredRackOnly": false,
+     "featuredGroupOrder": 9007199254740991,
+     "featuredTiers": null,
+     "featuredPrimary": false,
+     "hddBayLayout": null,
+     "id": "00000000-0000-4000-8000-000000000202",
+     "sku": "sku-0001",
+     "uidbId": "00000000-0000-4000-b000-000000000009",
+     "groupId": null,
+     "type": "device",
+     "mount": 3,
+     "category": "camera_security",
+     "subcategory": "camera",
+     "title": "title-0008",
+     "description": "",
+     "ordering": 0,
+     "properties": {
+      "focalLength": 2.8,
+      "sensorWidth": 5.376
+     },
+     "attributes": 0,
+     "collectionSlug": null,
+     "discontinuedAt": null,
+     "compatibility": [
+      "compatibility-0001"
+     ],
+     "transceiver": {
+      "d": 120.6,
+      "h": 102.4,
+      "v": 54.9,
+      "range": 15,
+      "resolution": {
+       "width": 2688,
+       "height": 1512
+      }
+     },
+     "rack": null,
+     "power": {
+      "incoming": 0,
+      "outgoing": 0
+     },
+     "keyFeatures": null,
+     "slug": null,
+     "stale": false,
+     "app": "protect",
+     "source": 1,
+     "modifier": 0,
+     "siteId": null,
+     "isManaged": true,
+     "createdAt": "2025-07-16T17:42:16.734Z",
+     "updatedAt": "2026-10-06T08:35:20.420Z"
+    },
+    {
+     "assets": {
+      "images": {
+       "rack": null,
+       "editor": "editor-0002"
+      },
+      "models": {
+       "gltf": "gltf-0002",
+       "usdz": "usdz-0002"
+      }
+     },
+     "ports": [],
+     "portGrid": null,
+     "released": true,
+     "featuredGroup": null,
+     "featuredRackOnly": false,
+     "featuredGroupOrder": 9007199254740991,
+     "featuredTiers": null,
+     "featuredPrimary": false,
+     "hddBayLayout": null,
+     "id": "00000000-0000-4000-a000-000000000209",
+     "sku": "sku-0002",
+     "uidbId": "00000000-0000-4000-8000-000000fa001f",
+     "groupId": null,
+     "type": "device",
+     "mount": 6,
+     "category": "camera_security",
+     "subcategory": "superlink_sensor",
+     "title": "title-0009",
+     "description": "",
+     "ordering": 0,
+     "properties": null,
+     "attributes": 0,
+     "collectionSlug": null,
+     "discontinuedAt": null,
+     "compatibility": [
+      "compatibility-0002"
+     ],
+     "transceiver": null,
+     "rack": null,
+     "power": {
+      "incoming": 0,
+      "outgoing": 0
+     },
+     "keyFeatures": [],
+     "slug": null,
+     "stale": false,
+     "app": "protect",
+     "source": 1,
+     "modifier": 0,
+     "siteId": null,
+     "isManaged": true,
+     "createdAt": "2026-08-09T20:15:38.505Z",
+     "updatedAt": "2026-10-06T08:35:30.195Z"
+    },
+    {
+     "assets": {
+      "images": {
+       "rack": null,
+       "editor": "editor-0003"
+      },
+      "models": {
+       "gltf": "gltf-0003",
+       "usdz": "usdz-0003"
+      }
+     },
+     "ports": [],
+     "portGrid": null,
+     "released": true,
+     "featuredGroup": null,
+     "featuredRackOnly": false,
+     "featuredGroupOrder": 9007199254740991,
+     "featuredTiers": null,
+     "featuredPrimary": false,
+     "hddBayLayout": null,
+     "id": "00000000-0000-4000-8000-000000fa01d7",
+     "sku": "sku-0003",
+     "uidbId": "00000000-0000-4000-a000-000000fa01d8",
+     "groupId": null,
+     "type": "device",
+     "mount": 3,
+     "category": "wifi",
+     "subcategory": "access_point",
+     "title": "title-0010",
+     "description": "",
+     "ordering": 0,
+     "properties": {
+      "coverage": {
+       "metric": 140,
+       "imperial": 1500
+      }
+     },
+     "attributes": 0,
+     "collectionSlug": null,
+     "discontinuedAt": null,
+     "compatibility": null,
+     "transceiver": {
+      "low": 31,
+      "high": 31,
+      "ultra": null
+     },
+     "rack": null,
+     "power": {
+      "incoming": 0,
+      "outgoing": 0
+     },
+     "keyFeatures": null,
+     "slug": null,
+     "stale": false,
+     "app": "network",
+     "source": 1,
+     "modifier": 0,
+     "siteId": "00000000-0000-4000-a000-000000000121",
+     "isManaged": true,
+     "createdAt": "2025-07-16T17:42:16.734Z",
+     "updatedAt": "2026-10-05T08:21:36.371Z"
+    },
+    {
+     "assets": {
+      "images": {
+       "rack": null,
+       "editor": "editor-0004"
+      },
+      "models": {
+       "gltf": "gltf-0004",
+       "usdz": "usdz-0004"
+      }
+     },
+     "ports": [],
+     "portGrid": null,
+     "released": true,
+     "featuredGroup": null,
+     "featuredRackOnly": false,
+     "featuredGroupOrder": 9007199254740991,
+     "featuredTiers": null,
+     "featuredPrimary": false,
+     "hddBayLayout": null,
+     "id": "00000000-0000-4000-8000-000000fa01d9",
+     "sku": "sku-0004",
+     "uidbId": "00000000-0000-4000-a000-000000fa01da",
+     "groupId": null,
+     "type": "device",
+     "mount": 12,
+     "category": "switching",
+     "subcategory": "switching",
+     "title": "title-0011",
+     "description": "",
+     "ordering": 0,
+     "properties": {},
+     "attributes": 0,
+     "collectionSlug": null,
+     "discontinuedAt": null,
+     "compatibility": null,
+     "transceiver": null,
+     "rack": null,
+     "power": {
+      "incoming": 0,
+      "outgoing": 0
+     },
+     "keyFeatures": null,
+     "slug": null,
+     "stale": false,
+     "app": "network",
+     "source": 1,
+     "modifier": 0,
+     "siteId": "00000000-0000-4000-a000-000000000121",
+     "isManaged": true,
+     "createdAt": "2025-07-16T17:42:16.734Z",
+     "updatedAt": "2026-10-09T03:15:02.531Z"
+    },
+    {
+     "assets": {
+      "images": {
+       "rack": null,
+       "editor": "editor-0005"
+      },
+      "models": {
+       "gltf": "gltf-0005",
+       "usdz": "usdz-0005"
+      }
+     },
+     "ports": [],
+     "portGrid": null,
+     "released": true,
+     "featuredGroup": null,
+     "featuredRackOnly": false,
+     "featuredGroupOrder": 9007199254740991,
+     "featuredTiers": null,
+     "featuredPrimary": false,
+     "hddBayLayout": null,
+     "id": "00000000-0000-4000-b000-000000fa01db",
+     "sku": "sku-0005",
+     "uidbId": "00000000-0000-4000-a000-000000000015",
+     "groupId": null,
+     "type": "device",
+     "mount": 22,
+     "category": "integrations",
+     "subcategory": "mobile_routing",
+     "title": "title-0012",
+     "description": "",
+     "ordering": 0,
+     "properties": null,
+     "attributes": 0,
+     "collectionSlug": null,
+     "discontinuedAt": null,
+     "compatibility": null,
+     "transceiver": null,
+     "rack": null,
+     "power": {
+      "incoming": 0,
+      "outgoing": 0
+     },
+     "keyFeatures": [],
+     "slug": null,
+     "stale": false,
+     "app": "network",
+     "source": 1,
+     "modifier": 0,
+     "siteId": "00000000-0000-4000-a000-000000000121",
+     "isManaged": true,
+     "createdAt": "2026-07-31T18:40:43.503Z",
+     "updatedAt": "2026-10-06T08:35:33.349Z"
+    }
+   ],
+   "wallTypes": [
+    {
+     "id": "00000000-0000-4000-b000-000000fa01dc",
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "overridesVariant": "wood",
+     "name": "name-0354",
+     "attenuation": 5,
+     "color": "color-0001",
+     "isDeleted": false,
+     "bottomHeight": null,
+     "topHeight": null,
+     "transparent": false,
+     "autoFillEnabled": false,
+     "createdAt": "2026-08-11T13:04:10.798Z",
+     "updatedAt": "2026-08-11T13:06:36.168Z"
+    },
+    {
+     "id": "00000000-0000-4000-9000-000000000210",
+     "projectId": "00000000-0000-4000-a000-000000fa01d5",
+     "overridesVariant": null,
+     "name": "name-0355",
+     "attenuation": 0,
+     "color": "color-0002",
+     "isDeleted": false,
+     "bottomHeight": null,
+     "topHeight": 0.9144111,
+     "transparent": true,
+     "autoFillEnabled": false,
+     "createdAt": "2026-08-11T13:06:39.187Z",
+     "updatedAt": "2026-08-11T13:12:08.166Z"
+    }
+   ],
+   "attenuationObjectTypes": [],
+   "project": {
+    "id": "00000000-0000-4000-a000-000000fa01d5",
+    "title": "title-0013",
+    "createdAt": "2025-07-16T17:42:17.351Z",
+    "updatedAt": "2026-10-05T08:55:32.783Z"
+   }
+  }
+ }
+}

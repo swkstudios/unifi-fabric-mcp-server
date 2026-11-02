@@ -2,16 +2,16 @@
 
 The recognition resource lives at ``/proxy/protect/api/recognition/{type}/groups`` and
 its siblings — NOT the Protect Integration API, which has no recognition surface. These
-paths were verified live (GET only): named recognition groups, aggregate counts, the
-per-group reference crop, per-group detections, and per-detection thumbnails.
+tools issue GETs only: named recognition groups, aggregate counts, the per-group
+reference crop, per-group detections, and per-detection thumbnails.
 
 Pass-through, not redaction
 ---------------------------
 The server is a faithful pass-through. Group records carry ``name`` / ``matchedName``
 label fields and the image endpoints return the actual reference crops; everything
-upstream returns is returned unchanged. This matches the whole-server pass-through
-invariant (see ``CLAUDE.md``): the tool does not withhold data from its caller, and a
-deployment that wants to restrict output layers that policy on top of the response.
+upstream returns is returned unchanged. The tool does not withhold data from its
+caller; a deployment that wants to restrict output layers that policy on top of the
+response.
 
 Pagination
 ----------
@@ -32,10 +32,22 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from ..client import UniFiClient, UniFiConnectionError, validate_id
+from ..client import UniFiClient, UniFiConnectionError, describe_shape, validate_id
 from ..registry import Registry
-from ._history_common import require_epoch_seconds, seconds_to_millis, translate_host_not_found
-from ._pagination import DRAIN_PAGE_SIZE, collect_links, mark_incomplete
+from ._history_common import (
+    epoch_warnings,
+    require_epoch_seconds,
+    seconds_to_millis,
+    translate_host_not_found,
+    with_warnings,
+)
+from ._pagination import (
+    bare_page,
+    collect_links,
+    mark_incomplete,
+    validate_pagination,
+    with_envelope,
+)
 
 RECOGNITION_PRIVATE_BASE = "/v1/connector/consoles/{host_id}/proxy/protect/api"
 
@@ -54,34 +66,32 @@ async def list_recognition_groups(
     order_by: str | None = None,
     order_direction: str | None = None,
     page: int | None = None,
-) -> dict[str, Any]:
-    """List recognition groups (e.g. enrolled faces) on a Protect console.
+) -> Any:
+    """List recognition groups (enrolled subjects) on a Protect console.
 
-    Each group is a recognised subject with a stable, monotonic ``id`` (``face_1``,
-    ``face_90``, …), a ``name`` / ``matchedName`` label, a ``detectionsCount``, and
-    ``createdAt`` / ``firstDetectedAt`` / ``lastDetectedAt`` timestamps usable as sync
-    and change-detection keys. Nothing is redacted — the ``name`` label is returned as-is.
+    Each group carries a stable id (for example ``face_90``), name/matchedName,
+    detectionsCount and createdAt/firstDetectedAt/lastDetectedAt timestamps. Names
+    are returned unchanged. The result contains ``groups`` and ``_count``.
 
-    Response shape: ``{"groups": [...], "count": N}`` (plus ``nextPage`` / ``incomplete``
-    when applicable). The array is under ``groups``, not ``data`` — this follows the
-    codebase convention of naming a list's array after its resource (as in
-    ``list_recognition_detections`` → ``detections``, ``list_hotspot_operators`` →
-    ``operators``). Only the Network Integration offset-paginated proxy lists use the
-    ``{"data": [...], "totalCount": N}`` shape; a consumer must key off ``groups`` here.
+    By default every ``links.next`` page is drained in batches of at most 100.
+    page_size=N returns records [(page-1)*N, page*N): exactly N when that many
+    exist, fewer only at the end, never more. page is the 1-based window number
+    counted in units of page_size (default 1); without page_size, returns one
+    native console page. To continue, resume from _nextPage with the same page_size.
+    ``_pageSize`` reports requested, sent, effective and returned sizes.
+    An incomplete drain carries incomplete/incompleteReason.
 
-    type: recognition type. Use ``face`` or ``vehicle`` (singular). Plural forms
-      (``faces``, ``vehicles``) are NOT valid and return HTTP 400 from the upstream
-      API — two separate agents have guessed plural and hit this error. The value is
-      forwarded as-is, so any other type the console accepts also works, and any it
-      rejects is answered by the API's own error.
-    has_name: when true, return only named groups (unnamed groups are filtered out).
-    page_size: API page size; also the drain page size. Defaults to 200.
-    order_by / order_direction: server-side sort, e.g. order_by='name',
-      order_direction='asc'.
-    page: fetch a single page (1-based) instead of draining. Response envelope pages via
-      ``links.next``; by default every page is drained and the complete group set is
-      returned. Pass ``page`` to fetch one page manually — ``nextPage`` is then surfaced.
-    """
+    type: recognition type, normally ``face`` or ``vehicle`` (singular); forwarded
+      unchanged. Plural forms return HTTP 400 from upstream.
+    has_name: when true, return only named groups.
+    page_size: N returns records [(page-1)*N, page*N): exactly N when that many
+      exist, fewer only at the end, never more; resume from _nextPage with the same page_size.
+    order_by / order_direction: server-side sort, for example ``name`` / ``asc``.
+    page: 1-based window number counted in units of page_size (default 1); without
+      page_size, returns one native console page; resume from _nextPage with the same page_size."""
+    validate_pagination(
+        page=page, page_size=page_size, names={"page": "page", "page_size": "page_size"}
+    )
     validate_id(type, "type")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
@@ -100,15 +110,17 @@ async def list_recognition_groups(
             key=key,
             params=params,
             page=page,
-            page_size=page_size if page_size is not None else DRAIN_PAGE_SIZE,
+            page_size=page_size,
         )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
+    if (bare := bare_page(collected)) is not None:
+        return bare
     groups = collected["items"]
-    result: dict[str, Any] = {"groups": groups, "count": len(groups)}
+    result: dict[str, Any] = {"groups": groups, "_count": len(groups)}
     if collected.get("nextPage") is not None:
-        result["nextPage"] = collected["nextPage"]
-    return mark_incomplete(result, collected)
+        result["_nextPage"] = collected["nextPage"]
+    return mark_incomplete(with_envelope(result, collected), collected)
 
 
 async def get_recognition_group_counts(
@@ -128,11 +140,17 @@ async def get_recognition_group_counts(
     validate_id(type, "type")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
+    path = _private(host_id, f"/recognition/{type}/groups/counts")
     try:
-        data = await client.get(_private(host_id, f"/recognition/{type}/groups/counts"), key=key)
+        data = await client.get(path, key=key)
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
-    return data if isinstance(data, dict) else {"data": data}
+    if not isinstance(data, dict):
+        raise UniFiConnectionError(
+            f"Unexpected response shape from GET {path}: expected an object of counts, "
+            f"got {describe_shape(data)}"
+        )
+    return data
 
 
 async def get_recognition_group_image(
@@ -142,10 +160,12 @@ async def get_recognition_group_image(
     type: str,
     group_id: str,
 ) -> dict[str, Any]:
-    """Get a recognition group's reference crop. Returns base64-encoded JPEG image data.
+    """Get a recognition group's reference crop. Returns base64-encoded image data.
 
-    The endpoint returns raw ``image/jpeg`` bytes (a ~360x360 reference crop); they are
-    base64-encoded for transport, mirroring ``get_camera_snapshot``.
+    The endpoint returns raw image bytes (a ~360x360 reference crop); they are
+    base64-encoded for transport, mirroring ``get_camera_snapshot``. ``content_type`` is
+    the upstream Content-Type header as sent (typically image/jpeg), or None when the
+    upstream sends none; it is never assumed.
 
     type: recognition type. Use ``face`` or ``vehicle`` (singular — plural forms
       return HTTP 400 from upstream). Forwarded to the API as-is.
@@ -156,14 +176,14 @@ async def get_recognition_group_image(
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     try:
-        raw = await client.get_bytes(
+        raw, content_type = await client.get_binary(
             _private(host_id, f"/recognition/{type}/groups/{group_id}/image"), key=key
         )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return {
         "image_base64": base64.b64encode(raw).decode(),
-        "content_type": "image/jpeg",
+        "content_type": content_type,
         "size_bytes": len(raw),
     }
 
@@ -178,41 +198,50 @@ async def list_recognition_detections(
     start: int | None = None,
     end: int | None = None,
     page: int | None = None,
-) -> dict[str, Any]:
-    """List a recognition group's detections (individual sightings) on a Protect console.
+) -> Any:
+    """List one recognition group's detections (sightings) on a Protect console.
 
-    REQUIRED: both ``type`` and ``group_id``. ``group_id`` selects which enrolled subject
-    to list sightings for — obtain a valid one from ``list_recognition_groups`` (its ``id``
-    field, e.g. ``face_90``). There is no "all groups" mode; an id that does not exist on
-    the console returns HTTP 404.
+    Both ``type`` and ``group_id`` are required. Obtain ``group_id`` from
+    ``list_recognition_groups`` (for example ``face_90``); there is no all-groups
+    mode and a nonexistent group returns HTTP 404. Each detection carries id,
+    eventId (join to list_protect_events), thumbnailId (get_thumbnail), detectedAt
+    (epoch milliseconds), cameraId and matchedGroupConfidence (0-100).
 
-    Each detection record carries ``id``, ``eventId`` (joinable against
-    ``list_protect_events``), ``thumbnailId`` (fetch the crop with ``get_thumbnail``),
-    ``detectedAt`` (epoch ms), ``cameraId``, and ``matchedGroupConfidence`` (0-100).
+    By default every ``links.next`` page is drained in batches of at most 100.
+    page_size=N returns records [(page-1)*N, page*N): exactly N when that many
+    exist, fewer only at the end, never more. page is the 1-based window number
+    counted in units of page_size (default 1); without page_size, returns one
+    native console page. To continue, resume from _nextPage with the same page_size.
+    ``_pageSize`` reports requested, sent, effective and returned sizes.
+    An incomplete drain carries incomplete/incompleteReason.
 
-    type: recognition type. Use ``face`` or ``vehicle`` (singular — plural forms
-      return HTTP 400 from upstream). Forwarded to the API as-is.
-    group_id: REQUIRED. The group's stable id, e.g. ``face_90`` — take it from a
-      ``list_recognition_groups`` result (the ``id`` field).
-    page_size: API page size; also the drain page size. Defaults to 200.
-    start/end: optional time window in epoch SECONDS (UTC), converted to milliseconds
-      internally. Verified live: the endpoint filters detections server-side by
-      ``detectedAt`` against this window, so a caller can request an arbitrary range
-      (e.g. the last hour, 30 days, or 90 days) directly. Omit both for all detections.
-    page: fetch a single page (1-based) instead of draining. The response envelope pages
-      via ``links.next``; by default every page is drained so the complete detection set
-      for the group (and window, if given) is returned. Pass ``page`` to fetch one page
-      manually — ``nextPage`` is then surfaced.
-    """
+    A manual page follows the upstream page's shape. A bare-list page is returned
+    unchanged without warnings. An object page is returned as detections/_count
+    with upstream fields and epoch warnings, as a drained result does, and _nextPage
+    when manual paging has more.
+
+    type: recognition type, normally ``face`` or ``vehicle`` (singular); forwarded
+      unchanged. Plural forms return HTTP 400 from upstream.
+    group_id: The group's stable id from list_recognition_groups.
+    page_size: N returns records [(page-1)*N, page*N): exactly N when that many
+      exist, fewer only at the end, never more; resume from _nextPage with the same page_size.
+    start/end: Optional UTC epoch-second window, converted to milliseconds for
+      detectedAt filtering; omit both for all detections.
+    page: 1-based window number counted in units of page_size (default 1); without
+      page_size, returns one native console page; resume from _nextPage with the same page_size."""
+    validate_pagination(
+        page=page, page_size=page_size, names={"page": "page", "page_size": "page_size"}
+    )
     validate_id(type, "type")
     validate_id(group_id, "group_id")
-    key = await registry.resolve_key_for_host(host)
-    host_id = await registry.resolve_host_id(host, key=key)
+    # The time window is validated before any request (no resolution for a bad window).
     params: dict[str, Any] = {}
     if start is not None:
         params["start"] = seconds_to_millis(require_epoch_seconds(start, "start"))
     if end is not None:
         params["end"] = seconds_to_millis(require_epoch_seconds(end, "end"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
     try:
         collected = await collect_links(
             client,
@@ -221,15 +250,20 @@ async def list_recognition_detections(
             key=key,
             params=params,
             page=page,
-            page_size=page_size if page_size is not None else DRAIN_PAGE_SIZE,
+            page_size=page_size,
         )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
+    if (bare := bare_page(collected)) is not None:
+        return bare
     detections = collected["items"]
-    result: dict[str, Any] = {"detections": detections, "count": len(detections)}
+    result: dict[str, Any] = {"detections": detections, "_count": len(detections)}
     if collected.get("nextPage") is not None:
-        result["nextPage"] = collected["nextPage"]
-    return mark_incomplete(result, collected)
+        result["_nextPage"] = collected["nextPage"]
+    return with_warnings(
+        mark_incomplete(with_envelope(result, collected), collected),
+        epoch_warnings(start=start, end=end),
+    )
 
 
 async def get_thumbnail(
@@ -238,11 +272,12 @@ async def get_thumbnail(
     host: str,
     thumbnail_id: str,
 ) -> dict[str, Any]:
-    """Get a detection thumbnail crop. Returns base64-encoded JPEG image data.
+    """Get a detection thumbnail crop. Returns base64-encoded image data.
 
-    The endpoint returns raw ``image/jpeg`` bytes (a ~360x360 per-detection crop, distinct
-    from the group reference crop); they are base64-encoded for transport, mirroring
-    ``get_camera_snapshot``.
+    The endpoint returns raw image bytes (a ~360x360 per-detection crop, distinct from
+    the group reference crop); they are base64-encoded for transport, mirroring
+    ``get_camera_snapshot``. ``content_type`` is the upstream Content-Type header as sent
+    (typically image/jpeg), or None when the upstream sends none; it is never assumed.
 
     thumbnail_id: the ``thumbnailId`` from a detection record.
     """
@@ -250,11 +285,13 @@ async def get_thumbnail(
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     try:
-        raw = await client.get_bytes(_private(host_id, f"/thumbnails/{thumbnail_id}"), key=key)
+        raw, content_type = await client.get_binary(
+            _private(host_id, f"/thumbnails/{thumbnail_id}"), key=key
+        )
     except UniFiConnectionError as exc:
         raise translate_host_not_found(exc, host) from exc
     return {
         "image_base64": base64.b64encode(raw).decode(),
-        "content_type": "image/jpeg",
+        "content_type": content_type,
         "size_bytes": len(raw),
     }

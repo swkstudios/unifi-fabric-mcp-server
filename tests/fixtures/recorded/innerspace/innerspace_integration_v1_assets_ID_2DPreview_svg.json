@@ -1,0 +1,11 @@
+{
+ "recorded_by_tool": "get_innerspace_asset",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/integration/v1/assets/00000000-0000-4000-8000-000000000211/2DPreview.svg",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "image/svg+xml",
+ "binary_len": 11705
+}

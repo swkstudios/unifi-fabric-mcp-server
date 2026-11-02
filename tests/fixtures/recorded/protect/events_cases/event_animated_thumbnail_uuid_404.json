@@ -1,0 +1,24 @@
+{
+ "recorded_by_tool": "get_protect_event_media",
+ "args": [
+  "00000000-0000-4000-9000-000000000001",
+  "animated_thumbnail"
+ ],
+ "kwargs": {
+  "key_frame_only": true,
+  "speedup": 10
+ },
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/events/00000000-0000-4000-9000-000000000001/animated-thumbnail",
+  "query": {
+   "keyFrameOnly": "true",
+   "speedup": "10"
+  }
+ },
+ "status": 404,
+ "content_type": "application/json",
+ "body": {
+  "error": "error-0002"
+ }
+}

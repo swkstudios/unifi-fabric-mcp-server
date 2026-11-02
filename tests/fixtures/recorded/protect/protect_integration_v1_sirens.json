@@ -1,0 +1,42 @@
+{
+ "recorded_by_tool": "list_sirens",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/sirens",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "id": "000000000000000000fa0152",
+   "modelKey": "siren",
+   "state": "CONNECTED",
+   "name": "name-0041",
+   "type": "UP-Siren-PoE",
+   "guid": "00000000-0000-4000-8000-000000000160",
+   "mac": "000000FA0153",
+   "volume": 10,
+   "ledSettings": {
+    "isEnabled": true
+   },
+   "sirenStatus": {
+    "isActive": false,
+    "activatedAt": null,
+    "duration": null
+   },
+   "connectionType": "ucp4",
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": null,
+     "signalStrength": null
+    },
+    "batteryStatus": {
+     "percentage": null,
+     "isLow": false
+    },
+    "bridge": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,65 @@
+{
+ "recorded_by_tool": "list_liveviews",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/liveviews",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "id": "000000000000000000fa016e",
+   "modelKey": "liveview",
+   "name": "Default",
+   "isDefault": true,
+   "isGlobal": true,
+   "owner": "000000000000000000fa016f",
+   "layout": 6,
+   "slots": [
+    {
+     "cameras": [
+      "000000000000000000fa0157"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    },
+    {
+     "cameras": [
+      "000000000000000000fa01b7"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    },
+    {
+     "cameras": [
+      "000000000000000000fa01b9"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    },
+    {
+     "cameras": [
+      "000000000000000000fa01b4"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    },
+    {
+     "cameras": [
+      "000000000000000000fa0016"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    },
+    {
+     "cameras": [
+      "000000000000000000fa002a"
+     ],
+     "cycleMode": "time",
+     "cycleInterval": 10
+    }
+   ]
+  }
+ ]
+}

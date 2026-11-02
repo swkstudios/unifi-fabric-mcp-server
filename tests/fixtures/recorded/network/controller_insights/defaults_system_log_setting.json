@@ -1,0 +1,880 @@
+{
+  "args": [
+    "system_log_setting",
+    "Default"
+  ],
+  "body": {
+    "alert_event_settings": {
+      "ADMIN_ACCESS": {
+        "category": "AUDIT",
+        "label": "label-0081",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "AFC_SERVER_NOT_AVAILABLE": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0048",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "APPROACHING_CELLULAR_DATA_LIMIT": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0009",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "AP_CHANGED_CHANNELS": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0118",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "AP_CLIENT_PACKET_LOSS": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0117",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "AP_DETECTED_RADAR": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0065",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "AP_LOCATION_NOT_MEET_AFC_REQUIREMENT": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0103",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "AP_LOW_PERFORMANCE_MODE": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0037",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "POWER_POE"
+      },
+      "AP_UPDATE_AVAILABLE_TO_SUPPORT_AUTOLINK": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0045",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "BLOCKED_BY_FIREWALL": {
+        "category": "SECURITY",
+        "label": "label-0004",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SECURITY_FIREWALL"
+      },
+      "BPDU_GUARD_TRIGGERED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0063",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "BULK_FIRMWARE_UPDATE_AVAILABLE": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0092",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "CELLULAR_DATA_LIMIT_REACHED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0072",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "CLIENT_CONNECTED_WIRED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0005",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "CLIENT_CONNECTED_WIRELESS": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0119",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIFI"
+      },
+      "CLIENT_DISCONNECTED_WIRED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0053",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "CLIENT_DISCONNECTED_WIRELESS": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0059",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIFI"
+      },
+      "CLIENT_IP_CONFLICT": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0099",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "CLIENT_LINK_FLAP_WIRED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0079",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "CLIENT_ROAMED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0034",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIFI"
+      },
+      "DEVICES_POWERED_BY_USW_MC": {
+        "category": "POWER",
+        "label": "label-0003",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_ADOPTED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0076",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_COMMIT_ERROR": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0008",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "DEVICE_DISCOVERED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0021",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_FAN_NOT_OPERATING": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0002",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_FAN_OFFLINE": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0123",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_MESHED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0115",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "DEVICE_POWERED_BY_USP_RPS": {
+        "category": "POWER",
+        "label": "label-0012",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_POWER_CYCLED": {
+        "category": "POWER",
+        "label": "label-0073",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_CYCLE"
+      },
+      "DEVICE_POWER_SUPPLY_OFFLINE": {
+        "category": "POWER",
+        "label": "label-0121",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_RECONNECTED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0033",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_RECONNECTED_SEVERAL_TIMES": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0031",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_RECONNECTED_WITH_DOWNLINKS": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0075",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_STOP_MESH": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0084",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "DEVICE_UNREACHABLE": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0018",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "DEVICE_UPS_BATTERY_POWER": {
+        "category": "POWER",
+        "label": "label-0104",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_UPS_OFFLINE": {
+        "category": "POWER",
+        "label": "label-0007",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_UPS_OFFLINE_TIME": {
+        "category": "POWER",
+        "label": "label-0015",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DEVICE_UPS_POWER_RESTORED": {
+        "category": "POWER",
+        "label": "label-0091",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_REDUNDANCY"
+      },
+      "DHCP_POOL_EXHAUSTED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0036",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "DOT1X_AUTHENTICATION_FAILED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0022",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "FIRMWARE_ROLLBACK": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0113",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "FIRMWARE_UPDATED": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0050",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "FIRMWARE_UPDATE_AVAILABLE": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0082",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "FIRMWARE_UPDATE_DNS_RESOLUTION_FAILED": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0085",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "FIRMWARE_UPDATE_FAILED": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0029",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "GENERATED": {
+        "category": "AUDIT",
+        "label": "label-0110",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "HIGH_TRAFFIC": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0083",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_STATUS"
+      },
+      "HONEYPOT_HIT_DETECTED": {
+        "category": "SECURITY",
+        "label": "label-0107",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SECURITY_HONEYPOT"
+      },
+      "HOTSPOT_GUEST_AUTHORIZED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0080",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_GUEST_HOTSPOT"
+      },
+      "HOTSPOT_GUEST_UNAUTHORIZED_BY_ADMIN": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0001",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_GUEST_HOTSPOT"
+      },
+      "IDENTITY_USER_REPORT": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0052",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_STATUS"
+      },
+      "ISP_HIGH_LATENCY": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0016",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "INTERNET_PERFORMANCE"
+      },
+      "ISP_PACKET_LOSS": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0098",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "INTERNET_PERFORMANCE"
+      },
+      "LOCATION_CANNOT_BE_DETERMINED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0114",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "LOG_SWITCH_PORT_LINK_FLAP": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0057",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "LOG_SWITCH_PORT_STP_FLAP": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0032",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "MAC_TABLE_APPROACHING": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0014",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "MAC_TABLE_FULL": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0013",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "MADE_CHANGES": {
+        "category": "AUDIT",
+        "label": "label-0025",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "MBB_SIM_INSERTED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0069",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "MBB_SIM_REMOVED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0088",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "MCLAG_MULTI_CHASSIS_LINK_PORT_NEGOTIATION_FAILED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0101",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "MULTIPLE_AP_UPDATES_AVAILABLE_TO_SUPPORT_AUTOLINK": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0108",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "MULTIPLE_DEVICES_DISCOVERED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0010",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "MULTIPLE_DEVICES_RESTARTED_BY_POWER_STRIP": {
+        "category": "POWER",
+        "label": "label-0061",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_CYCLE"
+      },
+      "MULTIPLE_DEVICES_UNREACHABLE": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0054",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "NEGOTIATED_LOW_UPLINK_PORT_SPEED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0093",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "NETWORK_FAILED_OVER_TO_BACKUP_LTE": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0109",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_FAILED_OVER_TO_BACKUP_LTE_TEMPORARY": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0111",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_FAILED_OVER_TO_BACKUP_WAN": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0028",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_FAILED_OVER_TO_BACKUP_WAN_TEMPORARY": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0071",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_LIST_FAILED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0067",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "NETWORK_LOOP_DETECTED_BY_KEEPALIVE": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0064",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "NETWORK_LOOP_DETECTED_BY_STP": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0074",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "NETWORK_UPDATED": {
+        "category": "SOFTWARE_UPDATES",
+        "label": "label-0058",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "NETWORK_WAN_FAILED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0006",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_WAN_FAILED_MULTIPLE_TIMES": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0090",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_WAN_FAILED_TEMPORARY": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0026",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_WAN_LOAD_BALANCING_DEGRADED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0024",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NETWORK_WAN_RESTORED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0120",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "NEW_WIFI_CLIENT_CONNECTED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0046",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "MONITORING_WIFI"
+      },
+      "NEW_WIRED_CLIENT_CONNECTED": {
+        "category": "CLIENT_DEVICES",
+        "label": "label-0070",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PAUSED_ENTITY": {
+        "category": "AUDIT",
+        "label": "label-0019",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "POE_BUDGET_EXCEEDED": {
+        "category": "POWER",
+        "label": "label-0078",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_POE"
+      },
+      "POE_PORT_BUDGET_EXCEEDED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0068",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "POWER_POE"
+      },
+      "POLICY_BASED_ROUTING_STARTED": {
+        "category": "SECURITY",
+        "label": "label-0060",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "POLICY_BASED_ROUTING_STOPPED": {
+        "category": "SECURITY",
+        "label": "label-0105",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "PORT_ARP_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0030",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_BDPU_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0035",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_BROADCAST_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0011",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_DHCP_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0094",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_DOS": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0041",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_DROPPED_TRAFFIC": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0106",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "PORT_LOCK_VIOLATION": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0023",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_MAC_LOCKING": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0112",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_MULTICAST_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0102",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_PHY_FAILURE": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0100",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_POE_FAILURE": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0047",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "PORT_TRANSMISSION_ERRORS": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0095",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "PORT_UNICAST_STORM": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0096",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "RADIUS_SERVER_ISSUE": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0044",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "REMOVED_ENTITY": {
+        "category": "AUDIT",
+        "label": "label-0062",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "RESUMED_ENTITY": {
+        "category": "AUDIT",
+        "label": "label-0051",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_ADMIN"
+      },
+      "ROGUE_AP_DETECTED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0043",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_WIFI"
+      },
+      "ROGUE_DHCP_SERVER_DETECTED": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0056",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "SFP_EEPROM_ERROR": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0027",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "SFP_RECEIVED_FAULT": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0040",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "SFP_TRANSMISSION_FAULT": {
+        "category": "UNIFI_ETHERNET_PORTS",
+        "label": "label-0020",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "MONITORING_WIRED"
+      },
+      "SSL_CERTIFICATE_EXPIRY": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0116",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "SSL_INSPECTION_BYPASS": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0042",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "SYSTEM_NETWORK"
+      },
+      "STACKING_LINK_IN_STACK_DISCONNECTED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0089",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "STACK_CREATED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0086",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "STACK_EXTENDED": {
+        "category": "UNIFI_DEVICES",
+        "label": "label-0038",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_DEVICES"
+      },
+      "TELEPORT_CLIENT_CONNECTED": {
+        "category": "VPN",
+        "label": "label-0055",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_VPN"
+      },
+      "TELEPORT_CLIENT_DISCONNECTED": {
+        "category": "VPN",
+        "label": "label-0066",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_VPN"
+      },
+      "THREAT_BLOCKED": {
+        "category": "SECURITY",
+        "label": "label-0087",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SECURITY_INTRUSION_PREVENTION"
+      },
+      "THREAT_DETECTED": {
+        "category": "SECURITY",
+        "label": "label-0017",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SECURITY_INTRUSION_PREVENTION"
+      },
+      "VPN_CLIENT_CONNECTED": {
+        "category": "VPN",
+        "label": "label-0097",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_VPN"
+      },
+      "VPN_CLIENT_DISCONNECTED": {
+        "category": "VPN",
+        "label": "label-0039",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_VPN"
+      },
+      "VPN_SITE_TO_SITE_DISCONNECTED": {
+        "category": "VPN",
+        "label": "label-0077",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "SYSTEM_VPN"
+      },
+      "WAN_LAN_OVERLAP": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0122",
+        "send_email": false,
+        "send_mobile_push_notification": false,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      },
+      "WAN_MAGIC_DATA_LIMIT_REACHED": {
+        "category": "INTERNET_AND_WAN",
+        "label": "label-0049",
+        "send_email": false,
+        "send_mobile_push_notification": true,
+        "subcategory": "INTERNET_OUTAGE_AND_FAILOVER"
+      }
+    },
+    "setting_preference": "ON"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/system-log/setting/defaults",
+    "query": {}
+  },
+  "status": 200
+}

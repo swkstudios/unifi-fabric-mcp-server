@@ -1,0 +1,337 @@
+{
+  "args": [
+    "recent_series"
+  ],
+  "body": [
+    {
+      "deviceMac": "02:00:5e:00:00:02",
+      "series": [
+        {
+          "byNetworkGroup": [
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 4.0,
+              "avgUplinkLatencyMs": 4.0,
+              "maxLatencyMs": 4.0,
+              "maxRxRateBps": 76433271.0,
+              "maxTxRateBps": 398865.0,
+              "maxUplinkLatencyMs": 4.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 4.0,
+              "mostCommonIspAsn": 64496,
+              "mostCommonIspName": "mostCommonIspName-0001",
+              "networkGroup": "networkGroup-0001",
+              "rxBytes": 5624225831.324017,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 46239597.20795487,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 300.0951809985515
+            },
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 39.763936666666666,
+              "maxLatencyMs": 47.0,
+              "maxRxRateBps": 312.0,
+              "maxTxRateBps": 248.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 35.0,
+              "mostCommonIspAsn": 64497,
+              "mostCommonIspName": "mostCommonIspName-0002",
+              "networkGroup": "networkGroup-0002",
+              "rxBytes": 32166.371211360467,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 20301.0199491823,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 300.0951809985515
+            },
+            {
+              "downtimeS": 300.0951809985515,
+              "maxRxRateBps": 0.0,
+              "maxTxRateBps": 171.0,
+              "networkGroup": "networkGroup-0003",
+              "rxBytes": 0.0,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 6811.0802543498785,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0
+            }
+          ],
+          "duration": 300000,
+          "timestamp": 1791687300000
+        },
+        {
+          "byNetworkGroup": [
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 4.0,
+              "avgUplinkLatencyMs": 4.0,
+              "maxLatencyMs": 4.0,
+              "maxRxRateBps": 3515619.0,
+              "maxTxRateBps": 130850.0,
+              "maxUplinkLatencyMs": 4.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 4.0,
+              "mostCommonIspAsn": 64496,
+              "mostCommonIspName": "mostCommonIspName-0001",
+              "networkGroup": "networkGroup-0001",
+              "rxBytes": 1040761615.9569734,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 30181627.42067071,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.76831451819794
+            },
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 44.414076666666666,
+              "maxLatencyMs": 47.0,
+              "maxRxRateBps": 291.0,
+              "maxTxRateBps": 133.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 40.0,
+              "mostCommonIspAsn": 64497,
+              "mostCommonIspName": "mostCommonIspName-0002",
+              "networkGroup": "networkGroup-0002",
+              "rxBytes": 32730.46969234833,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 20541.599407070236,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.76831451819794
+            },
+            {
+              "downtimeS": 299.76831451819794,
+              "maxRxRateBps": 0.0,
+              "maxTxRateBps": 58.0,
+              "networkGroup": "networkGroup-0003",
+              "rxBytes": 0.0,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 6155.555430903826,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0
+            }
+          ],
+          "duration": 300000,
+          "timestamp": 1791687600000
+        },
+        {
+          "byNetworkGroup": [
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 4.0,
+              "avgUplinkLatencyMs": 4.0,
+              "maxLatencyMs": 4.0,
+              "maxRxRateBps": 8367426.0,
+              "maxTxRateBps": 261968.0,
+              "maxUplinkLatencyMs": 4.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 4.0,
+              "mostCommonIspAsn": 64496,
+              "mostCommonIspName": "mostCommonIspName-0001",
+              "networkGroup": "networkGroup-0001",
+              "rxBytes": 1040931916.3384628,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 31188433.437158316,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.8533233006455
+            },
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 35.56982,
+              "maxLatencyMs": 44.0,
+              "maxRxRateBps": 291.0,
+              "maxTxRateBps": 178.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 32.0,
+              "mostCommonIspAsn": 64497,
+              "mostCommonIspName": "mostCommonIspName-0002",
+              "networkGroup": "networkGroup-0002",
+              "rxBytes": 31273.777596244876,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 19711.88148145311,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.8533233006455
+            },
+            {
+              "downtimeS": 299.8533233006455,
+              "maxRxRateBps": 0.0,
+              "maxTxRateBps": 58.0,
+              "networkGroup": "networkGroup-0003",
+              "rxBytes": 0.0,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 6286.335455275824,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0
+            }
+          ],
+          "duration": 300000,
+          "timestamp": 1791687900000
+        },
+        {
+          "byNetworkGroup": [
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 4.0,
+              "avgUplinkLatencyMs": 4.0,
+              "maxLatencyMs": 4.0,
+              "maxRxRateBps": 78385732.0,
+              "maxTxRateBps": 1829342.0,
+              "maxUplinkLatencyMs": 4.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 4.0,
+              "mostCommonIspAsn": 64496,
+              "mostCommonIspName": "mostCommonIspName-0001",
+              "networkGroup": "networkGroup-0001",
+              "rxBytes": 1021430481.9250758,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 30566872.68235356,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 300.1669685815902
+            },
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 37.47658666666667,
+              "maxLatencyMs": 44.0,
+              "maxRxRateBps": 132.0,
+              "maxTxRateBps": 132.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 34.0,
+              "mostCommonIspAsn": 64497,
+              "mostCommonIspName": "mostCommonIspName-0002",
+              "networkGroup": "networkGroup-0002",
+              "rxBytes": 32711.554476538287,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 20753.271834109575,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 300.1669685815902
+            },
+            {
+              "downtimeS": 300.1669685815902,
+              "maxRxRateBps": 0.0,
+              "maxTxRateBps": 57.0,
+              "networkGroup": "networkGroup-0003",
+              "rxBytes": 0.0,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 6750.246521497948,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0
+            }
+          ],
+          "duration": 300000,
+          "timestamp": 1791688200000
+        },
+        {
+          "byNetworkGroup": [
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 100.0,
+              "avgLatencyMs": 4.60282,
+              "avgUplinkLatencyMs": 4.60282,
+              "maxLatencyMs": 6.0,
+              "maxRxRateBps": 81498461.0,
+              "maxTxRateBps": 2002294.0,
+              "maxUplinkLatencyMs": 6.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 4.0,
+              "mostCommonIspAsn": 64496,
+              "mostCommonIspName": "mostCommonIspName-0001",
+              "networkGroup": "networkGroup-0001",
+              "rxBytes": 12436627326.454798,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 283952509.19286406,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.9161085846646
+            },
+            {
+              "avgAvailabilityPct": 100.0,
+              "avgConnectedAvailabilityPct": 96.55829333333334,
+              "avgLatencyMs": 40.02793333333333,
+              "maxLatencyMs": 46.0,
+              "maxRxRateBps": 132.0,
+              "maxTxRateBps": 132.0,
+              "minAvailabilityPct": 100.0,
+              "minLatencyMs": 34.0,
+              "mostCommonIspAsn": 64497,
+              "mostCommonIspName": "mostCommonIspName-0002",
+              "networkGroup": "networkGroup-0002",
+              "rxBytes": 31969.31401475582,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 20107.586070119054,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0,
+              "uptimeS": 299.9161085846646
+            },
+            {
+              "downtimeS": 299.9161085846646,
+              "maxRxRateBps": 0.0,
+              "maxTxRateBps": 104.0,
+              "networkGroup": "networkGroup-0003",
+              "rxBytes": 0.0,
+              "rxDroppedPackets": 0.0,
+              "rxErrorPackets": 0.0,
+              "txBytes": 6571.513909612614,
+              "txDroppedPackets": 0.0,
+              "txErrorPackets": 0.0
+            }
+          ],
+          "duration": 300000,
+          "timestamp": 1791688500000
+        }
+      ],
+      "siteId": "00000000-0000-4000-a000-000000000017"
+    }
+  ],
+  "kwargs": {
+    "bucket": "OF_5_MINUTES",
+    "end": 1760227200,
+    "filter": "deviceMac.eq('02:00:5e:00:53:01')",
+    "nested_projection": [
+      "byNetworkGroup"
+    ],
+    "period": "DAY",
+    "schema": "wanBySiteByDevice"
+  },
+  "recorded_by_tool": "get_controller_stats",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/stats/recent/series",
+    "query": {
+      "bucket": "bucket-0001",
+      "end": "1791773785000",
+      "filter": "filter-0002",
+      "period": "period-0001",
+      "projection": "projection-0001",
+      "schema": "schema-0002"
+    }
+  },
+  "status": 200
+}

@@ -1,0 +1,31 @@
+{
+  "args": [
+    "global_switch",
+    "Default"
+  ],
+  "body": {
+    "acl_device_isolation": [],
+    "acl_l3_isolation": [],
+    "auto_stp_edge_detection_enabled": false,
+    "dhcp_snoop": true,
+    "dot1x_fallback_networkconf_id": "",
+    "dot1x_portctrl_enabled": false,
+    "flood_known_protocols": true,
+    "flowctrl_enabled": false,
+    "forward_unknown_mcast_router_ports": true,
+    "jumboframe_enabled": false,
+    "link_debounce": 300,
+    "poe_staging_delay_msec": 200,
+    "radiusprofile_id": "",
+    "stp_version": "rstp",
+    "switch_exclusions": []
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/global_switch/defaults",
+    "query": {}
+  },
+  "status": 200
+}

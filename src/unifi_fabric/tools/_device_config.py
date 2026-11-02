@@ -1,0 +1,99 @@
+"""Reusable full-object device PUT and affirmative read-after verification core."""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from ..client import UniFiClient, UniFiConnectionError, is_dry_run_preview, upstream_error_text
+from ..config import APIKeyConfig
+from ._keys import with_context
+from ._results import leaf_equal
+
+
+def require_classic_success(response: Any, path: str) -> None:
+    """A Classic HTTP 200 with meta.rc=error is not a successful state read."""
+    if not isinstance(response, dict):
+        raise UniFiConnectionError(
+            f"Unexpected Classic response at {path}: {upstream_error_text(response)}"
+        )
+    meta = response.get("meta")
+    if not isinstance(meta, dict) or meta.get("rc") != "ok":
+        raise UniFiConnectionError(
+            f"Classic operation failed at {path}: {upstream_error_text(response)}"
+        )
+
+
+async def update_device_config(
+    client: UniFiClient,
+    path: str,
+    before: Any,
+    desired: Any,
+    body: dict[str, Any],
+    read_after: Callable[[], Awaitable[tuple[dict[str, Any], Any, dict[str, Any]]]],
+    diff: Callable[[Any, Any], dict[str, Any]],
+    /,
+    *,
+    key: APIKeyConfig | None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """PUT once, or skip an identical PUT; both paths require a new successful read.
+
+    Callers own resolution, capability checks and merging the entire writable object.
+    read_after must reject failed envelopes and returns (raw response, config, views).
+    This core also serves full-device updates without knowing the radio schema.
+    """
+    requested = diff(before, desired)
+    base = {"readBefore": before, "_diff": requested}
+    if dry_run or client.dry_run:
+        client._audit_write("PUT", path, "dry_run", None)
+        return {
+            **client._dry_run_response("PUT", path, body).json(),
+            "diff": requested,
+            **base,
+            "changed": None,
+            "noOp": None,
+            "_noOp": None,
+            "_verified": None,
+        }
+    write_result: dict[str, Any] = {}
+    if not leaf_equal(before, desired):
+        response = await client.put(path, key=key, json=body)
+        if is_dry_run_preview(response):
+            return with_context(
+                response,
+                {
+                    "diff": requested,
+                    **base,
+                    "changed": None,
+                    "noOp": None,
+                    "_noOp": None,
+                    "_verified": None,
+                },
+            )
+        require_classic_success(response, path)
+        write_result["response"] = response
+    try:
+        after_response, after, views = await read_after()
+        changed = diff(before, after)
+    except Exception as exc:
+        return {
+            **base,
+            **write_result,
+            "changed": None,
+            "noOp": None,
+            "_noOp": None,
+            "_verified": None,
+            "readAfterError": str(exc),
+        }
+    return {
+        **base,
+        **write_result,
+        **views,
+        "readAfter": after,
+        "changed": changed,
+        "noOp": leaf_equal(before, after),
+        "_noOp": leaf_equal(before, after),
+        "_verified": leaf_equal(desired, after),
+        "_readAfterResponse": after_response,
+    }

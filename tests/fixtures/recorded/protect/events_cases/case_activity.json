@@ -1,0 +1,117 @@
+{
+ "recorded_by_tool": "get_protect_case_activity",
+ "args": [
+  "000000000000000000fa0006"
+ ],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cases/000000000000000000fa0006/activity-log",
+  "query": {
+   "pageSize": "200",
+   "page": "1"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": {
+  "activities": [
+   {
+    "description": {
+     "messageKeys": [
+      {
+       "action": "viewUsers",
+       "key": "userLink",
+       "params": {
+        "userId": "000000000000000000fa0007"
+       },
+       "style": [
+        "style-0001"
+       ],
+       "text": "text-0001"
+      }
+     ],
+     "messageRaw": "{userLink} reopened the case"
+    },
+    "id": "000000000000000000fa0008",
+    "ipAddress": "203.0.113.2",
+    "isRevertContentAvailable": true,
+    "sequenceId": 1,
+    "timestamp": 1791768341501
+   },
+   {
+    "description": {
+     "messageKeys": [
+      {
+       "action": "viewUsers",
+       "key": "userLink",
+       "params": {
+        "userId": "000000000000000000fa0007"
+       },
+       "style": [
+        "style-0001"
+       ],
+       "text": "text-0001"
+      }
+     ],
+     "messageRaw": "{userLink} closed the case"
+    },
+    "id": "000000000000000000fa0009",
+    "ipAddress": "203.0.113.2",
+    "isRevertContentAvailable": true,
+    "sequenceId": 2,
+    "timestamp": 1791768340420
+   },
+   {
+    "description": {
+     "messageKeys": [
+      {
+       "action": "viewUsers",
+       "key": "userLink",
+       "params": {
+        "userId": "000000000000000000fa0007"
+       },
+       "style": [
+        "style-0001"
+       ],
+       "text": "text-0001"
+      }
+     ],
+     "messageRaw": "{userLink} renamed the case"
+    },
+    "id": "000000000000000000fa000a",
+    "ipAddress": "203.0.113.2",
+    "isRevertContentAvailable": true,
+    "sequenceId": 3,
+    "timestamp": 1791768339329
+   },
+   {
+    "description": {
+     "messageKeys": [
+      {
+       "action": "viewUsers",
+       "key": "userLink",
+       "params": {
+        "userId": "000000000000000000fa0007"
+       },
+       "style": [
+        "style-0001"
+       ],
+       "text": "text-0001"
+      }
+     ],
+     "messageRaw": "Case created by {userLink}"
+    },
+    "id": "000000000000000000fa000b",
+    "ipAddress": "203.0.113.2",
+    "isRevertContentAvailable": true,
+    "sequenceId": 0,
+    "timestamp": 1791768338169
+   }
+  ],
+  "links": {
+   "next": null,
+   "prev": null
+  }
+ }
+}

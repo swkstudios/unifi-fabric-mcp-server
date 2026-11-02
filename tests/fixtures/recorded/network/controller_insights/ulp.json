@@ -1,0 +1,23 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "groups": [],
+    "users": [
+      {
+        "full_name": "full-name-0001",
+        "group_ids": [],
+        "unique_id": "00000000-0000-4000-8000-000000000025"
+      }
+    ]
+  },
+  "kwargs": {},
+  "recorded_by_tool": "list_ulp_user_groups",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/ulp/users_groups",
+    "query": {}
+  },
+  "status": 200
+}

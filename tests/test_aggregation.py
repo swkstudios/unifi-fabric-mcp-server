@@ -67,9 +67,11 @@ class TestGetAllHostSitePairs:
         registry.get_ea_sites = AsyncMock(return_value=ea_sites)
         registry.get_sites = AsyncMock(return_value=[{"id": _UUID_S1, "description": "Site 1"}])
 
-        pairs = await _get_all_host_site_pairs(registry)
+        skipped: list = []
+        pairs = await _get_all_host_site_pairs(registry, skipped=skipped)
         assert len(pairs) == 1
         assert pairs[0]["hostId"] == "valid-host"
+        assert skipped and skipped[0]["hostId"] == "../bad" and skipped[0]["reason"]
 
     async def test_non_uuid_site_id_skipped(self, registry):
         """Proxy sites with non-UUID IDs (e.g. Fabric ObjectIds) are skipped."""
@@ -87,9 +89,18 @@ class TestGetAllHostSitePairs:
 
         registry.get_sites = AsyncMock(side_effect=mock_get_sites)
 
-        pairs = await _get_all_host_site_pairs(registry)
+        skipped: list = []
+        pairs = await _get_all_host_site_pairs(registry, skipped=skipped)
         assert len(pairs) == 1
         assert pairs[0]["siteId"] == _UUID_S2
+        assert skipped == [
+            {
+                "hostId": "h1",
+                "hostName": "c1",
+                "siteId": "5d21296497ba433a10af6cbd",
+                "reason": skipped[0]["reason"],
+            }
+        ]
 
     async def test_get_sites_failure_skips_host(self, registry):
         """If proxy /sites fetch fails for a host, that host is skipped gracefully."""
@@ -106,9 +117,11 @@ class TestGetAllHostSitePairs:
 
         registry.get_sites = AsyncMock(side_effect=mock_get_sites)
 
-        pairs = await _get_all_host_site_pairs(registry)
+        skipped: list = []
+        pairs = await _get_all_host_site_pairs(registry, skipped=skipped)
         assert len(pairs) == 1
         assert pairs[0]["hostId"] == "h2"
+        assert skipped == [{"hostId": "h1", "hostName": "c1", "reason": "site list: timeout"}]
 
 
 class TestListAllDevicesFleet:
@@ -121,8 +134,8 @@ class TestListAllDevicesFleet:
 
         result = await _list_all_devices_fleet(client)
 
-        assert result["count"] == 2
-        assert len(result["devices"]) == 2
+        assert result["_count"] == 2
+        assert len(result["data"]) == 2
         client.paginate.assert_called_once_with("/v1/devices", key=None)
 
     async def test_filters_by_status(self, client):
@@ -135,8 +148,37 @@ class TestListAllDevicesFleet:
 
         result = await _list_all_devices_fleet(client, status_filter="offline")
 
-        assert result["count"] == 2
-        assert all(d["state"] == "offline" for d in result["devices"])
+        assert result["_count"] == 2
+        assert all(d["state"] == "offline" for d in result["data"])
+
+    async def test_host_wrappers_unwrapped_filtered_and_counted(self, client):
+        """Live /v1/devices shape: one wrapper per console. The filter and count apply to
+        the devices inside, each annotated with its console."""
+        client.paginate = AsyncMock(
+            return_value=[
+                {
+                    "hostId": "h1",
+                    "hostName": "gw-1",
+                    "devices": [
+                        {"name": "sw", "status": "online"},
+                        {"name": "ap", "status": "offline"},
+                    ],
+                },
+                {
+                    "hostId": "h2",
+                    "hostName": "gw-2",
+                    "devices": [{"name": "ap2", "status": "offline"}],
+                },
+            ]
+        )
+        everything = await _list_all_devices_fleet(client)
+        assert everything["_count"] == 3
+        offline = await _list_all_devices_fleet(client, status_filter="offline")
+        assert offline["_count"] == 2
+        assert {(d["name"], d["_hostId"], d["_hostName"]) for d in offline["data"]} == {
+            ("ap", "h1", "gw-1"),
+            ("ap2", "h2", "gw-2"),
+        }
 
     async def test_status_filter_case_insensitive(self, client):
         devices = [{"name": "switch-1", "status": "Online"}]
@@ -144,7 +186,7 @@ class TestListAllDevicesFleet:
 
         result = await _list_all_devices_fleet(client, status_filter="online")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
 
 class TestListAllClientsFleet:
@@ -169,6 +211,8 @@ class TestListAllClientsFleet:
         ]
 
         async def mock_get(path, **kwargs):
+            if (kwargs.get("params") or {}).get("offset"):
+                return []
             if _UUID_S1 in path:
                 return client_data_s1
             return client_data_s2
@@ -177,11 +221,11 @@ class TestListAllClientsFleet:
 
         result = await _list_all_clients_fleet(client, registry)
 
-        assert result["count"] == 3
-        assert result["sitesQueried"] == 2
+        assert result["_count"] == 3
+        assert result["_sitesQueried"] == 2
         assert "errors" not in result
         # Check annotations
-        assert result["clients"][0]["_siteName"] == "Site A"
+        assert result["data"][0]["_siteName"] == "Site A"
 
     async def test_handles_site_errors_gracefully(self, client, registry):
         ea_sites = [
@@ -193,6 +237,37 @@ class TestListAllClientsFleet:
 
         with pytest.raises(RuntimeError, match="All 1 site"):
             await _list_all_clients_fleet(client, registry)
+
+
+class TestListAllClientsReporting:
+    async def test_reports_succeeded_failed_and_skipped(self, client, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {"hostId": "h1", "hostname": "console-1"},
+                {"hostId": "../bad", "hostname": "broken"},
+            ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[
+                {"id": _UUID_S1, "description": "Site A"},
+                {"id": _UUID_S2, "description": "Site B"},
+            ]
+        )
+
+        async def get(path, **kwargs):
+            if (kwargs.get("params") or {}).get("offset"):
+                return {"data": []}
+            if _UUID_S2 in path:
+                raise RuntimeError("HTTP 500 boom")
+            return {"data": [{"id": "c1"}]}
+
+        client.get = AsyncMock(side_effect=get)
+        result = await _list_all_clients_fleet(client, registry)
+        assert result["_sitesQueried"] == 2
+        assert result["_sitesSucceeded"] == 1
+        assert result["_sitesFailed"] == 1
+        assert "HTTP 500 boom" in result["errors"][0]
+        assert result["_skipped"][0]["hostId"] == "../bad"
 
 
 class TestFleetSummary:
@@ -301,13 +376,18 @@ class TestUnwrapEaDevices:
         assert _unwrap_ea_devices(devices) == devices
 
     def test_host_wrapper_unwrapped(self):
-        """Host-wrapper objects are unwrapped to their inner device lists."""
+        """Host-wrapper objects are unwrapped; each device keeps its console additively."""
         raw = [
-            {"hostId": "h1", "devices": [{"id": "d1"}, {"id": "d2"}]},
+            {"hostId": "h1", "hostName": "gw-1", "devices": [{"id": "d1"}, {"id": "d2"}]},
             {"hostId": "h2", "devices": [{"id": "d3"}]},
         ]
         result = _unwrap_ea_devices(raw)
-        assert result == [{"id": "d1"}, {"id": "d2"}, {"id": "d3"}]
+        assert result == [
+            {"id": "d1", "_hostId": "h1", "_hostName": "gw-1"},
+            {"id": "d2", "_hostId": "h1", "_hostName": "gw-1"},
+            {"id": "d3", "_hostId": "h2"},
+        ]
+        assert raw[0]["devices"][0] == {"id": "d1"}  # upstream objects not mutated
 
     def test_empty_inner_list(self):
         raw = [{"hostId": "h1", "devices": []}]
@@ -327,8 +407,8 @@ class TestSearchDevice:
 
         result = await _search_device(client, "switch")
 
-        assert result["count"] == 1
-        assert result["matches"][0]["name"] == "office-switch-1"
+        assert result["_count"] == 1
+        assert result["data"][0]["name"] == "office-switch-1"
 
     async def test_search_by_mac(self, client):
         devices = [
@@ -338,7 +418,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "aa:bb:cc")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_by_model(self, client):
         devices = [
@@ -349,7 +429,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "U6")
 
-        assert result["count"] == 2
+        assert result["_count"] == 2
 
     async def test_search_no_matches(self, client):
         devices = [{"name": "ap-1", "mac": "aa:01", "model": "U6"}]
@@ -357,7 +437,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "nonexistent")
 
-        assert result["count"] == 0
+        assert result["_count"] == 0
 
     async def test_search_by_shortname(self, client):
         devices = [
@@ -368,8 +448,8 @@ class TestSearchDevice:
 
         result = await _search_device(client, "UDM")
 
-        assert result["count"] == 1
-        assert result["matches"][0]["name"] == "device-1"
+        assert result["_count"] == 1
+        assert result["data"][0]["name"] == "device-1"
 
     async def test_search_case_insensitive(self, client):
         devices = [
@@ -380,8 +460,8 @@ class TestSearchDevice:
         result_upper = await _search_device(client, "UDM")
         result_lower = await _search_device(client, "udm")
 
-        assert result_upper["count"] == 1
-        assert result_lower["count"] == 1
+        assert result_upper["_count"] == 1
+        assert result_lower["_count"] == 1
 
     async def test_search_by_hostname(self, client):
         devices = [
@@ -391,7 +471,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "gateway")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_by_reported_state_hostname(self, client):
         devices = [
@@ -406,7 +486,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "router.home")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_by_ip(self, client):
         devices = [
@@ -416,7 +496,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "192.168.1")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_by_reported_state_model(self, client):
         """Model stored in reportedState (real EA API format) is still searchable."""
@@ -436,8 +516,8 @@ class TestSearchDevice:
 
         result = await _search_device(client, "UDM")
 
-        assert result["count"] == 1
-        assert result["matches"][0]["reportedState"]["model"] == "UDMPRO"
+        assert result["_count"] == 1
+        assert result["data"][0]["reportedState"]["model"] == "UDMPRO"
 
     async def test_search_by_reported_state_ip(self, client):
         """IP stored in reportedState is still searchable."""
@@ -449,7 +529,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "10.0.0.1")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_by_reported_state_mac(self, client):
         """MAC stored in reportedState is still searchable."""
@@ -460,7 +540,7 @@ class TestSearchDevice:
 
         result = await _search_device(client, "aa:bb:cc")
 
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     async def test_search_unwraps_host_wrapper(self, client):
         """When /v1/devices returns host-wrapper objects, inner devices are searchable."""
@@ -483,8 +563,9 @@ class TestSearchDevice:
 
         result = await _search_device(client, "switch")
 
-        assert result["count"] == 1
-        assert result["matches"][0]["name"] == "office-switch-1"
+        assert result["_count"] == 1
+        assert result["data"][0]["name"] == "office-switch-1"
+        assert result["data"][0]["_hostId"] == "h1"
 
     async def test_search_unwrap_empty_devices_list(self, client):
         """Host wrapper with empty devices list contributes no results."""
@@ -496,8 +577,8 @@ class TestSearchDevice:
 
         result = await _search_device(client, "ap")
 
-        assert result["count"] == 1
-        assert result["matches"][0]["name"] == "ap-1"
+        assert result["_count"] == 1
+        assert result["data"][0]["name"] == "ap-1"
 
 
 # --- _list_api_keys / list_configured_api_keys (previously ZERO coverage) ---
@@ -529,6 +610,7 @@ class TestListApiKeys:
         """Only label + is_org_key are surfaced — never the secret key material
         (key values must not appear in tool responses)."""
         result = await _list_api_keys(multikey_client)
+        assert result["keys"], "no key entry was listed (vacuous)"
         for entry in result["keys"]:
             assert set(entry) == {"label", "is_org_key"}
 
@@ -566,6 +648,8 @@ class TestListAllClientsFleetPartialFailure:
         registry.get_sites = AsyncMock(side_effect=mock_get_sites)
 
         async def mock_get(path, **kwargs):
+            if (kwargs.get("params") or {}).get("offset"):
+                return []
             if _UUID_S1 in path:
                 return [{"mac": "aa:bb:01", "name": "laptop-1"}]
             raise UniFiConnectionError("HTTP 401 from GET /clients")
@@ -575,8 +659,8 @@ class TestListAllClientsFleetPartialFailure:
         result = await _list_all_clients_fleet(client, registry)
 
         # Partial results: only the healthy site's clients come back...
-        assert result["count"] == 1
-        assert result["clients"][0]["_siteName"] == "Healthy Site"
+        assert result["_count"] == 1
+        assert result["data"][0]["_siteName"] == "Healthy Site"
         # ...and the failure is surfaced rather than swallowed.
         assert "errors" in result
         assert len(result["errors"]) == 1
@@ -613,12 +697,12 @@ class TestListAllDevicesFleetMultiKey:
         # The request must ride the beta key — NOT the default (first/alpha) key.
         assert captured["key"] == beta
         assert captured["key"].label == "beta"
-        assert result["key_label"] == "beta"
-        assert result["count"] == 1
+        assert result["_key_label"] == "beta"
+        assert result["_count"] == 1
 
 
 class TestNamespaceURLPinningAggregation:
-    """Pin exact /v1/ Site Manager paths for aggregation call sites (#198/#192).
+    """Pin exact /v1/ Site Manager paths for aggregation call sites.
 
     aggregation.py fans out over the Site Manager hosts/sites/devices families;
     a namespace regression here would silently degrade fleet-wide reads. These
