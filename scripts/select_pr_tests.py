@@ -623,9 +623,7 @@ def _prose(name):
 
 #: Release-sanitization readers: they check every credential name and changelog fragment.
 #: Public stripping may remove private readers from this tuple.
-RELEASE_SANITIZATION_READERS = (
-    "tests/test_release_sanitizer_docs.py",
-)
+RELEASE_SANITIZATION_READERS = ("tests/test_release_sanitizer_docs.py",)
 
 
 #: Parsed pyproject.toml tables known not to affect which tests run or how.

@@ -609,7 +609,6 @@ def finding_location(finding: str) -> tuple[str, int] | None:
     return (match.group(1), int(match.group(2))) if match else None
 
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
