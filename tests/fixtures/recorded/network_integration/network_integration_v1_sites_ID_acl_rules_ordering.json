@@ -1,0 +1,18 @@
+{
+ "recorded_by_tool": "get_acl_rule_ordering",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/acl-rules/ordering",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "orderedAclRuleIds": [
+   "00000000-0000-4000-8000-000000fa00d5",
+   "00000000-0000-4000-8000-000000fa00d6",
+   "00000000-0000-4000-8000-000000fa00d7",
+   "00000000-0000-4000-a000-000000fa00d8"
+  ]
+ }
+}

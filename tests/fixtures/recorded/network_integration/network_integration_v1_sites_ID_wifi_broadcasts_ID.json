@@ -1,0 +1,52 @@
+{
+ "recorded_by_tool": "get_wifi_broadcast",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/wifi/broadcasts/00000000-0000-4000-b000-000000000025",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "type": "STANDARD",
+  "id": "00000000-0000-4000-b000-000000000025",
+  "name": "name-0020",
+  "metadata": {
+   "origin": "USER_DEFINED"
+  },
+  "enabled": true,
+  "securityConfiguration": {
+   "type": "WPA2_PERSONAL",
+   "fastRoamingEnabled": false,
+   "presharedKeys": [
+    {
+     "network": {
+      "type": "SPECIFIC",
+      "networkId": "00000000-0000-4000-b000-000000000023"
+     },
+     "passphrase": "xxxxxxxx"
+    },
+    {
+     "network": {
+      "type": "SPECIFIC",
+      "networkId": "00000000-0000-4000-9000-000000fa0013"
+     },
+     "passphrase": "xxxxxxxx"
+    }
+   ],
+   "pmfMode": "OPTIONAL"
+  },
+  "multicastToUnicastConversionEnabled": true,
+  "clientIsolationEnabled": false,
+  "hideName": false,
+  "uapsdEnabled": false,
+  "channel2gLockedTo6": false,
+  "dtimPeriod2gLockedTo3": false,
+  "broadcastingFrequenciesGHz": [
+   2.4
+  ],
+  "arpProxyEnabled": false,
+  "bssTransitionEnabled": false,
+  "advertiseDeviceName": false
+ }
+}

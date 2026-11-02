@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
@@ -16,9 +16,20 @@ HOSTS = [
     {"id": "host-bbb", "name": "Switch01", "reportedState": {"hostname": "switch01.local"}},
 ]
 
+# Real Site Manager /v1/sites shape (live-verified): name/description live under
+# meta.name / meta.desc, with hostId + a 24-char Fabric ObjectId siteId. There is
+# NO top-level siteName/description field.
 EA_SITES = [
-    {"siteId": "site-111", "siteName": "HQ", "meta": {"desc": "Headquarters"}},
-    {"siteId": "site-222", "siteName": "Branch", "meta": {"desc": "Branch Office"}},
+    {
+        "siteId": "aaaaaaaaaaaaaaaaaaaaaaa1",
+        "hostId": "host-aaa",
+        "meta": {"name": "hq", "desc": "HQ"},
+    },
+    {
+        "siteId": "bbbbbbbbbbbbbbbbbbbbbbb2",
+        "hostId": "host-bbb",
+        "meta": {"name": "branch", "desc": "Branch"},
+    },
 ]
 
 # Proxy sites use UUID id + description fields (as returned by the console proxy)
@@ -34,6 +45,7 @@ _PROXY_PATH = f"/v1/connector/consoles/{_HOST_ID}/proxy/network/integration/v1/s
 @pytest.fixture
 def mock_client():
     client = AsyncMock()
+    client.list_key_labels = MagicMock(return_value=["default"])
     client.paginate = AsyncMock(side_effect=_paginate_side_effect)
     client.get = AsyncMock(side_effect=_get_side_effect)
     # get_sites drains the offset-paginated proxy sites endpoint; mirror the
@@ -79,6 +91,185 @@ def registry(mock_client):
 # --- resolve_host_id ---
 
 
+class TestResolveHostIdDisplayName:
+    """list_hosts shows the short console name at reportedState.name (usually equal to the
+    hostname); it is accepted as a fallback after id / hostname / name matches."""
+
+    _HOSTS = [
+        {
+            "id": "AABBCC:111",
+            "name": "",
+            "reportedState": {"hostname": "udm-a", "name": "Main Office"},
+        },
+        {"id": "DDEEFF:222", "reportedState": {"hostname": "Main Office", "name": "Other"}},
+    ]
+
+    def _registry(self):
+        client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
+        client.paginate = AsyncMock(return_value=list(self._HOSTS))
+        return Registry(client, ttl_seconds=900)
+
+    @pytest.mark.asyncio
+    async def test_resolves_by_reported_state_name_case_insensitive(self):
+        assert await self._registry().resolve_host_id("other") == "DDEEFF:222"
+
+    @pytest.mark.asyncio
+    async def test_exact_hostname_match_wins_over_display_name(self):
+        # "Main Office" is host 1's display name but host 2's hostname: hostname wins.
+        assert await self._registry().resolve_host_id("main office") == "DDEEFF:222"
+
+    @pytest.mark.asyncio
+    async def test_unknown_still_raises(self):
+        with pytest.raises(ValueError, match="unknown host"):
+            await self._registry().resolve_host_id("nope")
+
+
+class TestUnknownSiteListsChoices:
+    @pytest.mark.asyncio
+    async def test_resolve_site_id_lists_valid_sites(self, registry):
+        with pytest.raises(ValueError) as exc:
+            await registry.resolve_site_id("nope", "host-aaa")
+        msg = str(exc.value)
+        assert "Site 'nope' not found on host 'host-aaa'; valid:" in msg
+        assert "Default (a1b2c3d4-e5f6-7890-abcd-ef1234567890)" in msg
+        assert "Branch Office (b2c3d4e5-f6a7-8901-bcde-f12345678901)" in msg
+
+    @pytest.mark.asyncio
+    async def test_resolve_site_slug_lists_valid_sites(self, registry):
+        with pytest.raises(ValueError, match=r"valid: Default \(a1b2c3d4"):
+            await registry.resolve_site_slug("nope", "host-aaa")
+
+
+class TestIncompleteSiteList:
+    @pytest.mark.asyncio
+    async def test_not_found_says_site_list_was_incomplete(self):
+        from unifi_fabric.client import PaginationAbortedError
+
+        client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
+        client.paginate_offset = AsyncMock(
+            side_effect=PaginationAbortedError(
+                "/sites", 3, "page cap of 3 reached", items=[{"id": "x", "description": "A"}]
+            )
+        )
+        reg = Registry(client, ttl_seconds=900)
+        with pytest.raises(ValueError) as exc:
+            await reg.resolve_site_id("Z", "host-aaa")
+        assert "site list is incomplete: page cap of 3 reached" in str(exc.value)
+
+
+class TestDuplicateSiteNames:
+    """Two different sites with the same name fail fast listing (name, id)."""
+
+    _SITES = [
+        {"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "description": "Office"},
+        {"id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "description": "office"},
+        {
+            "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            "description": "Lab",
+            "internalReference": "lab",
+        },
+    ]
+
+    def _registry(self):
+        client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
+        client.paginate_offset = AsyncMock(return_value=list(self._SITES))
+        return Registry(client, ttl_seconds=900)
+
+    @pytest.mark.asyncio
+    async def test_resolve_site_id_ambiguous(self):
+        with pytest.raises(ValueError) as exc:
+            await self._registry().resolve_site_id("OFFICE", "host-aaa")
+        msg = str(exc.value)
+        assert "ambiguous site 'OFFICE'" in msg
+        assert "Office (a1b2c3d4-e5f6-7890-abcd-ef1234567890)" in msg
+        assert "office (b2c3d4e5-f6a7-8901-bcde-f12345678901)" in msg
+
+    @pytest.mark.asyncio
+    async def test_resolve_site_slug_ambiguous(self):
+        # The exact name wins first ("office" is one site); with no exact match the
+        # casefolded tier holds both, so the name is ambiguous.
+        with pytest.raises(ValueError, match="ambiguous site 'OFFICE'"):
+            await self._registry().resolve_site_slug("OFFICE", "host-aaa")
+
+    @pytest.mark.asyncio
+    async def test_id_still_resolves_and_unique_name_works(self):
+        reg = self._registry()
+        sid = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        assert await reg.resolve_site_id(sid, "host-aaa") == sid
+        assert await reg.resolve_site_slug("lab", "host-aaa") == "lab"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ea_site_id_ambiguous_across_consoles(self):
+        client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
+        client.paginate = AsyncMock(
+            return_value=[
+                {"hostId": "h1", "siteId": "s-1", "meta": {"name": "default", "desc": "Default"}},
+                {"hostId": "h2", "siteId": "s-2", "meta": {"name": "default", "desc": "Default"}},
+            ]
+        )
+        reg = Registry(client, ttl_seconds=900)
+        with pytest.raises(ValueError) as exc:
+            await reg.resolve_ea_site_id("Default")
+        msg = str(exc.value)
+        assert "siteId=s-1, hostId=h1" in msg and "siteId=s-2, hostId=h2" in msg
+        assert await reg.resolve_ea_site_id("Default", host_id="h2") == "s-2"
+
+
+class TestHostMatchingEdgeCases:
+    """Null fields never crash; a name shared by two consoles fails fast with choices."""
+
+    def _registry(self, hosts):
+        client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
+        client.paginate = AsyncMock(return_value=list(hosts))
+        return Registry(client, ttl_seconds=900)
+
+    @pytest.mark.asyncio
+    async def test_null_hostname_and_name_do_not_raise_attribute_error(self):
+        hosts = [
+            {"id": "AA:1", "name": None, "reportedState": {"hostname": None, "name": None}},
+            {"id": "BB:2", "reportedState": None},
+            {"id": "CC:3", "name": "Office", "reportedState": {"hostname": "office-gw"}},
+        ]
+        reg = self._registry(hosts)
+        assert await reg.resolve_host_id("office-gw") == "CC:3"
+        with pytest.raises(ValueError, match=r"unknown host 'nope'; valid: AA:1, BB:2, office-gw"):
+            await reg.resolve_host_id("nope")
+
+    @pytest.mark.asyncio
+    async def test_duplicate_display_name_is_ambiguous(self):
+        hosts = [
+            {"id": "AA:1", "reportedState": {"hostname": "gw-a", "name": "Branch"}},
+            {"id": "BB:2", "reportedState": {"hostname": "gw-b", "name": "branch"}},
+        ]
+        reg = self._registry(hosts)
+        # An exact display name selects its console; "BRANCH" matches both in
+        # the casefolded tier and is ambiguous.
+        assert await reg.resolve_host_id("Branch") == "AA:1"
+        with pytest.raises(ValueError) as exc:
+            await reg.resolve_host_id("BRANCH")
+        msg = str(exc.value)
+        assert "ambiguous host 'BRANCH'" in msg
+        assert "id=AA:1 hostname=gw-a name=Branch" in msg
+        assert "id=BB:2 hostname=gw-b name=branch" in msg
+        assert "Pass the console id instead" in msg
+        # each console stays reachable by id or hostname
+        assert await reg.resolve_host_id("gw-b") == "BB:2"
+        assert await reg.resolve_host_id("AA:1") == "AA:1"
+
+    @pytest.mark.asyncio
+    async def test_unique_higher_tier_match_beats_display_name(self):
+        hosts = [
+            {"id": "AA:1", "reportedState": {"hostname": "x", "name": "core"}},
+            {"id": "BB:2", "reportedState": {"hostname": "core", "name": "y"}},
+        ]
+        assert await self._registry(hosts).resolve_host_id("core") == "BB:2"
+
+
 class TestResolveHostId:
     @pytest.mark.asyncio
     async def test_resolve_host_id_by_exact_id(self, registry):
@@ -106,9 +297,22 @@ class TestResolveHostId:
         assert result == "host-bbb"
 
     @pytest.mark.asyncio
-    async def test_resolve_host_id_fallback(self, registry):
-        result = await registry.resolve_host_id("unknown-value")
-        assert result == "unknown-value"
+    async def test_resolve_host_id_unknown_host_raises(self, registry):
+        # Fail fast on an unrecognised host: exact message + a valid list built at
+        # runtime from the (synthetic) fixture consoles: hostname (name, id).
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"^unknown host 'bogus-host'; valid: router\.local \(MyRouter, host-aaa\), "
+                r"switch01\.local \(Switch01, host-bbb\)\Z"
+            ),
+        ):
+            await registry.resolve_host_id("bogus-host")
+
+    @pytest.mark.asyncio
+    async def test_resolve_host_id_unknown_host_valid_still_resolves(self, registry):
+        # A valid host still resolves after the unknown-host fail-fast change.
+        assert await registry.resolve_host_id("router.local") == "host-aaa"
 
     @pytest.mark.asyncio
     async def test_resolve_host_id_empty_string(self, registry):
@@ -175,6 +379,7 @@ class TestResolveSiteIdNameField:
     def mock_client_name_field(self):
         """Return proxy sites using 'name' field instead of 'description'."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(side_effect=_paginate_side_effect)
 
         async def _get(path, *, key=None, params=None):
@@ -214,6 +419,7 @@ class TestResolveSiteIdNameField:
     def mock_client_underscore_id(self):
         """Return proxy sites using '_id' field instead of 'id'."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(side_effect=_paginate_side_effect)
 
         async def _get(path, *, key=None, params=None):
@@ -262,6 +468,49 @@ class TestAssertUuid:
 # --- get_ea_sites ---
 
 
+class TestResolveEaSiteId:
+    """resolve_ea_site_id resolves against /v1/sites and fails fast on unknown sites."""
+
+    async def test_resolves_name_to_ea_site_id(self, registry):
+        # site name -> Fabric ObjectId siteId (from the Site Manager /v1/sites list)
+        assert await registry.resolve_ea_site_id("HQ") == "aaaaaaaaaaaaaaaaaaaaaaa1"
+
+    async def test_resolves_known_id_passthrough(self, registry):
+        assert (
+            await registry.resolve_ea_site_id("bbbbbbbbbbbbbbbbbbbbbbb2")
+            == "bbbbbbbbbbbbbbbbbbbbbbb2"
+        )
+
+    async def test_resolves_by_meta_name_case_insensitive(self, registry):
+        # meta.name (the slug) also resolves, case-insensitively, to the ObjectId
+        assert await registry.resolve_ea_site_id("BRANCH") == "bbbbbbbbbbbbbbbbbbbbbbb2"
+
+    async def test_host_id_scopes_resolution(self, registry):
+        # With host_id given, only that console's sites are considered
+        assert (
+            await registry.resolve_ea_site_id("HQ", host_id="host-aaa")
+            == "aaaaaaaaaaaaaaaaaaaaaaa1"
+        )
+        with pytest.raises(ValueError, match="not found"):
+            await registry.resolve_ea_site_id("HQ", host_id="host-bbb")
+
+    async def test_unknown_site_raises_with_valid_names(self, registry, mock_client):
+        with pytest.raises(ValueError) as exc:
+            await registry.resolve_ea_site_id("Nonexistent")
+        msg = str(exc.value)
+        assert "not found" in msg
+        # valid-names list is built at runtime from the sites payload
+        assert "HQ" in msg and "Branch" in msg
+        assert "Nonexistent" in msg
+        # resolver never forwards an unrecognised value to a metrics endpoint:
+        # the only upstream call is the /v1/sites list fetch used for resolution.
+        assert mock_client.paginate.await_args_list == [call("/v1/sites", key=None)]
+
+    async def test_empty_site_raises(self, registry):
+        with pytest.raises(ValueError, match="must not be empty"):
+            await registry.resolve_ea_site_id("   ")
+
+
 class TestGetEaSites:
     @pytest.mark.asyncio
     async def test_returns_ea_sites(self, registry):
@@ -286,10 +535,14 @@ class TestCacheTtl:
 
     @pytest.mark.asyncio
     async def test_cache_ttl_expiry_triggers_refetch(self, registry, mock_client):
+        from cachetools import TTLCache
+
+        clock = [0]
+        registry._hosts = TTLCache(maxsize=512, ttl=900, timer=lambda: clock[0])
         await registry.get_hosts()
         assert mock_client.paginate.call_count == 1
 
-        registry.invalidate()
+        clock[0] = 901
 
         await registry.get_hosts()
         assert mock_client.paginate.call_count == 2
@@ -348,7 +601,10 @@ class TestPerKeyIsolation:
     @pytest.mark.asyncio
     async def test_none_key_uses_default_label(self, registry):
         await registry.get_hosts(key=None)
-        assert "__default__" in registry._hosts
+        # The default path shares the first configured key label.
+        assert "default" in registry._hosts
+        assert None not in registry._hosts
+        assert "__default__" not in registry._hosts
 
     @pytest.mark.asyncio
     async def test_two_keys_independent_ea_site_paginate_calls(self, registry, mock_client):
@@ -384,6 +640,7 @@ class TestBoundedCache:
     async def test_cache_stays_bounded_when_full(self):
         """Filling past maxsize evicts LRU entries; size never exceeds maxsize."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(return_value=[])
         reg = Registry(client, ttl_seconds=900, cache_max_hosts=5)
 
@@ -397,6 +654,7 @@ class TestBoundedCache:
     async def test_full_warning_logged_once(self, caplog):
         """WARNING is emitted exactly once on first cache-full, not on every eviction."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(return_value=[])
         reg = Registry(client, ttl_seconds=900, cache_max_hosts=3)
 
@@ -413,6 +671,7 @@ class TestBoundedCache:
     async def test_no_warning_when_cache_not_full(self, caplog):
         """No WARNING logged if cache never reaches maxsize."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(return_value=[])
         reg = Registry(client, ttl_seconds=900, cache_max_hosts=10)
 
@@ -428,6 +687,7 @@ class TestBoundedCache:
     async def test_rearm_after_pressure_relief(self, caplog):
         """Warning flag re-arms once cache drops below 50%; INFO logged on re-arm."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(return_value=[])
         reg = Registry(client, ttl_seconds=900, cache_max_hosts=4)
 
@@ -457,6 +717,7 @@ class TestBoundedCache:
     async def test_per_cache_limits_are_independent(self):
         """Hosts and sites caches enforce their own independent size limits."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.paginate = AsyncMock(return_value=[])
         client.get = AsyncMock(return_value={"data": []})
         reg = Registry(client, ttl_seconds=900, cache_max_hosts=2, cache_max_sites=10)
@@ -479,6 +740,7 @@ class TestBoundedCache:
     async def test_sites_cache_bounded(self):
         """Sites TTLCache stays within cache_max_sites."""
         client = AsyncMock()
+        client.list_key_labels = MagicMock(return_value=["default"])
         client.get = AsyncMock(return_value={"data": []})
         reg = Registry(client, ttl_seconds=900, cache_max_sites=4)
 
@@ -493,21 +755,42 @@ class TestBoundedCache:
 
 class TestPerLabelLocking:
     @pytest.mark.asyncio
-    async def test_separate_locks_created_per_label(self, registry):
+    async def test_separate_locks_created_per_label(self, registry, mock_client):
+        import asyncio as _asyncio
+
         key_a = APIKeyConfig(key="sk-a", label="alpha")
         key_b = APIKeyConfig(key="sk-b", label="beta")
+        release = _asyncio.Event()
 
-        await registry.get_hosts(key=key_a)
-        await registry.get_hosts(key=key_b)
+        async def slow(path, *, key=None):
+            await release.wait()
+            return list(HOSTS)
 
-        assert "alpha" in registry._locks
-        assert "beta" in registry._locks
-        assert registry._locks["alpha"] is not registry._locks["beta"]
+        mock_client.paginate = AsyncMock(side_effect=slow)
+        tasks = [
+            _asyncio.create_task(registry.get_hosts(key=key_a)),
+            _asyncio.create_task(registry.get_hosts(key=key_b)),
+        ]
+        await _asyncio.sleep(0)
+
+        # One lock per cache entry while it is in use: (cache, key label, console id).
+        assert ("hosts", "alpha", "") in registry._locks
+        assert ("hosts", "beta", "") in registry._locks
+        assert registry._locks[("hosts", "alpha", "")] is not registry._locks[("hosts", "beta", "")]
+        release.set()
+        await _asyncio.gather(*tasks)
+        # Idle entries are reclaimed: the map does not grow with every label ever seen.
+        assert registry._locks == {}
 
     @pytest.mark.asyncio
-    async def test_default_label_gets_own_lock(self, registry):
-        await registry.get_hosts(key=None)
-        assert "__default__" in registry._locks
+    async def test_default_label_shares_first_configured_lock(self, registry):
+        named = APIKeyConfig(key="sk-default", label="default")
+        default_label = registry._key_label(None)
+        assert default_label == registry._key_label(named) == "default"
+        async with registry._entry_lock("hosts", default_label):
+            assert ("hosts", "default", "") in registry._locks
+            assert ("hosts", None, "") not in registry._locks
+        assert registry._locks == {}
 
     @pytest.mark.asyncio
     async def test_concurrent_reads_different_labels_do_not_serialize(self, registry, mock_client):
@@ -587,6 +870,41 @@ class TestResolveKeyForHost:
         assert result.label == "alpha"
 
     @pytest.mark.asyncio
+    async def test_selects_correct_key_by_display_name(self):
+        """Same identifiers as resolve_host_id, including reportedState.name."""
+        beta = [{"id": "host-b1", "reportedState": {"hostname": "b.local", "name": "Beta Site"}}]
+        client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": beta})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("beta site")
+        assert result is not None
+        assert result.label == "beta"
+
+    @pytest.mark.asyncio
+    async def test_null_fields_in_any_key_do_not_raise(self):
+        nulls = [{"id": "host-n1", "name": None, "reportedState": {"hostname": None}}]
+        client = _make_multikey_client({"alpha": nulls, "beta": _BETA_HOSTS})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("b.local")
+        assert result is not None and result.label == "beta"
+
+    @pytest.mark.asyncio
+    async def test_same_name_on_two_keys_is_ambiguous(self):
+        a = [{"id": "host-a1", "reportedState": {"hostname": "gw", "name": "HQ"}}]
+        b = [{"id": "host-b1", "reportedState": {"hostname": "gw2", "name": "HQ"}}]
+        client = _make_multikey_client({"alpha": a, "beta": b})
+        reg = Registry(client, ttl_seconds=900)
+        with pytest.raises(ValueError, match=r"ambiguous host 'HQ'.*host-a1.*host-b1"):
+            await reg.resolve_key_for_host("HQ")
+
+    @pytest.mark.asyncio
+    async def test_same_console_on_two_keys_is_not_ambiguous(self):
+        both = [{"id": "host-s1", "reportedState": {"hostname": "shared"}}]
+        client = _make_multikey_client({"alpha": both, "beta": both})
+        reg = Registry(client, ttl_seconds=900)
+        result = await reg.resolve_key_for_host("shared")
+        assert result is not None and result.label == "alpha"
+
+    @pytest.mark.asyncio
     async def test_single_key_short_circuits_without_api_calls(self):
         """The common case: one key means nothing to disambiguate, no host fan-out."""
         client = _make_multikey_client({"alpha": _ALPHA_HOSTS})
@@ -596,18 +914,37 @@ class TestResolveKeyForHost:
         client.paginate.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_no_match_returns_none(self):
+    async def test_no_match_fails_fast_listing_all_keys(self):
         client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
         reg = Registry(client, ttl_seconds=900)
-        result = await reg.resolve_key_for_host("host-does-not-exist")
-        assert result is None
+        with pytest.raises(ValueError) as exc:
+            await reg.resolve_key_for_host("host-does-not-exist")
+        msg = str(exc.value)
+        assert "a.local (Alpha-Router, host-a1)" in msg
+        assert "b.local (Beta-Switch, host-b1)" in msg
 
     @pytest.mark.asyncio
-    async def test_empty_input_returns_none(self):
+    async def test_no_match_names_keys_that_failed_to_list(self):
+        client = _make_multikey_client(
+            {"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS}, fail_labels=("beta",)
+        )
+        reg = Registry(client, ttl_seconds=900)
+        with pytest.raises(ValueError) as exc:
+            await reg.resolve_key_for_host("host-does-not-exist")
+        msg = str(exc.value)
+        assert "host-a1" in msg
+        assert "API key 'beta' could not list its consoles: HTTP 401" in msg
+
+    @pytest.mark.asyncio
+    async def test_malformed_input_is_rejected_before_any_request(self):
+        """An empty, whitespace-only or control-character host is a selector error, never
+        "no host" (which would route the call on the default key)."""
         client = _make_multikey_client({"alpha": _ALPHA_HOSTS, "beta": _BETA_HOSTS})
         reg = Registry(client, ttl_seconds=900)
-        assert await reg.resolve_key_for_host("") is None
-        assert await reg.resolve_key_for_host("   ") is None
+        for bad in ("", "   ", "host-b1\n", " host-b1"):
+            with pytest.raises(ValueError, match="'host'"):
+                await reg.resolve_key_for_host(bad)
+        client.paginate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_one_key_fails_others_still_resolve(self):
@@ -641,9 +978,71 @@ class TestResolveKeyForHost:
 
 
 class TestGetHostsPath:
-    """Pin the exact Site Manager hosts path the registry drains (#198/#192)."""
+    """Pin the exact Site Manager hosts path the registry drains."""
 
     @pytest.mark.asyncio
     async def test_get_hosts_calls_v1_path(self, registry, mock_client):
         await registry.get_hosts()
         mock_client.paginate.assert_called_once_with("/v1/hosts", key=None)
+
+
+def test_match_host_mac_forms_and_ambiguity() -> None:
+    from unifi_fabric.registry import match_host
+
+    hosts = [
+        {"id": "host-a", "reportedState": {"mac": "AA:BB:CC:DD:EE:01"}},
+        {"id": "host-b", "reportedState": {"hardware": {"mac": "aa-bb-cc-dd-ee-02"}}},
+    ]
+    for selector in ("aabbccddee01", "AA:BB:CC:DD:EE:01", "aa-bb-cc-dd-ee-01"):
+        assert match_host(hosts, selector)[1]["id"] == "host-a"
+    assert match_host(hosts, "aabbccddee02")[1]["id"] == "host-b"
+    with pytest.raises(ValueError, match="ambiguous host"):
+        match_host(
+            [*hosts, {"id": "host-c", "reportedState": {"mac": "aabbccddee01"}}], "aabbccddee01"
+        )
+
+
+@pytest.mark.parametrize(
+    ("host_id", "selector"),
+    [
+        # a composite id whose hex part is exactly the 12-digit MAC
+        ("001122334455:123456789", "00:11:22:33:44:55"),
+        # a longer composite id (30 hex digits) that starts with the MAC
+        ("0A0001000000000000000000ABCDEF:1", "0a:00:01:00:00:00"),
+        # a 64-hex-digit composite id that starts with the MAC
+        ("0A0001000002" + "0" * 52 + ":1234567890", "0a0001000002"),
+    ],
+)
+def test_match_host_mac_from_composite_id_without_reported_mac(host_id: str, selector: str) -> None:
+    from unifi_fabric.registry import match_host
+
+    hosts = [
+        {"id": host_id, "reportedState": {"hostname": "lab"}},
+        {"id": "AABBCCDDEEFF" + "1" * 52 + ":1", "reportedState": {"hostname": "other"}},
+    ]
+    found = match_host(hosts, selector)
+    assert found is not None and found[1]["id"] == host_id
+
+
+def test_match_host_composite_prefix_and_reported_mac_are_one_console() -> None:
+    from unifi_fabric.registry import _host_mac_values
+
+    host = {"id": "001122334455:1", "reportedState": {"mac": "00:11:22:33:44:55"}}
+    assert _host_mac_values(host) == ["001122334455"]
+
+
+def test_match_host_collapses_internal_whitespace_and_site_slug_fallback() -> None:
+    from unifi_fabric.registry import _match_proxy_site, match_host
+
+    assert (
+        match_host(
+            [{"id": "host-a", "reportedState": {"hostname": "Main   Office"}}], "main office"
+        )[1]["id"]
+        == "host-a"
+    )
+    site = {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "description": "Renamed",
+        "internalReference": "default",
+    }
+    assert _match_proxy_site([site], "default") is site

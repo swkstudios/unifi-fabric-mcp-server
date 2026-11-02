@@ -2,56 +2,71 @@
 
 # UniFi Fabric MCP Server
 
+<!-- mcp-name: io.github.swkstudios/unifi-fabric-mcp-server -->
+
 [![CI](https://github.com/swkstudios/unifi-fabric-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/swkstudios/unifi-fabric-mcp-server/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/unifi-fabric-mcp-server)](https://pypi.org/project/unifi-fabric-mcp-server/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://registry.modelcontextprotocol.io/?q=io.github.swkstudios%2Funifi-fabric-mcp-server)
 
-> **Cloud-first UniFi management for AI agents.** This server connects to the official UniFi Site Manager / Fabric cloud API (`api.ui.com`) — no direct controller access, SSH, or local network access required. Manage your entire UniFi fleet from anywhere through natural language.
+**Manage your entire UniFi network remotely from any AI assistant, through the UniFi Fabric API in Ubiquiti's cloud. Nothing to install on your network, no controller login.** 786 tools across Site Manager, Network, Protect, InnerSpace and more, read-only if you want.
 
-An MCP (Model Context Protocol) server that exposes the UniFi Site Manager API as tools for AI assistants. Built with [FastMCP](https://github.com/PrefectHQ/fastmcp), it lets Claude Code, Cline, and other MCP clients manage UniFi network infrastructure through natural language.
+![Demo: a Claude Code style session asks which sites have offline devices, previews a guest VLAN, shows a hallway camera snapshot and stream link, and diagnoses slow conference-room Wi-Fi, with both writes as dry-run previews](docs/assets/demo.gif)
+
+*Scripted replica of a Claude Code session: real MCP tool calls to this server against a mock UniFi API with synthetic data, writes in dry-run mode ([how it's made and how to reproduce it](scripts/demo/README.md)).*
+
+| How it connects | |
+|---|---|
+| Runs on | Your machine, with your own UniFi API key |
+| Talks to | The UniFi Fabric API in Ubiquiti's cloud (api.ui.com), and nothing else |
+| Needs | No SSH, no controller access, nothing on your LAN |
+
+By default the client sees 5 discovery meta-tools that reach every tool; see [Discovery mode](#discovery-mode-default).
+
+### Why this server
+
+- Remote management through the UniFi Fabric API in Ubiquiti's cloud.
+- 786 tools across Site Manager, Network, Protect, InnerSpace, Mobility and Carrier Fabric.
+- Discovery mode advertises 5 tools in about 5 KB while reaching the full catalog; full mode uses about 1454 KB.
+- Pass-through tools preserve upstream fields by default; projections and summaries are documented. Configured server secrets are masked and data-secret redaction is optional.
+- Choose read-only mode, dry-run previews, redaction and audit logging.
+- Every tool runs in CI against a simulated upstream.
+- Works with MCP clients and is MIT licensed. See [MSP setup and demos](docs/MSP.md).
+
+**Contents:** [Quick Start](#quick-start) · [Safety](#safety-controls-you-set) · [Read-only mode](#read-only-mode) · [Examples](#example-prompts) · [Clients](#set-up-your-client) · [Tools](#available-tools) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing)
 
 > **Disclaimer:** This project is not affiliated with, endorsed by, or sponsored by Ubiquiti Inc. UniFi is a trademark of Ubiquiti Inc.
 
-**Highlights:**
-
-- 283 tools across Fleet, Network, Firewall, Protect, VPN, InnerSpace, History, and more
-- Faithful pass-through — tools return complete upstream payloads including credential fields (WLAN passphrases, RADIUS secrets, API tokens), GPS coordinates, and Protect recognition data. The `include_secrets` and `include_gps` parameters have been removed; all fields are always returned. Callers upgrading from 0.4.x or earlier should drop those parameters.
-- Configurable authentication: `none` (loopback/dev) / `bearer` (LAN/VPN) / `oauth` (resource-server, JWT-verified via JWKS)
-- Configurable TLS: plain HTTP / in-server HTTPS (`https`) / mutual TLS (`mtls`)
-- Stdio transport for local use; `streamable-http` / `sse` for containerized deployments
-- Stateless, cloud-first design — connects to `api.ui.com` via the UniFi Site Manager API; no direct controller access required
-
-
-## Architecture
-
-```mermaid
-flowchart LR
-    A[AI Assistant<br/>MCP Client] -->|MCP protocol<br/>stdio / HTTP| B[UniFi Fabric<br/>MCP Server]
-    B -->|HTTPS<br/>API key auth| C[api.ui.com<br/>UniFi Site Manager]
-    C -->|Cloud Connector<br/>Proxy| D[UDM / UDR / UCG<br/>Consoles]
-    D --- E[Devices & Clients]
-    D --- F[Protect NVRs]
-```
-
-## What is MCP?
-
-**Model Context Protocol (MCP)** is an open standard that enables large language models (LLMs) and AI assistants to securely interact with external systems and tools. Instead of asking the AI to make manual API calls or describe steps, MCP allows the AI to:
-
-- Execute commands and operations directly in external systems
-- Query data and retrieve real-time information
-- Automate complex workflows through natural conversation
-
-This UniFi Fabric MCP server bridges UniFi's network management API with AI assistants, enabling you to control your network infrastructure through conversation.
-
-## Use Cases
-
-- **Network Operations**: Monitor fleet health, manage sites, and troubleshoot devices using natural language
-- **Security Management**: Create and update firewall policies, manage ACLs, and configure DNS policies without manual API calls
-- **MSP Operations**: Manage multiple UniFi consoles and organizations with a single AI interface
-- **Device Management**: Monitor and control cameras, sensors, and other Protect devices across your infrastructure
-- **Automation**: Build AI-powered workflows for routine network tasks and compliance audits
+The canonical console command is `unifi-fabric-mcp`. The MCP Registry also launches the
+equivalent `unifi-fabric-mcp-server` console alias, matching the PyPI package identifier.
 
 ## Quick Start
+
+1. [Get a UniFi API key](#get-your-api-key). Enable Site Manager and Network scopes at minimum, plus Protect for cameras.
+2. In Claude Code, run `/plugin marketplace add swkstudios/unifi-fabric-mcp-server` and then `/plugin install unifi-fabric@unifi-fabric`. The plugin requires [uv](https://docs.astral.sh/uv/) and prompts for the key.
+3. Ask: "List my UniFi sites and the devices in each one."
+
+### Choose your client
+
+Local stdio setups use [uv](https://docs.astral.sh/uv/); Docker deployments need Docker instead. Set `UNIFI_API_KEY` in your environment before using the CLI commands. Configuration files may store keys in plain text; keep them private.
+
+| Client or distribution | Setup |
+|---|---|
+| Claude Code plugin | `/plugin marketplace add swkstudios/unifi-fabric-mcp-server`, then `/plugin install unifi-fabric@unifi-fabric` |
+| Claude Code MCP | `claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp` |
+| Claude Desktop | [Download the .mcpb from the latest release](https://github.com/swkstudios/unifi-fabric-mcp-server/releases/latest) and double-click it; [details](#use-with-claude-desktop) |
+| Codex | `codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp` |
+| Antigravity CLI | `agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp`; [IDE setup](#use-with-google-antigravity) |
+| Gemini CLI | `gemini extensions install https://github.com/swkstudios/unifi-fabric-mcp-server` |
+| VS Code and Cursor | [Other client setup](#track-a--local-stdio) |
+| ChatGPT | [Self-hosted HTTPS and OAuth](#use-with-chatgpt-self-hosted) |
+| Other MCP clients | [stdio](#track-a--local-stdio) / [HTTP](#track-b--docker-http) |
+| uvx | `uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp` |
+| pipx | `pipx install unifi-fabric-mcp-server==0.7.0` |
+| pip | `pip install unifi-fabric-mcp-server==0.7.0` |
+| Docker | `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0`; [deployment](#docker-deployment) |
+| MCP Registry | [io.github.swkstudios/unifi-fabric-mcp-server](https://registry.modelcontextprotocol.io/?q=io.github.swkstudios%2Funifi-fabric-mcp-server) |
 
 ### Get Your API Key
 
@@ -63,84 +78,37 @@ This UniFi Fabric MCP server bridges UniFi's network management API with AI assi
 6. Under **Sites**, choose which sites the key can access (or select all)
 7. Copy the key immediately — it won't be shown again
 
-> **Note:** These are UniFi Site Manager API keys that authenticate against the cloud API (`api.ui.com`). Your consoles must be adopted to your UI.com account and connected to Ubiquiti's cloud for the key to discover them. See the [API Docs](https://developer.ui.com) for more details.
+> **Note:** These are UniFi Site Manager API keys that authenticate against the UniFi Fabric API in Ubiquiti's cloud (`api.ui.com`). Your consoles must be adopted to your UI.com account and connected to Ubiquiti's cloud for the key to discover them. See the [API Docs](https://developer.ui.com) for more details.
 
----
+<a id="safety-defaults"></a>
 
-### Track A — Local (stdio)
+## Safety controls you set
 
-Install and run the server locally. The MCP client launches it as a subprocess over stdio.
+**Always on:** Every read tool is marked read-only and every write tool is marked destructive, derived from code and checked by tests. Supporting clients can use these hints to distinguish reads from writes. Use your client permission settings to ask before a write. The server masks its own UniFi API key when UniFi echoes it, and in errors and logs. A dry-run preview can echo a key that the caller supplied in the request body. The optional `confirm` argument is accepted and ignored; it is not an approval control. In discovery mode, all writes go through `call_write_tool`; choosing "do not ask again" for it may approve every later write.
 
-**Requires Python 3.12+**
+Full access is the default because the server exists to manage your network. To start cautiously, turn on read-only mode first. These switches are opt-in and off by default; set them in the client server environment:
 
+| Setting | What it does |
+|---|---|
+| `UNIFI_READ_ONLY=1` | Hides write and action tools from the catalog and refuses them if called. See [Read-only mode](#read-only-mode). |
+| `UNIFI_REDACT_SECRETS=1` | Data secrets such as Wi-Fi passwords are returned as UniFi sends them unless this is on; it masks documented credential fields in responses. See [Credential redaction](docs/CONFIGURATION.md#credential-redaction). |
+| `UNIFI_DRY_RUN=1` | Returns a preview of every write instead of sending it. See [Dry-run](#dry-run-preview-for-all-writes-unifi_dry_run). |
+| `UNIFI_AUDIT_LOG=/path` | Appends one line per write attempt to a local file. See [Audit log](#optional-audit-log-unifi_audit_log). |
+
+## Read-only mode
+
+Set `UNIFI_READ_ONLY=1` to hide write and action tools and refuse calls before they reach UniFi. Reads remain available. Turn on the Claude Code plugin Read-only mode option, add the variable to a client configuration or pass `-e UNIFI_READ_ONLY=1` to Docker. Remove it or turn the plugin option off and restart to enable writes again.
+
+For example, with Claude Code:
+
+<!-- install-case: readme-install-01 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-01 -->
 ```bash
-git clone https://github.com/swkstudios/unifi-fabric-mcp-server.git
-cd unifi-fabric-mcp-server
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .          # -e is editable/dev mode; omit for a standard install
 export UNIFI_API_KEY="your-api-key-here"
-unifi-fabric-mcp
+claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" -e UNIFI_READ_ONLY=1 -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
 ```
 
-Add to `~/.claude/settings.json` or project `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "command": "unifi-fabric-mcp",
-      "env": { "UNIFI_API_KEY": "your-api-key-here" }
-    }
-  }
-}
-```
-
-> **PATH note:** The `"command": "unifi-fabric-mcp"` entry point only resolves if it is on the MCP client's `PATH`. Many MCP clients do not inherit the shell's virtual environment. Use the absolute path to the venv binary instead (e.g. `/path/to/.venv/bin/unifi-fabric-mcp`), or install globally with `pipx install .` or `uv tool install .`.
-
-**Verify it works:** When launched by the client the server exits immediately if `UNIFI_API_KEY` is absent or empty; an incorrect key will not prevent startup but will cause tool calls to fail with an authentication error. A successful start produces no output on stdio (the client communicates over stdin/stdout).
-
----
-
-### Track B — Docker (HTTP, Recommended)
-
-Run the server as a container. The MCP client connects over HTTP to the `/mcp` endpoint.
-
-```bash
-docker run -e UNIFI_API_KEY="your-api-key-here" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-```
-
-> **Tip:** `:0.6.1` pins to the last stable release. `:dev` is the moving alias for the current development build — it is updated by CI on every successful dev-branch push and is the fastest way to pull pre-release work. `:latest` and the short form `:X.Y` move **only** when a clean release tag (`vX.Y.Z`, no pre-release suffix) is published; they are never moved by a dev-branch push or a pre-release tag. For production deployments, pin by digest instead — see [Docker Deployment](#docker-deployment).
-
-Add to `~/.claude/settings.json` or project `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "http",
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-**Verify it works:**
-
-```bash
-curl -s -w "\nHTTP:%{http_code}\n" \
-  -X POST -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}' \
-  http://localhost:3000/mcp
-```
-
-`HTTP:200` on the last line confirms the server is up. The `data:` line above it will contain a JSON object with `"protocolVersion":"2024-11-05"`. (A bare GET to `/mcp` returns `400 Bad Request` on FastMCP 3.x — the streamable-http protocol requires a POST to open a session. Always use this POST form for smoke tests.) Then ask your AI assistant to run `list_hosts` to get live data from your UniFi console.
-
-See [`config/mcp-server.example.json`](config/mcp-server.example.json) for examples covering plain-HTTP, SSE, HTTPS, and bearer-auth client configurations, including environment-variable substitution forms (e.g. `${MCP_BEARER_TOKEN}`) for use in templated deployments.
-
-> **Network deployments:** The MCP server listens on plain HTTP. For non-localhost deployments, run behind a TLS-terminating reverse proxy (e.g., Traefik, Caddy, nginx).
-
----
+The command stores the key in Claude Code's MCP configuration in plain text; keep it private. See [read-only details](#read-only-mode-details) for accepted values, selection order and per-area flags.
 
 ## Example Prompts
 
@@ -172,124 +140,396 @@ How many clients are connected to each site right now?
 
 ### Sample Tool Output
 
-When you ask the MCP server a question, it executes tools and returns structured data. Here's an example of a fleet summary:
+When you ask the MCP server a question, it executes tools and returns structured data. Here is `get_fleet_summary` on a single console with one site and five devices (output from a sanitized recorded response; it returns counts only, no records):
 
 ```json
 {
-  "total_consoles": 3,
-  "total_sites": 7,
-  "total_devices": 42,
-  "total_clients": 157,
-  "device_status": {
-    "online": 38,
-    "offline": 3,
-    "adopting": 1
-  },
-  "sites": [
-    {
-      "site_name": "Main Office",
-      "device_count": 12,
-      "client_count": 65,
-      "health": "good"
+  "hosts": 1,
+  "sites": 1,
+  "devices": {
+    "total": 5,
+    "byStatus": {
+      "online": 5
     },
-    {
-      "site_name": "Branch 1",
-      "device_count": 15,
-      "client_count": 52,
-      "health": "good"
-    },
-    {
-      "site_name": "Branch 2",
-      "device_count": 10,
-      "client_count": 40,
-      "health": "degraded"
+    "byType": {
+      "protect": 3,
+      "network": 2
     }
-  ]
+  },
+  "_key_label": null
 }
 ```
 
-## Compatibility
+With several API keys configured, the summary also carries `_key_labels` (the labels of the keys that answered), `_keyTotals` (each answering key's share of the counts, summing to the totals), and `errors` for a key that failed; `incomplete` / `incompleteReason` appear when a list stopped at the opt-in `UNIFI_PAGINATE_MAX_PAGES` cap.
 
-This server integrates with the following UniFi components:
+## Set up your client
 
-| Component | Minimum Version | Tested Version | Tested OS |
-|-----------|-----------------|----------------|-----------|
-| Site Manager API | — | v1.0 | N/A |
-| Network | v10.0.0 | v10.6.94 | — |
-| Protect | v7.0.0 | v7.2.105 | — |
-| UDM Pro Hardware | — | — | OS 5.1.127 / Network 10.6.94 / Protect 7.2.105 |
+The [Quick Start](#choose-your-client) table links here. Every option runs the server on your own machine with your own UniFi API key; nothing goes through a hosted service, and requests go from your machine to `api.ui.com` only.
 
-For the latest component versions and hardware compatibility, see [developer.ui.com](https://developer.ui.com).
-## Tested against
+### Install as a Claude Code plugin
 
-The tool set was verified against a live deployment during a read-only sweep (124 of 283 tools invoked). The environment is a single-console, single-site home or small-office setup — not a multi-site or multi-organization estate. Operators managing many sites across multiple organizations should treat untested paths as unverified rather than broken.
+The [`plugins/claude/`](plugins/claude/) folder is a Claude Code plugin. It runs this server locally through `uvx` with the API key you enter when you enable it (kept in Claude Code's secure credential storage), and it has optional Read-only mode and Tool mode settings. Nothing goes through a hosted service: requests go from your machine to `api.ui.com` only. It works in Claude Code (terminal, IDE extensions and the desktop Code tab). Claude Desktop chat runs local servers configured through `claude_desktop_config.json`; see [Use with Claude Desktop](#use-with-claude-desktop). The claude.ai web and mobile chat clients do not run local MCP servers. See the [plugin README](plugins/claude/README.md) for what it runs, where data goes, and example prompts, and [PRIVACY.md](PRIVACY.md) for the privacy policy.
 
-| Component | Verified version (as of the most recent sweep) |
-|-----------|------------------------------------------------|
-| Console hardware | UniFi Dream Machine Pro |
-| UniFi OS | 5.1.127 |
-| Network application | 10.6.94 |
-| Protect application | 7.2.105 |
-| InnerSpace application | 1.3.23 |
-| Access application | not installed |
+Install it from this repository's marketplace (Claude Code 2.1.275 or later installs in one step):
 
-**Network infrastructure present during the sweep:** integrated gateway, 4 access points, 2 switches.
+<!-- install-case: readme-install-09 mode=plugin -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-09 -->
+```text
+/plugin marketplace add swkstudios/unifi-fabric-mcp-server
+/plugin install unifi-fabric@unifi-fabric
+```
 
-**Protect devices present during the sweep:** 6 cameras (UVC G4 Instant, UVC G5 Bullet, UVC G5 Dome, UVC G6 Instant); 4 door/window sensors (USL-Entry-US).
+Claude Code asks for your API key, Read-only mode and Tool mode (discovery by default) when you enable it. Or try it for one session from a checkout:
 
-**Face recognition:** active and populated without dedicated AI hardware. The UDM Pro runs recognition inference in software; a separate AI Port or AI Processor is not required for recognition to populate.
+<!-- install-case: readme-install-10 mode=plugin -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-10 -->
+```bash
+claude --plugin-dir ./plugins/claude
+```
 
-## Coverage and limitations
+Without the plugin, register the server directly with `claude mcp add` as shown in [Safety defaults](#safety-defaults) or [Track A](#track-a--local-stdio).
 
-**Tool coverage:** 124 of 283 tools were invoked live. The remaining 159 — covering create, update, delete, device restart, firmware upgrade, alarm-webhook, and the InnerSpace Integration-API read operations — were not called. These operations are irreversible or trigger physical effects (device reboots, alarm hardware, permanent microphone disable). Their code paths are exercised by unit tests in CI. If you want to verify a specific write tool before deploying, read the tool's docstring and test against a non-production console first.
+### Use with Claude Desktop
 
-**Read-only tools with no data:** Several read-only tools were called and returned empty results because the corresponding hardware or feature was not present in the test environment. This reflects a gap in the test environment, not a code defect. Readers with the following equipment should expect these tools to work:
+Claude Desktop chat runs local MCP servers from its config file (macOS and Windows; not claude.ai on the web or mobile). Open it with **Settings > Developer > Edit Config**:
 
-- **Switching:** LAGs, switch stacks, and MC-LAG domains
-- **Network services:** DNS policies, traffic routes, traffic rules, and traffic matching lists
-- **Identity and access:** dynamic DNS, RADIUS profiles
-- **Hotspot:** vouchers and billing packages
-- **VPN:** site-to-site tunnels
-- **Protect extras:** UniFi lights, chimes, viewers, and configured liveviews
-- **Protect alarm/arm & accessories (Integration API v7.1.87):** arm profiles (with active-profile selection and arm/disarm enable/disable), sirens, fobs, relays, speakers, bridges, link stations, alarm hubs, and Protect users — all reached through UniFi Fabric only (`…/proxy/protect/integration/v1/*`). Availability is firmware/application-version dependent (an unsupported family answers with an upstream 404/501, passed through). Write and physical-action tools honor the `UNIFI_PROTECT_MUTATIONS_ENABLED` env gate (default on); siren play/stop/test, speaker test, relay and alarm-hub output actions, arm enable/disable, and `delete_arm_profile` additionally require `confirm=true`, POS ingestion carries a separate confirmation boundary plus an `externalId` idempotency key and is never auto-retried, and settings writes read-before, skip on no-op, and read-after to verify. Also added: Protect application metadata (`get_protect_application_info` → `/v1/meta/info`) and the ULP (UniFi account) user directory (`list_ulp_users`/`get_ulp_user` → `/v1/ulp-users`), distinct from Protect users. The documented Protect WebSocket subscriptions (`/v1/subscribe/devices`, `/v1/subscribe/events`) are intentionally NOT wrapped — a unary MCP tool cannot model a streaming subscription; that needs an approved streaming design first.
-- **InnerSpace:** the application is installed and running on this console with an active floor-plan project. All eight InnerSpace read tools were live-verified 2026-08-09 against the documented Integration API (`…/proxy/innerspace/integration/v1/*`) and returned real project geometry — placed devices, shaped floor plans, and plan assets all round-trip correctly. (An earlier probe during the same session returned HTTP 403 for the `innerspace` connector namespace; the root cause was that UniFi deprecated the legacy `/proxy/innerspace/api/*` relay when it formalized the documented `/proxy/innerspace/integration/v1/*` path — switching to the documented path resolved the 403.)
-- **Access:** the application is not installed on this console; Access tools return an error for this reason
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-**Deployment matrix:** stdio, streamable-http, and SSE transports were verified end-to-end. Bearer-token auth on both plain HTTP and HTTPS was verified. mTLS was verified as the live production transport for the canonical deployment.
+<!-- install-case: readme-install-11 mode=desktop -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-11 -->
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "/absolute/path/to/uvx",
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.0", "unifi-fabric-mcp"],
+      "env": { "UNIFI_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
 
-**OAuth:** End-to-end OAuth flow requires a running external identity provider and could not be exercised in this environment. The fail-closed startup behavior — the server refuses to start when required OAuth parameters are missing — is covered by unit tests in CI. See [docs/AUTH-OAUTH.md](docs/AUTH-OAUTH.md) for deployment guidance.
+Replace `/absolute/path/to/uvx` with the output of `which uvx` (macOS) or `where uvx` (Windows): an app started from the Dock or Start menu may not see `~/.local/bin` or other shell `PATH` entries. Add `"UNIFI_READ_ONLY": "1"` to `env` to hide and refuse every write and action tool. Then quit Claude Desktop completely and start it again. The key sits in this file in plain text, so keep the file private.
 
-**Multi-key MSP:** The single-key path (`UNIFI_API_KEY`) was fully exercised live. Per-host tools (any tool that accepts a `host` parameter) resolve the API key that owns the target console and route the request on that key, so a console owned by any configured key — not only the first — is reachable; this ownership routing is covered by unit tests. Aggregate tools (`list_hosts`, `list_sites`, `list_all_sites_aggregated`) iterate all keys. See [Multi-key MSP setup](#multi-key-msp-setup).
+On macOS or Windows you can instead install the Claude Desktop extension bundle (`.mcpb`), built from [`plugins/claude-desktop/`](plugins/claude-desktop/): Claude Desktop asks for the key at install time and keeps it in its secure storage. See the [bundle README](plugins/claude-desktop/README.md).
 
+### Use with OpenAI Codex
 
+The Codex CLI, the Codex IDE extension and the ChatGPT desktop app share `~/.codex/config.toml`, so one setup serves all three. ChatGPT on the web cannot start local servers; see [Use with ChatGPT (self-hosted)](#use-with-chatgpt-self-hosted).
+
+**Recommended: forward the key from your environment (nothing stored).** Add this to `~/.codex/config.toml`:
+
+<!-- install-case: readme-install-12 mode=codex -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-12 -->
+```toml
+[mcp_servers.unifi-fabric]
+command = "uvx"
+args = ["--from", "unifi-fabric-mcp-server==0.7.0", "unifi-fabric-mcp"]
+env_vars = ["UNIFI_API_KEY", "UNIFI_READ_ONLY"]   # forwarded from the environment Codex starts in
+```
+
+Then start Codex from a shell that has the key (the `read` keeps it out of your shell history):
+
+<!-- install-case: readme-install-13 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-13 -->
+```bash
+printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
+export UNIFI_READ_ONLY=1   # optional: read-only mode
+codex
+```
+
+**One-liner (stores the key in `config.toml` in plain text):**
+
+<!-- install-case: readme-install-14 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-14 -->
+```bash
+printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo
+codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
+```
+
+Add `--env UNIFI_READ_ONLY=1` for read-only mode. `codex mcp list` shows the server.
+
+**ChatGPT desktop app:** it reads the same `config.toml`, and its servers are listed under **Settings > MCP servers** (**Add server** for a new one, then **Restart**). An app started from the Dock or Finder does not see variables exported in a terminal, so `env_vars` forwarding only works when Codex starts from a shell; for the desktop app, give the key with the one-liner above (or an `env = { UNIFI_API_KEY = "your-api-key-here" }` line in the `[mcp_servers.unifi-fabric]` table).
+
+**Codex plugin:** this repository is also a Codex plugin marketplace ([`plugins/codex/`](plugins/codex/)). The plugin stores no key; it forwards `UNIFI_API_KEY`, `UNIFI_READ_ONLY` and `UNIFI_TOOL_MODE` from the environment Codex starts in:
+
+<!-- install-case: readme-install-15 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-15 -->
+```bash
+codex plugin marketplace add swkstudios/unifi-fabric-mcp-server
+codex plugin add unifi-fabric@unifi-fabric
+```
+
+With no key in the environment the server exits at startup and Codex lists no unifi-fabric tools; a wrong key returns the upstream `HTTP 401` on the first tool call.
+
+### Use with Google Antigravity
+
+Antigravity starts local servers with the environment of the shell that started `agy`, and it does not expand `${VAR}` in `env` values. Keep the key out of config files by exporting it before you start `agy`:
+
+<!-- install-case: readme-install-16 mode=antigravity -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-16 -->
+```bash
+printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
+export UNIFI_READ_ONLY=1   # optional: read-only mode
+agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
+agy
+```
+
+Or install the plugin from a checkout of this repository; it uses the same exported key:
+
+<!-- install-case: readme-install-17 mode=antigravity -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-17 -->
+```bash
+agy plugin install ./plugins/antigravity
+```
+
+Antigravity 2.0 and the Antigravity IDE read the same `~/.gemini/config`, but when started from the Dock they do not see variables exported in a terminal. For them, store the key in the config instead (in plain text, in `~/.gemini/config/mcp_config.json`):
+
+<!-- install-case: readme-install-18 mode=antigravity -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-18 -->
+```bash
+agy mcp add --env UNIFI_API_KEY="$UNIFI_API_KEY" unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
+```
+
+Without a key the server exits at startup and Antigravity lists no unifi-fabric tools; a wrong key returns the upstream `HTTP 401` on the first tool call. See the [plugin README](plugins/antigravity/README.md).
+
+### Use with Gemini CLI
+
+Google replaced the consumer Gemini CLI with Antigravity; Gemini CLI remains available to Enterprise and API-key users. This repository's root [`gemini-extension.json`](gemini-extension.json) makes it a Gemini CLI extension that prompts at install time for your API key (stored in the system keychain) and the optional Read-only mode and Tool mode settings:
+
+<!-- install-case: readme-install-19 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-19 -->
+```bash
+gemini extensions install https://github.com/swkstudios/unifi-fabric-mcp-server
+```
+
+We have checked the manifest against the [extension reference](https://geminicli.com/docs/extensions/reference/) but have not run it in Gemini CLI. Antigravity's `agy plugin import` also reads this manifest.
+
+### Use with ChatGPT (self-hosted)
+
+ChatGPT on the web and in its apps only connects to remote MCP servers over HTTPS, signed in with OAuth 2.1; it cannot start a local server or send an API key. You can still use this server with ChatGPT by hosting **your own** instance in OAuth mode behind your own identity provider and adding it as a custom MCP server. Never put this write-capable server on a public URL without authentication. The [self-hosted ChatGPT guide](docs/CHATGPT.md) has the prerequisites, steps, a known limitation and a security checklist; that setup has not been tested end to end with ChatGPT.
+
+A listing in the ChatGPT app directory would need a hosted service run by us. We do not run one, so there is no directory listing.
+
+### Track A — Local (stdio)
+
+Install from PyPI and run the server locally. The MCP client launches it as a subprocess over stdio. **Requires Python 3.12+** (or [uv](https://docs.astral.sh/uv/), which fetches a suitable Python for you).
+
+<!-- install-case: readme-install-20 mode=uvx -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-20 -->
+<!-- docs-fact: run -->
+```bash
+export UNIFI_API_KEY="your-api-key-here"
+uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
+```
+
+Or install it once in an isolated environment:
+
+<!-- install-case: readme-install-21 mode=pipx -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-21 -->
+<!-- docs-fact: run -->
+```bash
+pipx install unifi-fabric-mcp-server==0.7.0
+unifi-fabric-mcp
+```
+
+Or use a virtual environment you manage:
+
+<!-- install-case: readme-install-22 mode=pip -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-22 -->
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install unifi-fabric-mcp-server==0.7.0
+.venv/bin/unifi-fabric-mcp
+```
+
+For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use). To register the server for all your projects, use `claude mcp add --scope user unifi-fabric -e UNIFI_API_KEY=… -- uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp`; Claude Code stores that configuration in `~/.claude.json`. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp).
+
+<!-- install-case: readme-install-23 mode=desktop -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-23 -->
+```json
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "uvx",
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.0", "unifi-fabric-mcp"],
+      "env": { "UNIFI_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+If you installed with `pipx` or `pip` instead, use `"command": "unifi-fabric-mcp"` and omit `args`.
+
+> **PATH note:** A bare `"command": "unifi-fabric-mcp"` only resolves if it is on the MCP client's `PATH`. Many MCP clients do not inherit the shell's virtual environment. Use `uvx` as above, the absolute path to the installed binary (for example `/path/to/.venv/bin/unifi-fabric-mcp`), or install globally with `pipx install unifi-fabric-mcp-server==0.7.0` or `uv tool install unifi-fabric-mcp-server==0.7.0`.
+
+**Homebrew:** a Homebrew formula is planned, but there is no tap yet; follow [issue #24](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/24).
+
+**Verify it works:** When launched by the client the server exits immediately if `UNIFI_API_KEY` is absent or empty; an incorrect key will not prevent startup but will cause tool calls to fail with an authentication error. A successful start produces no output on stdio (the client communicates over stdin/stdout).
+
+### Track B — Docker (HTTP)
+
+See [Docker HTTP setup and verification](docs/DOCKER.md#track-b-docker-http).
+
+<a id="unauthenticated-http-trusted-network-only"></a>
+
+### Track C — From source (development)
+
+<!-- install-case: readme-install-28 mode=source -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-28 -->
+```bash
+git clone https://github.com/swkstudios/unifi-fabric-mcp-server.git
+cd unifi-fabric-mcp-server
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .          # -e is editable/dev mode
+export UNIFI_API_KEY="your-api-key-here"
+unifi-fabric-mcp
+```
+
+## Agent skills
+
+The [`skills/`](skills/) folder holds six workflow skills: firewall zone and policy audit,
+network or VLAN change, device and client troubleshooting, Protect camera and event review,
+Wi-Fi radio change, and site health report. Each tells the agent which tools to call and in
+which order: reads first, the exact change shown to you, the tool's own dry-run preview where it
+has one, the write, then a read-back. The Claude Code plugin loads them; for Claude Desktop,
+Codex, Gemini CLI and Antigravity see [docs/AGENT-SKILLS.md](docs/AGENT-SKILLS.md).
+
+## About this server
+
+**What is UniFi Fabric?** Ubiquiti spells it "UniFi Fabrics" and describes it as: "UniFi Fabrics transforms Site Manager into a single control plane built for unlimited scale of sites and users." (Ubiquiti, [Introducing UniFi Fabrics](https://blog.ui.com/article/introducing-unifi-fabrics), 2026-01-12). Watch Ubiquiti's own video, [Introducing: UniFi Fabrics](https://www.youtube.com/watch?v=69g3O3Ltygw), or read [The New Site Manager - Now Official](https://blog.ui.com/article/officially-bringing-unifi-fabrics).
+
+This is an MCP (Model Context Protocol) server that exposes the UniFi Site Manager API as tools for AI assistants. Built with [FastMCP](https://github.com/PrefectHQ/fastmcp), it works with Claude Code, Codex, Antigravity, Gemini CLI, Cline and other MCP clients.
+
+**Highlights:**
+
+- 786 tools across Fleet, Network, Firewall, Protect, VPN, InnerSpace, History, and more
+- Faithful pass-through by default: tools return complete upstream payloads, including credential fields (WLAN passphrases, RADIUS secrets, API tokens), GPS coordinates, and Protect recognition data. The one change always made is that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are replaced by `***` wherever an upstream response echoes them. Mask credential fields with the opt-in `UNIFI_REDACT_SECRETS`, or refuse all writes with `UNIFI_READ_ONLY`
+- Configurable authentication: `none` (loopback/dev) / `bearer` (LAN/VPN) / `oauth` (resource-server, JWT-verified via JWKS)
+- Configurable TLS: plain HTTP / in-server HTTPS (`https`) / mutual TLS (`mtls`)
+- Stdio transport for local use; `streamable-http` / `sse` for containerized deployments
+- Stateless, cloud-first design — connects to `api.ui.com` via the UniFi Site Manager API; no direct controller access required
+
+### Architecture
+
+```mermaid
+flowchart LR
+    A[AI Assistant<br/>MCP Client] -->|MCP protocol<br/>stdio / HTTP| B[UniFi Fabric<br/>MCP Server]
+    B -->|HTTPS<br/>API key auth| C[api.ui.com<br/>UniFi Site Manager]
+    C -->|Cloud Connector<br/>Proxy| D[UDM / UDR / UCG<br/>Consoles]
+    D --- E[Devices & Clients]
+    D --- F[Protect NVRs]
+```
+
+### What is MCP?
+
+**Model Context Protocol (MCP)** is an open standard that enables large language models (LLMs) and AI assistants to securely interact with external systems and tools. Instead of asking the AI to make manual API calls or describe steps, MCP allows the AI to:
+
+- Execute commands and operations directly in external systems
+- Query data and retrieve real-time information
+- Automate complex workflows through natural conversation
+
+This UniFi Fabric MCP server bridges UniFi's network management API with AI assistants, enabling you to control your network infrastructure through conversation.
+
+### Use Cases
+
+- **Network Operations**: Monitor fleet health, manage sites, and troubleshoot devices using natural language
+- **Security Management**: Create and update firewall policies, manage ACLs, and configure DNS policies without manual API calls
+- **MSP Operations**: Manage multiple UniFi consoles and organizations with a single AI interface
+- **Device Management**: Monitor and control cameras, sensors, and other Protect devices across your infrastructure
+- **Automation**: Build AI-powered workflows for routine network tasks and compliance audits
+- **Placement snapshots**: Read a structured snapshot of console, device and floor-plan placement for maps and dashboards; see [Placement snapshots](#placement-snapshots).
+
+## Compatibility and coverage
+
+### Verification status
+
+<!-- verification-status:start -->
+| Evidence | Result |
+|---|---|
+| Every tool runs in CI against a simulated upstream | 786 tools |
+| Live-tested on a real console | 380 of 786 passed on build `cde04b5c1520`, 2026-10-28 |
+| Live write tools passed | 114 on that build and date |
+<!-- verification-status:end -->
+
+The live run also recorded failures and untested tools. Later focused tests exercised fixes on different builds; they do not constitute a new full sweep. See [coverage and limitations](docs/COVERAGE.md) for evidence and scope.
 
 ## Available Tools
 
-The server exposes **283 tools** organized by domain for managing UniFi infrastructure:
+The server exposes **786 tools** organized by domain for managing UniFi infrastructure. The following counts are domain tools available in full mode or through discovery search; discovery mode advertises meta-tools in `tools/list`.
 
-| Domain | Tool Count | Purpose |
+<!-- product-table:start -->
+| Product | Tools |
+|---|---:|
+| Site Manager and fleet | 19 |
+| Network | 484 |
+| Protect | 227 |
+| InnerSpace | 32 |
+| Mobility | 8 |
+| Carrier Fabric | 11 |
+| Generic connector relay | 5 |
+<!-- product-table:end -->
+
+<details>
+<summary>Show all domains</summary>
+
+| Domain | Domain tools available | Purpose |
 |--------|-----------|---------|
-| **Fleet & Aggregation** | 10 | Cross-console device/client search, fleet summary, host listing, configured API keys, site comparison |
-| **Site Management** | 8 | Site operations, health, inventory, system info, local-site listing |
-| **Network & VLAN** | 30 | Application info, sites, switching, VLANs, WiFi, WAN, port profiles, port-profile VLAN tagging |
-| **Device Management** | 21 | Device control, adoption, stats, actions, location, tagging, STP/port-state reads |
-| **Clients** | 8 | Client listing, stats, blocking, reconnection |
-| **Firewall** | 24 | Policies, zones, ACL rules, rule ordering |
-| **DNS & Traffic** | 24 | DNS policies, traffic rules, matching lists, routes, dynamic DNS, DPI app/category catalogue |
+| **Fleet & Aggregation** | 5 | Cross-console device and client listing and search, fleet summary, configured API keys |
+| **Site Manager** | 14 | Cloud Site Manager reads: hosts, sites, devices, ISP metrics queries, SD-WAN configs and status, cross-site health summary, site comparison, search and inventory |
+| **Site Management** | 3 | Site create, rename and delete |
+| **Network & VLAN** | 38 | Application info, local sites, networks and VLANs, LAGs and MC-LAG domains, switch stacks, WiFi broadcasts, WAN interfaces, port profiles (create, delete) and port-profile VLAN tagging, AP groups, Matter nodes (commission, rename, remove) and Thread networks |
+| **Controller Administration** | 17 | Controller backups and restore, site-configuration import, test email, remote access, SSO, own admin profile, system parameters, support files, firmware checks and cache |
+| **Insights & Diagnostics** | 45 | Controller and site dashboards, anomalies, warnings, observability, UPS, device models and fingerprints, SSL inspection, IPS signatures, system-log settings, packet capture, ping tests, IP and Thread topology |
+| **Switching, Power & Routing** | 40 | Energy-saving policies, PoE power supervisors, port history and MAC tables, wireless links, BGP and OSPF, global network settings, mDNS, VLAN planning, loop detection, MC-LAG and switch stacks |
+| **Wi-Fi & Radio** | 25 | WLAN configs and groups, channel plan, rogue APs, Radio AI, WiFi connectivity and stats, spectrum and quick scans, WiFiman settings, WAN-over-WiFi |
+| **Mobile & WAN** | 20 | LTE / 5G and eSIM management, APN profiles, SIM PIN, mobile data usage, WAN load balancing, WAN SLAs, gateway routes |
+| **ProAV, Sandbox & Digital Twin** | 18 | ProAV matrix, snapshots and groups, TV-wall calibration, Shadow Mode, test configurations, digital-twin layouts, 5G topology, multicast insights |
+| **Device Management** | 55 | Device control, adoption and forget, stats, actions, location, tagging, per-radio reads and updates, SSH sessions, switch-port and counter commands, config clone, PDU outlets, UPS and battery, replacement, rolling-upgrade planning |
+| **Clients & Guests** | 43 | Client listing, stats, blocking, reconnection, forgetting, names, notes, fixed-IP reservations, guest authorization and access, DHCP leases and options, client insights, traffic controls and hotspot settings, user (bandwidth) groups and client group assignment |
+| **NAT, QoS & Traffic Shaping** | 21 | NAT rules, QoS rules, content filters, traffic statistics and flows, application traffic rates, PoE info, topology snapshot |
+| **DNS & Traffic** | 31 | DNS policies, traffic rules, matching lists, routes, routing entries, static routes, dynamic DNS (create, delete), DPI app/category catalogue |
+| **Firewall** | 24 | Policies, zones, ACL rules, rule ordering, classic firewall rule and group reads |
+| **Network Policy & DPI** | 18 | Policy-engine rules, members groups, app blocks, previews, predefined policies, zone matrix, DPI reset |
 | **Port Forwarding** | 4 | List, create, update, delete port forwards |
-| **WLAN** | 6 | WLAN configs, groups, security settings |
-| **Protect** | 79 | Cameras, sensors, lights, chimes, liveviews, PTZ, snapshots, historical events, face/vehicle recognition, arm profiles, sirens, fobs, relays, speakers, bridges, link stations, alarm hubs, Protect users, ULP users, application metadata, POS overlay ingestion |
-| **VPN** | 12 | VPN servers, site-to-site tunnels, RADIUS profiles |
-| **Hotspot** | 11 | Voucher CRUD, operator management, billing packages |
-| **Settings & Monitoring** | 5 | Controller settings read/write, ISP metrics and WAN health queries |
-| **Utilities** | 6 | Country lookup, DHCP/client-alias reads and writes, RADIUS account reads |
-| **InnerSpace** | 8 | Project geometry/summary, placed devices, floor plans, placed APs/switches, unplaced inventory, plan asset download |
+| **VPN** | 42 | VPN servers, site-to-site tunnels, RADIUS profiles, VPN clients, static DNS records, DoH servers, IPsec, WireGuard users, Teleport invitations, site VPNs, RADIUS profile update and delete |
+| **Hotspot** | 11 | Voucher CRUD, operator management, billing package reads |
+| **Settings & Monitoring** | 5 | Controller settings read/write, scheduled-task reads |
+| **Utilities** | 10 | Country lookup, device tags, local user reads and updates, RADIUS account reads and writes |
+| **Protect** | 133 | Cameras, sensors, lights, chimes, liveviews, PTZ, snapshots, historical events, bounded-window live-stream collectors (events + device changes), arm profiles, sirens, fobs, relays, speakers, bridges, link stations, alarm hubs, Protect users, ULP users, application metadata, POS overlay ingestion, private camera zones/image/audio/recording/tracking, NVR settings, video/timelapse exports and device lifecycle |
+| **Protect Events & Cases** | 15 | Event details, event media, favorites, investigations (cases) and case assets, case export, temporary stream URLs |
+| **Protect Automation & Backup** | 21 | Automations and their history, notification receivers, backups and restore, cloud archive, UniFi Video import |
+| **Protect PTZ & Doorbell** | 17 | PTZ moves, presets and patrols, camera shortcuts, calibration, doorbell ringtone test and credential (NFC card, fingerprint) enrollment |
+| **Protect Recognition & Search** | 23 | Face/vehicle recognition groups (reads and writes), image recognition, detection search and statistics, AI false-positive reports |
+| **Protect Users & Assets** | 18 | Device tags, user groups, Protect users and notifications, device passwords, Protect files, ringtones and liveviews |
+| **InnerSpace** | 31 | Project geometry/summary, placed devices, floor plans, placed APs/switches, unplaced inventory, plan asset download, plan and project edits, doors, health, backups and support dumps |
 | **Mobility** | 8 | Workspace/admin/device/client reads and guarded device name / LAN-DHCP / wireless writes for UMR mobile routers |
 | **Carrier / ISP Fabric** | 11 | Org-scoped subscriber management (4 reads, 7 guarded writes); not testable against the maintainer's live hardware; hermetic/spec-conformance tested only |
 | **Connector Relay** | 5 | Guarded escape hatch to relay GET/POST/PUT/PATCH/DELETE to console routes without a typed wrapper |
-| **History** | 3 | Session history, bucketed traffic reports, full client roster (offline incl.) |
+| **Statistics, History & Logs** | 14 | Site and device statistics, client sessions and link diagnostics, historical stats, known clients, system log by class, network events, IPS/IDS threat events |
+| **Placement Snapshot** | 1 | Read-only bounded topology and placement snapshot for floor-plan and map consumers (`get_unifi_placement_snapshot`); runs with any connector-write setting |
 
-The domain groupings above are illustrative and each tool is counted once. For the full tool reference — including all 283 tool names, parameter tables, and descriptions — see [`docs/TOOLS.md`](docs/TOOLS.md). MCP clients can also query the server directly via the `tools/list` method.
+
+</details>
+
+The domain groupings above are illustrative and each tool is counted once. For the full tool reference — including all 786 tool names, parameter tables, and descriptions — see [`docs/TOOLS.md`](docs/TOOLS.md). MCP clients can also query the server directly: `tools/list` lists every tool with `UNIFI_TOOL_MODE=full`; in the default discovery mode it lists the five meta-tools, and `search_tools` / `describe_tool` return the names and schemas ([Discovery mode](#discovery-mode-default)).
+
+Every tool parameter carries a description (in `tools/list` in full mode, or from `describe_tool` in discovery mode) that says where its value comes from (for example, firewall zone ids from `list_firewall_zones_proxy`) and whether it is a Network or a Protect id; write tools also document their request body (a spec-derived shape, or an explicit free-form note). Worked examples for the longer workflows are in [`docs/TOOL-USAGE.md`](docs/TOOL-USAGE.md). Read tools are annotated `readOnlyHint: true` and `destructiveHint: false`; every write, action, delete and connector-relay tool (including `fabric_connector_get`, which can reach a state-changing GET route) is annotated `readOnlyHint: false` and `destructiveHint: true` ([annotation semantics](docs/TOOL-USAGE.md#tool-annotations)).
+
+If a call is missing a required argument, passes an unknown one, or sends the wrong
+type, the error names each parameter, repeats its description, lists the valid
+parameters and shows the tool's example call (a tool whose description has none shows the
+shape of a call with its required arguments instead), for example:
+
+```text
+Invalid arguments for tool 'get_firewall_policy':
+- policy_id: missing required argument. Firewall policy UUID. Get it from list_firewall_policies (data[].id). ...
+Valid parameters: host (required), site (required), policy_id (required).
+Example call: {"host": "my-console", "site": "Default", "policy_id": "3fa85f64-..."}
+```
+
+Errors from the UniFi API itself are returned with their real request path and complete body. The server's own configured secrets are always replaced by `***` in them; credential fields are masked only under the opt-in [`UNIFI_REDACT_SECRETS`](docs/CONFIGURATION.md#credential-redaction).
 
 ### InnerSpace
 
@@ -304,44 +544,122 @@ InnerSpace is UniFi's spatial/floor-plan application. This server covers all six
 | `list_innerspace_access_points` | `/v1/access_points` | placed APs (position, mounting height, azimuth) |
 | `list_innerspace_switches` | `/v1/switches` | placed switches (position, status) |
 | `list_innerspace_inventory` | `/v1/inventory` | devices known to the project but not yet placed |
-| `get_innerspace_asset` | `/v1/assets/{planId}/{filename}` | floor-plan image, base64 inline under a 10 MiB cap (metadata + path otherwise) |
+| `get_innerspace_asset` | `/v1/assets/{planId}/{filename}` | floor-plan image, complete, base64 inline (no size cap; `metadata_only=true` returns the same keys with `image_base64: null`) |
 
-**Known limitation:** `get_innerspace_asset` enforces its 10 MiB inline cap *after* the HTTP client has buffered the full response body into memory, so the cap bounds the base64 payload returned to the caller but not peak download RAM. A future streaming download with a running byte-count would abort an oversized asset mid-transfer; it is not implemented yet.
+**Note:** `get_innerspace_asset` returns the whole asset in one response (the base64 text is about 4/3 the image size). Use `metadata_only=true` to check `size_bytes` first if response size matters to your client.
 
-**The official Integration API is read-only** — it exposes no create/update/save endpoint. A probe of the legacy connector path returned HTTP 200 but did not persist changes (a non-persisting facade); no per-shape write route was found in either surface.
+**The official Integration API is read-only**: it exposes no create/update/save endpoint. Writes go through the internal `/proxy/innerspace/api` routes.
 
-This server therefore exposes **no InnerSpace write tool** — the InnerSpace surface here is read-only, matching the public API. Write support is gated on UniFi releasing an InnerSpace write API upstream; it will be added complete when that ships.
+The typed InnerSpace read tools use the public Integration API; `get_innerspace_project`, `get_innerspace_summary` and `list_innerspace_devices` fall back to the internal `/api/project` route when the connector refuses the integration route, and `get_innerspace_project` uses it when `user_email` or `site_id` is given. The internal-route tools add five reads (doors, stats, uCore manifest and status, health) and 18 write tools (plans, plan assets and maps, project, wall and attenuation types, shape transforms and imports, backup export and import, support dump, storage clean-up); `UNIFI_ENABLE_INNERSPACE_WRITE` governs them (enabled by default; set it to a false value to refuse them).
+
+### Placement snapshots
+
+Consume `get_unifi_placement_snapshot` for a bounded, 3D
+placement/topology snapshot suited to floor-plan, map, and dashboard consumers. It returns a **projection**, not whole upstream bodies (as the summary tools such as `get_fleet_summary` and `get_innerspace_summary` return server-computed counts rather than records): a read-only, closed `unifi.placement-snapshot/v1` field selection with provenance and a
+120-second freshness contract. Its strings are the upstream values verbatim, including
+device `mac` / `ip` and the floor-plan asset URLs. Withholding is opt-in: with
+`UNIFI_REDACT_SECRETS` on, URLs, IP / MAC addresses and credential-marker text are left
+out, counted under `_withheld`, and `_withheld_how_to_obtain` says where to read each
+value (with it off, `_withheld` is never present). Records schema v1 cannot represent
+are counted in either mode under `_unprojected`, with `_unprojected_how_to_obtain`
+naming the verbatim read tool. It runs with any connector-write setting (it never writes); a
+dedicated publisher deployment may still choose `UNIFI_ENABLE_CONNECTOR_WRITE=0`.
+For a scheduled publisher, `unifi-fabric-mcp placement-snapshot --host <console>` writes one
+snapshot as JSON to stdout. Before scheduling it, run
+`unifi-fabric-mcp placement-snapshot-preflight --host <console>`: it checks the four
+required logical capabilities through their existing GET-only collectors and reports
+each source capability name and a coarse outcome, plus the complete error text for a
+failed one; no successful response payload is included. Collector resolution or
+pagination can issue more than four HTTP requests; the gate is intentionally about
+complete source capability, not a fixed request count.
 
 ### Generic Fabric Connector Relay (guarded)
 
-Ubiquiti's official Network Cloud Connector (and the Site Manager v1.0.0 OpenAPI) document a generic method relay family — `GET | POST | PUT | PATCH | DELETE /v1/connector/consoles/{id}/*path` — that forwards a request through Fabric to a console's `/proxy/<path>` surface. Every typed tool in this server already rides that connector; the `fabric_connector_*` family exposes the relay **directly**, as a guarded escape hatch for a controller-supported route that has no typed wrapper yet (a per-device Classic REST config route, a legacy InnerSpace save route, etc.). Verb references: [Connector PUT](https://developer.ui.com/network/v10.3.58/connectorput), [Connector PATCH](https://developer.ui.com/network/v10.3.58/connectorpatch) (documented against Network app **v10.3.58**), and the Site Manager **v1.0.0** OpenAPI.
+Ubiquiti's official Network Cloud Connector (and the Site Manager v1.0.0 OpenAPI) document a generic method relay family — `GET | POST | PUT | PATCH | DELETE /v1/connector/consoles/{id}/*path` — that forwards a request through Fabric to a console's `/proxy/<path>` surface. The typed console tools (Network, Protect, InnerSpace) ride that connector. The Site Manager reads of hosts, sites, devices, ISP metrics and SD-WAN configs, and the Mobility and Carrier Fabric tools, call their `api.ui.com` cloud routes directly (`/v1/hosts`, `/v1/sites`, `/v1/devices`, `/v1/isp-metrics/...`, `/v1/sd-wan-configs`, `/v1/mobility/...`, `/v1/carrier/...`) without the connector. The `fabric_connector_*` family exposes the relay **directly**, as a guarded escape hatch for a controller-supported route that has no typed wrapper yet (a per-device Classic REST config route, a legacy InnerSpace save route, etc.). Verb references: [Connector PUT](https://developer.ui.com/network/v10.6.106/connectorput), [Connector PATCH](https://developer.ui.com/network/v10.6.106/connectorpatch) (documented against Network app **v10.6.106**), and the Site Manager **v1.0.0** OpenAPI.
 
 | Tool | Availability |
 |------|--------------|
-| `fabric_connector_get` | Always available (read; no `confirm`) |
-| `fabric_connector_post` | Mutation — requires `confirm=true` **and** `UNIFI_ENABLE_CONNECTOR_WRITE=1` |
-| `fabric_connector_put` | Mutation — requires `confirm=true` **and** `UNIFI_ENABLE_CONNECTOR_WRITE=1` |
-| `fabric_connector_patch` | Mutation — requires `confirm=true` **and** `UNIFI_ENABLE_CONNECTOR_WRITE=1` |
-| `fabric_connector_delete` | Mutation — requires `confirm=true` **and** `UNIFI_ENABLE_CONNECTOR_WRITE=1` |
+| `fabric_connector_get` | Read; available by default and under every write opt-out. A known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write: it follows the same opt-outs, read-only mode and dry-run as the mutation tools (no `confirm`) |
+| `fabric_connector_post` | Mutation — writes **enabled by default**; opt out with `UNIFI_ENABLE_CONNECTOR_WRITE=0`. `confirm` is accepted and ignored |
+| `fabric_connector_put` | Mutation — writes **enabled by default**; opt out with `UNIFI_ENABLE_CONNECTOR_WRITE=0`. `confirm` is accepted and ignored |
+| `fabric_connector_patch` | Mutation — writes **enabled by default**; opt out with `UNIFI_ENABLE_CONNECTOR_WRITE=0`. `confirm` is accepted and ignored |
+| `fabric_connector_delete` | Mutation — writes **enabled by default**; opt out with `UNIFI_ENABLE_CONNECTOR_WRITE=0`. `confirm` is accepted and ignored |
 
-**`path`** is the relay-relative application path *after* `/proxy/` — e.g. `network/integration/v1/sites`, `network/api/s/{site}/rest/device/{id}`, or `innerspace/api/shapes/{id}`. Use the `{site}` (slug) or `{site_id}` (UUID) placeholder for the site segment; the server resolves it through the Registry, so a raw host id, site value, or API key never appears on the tool surface.
+**`path`** is the relay-relative application path *after* `/proxy/` — e.g. `network/integration/v1/sites`, `network/api/s/{site}/rest/device/{id}`, or `innerspace/api/shapes/{id}`. Use the `{site}` (slug) or `{site_id}` (UUID) placeholder for the site segment; the server resolves the site through the Registry and substitutes its slug or UUID, and the result reports the path as sent, substituted site included, under `resolvedPath`. Like `path`, `resolvedPath` is relative to the console's `/proxy/`: the console id (resolved from `host`) and the API key are never part of either.
 
 Guards (all enforced, none optional):
 
 - **Registry-only identity** — `host` (name/id) resolves to the owning API key + host id; `{site}`/`{site_id}` are substituted from the Registry.
-- **Positive namespace allowlist** (broad, path hygiene not a capability cap): Network `integration/v1`, Network Classic `api/s/{site}/rest|cmd|stat`, Network `v2/api`, Protect `integration/v1` and `api`, InnerSpace `integration/v1` and `api`, Access `integration/v1` and `api`. Anything else is rejected.
-- **Positive-charset path validation** — `..`, `%`-encoding, control characters, `//` empty segments, and a URL scheme (`://`) are rejected before any network call.
-- **Mutation gating (fail-closed)** — GET is always available; the four mutating verbs need `confirm=true` **and** `UNIFI_ENABLE_CONNECTOR_WRITE`. Either missing → refused before the console is touched.
-- **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write, with diff-based no-op detection (`noOp: true` when a same-value write changes nothing).
+- **Route classes** (a route-to-area map, not a capability cap): Network `integration/v1`, Network Classic `api/s/{site}/rest|cmd|stat` (and every other Classic route), Network `v2/api`, Protect `integration/v1` and `api`, InnerSpace `integration/v1` and `api`, Access `integration/v1` and `api` each map to a `routeClass`, so a per-area write opt-out binds the relay as it binds that area's typed tools. Any other valid path (for example `talk/...`, `connect/...`, `drive/...`) relays with `routeClass: "unclassified"`: a GET always, and a mutation unless a per-area write opt-out (`UNIFI_ENABLE_NETWORK_WRITE`, `UNIFI_PROTECT_MUTATIONS_ENABLED`, `UNIFI_ENABLE_MOBILITY_WRITE`, `UNIFI_ENABLE_CARRIER_FABRIC_WRITE`, `UNIFI_ENABLE_INNERSPACE_WRITE`) is active. Its area cannot be proven, so while one is set the mutation is refused, naming the active variable(s).
+- **Positive-charset path validation** — `..`, `%`-encoding, backslash, whitespace, control characters, `//` empty segments, and a URL scheme (`://`) are rejected before any network call.
+- **Mutation gating (read + write on by default)** — an ordinary GET read is always available. A known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write: `UNIFI_ENABLE_CONNECTOR_WRITE`, the Protect opt-out, `UNIFI_READ_ONLY` and `UNIFI_DRY_RUN` apply to it as to a mutation, and it is sent once. Connector writes are **enabled by default**; a deployment opts out by setting `UNIFI_ENABLE_CONNECTOR_WRITE=0` (see [Enabling / disabling connector writes](#enabling--disabling-connector-writes)). When opted out, a mutation is refused before the console is touched. The `confirm` argument is accepted for compatibility but is ignored.
+- **Area opt-outs apply to the relay** — a relayed mutation on a `network/` route is refused before the console is touched when `UNIFI_ENABLE_NETWORK_WRITE` opts Network out, one on a `protect/` route when `UNIFI_PROTECT_MUTATIONS_ENABLED` opts Protect out, and one on an `innerspace/` route when `UNIFI_ENABLE_INNERSPACE_WRITE` opts InnerSpace out, exactly as the typed write tools of those areas are; the Mobility and Carrier Fabric opt-outs are honoured the same way for any relay route of their area (both live on Site Manager cloud routes the console relay does not reach). The refusal names the variable.
+- **No 429 auto-retry on a write** — a relayed POST/PUT/PATCH/DELETE is sent once and an HTTP 429 is raised with the upstream body (the server-wide retry rule: only a read via GET is retried; a relayed GET of a state-changing route, the Protect camera enable-control or disable-control, is sent once too), because the relay cannot tell a physical action (a siren, a relay output, a Classic `cmd`) from a settings write and a retry can repeat it. The read-before / read-after GETs keep the GET retry.
+- **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write (`readBefore` / `readAfter`), and the no-op verdict compares only what the write requests (`_no_op_verdict` in `src/unifi_fabric/tools/connector.py`). A PUT/PATCH with a JSON object body is `noOp: true` when the write and both reads answered 2xx and every leaf the body names holds the same value (type-strict) before and after; unrequested siblings never count, so an unchanged requested `enabled` beside a changed `updatedAt` is still `noOp: true`. A requested leaf that differs, appears or disappears is `noOp: false`; a requested leaf absent from both reads, or a read that is not one JSON object, is `noOp: null` with `noOpReason`. A body-less write, a non-object body, or an empty object (`{}`) falls back to comparing the two whole reads, so a change only to `updatedAt` makes an empty-object PATCH `noOp: false`. A Classic `rest/device/<_id>` write reads the site's `stat/device` list narrowed to that device and compares only the fields the body writes (`noOpBasis`). A DELETE is `noOp: false`, `changed: true` only when the read-after answers 404; one still readable afterwards is `noOp: null` ("deletion not confirmed"). `noOp` is null when it cannot be told (a rejected write, a failed or non-2xx read: `readAfterError`), and `changed` is present only beside a non-null `noOp`.
+- **Classic `meta.rc` errors** — a Classic route (`network/api/...`) reports its outcome in the body: HTTP 200 with `meta.rc` other than `"ok"` (e.g. `{"meta": {"rc": "error", "msg": "api.err.Invalid"}, "data": []}`) is a rejected request. The relay reports it the way it reports any upstream error status, without raising: `status` and `body` stay verbatim and the result gains `_classicRcError` (the reason, `meta.msg` included); the write then has no `noOp` / `changed` verdict. A `readBefore` / `readAfter` answered that way carries the same marker and never counts as a successful read.
 - **Scope guard** — an optional `scope` (`device` / `site` / `global`) is cross-checked against the path so a site-global setting route (e.g. `global_switch.stp_version`) cannot be driven by a device-scoped request.
-- **Credential redaction + audit** — credential-bearing fields in the relayed body are redacted before return/log; every mutation attempt is written to a structured audit line (console, site, method, path, confirm, outcome) that **never** contains the API key.
+- **Verbatim bodies + audit** — the relayed upstream body is returned unchanged, except that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` if the body echoes them (credential fields are masked only when the operator opts in with [`UNIFI_REDACT_SECRETS`](docs/CONFIGURATION.md#credential-redaction), which covers this relay like every tool); every relayed body carries the upstream `contentType`. JSON is returned decoded and any other text exactly as received (decoded in its declared charset, such as latin-1), under `body`. A **binary** body (a non-text Content-Type such as `image/jpeg` or `application/octet-stream`, or bytes that do not decode in the declared charset, UTF-8 when none) is returned the way the typed binary tools return bytes: complete, with no size cap, base64-encoded under `bodyBase64` with `sizeBytes`, and `body` null. The same applies to the write responses and to `readBefore` / `readAfter`. A 3xx is never followed: its response headers (`Location` included; credentials and cookies excluded) come back under `headers`, on the write and on `readBefore` / `readAfter`. Bodies are never logged; every mutation attempt is written to a structured audit line (console, site, method, path, confirm, outcome, status) that **never** contains the API key.
+- **Dry-run** — under `UNIFI_DRY_RUN` a relayed mutation is not sent: the result's `status` is `"dry_run"` (never an HTTP status) and `body` is the preview, and the audit line says `outcome=dry_run` with no status.
+
+#### Read-only mode details
+
+<details>
+<summary>Show technical details</summary>
+
+`UNIFI_READ_ONLY` is a single, global, opt-in switch that makes the whole server read-only. It is **off by default** — unset (or a false value) means read + write is on and behaviour is byte-identical to a build without the switch.
+
+1. **Default — writes ENABLED.** With the variable unset, every tool works as usual.
+2. **To enable read-only** — set the variable to a truthy value (`1`/`true`/`yes`/`on`/`t`/`y`, case-insensitive) in the environment of the process that starts the server:
+
+   - **Claude Code plugin:** turn on the plugin's **Read-only mode** option.
+   - **Other local (stdio) clients:** add `UNIFI_READ_ONLY` to the server's `env` block in the client configuration, or pass `-e UNIFI_READ_ONLY=1` to `claude mcp add` or `--env UNIFI_READ_ONLY=1` to `codex mcp add`. Antigravity reads it from the shell that starts the client; Codex does so only when the variable is listed in the server's `env_vars` (as in the [Codex setup](#use-with-openai-codex)).
+   - **Docker Compose:** set it in the service's `environment:` block, then recreate the container (if a sidecar shares this server's network namespace, restart the **whole compose group together**, as for the connector-write flag below), as in this service fragment:
+
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:5e8bcdf0f74c062cdd783f0630fd37548419f5b233c5a46c149c958657b996b3 support=0.7.0 citation=file:src/unifi_fabric/config.py@sha256:5e8bcdf0f74c062cdd783f0630fd37548419f5b233c5a46c149c958657b996b3 -->
+```yaml
+services:
+  unifi-fabric-mcp:
+    environment:
+      UNIFI_READ_ONLY: "1"   # hide and refuse every write/action tool; reads still work
+```
+
+3. **To return to read + write** — local install: unset `UNIFI_READ_ONLY` in the client config's `env` (or turn off the plugin's Read-only mode option) and restart the server; Docker: remove the variable or set it to a falsey value (`0`/`false`/`no`/`off`/`f`/`n`, case-insensitive), then recreate the container.
+
+When enabled, write/action tools are hidden from `tools/list` and from discovery search, descriptions and family counts at startup; a client that calls a hidden write by name still receives the audited read-only refusal. This includes the discovery `call_write_tool` dispatcher; the read discovery meta-tools stay available. Filters compose in order: tool-family allowlist, tool-family opt-out list, API-source disable list, read-only selection, then the per-area write opt-outs, using the tools' derived annotations. Every write/action tool across all areas — Network create/update/delete, device and client actions, Protect, the generic connector relay, Carrier Fabric, Mobility, port-profiles, and vouchers — is refused **before any upstream call**, and the refusal names the variable and its value, says where to unset it, and points back to this section. Read tools are unaffected, including the allowlisted read-POST queries (the Network v2 traffic-flows query, Classic `stat/session` and `stat/report`, and the ISP-metrics query) and the four Classic read commands (`cmd/firmware` with `list-available` or `list-cached`, `cmd/backup` with `list-backups`, `cmd/devmgr` with `speedtest-status`). A `fabric_connector_get` call to a known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write and is refused.
+
+This switch is **independent of** the per-area write flags (`UNIFI_ENABLE_CONNECTOR_WRITE`, `UNIFI_ENABLE_NETWORK_WRITE`, `UNIFI_ENABLE_CARRIER_FABRIC_WRITE`, `UNIFI_ENABLE_MOBILITY_WRITE`, `UNIFI_ENABLE_INNERSPACE_WRITE`, `UNIFI_PROTECT_MUTATIONS_ENABLED`): a write is refused if **either** read-only mode is on **or** the relevant area flag opts out. Read-only mode and an area opt-out both win over `UNIFI_DRY_RUN`: a refused write returns the refusal, never a dry-run preview.
+
+Accepted values (case-insensitive): unset / `0` / `false` / `no` / `off` / `f` / `n` → **read + write on**; `1` / `true` / `yes` / `on` / `t` / `y` → **read-only**. Any other value fails startup, naming the variable.
+
+</details>
+
+#### Enabling / disabling connector writes
+
+Connector writes and each area's writes are enabled by default.
+<!-- BEGIN GENERATED: write-switch-names -->
+The switches are `UNIFI_ENABLE_NETWORK_WRITE`, `UNIFI_PROTECT_MUTATIONS_ENABLED`, `UNIFI_ENABLE_MOBILITY_WRITE`, `UNIFI_ENABLE_CARRIER_FABRIC_WRITE`, `UNIFI_ENABLE_INNERSPACE_WRITE`, `UNIFI_ENABLE_CONNECTOR_WRITE`.
+<!-- END GENERATED -->
+To make one read-only, set it to `0` in the server's environment: the service's `environment:` block of the docker-compose file that deploys this server (then recreate the container, restarting the whole compose group if a sidecar shares its network namespace), or for a local install the client's server `env` block or a shell `export` before the client starts (Codex forwards only the variables listed in the server’s `env_vars`; the Codex plugin forwards `UNIFI_API_KEY`, `UNIFI_READ_ONLY` and `UNIFI_TOOL_MODE` only). At startup an opted-out area's write tools are hidden from `tools/list` and from discovery search, descriptions and family counts, so a client sees only tools it can call. A client that calls a hidden write by name still gets the refusal, which names the variable and its current value, and the refusal is audited. `confirm` is accepted and ignored. What each switch governs (including a `fabric_connector_get` of a state-changing route), the accepted spellings and an example: [docs/CONFIGURATION.md](docs/CONFIGURATION.md#write-switches).
+
+Each switch hides the write tools of its families: the Network switch covers `network`, `firewall`, `devices`, `clients`, `vpn`, `hotspot` and `statistics`, and the connector switch covers the relay's write tools and the typed tools it also governs (listed in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#write-switches)). Tool counts at 0.7.0 are the same in full mode and in discovery search:
+
+| Setting | Write tools hidden | Tools listed |
+|---|---:|---:|
+| none (default) | 0 | 786 |
+| `UNIFI_ENABLE_NETWORK_WRITE=0` | 283 | 503 |
+| `UNIFI_PROTECT_MUTATIONS_ENABLED=0` | 142 | 644 |
+| `UNIFI_ENABLE_MOBILITY_WRITE=0` | 3 | 783 |
+| `UNIFI_ENABLE_CARRIER_FABRIC_WRITE=0` | 7 | 779 |
+| `UNIFI_ENABLE_INNERSPACE_WRITE=0` | 18 | 768 |
+| `UNIFI_ENABLE_CONNECTOR_WRITE=0` | 19 | 767 |
+| `UNIFI_READ_ONLY=1` | 457 | 329 |
 
 A 4xx/5xx from the relay is returned as `status` (not raised), so an invalid-ID probe surfaces its own reachability status. Undocumented legacy routes remain **experimental** until persistence and rollback are proven against a live console.
 
 **Live decision-closing probe procedures** (documented; each is deferred to a maintenance window and is covered only by hermetic tests in this repo, never run live here):
 
 1. *InnerSpace save route.* `PATCH innerspace/api/shapes/00000000-0000-0000-0000-000000000000` with an empty/invalid body. Expect a 4xx (`400/404/405/422` = route/method reachability evidence). **A 200/204 is an immediate stop condition** — do not use a real shape ID and do not issue a collection create/delete. Only after the route + schema are confirmed: one low-stakes reversible shape update, read back, restore the exact original shape, verify persistence on a fresh read. A 401/403 on the legacy namespace is auth/namespace gating, not a write path.
-2. *Per-device STP/PoE config.* Read the target switch via `network/api/s/{site}/rest/device/{id}` (scope `device`), probe with the exact current value first (a same-value write → `noOp: true`), then change only that switch's STP priority (or a harmless empty-port field), read back via **both** the legacy `/rest/device` route and `/stat/device`, then restore the original value and verify. Global `global_switch.stp_version` is site-wide — the scope guard refuses it for a `device`-scoped request; keep it to a separately named site-wide path.
+2. *Per-device STP/PoE config.* Read the target switch via `network/api/s/{site}/rest/device/{id}` (scope `device`), probe with the exact current value first (a same-value write → `noOp: true`), then change only that switch's STP priority (or a harmless empty-port field), read back via `/stat/device` (the controller has no GET on `/rest/device`; the relay's own read-before/read-after use `stat/device` for this route), then restore the original value and verify. Global `global_switch.stp_version` is site-wide — the scope guard refuses it for a `device`-scoped request; keep it to a separately named site-wide path.
 
 ### Mobility
 
@@ -364,556 +682,293 @@ surfaces as the upstream error verbatim.
 | `update_mobility_device_network` | `PUT .../devices/{id}/network` | LAN/DHCP settings (guarded, partial) |
 | `update_mobility_device_wireless` | `PUT .../devices/{id}/wireless` | WiFi SSID + password (guarded) |
 
-The three `PUT` writes are guarded: read-before, no-op detection against observable
-device state, an explicit `confirm=true`, an environment write-gate
-(`UNIFI_ENABLE_MOBILITY_WRITE`, which is **gated off by default** pending live
-verification of the PUT replace-vs-merge semantics — issue #186; `confirm=true` remains
-independently required), and a read-after verification. The `network` endpoint is a documented *partial*
-update (only the fields you pass are applied). A `PUT` is never silently treated as a
-merge of unspecified fields.
+The three `PUT` writes are guarded: read-before, no-op detection against observable device state, an environment capability flag (`UNIFI_ENABLE_MOBILITY_WRITE`, **enabled by default**; set it to `0` for a read-only Mobility deployment), and a read-after verification. The `confirm` argument is accepted and ignored. The `network` endpoint is documented as a partial update and the tool sends only the fields you pass. The Mobility getting-started page describes PUT as full replacement, so if the console applies replacement, LAN/DHCP fields you did not send can be reset. The name and wireless writes send the full documented body.
 
-### Port profiles and VLAN auto-exclusion (D12)
+### Port profiles and VLAN auto-exclusion
 
-Switch port profiles reference networks by their internal `networkconf` id.
-`list_port_profiles`, `get_port_profile`, and `update_port_profile` resolve those
-ids to `{id, name, vlan}` objects (joined against `/rest/networkconf`) for the
-`excluded_networkconf_ids`, `native_networkconf_id`, and `voice_networkconf_id`
-fields, so a bare 24-hex id never hides which network it is.
+Creating a network makes UniFi silently exclude it from every custom-tagged port profile, which
+blackholes the new VLAN on those uplinks. `create_network` returns a `D12_AUTO_EXCLUSION` warning
+naming each profile, and `allow_network_on_port_profile` / `exclude_network_on_port_profile` fix or
+undo it. The full explanation and remediation are in
+[Tool usage details](docs/TOOL-USAGE.md#port-profiles-and-vlan-auto-exclusion).
 
-**The D12 auto-exclusion behavior:** when you create a new network, UniFi silently
-adds it to the `excluded_networkconf_ids` of every custom-tagged port profile
-(`tagged_vlan_mgmt: custom`). The new VLAN is then untagged on those uplinks and
-blackholed at the host — a guest ARP to the gateway fails — even though nothing
-looks wrong in the raw tool output. The UI "Tagged VLANs" list is *derived* (all
-VLAN networks minus native minus excluded); there is no separate tagged-list
-object to inspect.
+## Optional opt-in features
 
-**How this server surfaces and fixes it:**
+These settings are optional. Each one except discovery mode is off by default, and unset it
+changes nothing. Discovery mode is the default tool mode; set `UNIFI_TOOL_MODE=full` for the
+full catalog. All are configured through the `UNIFI_*` environment family, set in the environment of the process that starts the server (the client's server `env` block, a shell export, or a Compose service's `environment:` block). The YAML snippets below show the Compose form; set the same variable in your client's `env` block when you run the server with `uvx`.
 
-- `create_network` appends a `warnings` entry (code `D12_AUTO_EXCLUSION`) listing
-  every custom-tagged profile that auto-excluded the new network.
-- `allow_network_on_port_profile(host, site, profile_id, network_id)` atomically
-  fresh-reads the profile, removes the network from `excluded_networkconf_ids`,
-  PUTs, and returns the resulting derived tagged set with names — run it on each
-  profile named in the warning.
-- `exclude_network_on_port_profile(...)` is the inverse (untag a network from a
-  profile).
+### Tool-family allowlist (`UNIFI_TOOL_FAMILIES`)
 
-Remediation in short: create the network, read the `D12_AUTO_EXCLUSION` warning,
-call `allow_network_on_port_profile` for each named profile, then verify
-guest-to-gateway reachability.
+Some MCP clients cap how many tools a server may advertise, and some operators only use
+a subset of product areas. Set `UNIFI_TOOL_FAMILIES` to a list of families to advertise
+only those families, or `UNIFI_DISABLED_TOOL_FAMILIES` to a list of families to leave
+out; every other tool stays registered. The opt-out list is applied after the allowlist.
+Tools outside the selection are de-registered at startup (never removed from the
+implementation). **Unset (the default) registers every family** — no family is ever off
+by default. Separate names with commas and/or whitespace, in any letter case
+(`"network, protect"`, `"network protect"` and `"Network,PROTECT"` are the same).
+
+**Catalog size.** With every family registered, full mode advertises 786 tools and its
+`tools/list` response is roughly 1454 KB of JSON; default discovery mode advertises five meta-tools. In full mode every tool carries its full description
+and parameter docs; the 40 pinned-spec request bodies add their top-level fields and a
+compact outline of the nested ones (72,208 bytes of compact JSON in all). A client that loads
+the whole catalog into a model's context pays that cost on every session. Trimming to the families you use shrinks it
+proportionally, for example (0.7.0; the UTF-8 JSON-RPC response to `tools/list`, 1 KB = 1000 bytes):
+
+See [measured family catalog sizes](docs/CATALOG.md#family-sizes).
+
+```yaml
+    environment:
+      UNIFI_TOOL_FAMILIES: "network,protect"   # advertise only these families
+      # or: UNIFI_DISABLED_TOOL_FAMILIES: "protect innerspace"   # all but these
+```
+
+There are 13 families; `firewall` is assigned by route. The families, what each covers and their tool counts are listed in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#tool-families).
+
+An unknown name, including a family name from an earlier release, fails fast at startup with the list of the 13 valid families rather than silently advertising nothing.
+
+### Discovery mode (default)
+
+Discovery mode keeps the initial catalog small while retaining access to every selected domain tool. `UNIFI_TOOL_MODE=discovery` is the default. Set `UNIFI_TOOL_MODE=full` to advertise every domain tool with its complete description and input schema, preserving the previous tool surface. Discovery changes how clients find tools; no tool is removed or capped.
+
+| Meta-tool | What it returns or does |
+|---|---|
+| `search_tools(query, family?, writes?, limit?)` | Ranked matches over tool names, descriptions, parameter names and descriptions, with family synonyms. `limit` defaults to 10; pass any positive integer, or `null` for every match (there is no hard cap). `{"query":"","limit":null}` returns every enabled domain tool. Family and read/write filters narrow the results. |
+| `describe_tool(name)` | The exact MCP `tools/list` entry the named tool has in full mode (the tool schema itself, not wrapped), including descriptions, `inputSchema`, annotations and metadata. `annotations.readOnlyHint` is a tool-level default; a connector GET to a recognized state-changing route is classified and handled as a write at call time. |
+| `call_read_tool(name, arguments)` | Invoke a registered read tool; refuses write tools with instructions to use `call_write_tool`. Annotated read-only. |
+| `call_write_tool(name, arguments)` | Invoke a registered tool through the same middleware; annotated destructive-capable. |
+| `list_tool_families()` | Available families and their tool counts. The search tool description also includes a compact family catalog with counts. |
+
+`UNIFI_TOOL_FAMILIES` and `UNIFI_DISABLED_TOOL_FAMILIES` select available families before
+mode selection. Leave them unset to retain every family. With `UNIFI_READ_ONLY=1` or an
+area write opt-out, the hidden write tools are left out of search, descriptions and the
+family counts as well. Calls use the same registered functions and middleware, preserving
+validation, dry-run, per-area opt-outs, `UNIFI_READ_ONLY`, audit and secret scrubbing.
+The advertised `tools/list` is stable across connections.
+
+Claude Code and Codex already defer tool loading, so some users prefer `full` with their native discovery.
+Behind an MCP gateway, discovery registers the five meta-tools under the gateway's prefix (for example `<prefix>-search-tools`);
+the `name` inside each wrapper stays the raw tool name, such as `list_hosts`. Pin `full` when the gateway must register every
+domain tool individually (for example per-tool allow-lists). Empty or whitespace-only `UNIFI_TOOL_MODE` uses the default; invalid values fail startup with an error naming `UNIFI_TOOL_MODE` and the valid choices (`discovery`, `full`).
+
+To turn discovery off:
+
+```yaml
+    environment:
+      UNIFI_TOOL_MODE: "full"
+      # Optional: UNIFI_TOOL_FAMILIES: "network,protect"
+```
+
+1. Call `search_tools`, for example `{"query":"firewall policies","writes":false}`, or `{"query":"","limit":null}` for everything.
+2. Call `describe_tool` for the selected name and read its required arguments.
+3. Call `call_read_tool` with that name and arguments, for example
+   `{"name":"list_firewall_policies","arguments":{"host":"console.example","site":"default"}}`.
+   Use host/site choices returned by your own server. Use `call_write_tool` for writes.
+
+See [measured discovery and full catalog sizes](docs/CATALOG.md#mode-sizes).
+
+### API-source selection (`UNIFI_DISABLE_API_SOURCES`)
+
+Every tool is classified by the upstream API it calls, as `<app>/<source>/<access>`:
+the app (`network`, `protect`, `innerspace`, `site_manager`, `mobility`,
+`carrier_fabric`, `console`, `relay` for the generic connector relay, `server` for tools
+that make no upstream request), the source (`official` for a published Ubiquiti API, or a
+private surface of that app: `network/private.classic`, `network/private.v2`,
+`network/private.other`, `protect/private`, `innerspace/private`, `console/private`), and
+`read` or `write`. The class is derived from
+each tool's routes, carried in its `unifi/apiSource` metadata, and listed in
+[docs/TOOLS.md](docs/TOOLS.md#tools-by-api-source).
+
+Set `UNIFI_DISABLE_API_SOURCES` to comma-separated selectors to leave every covered tool
+unregistered. A selector can name any level: an app (`network`), an app's private group
+(`network/private`), one surface (`network/private.classic`), an access level within either
+(`network/private/write`, `protect/write`), or every app (`*/write`, `*/private`). A tool
+that calls a disabled private surface is disabled even when its own class is official.
+**Unset (the default) enables every source.** An unknown or repeated selector fails fast at
+startup and lists the valid values. `UNIFI_READ_ONLY` is separate and works as before.
+
+The generic `fabric_connector_*` tools are classified as `relay/generic`, can reach any
+route (including private APIs), and are not disabled by `*/private`. To disable these
+relays, select `relay` or `*/generic`. `*/read` and `relay/read` also remove `fabric_connector_get` (class `relay/generic/read`, the only GET relay), and `*/write` keeps it. A write selector (`*/write`, `protect/write`) therefore leaves the Protect camera `enable-control` and `disable-control` GET routes reachable through `fabric_connector_get`; to block them, use `UNIFI_READ_ONLY`, `UNIFI_ENABLE_CONNECTOR_WRITE=0` or the `relay` selector. API-source selection does not restrict the routes
+an enabled relay can reach. `*/local` selects tools that make no upstream request.
+
+```yaml
+    environment:
+      UNIFI_DISABLE_API_SOURCES: "network/private.classic,protect/private"
+```
+
+### Dry-run preview for all writes (`UNIFI_DRY_RUN`)
+
+Set `UNIFI_DRY_RUN` to a truthy value to make **every** write/action tool — across all
+product areas (network, Protect, hotspot, device management, clients, Carrier Fabric,
+Mobility, port profiles, settings, the connector relay, ...) — return a clearly-labeled
+preview (`status: "dry_run"`, `dryRun: true`, `sent: false`, with `preview: {method, path, params, body}`, where `params` is
+the query string the write would carry, or `null`) of the intended mutation and perform
+**no upstream write**. This
+is enforced at the shared HTTP chokepoint: a request is treated as a write when its method
+is PUT/PATCH/DELETE, when it is a GET to a known state-changing route (the Protect camera
+`enable-control` / `disable-control` routes), or when it is a POST other than the read-only
+POSTs, which still execute normally. The read-only POSTs are the four query routes on the
+read-POST allowlist (the Network v2 `.../v2/api/site/<site>/traffic-flows` query, the Network
+Classic `.../api/s/<site>/stat/session` and `.../stat/report/<interval>.<scope>` queries, and Site Manager
+`/v1/isp-metrics/{interval}/query`) and four Classic read commands, each a read only with
+exactly its one-field body: `.../cmd/firmware` with `{"cmd": "list-available"}` or
+`{"cmd": "list-cached"}`, `.../cmd/backup` with `{"cmd": "list-backups"}` and
+`.../cmd/devmgr` with `{"cmd": "speedtest-status"}`. Any other POST, a relayed POST
+included, is a write: previewed under dry-run and audited. Read-only mode and an area write opt-out win over dry-run: a refused write returns the refusal, not a preview. Default off: writes execute as usual and the request path is byte-identical.
+
+Tools that verify their write (`update_setting`'s silent-no-op check, the Protect, Mobility and Carrier Fabric read-before / write / read-after flows, and the connector relay's read-after) return the preview without verifying: nothing was written, so there is nothing to verify. `update_setting` returns the preview itself; the others return `status: "dry_run"` with the read-before (Protect `before`, Mobility `device`, Carrier Fabric `subscriber`) and the preview under `response`. The connector relay returns the preview under `body` and the read-before under `readBefore`. This holds when the change is already applied too: under dry-run the no-op short-circuit never stands in for the preview, so the result always shows what would be sent. A multipart upload (`upload_protect_file`) previews its parts under `preview.multipart` (`field`, `filename`, `contentType`, `sizeBytes`), never the file content.
+
+Preview credential masking is opt-in under `UNIFI_REDACT_SECRETS`. When enabled,
+credential-named fields in its `body` and `params` (`password`, `passphrase`,
+`x_passphrase`, `psk`, `x_psk`, `x_private_key`, `secret`, `token`, ... — the list in
+[Credential redaction](docs/CONFIGURATION.md#credential-redaction)) are shown as `***REDACTED***`.
+With the default setting off, the preview contains the caller's values unchanged except
+that configured server secrets are always replaced with `***`, including in the preview's
+path, body, query parameters and multipart metadata.
+(A bare `key` field is not masked: in Classic settings bodies it is the setting group's name.) The connector relay's dry-run result says
+`status: "dry_run"`, never an HTTP status.
+
+No dry-run result claims that a write happened. Delete tools return `{status: "dry_run",
+deleted: false, message, response}` (never `deleted: true`), Protect writes and actions
+return `status: "dry_run"` (never `created` / `triggered`), a multi-MAC `forget_device`
+returns `{status: "dry_run", byMac, errors}` with each MAC's preview (no `forgotten`), and
+the port-profile writes (`update_port_profile`, `allow_network_on_port_profile`,
+`exclude_network_on_port_profile`) return the bare preview with none of their additive
+keys and no follow-up read.
+
+```yaml
+    environment:
+      UNIFI_DRY_RUN: "1"   # preview every write, never execute them
+```
+
+### Optional audit log (`UNIFI_AUDIT_LOG`)
+
+Audit logging is best-effort: a file I/O failure warns and the call continues. Point `UNIFI_AUDIT_LOG` at a file path to append a structured record for **every write attempt** (all tools, via the same shared chokepoint): timestamp (UTC), HTTP method, resolved path, outcome and upstream status, plus `tool`, `resolvedHost`, `resolvedSite` and `duration_ms` when known. A write refused before it is sent is recorded as `outcome=refused`. Its `reason` names the gate (`UNIFI_READ_ONLY`, an area opt-out variable or `UNIFI_ENABLE_CONNECTOR_WRITE`, `empty_update` / `required_body_fields`), or for any other refusal (an argument check, an unknown id, relay validation) it is the refusal message. A refusal made before the request is resolved has no method or path (`-` in text, `null` in JSON). Other outcomes include `dry_run`, `error` and `rate_limited`. `UNIFI_AUDIT_LOG_FORMAT` selects `text` (default, key=value line) or `json` (one JSON object per line); any other value fails startup listing the two. **Unset (the default) writes no audit file.** The request body and the API key value are never recorded. Container deployments may use `UNIFI_AUDIT_LOG=/dev/stderr`; use a persistent writable directory when audit history must survive container replacement.
+
+```yaml
+    environment:
+      UNIFI_AUDIT_LOG: "/var/log/unifi-fabric/audit.log"
+      UNIFI_AUDIT_LOG_FORMAT: "json"
+```
+
+## Future and unsupported tools
+
+API surfaces that are deliberately absent from the current tool set, and why (single-site gateways,
+unavailable Classic routes, Access, the Protect WebSocket subscription) are listed in
+[docs/COVERAGE.md](docs/COVERAGE.md#future-and-unsupported-tools).
 
 ## Configuration
 
-### UniFi API Settings
+Everything is configured with environment variables, set in your client's server `env` block, a shell export, or a Docker or Compose `environment:` block. The full reference is [docs/CONFIGURATION.md](docs/CONFIGURATION.md); the settings most people touch:
 
-All UniFi-specific settings are loaded from environment variables with the `UNIFI_` prefix.
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `UNIFI_API_KEY` | Yes (if `UNIFI_API_KEYS` not set) | — | Single API key shorthand |
-| `UNIFI_API_KEYS` | No | — | JSON list of key configs for multi-console MSP setups |
-| `UNIFI_API_BASE_URL` | No | `https://api.ui.com` | UniFi Site Manager API base URL |
-| `UNIFI_CACHE_TTL_SECONDS` | No | `900` | TTL for host/site registry cache (seconds) |
-| `UNIFI_CACHE_MAX_HOSTS` | No | `512` | Max entries in the hosts TTLCache (bounds memory use) |
-| `UNIFI_CACHE_MAX_SITES` | No | `2048` | Max entries in the per-console sites TTLCache |
-| `UNIFI_MAX_CONCURRENCY` | No | `10` | Max concurrent outbound requests to api.ui.com |
-| `UNIFI_REQUEST_TIMEOUT_SECONDS` | No | `30` | HTTP request timeout in seconds |
-| `UNIFI_PAGINATE_MAX_PAGES` | No | `None` (unlimited) | Hard cap on pages drained per call. By default list tools drain all pages automatically; set this to limit drain depth. When the cap is hit the response includes `"incomplete": true` and `"incompleteReason"`. |
-| `UNIFI_LOG_LEVEL` | No | `INFO` | Logging verbosity. Accepts standard Python levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Logs go to stderr only — request/response bodies are never logged. |
-| `UNIFI_ENABLE_CONNECTOR_WRITE` | No | `false` | Enable the mutating generic connector relay (`fabric_connector_post/put/patch/delete`). Fail-closed: default OFF, and even when ON each mutation still requires `confirm=true` on the tool call. The GET relay (`fabric_connector_get`) is always available and is unaffected. See [Generic Fabric Connector Relay](#generic-fabric-connector-relay-guarded). |
-| `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` | No | `false` | Enable the guarded Carrier / ISP Fabric write tools (`create_carrier_subscriber`, `update_carrier_subscriber`, `attach/detach_carrier_subscriber_host`, `assign_carrier_subscriber_plan`, `suspend/resume_carrier_subscriber`). Fail-closed: default OFF; each write also requires `confirm=true`. Reads are always available. |
-| `UNIFI_ENABLE_MOBILITY_WRITE` | No | `false` | Enable the guarded Mobility write tools (`update_mobility_device_name`, `update_mobility_device_network`, `update_mobility_device_wireless`). Fail-closed: default OFF pending live verification of PUT replace-vs-merge semantics (#186); each write also requires `confirm=true`. Reads are always available. |
-| `UNIFI_PROTECT_MUTATIONS_ENABLED` | No | `true` | Deployment-level kill switch for all Protect mutation and physical-action tools. Default ON — set to `false` to disable all Protect writes and actions that `confirm=true` cannot override (settings writes, siren/speaker/relay/alarm-hub activations, arm enable/disable, profile deletion, POS ingestion). |
-
-### Transport Configuration
-
-The MCP server communicates with clients using the FastMCP transport protocol. By default, the Docker image uses `streamable-http`, but you can override this for different deployment scenarios.
-
-**`FASTMCP_TRANSPORT`**: Sets the communication protocol between the MCP server and clients.
-
-| Transport | Use Case | Port | Notes |
-|---|---|---|---|
-| `streamable-http` | Docker containers, HTTP load balancers, reverse proxies | `3000` | Default; recommended for containerized deployments |
-| `sse` | Server-sent events; browser clients, long-polling scenarios | `3000` | Stateful, requires connection persistence |
-| `stdio` | Process-to-process communication, local development | — | No network port; requires parent process stdin/stdout |
-
-#### Override Transport via Docker
-
-To use a different transport, override the environment variable at runtime:
-
-```bash
-# SSE transport
-docker run -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=sse -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-```
-
-MCP clients connect to the `/sse` endpoint — note the path differs from the streamable-http default (`/mcp`):
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "sse",
-      "url": "http://localhost:3000/sse"
-    }
-  }
-}
-```
-
-**Verify SSE is up:**
-
-```bash
-curl --max-time 3 -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/sse
-```
-
-A `200` printed on stdout confirms the server is listening. (The SSE stream stays open; `--max-time 3` disconnects after a few seconds — that is expected and normal.)
-
-```bash
-# Stdio transport
-docker run --no-healthcheck --rm -i -e UNIFI_API_KEY="your-api-key-here" -e FASTMCP_TRANSPORT=stdio ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-```
-
-With stdio transport the MCP client must **spawn** the container as a subprocess (analogous to Track A), not connect over HTTP. Pass `--rm -i` so the container receives stdin and is removed on exit. The corresponding client config uses `command`/`args`, not `type`/`url`:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i",
-               "-e", "UNIFI_API_KEY=your-api-key-here",
-               "-e", "FASTMCP_TRANSPORT=stdio",
-               "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1"]
-    }
-  }
-}
-```
-
-> **HEALTHCHECK note:** When `FASTMCP_TRANSPORT=stdio`, no port 3000 is bound. The Dockerfile's built-in TCP healthcheck will fail permanently. Pass `--no-healthcheck` to suppress the misleading `(unhealthy)` status: `docker run --no-healthcheck --rm -i ...`.
-
-#### Override Transport in Docker Compose
-
-```yaml
-services:
-  unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-    environment:
-      UNIFI_API_KEY: your-api-key-here
-      FASTMCP_TRANSPORT: sse  # or stdio
-    ports:
-      - "3000:3000"  # remove this entry when using stdio
-```
-
-**Note:** The server exposes port 3000 for `streamable-http` and `sse` transports. If using `stdio`, no port is exposed; the server communicates exclusively via stdin/stdout. When switching to `stdio`, remove the `ports:` mapping and disable the built-in TCP healthcheck (which will fail permanently when nothing binds port 3000) by adding:
-
-```yaml
-    healthcheck:
-      disable: true
-```
-
-### Bearer Token Authentication (Optional)
-
-Set `MCP_BEARER_TOKEN` to require all incoming MCP requests to include an `Authorization: Bearer <token>` header. Requests with a missing or incorrect token receive a 401 response.
-
-When unset (the default), the server runs without transport-layer authentication — the same behavior as previous versions.
-
-```bash
-# Docker
-docker run -e UNIFI_API_KEY="..." -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-
-# Docker Compose
-services:
-  unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-    environment:
-      UNIFI_API_KEY: your-api-key-here
-      MCP_BEARER_TOKEN: my-secret-token
-    ports:
-      - "3000:3000"
-```
-
-**Client configuration with bearer auth:**
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "http",
-      "url": "http://localhost:3000/mcp",
-      "headers": { "Authorization": "Bearer my-secret-token" }
-    }
-  }
-}
-```
-
-For `FASTMCP_TRANSPORT=sse`, use the `sse` client type pointing at the `/sse` endpoint with the same `Authorization` header:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "sse",
-      "url": "http://localhost:3000/sse",
-      "headers": { "Authorization": "Bearer my-secret-token" }
-    }
-  }
-}
-```
-
-This uses FastMCP's `StaticTokenVerifier` — a single shared-secret pattern designed for LAN/VPN deployments where network-level access control is already in place. It is not intended as a standalone security boundary for public-internet deployments; for public-internet use, see the OAuth mode below.
-
-#### Bearer + HTTPS (Recommended for LAN/VPN)
-
-Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=https` to add transport encryption on top of the shared-secret check — this is the recommended posture for private-network deployments:
-
-```bash
-# Docker — bearer auth with in-server HTTPS
-docker run \
-  -e UNIFI_API_KEY="your-api-key-here" \
-  -e MCP_BEARER_TOKEN="my-secret-token" \
-  -e MCP_TLS_MODE=https \
-  -e MCP_TLS_CERTFILE=/certs/cert.pem \
-  -e MCP_TLS_KEYFILE=/certs/key.pem \
-  -v /path/to/certs:/certs:ro \
-  -p 3000:3000 \
-  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-```
-
-```yaml
-# Docker Compose — bearer auth with in-server HTTPS
-services:
-  unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-    environment:
-      UNIFI_API_KEY: your-api-key-here
-      MCP_BEARER_TOKEN: my-secret-token
-      MCP_TLS_MODE: https
-      MCP_TLS_CERTFILE: /certs/cert.pem
-      MCP_TLS_KEYFILE: /certs/key.pem
-    volumes:
-      - /path/to/certs:/certs:ro
-    ports:
-      - "3000:3000"
-```
-
-**Client configuration for bearer + HTTPS** — the URL must use `https://`:
-
-`streamable-http` transport:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "http",
-      "url": "https://localhost:3000/mcp",
-      "headers": { "Authorization": "Bearer my-secret-token" }
-    }
-  }
-}
-```
-
-`sse` transport (`FASTMCP_TRANSPORT=sse`):
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "sse",
-      "url": "https://localhost:3000/sse",
-      "headers": { "Authorization": "Bearer my-secret-token" }
-    }
-  }
-}
-```
-
-See [`docs/TLS.md`](docs/TLS.md) for certificate generation and the HEALTHCHECK requirement when enabling in-server TLS.
-
-#### Bearer + mTLS (High-assurance internal)
-
-Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=mtls` for mutual transport identity on top of the shared-secret check. The server requires every client to present a certificate issued by your CA:
-
-```bash
-# Docker — bearer auth with mutual TLS
-docker run \
-  -e UNIFI_API_KEY="your-api-key-here" \
-  -e MCP_BEARER_TOKEN="my-secret-token" \
-  -e MCP_TLS_MODE=mtls \
-  -e MCP_TLS_CERTFILE=/certs/server-cert.pem \
-  -e MCP_TLS_KEYFILE=/certs/server-key.pem \
-  -e MCP_TLS_CA_CERTS=/certs/ca-cert.pem \
-  -v /path/to/certs:/certs:ro \
-  -p 3000:3000 \
-  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.1
-```
-
-Most MCP clients cannot present a client certificate directly. The recommended pattern is a TLS-terminating reverse proxy that presents the client certificate toward the server; downstream MCP clients connect to the proxy over standard HTTPS with the bearer token in the `Authorization` header:
-
-```json
-{
-  "mcpServers": {
-    "unifi-fabric": {
-      "type": "http",
-      "url": "https://proxy.example.com/mcp",
-      "headers": { "Authorization": "Bearer my-secret-token" }
-    }
-  }
-}
-```
-
-Replace `https://proxy.example.com/mcp` with the proxy's public HTTPS address. See [`docs/TLS.md`](docs/TLS.md) for the mTLS client configuration details and certificate generation.
-
-### Auth × TLS Deployment Matrix
-
-`MCP_BEARER_TOKEN` (above) is one mode of a broader auth/transport/TLS selector
-surface. The selectors live in the `MCP_*` namespace and apply to **HTTP
-transports only** — auth and TLS are rejected (fail-closed) when
-`FASTMCP_TRANSPORT` is `stdio`. Set `FASTMCP_TRANSPORT=streamable-http` (or `sse`)
-when enabling any of these.
-
-**Auth × TLS deployment grid**
-
-The table below summarises all supported combinations and where each is appropriate:
-
-| Auth mode | TLS mode | Posture / Use when |
-|-----------|----------|--------------------|
-| `none` | `none` | Local loopback / single-user dev only — see [SECURITY.md](.github/SECURITY.md) |
-| `none` | `https` | **Not recommended as-is** — only acceptable when a TLS-terminating proxy in front enforces authentication |
-| `none` | `mtls` | **Not recommended as-is** — transport-level peer identity but still no application-layer auth; set `MCP_AUTH_MODE` to `bearer` or `oauth` to add application-layer auth |
-| `bearer` | `none` | Trusted LAN (token travels in cleartext — secure at the network level) |
-| `bearer` | `https` | **Recommended for LAN/VPN** — shared-secret auth + transport encryption |
-| `bearer` | `mtls` | High-assurance internal — mutual transport identity + shared secret |
-| `oauth` | `none` | **Avoid** — tokens validated per-client but travel in cleartext; only tolerable behind a TLS-terminating proxy |
-| `oauth` | `https` | **Recommended for internet-exposed** — per-client JWT + transport encryption |
-| `oauth` | `mtls` | Zero-trust / multi-tenant — maximum assurance |
-
-All nine cells are supported. Configuration details are in the tables below and in
-[docs/AUTH-OAUTH.md](docs/AUTH-OAUTH.md) / [docs/TLS.md](docs/TLS.md).
-See [SECURITY.md](.github/SECURITY.md) for the full posture decision matrix including
-guidance on mTLS as a transport boundary.
-
-**Auth selectors**
-
-| Env var | Default | Description |
+| Variable | Default | What it does |
 |---|---|---|
-| `MCP_AUTH_MODE` | _(unset)_ | `none`, `bearer`, or `oauth`. Unset resolves to `bearer` when `MCP_BEARER_TOKEN` is set, else `none`. |
-| `MCP_BEARER_TOKEN` | `""` | Shared secret for `bearer` mode. |
-| `MCP_OAUTH_ISSUER` | `""` | OAuth issuer URL. Required for `oauth`. |
-| `MCP_OAUTH_JWKS_URI` | `""` | JWKS URI for signature verification. Required for `oauth`. |
-| `MCP_OAUTH_AUDIENCE` | `""` | Expected token audience. Required for `oauth`. |
-| `MCP_OAUTH_BASE_URL` | `""` | Public base URL of this resource server. Required for `oauth`. |
-| `MCP_OAUTH_REQUIRED_SCOPES` | `""` | Comma-separated scopes a token must carry. |
-| `MCP_OAUTH_ALGORITHM` | `RS256` | JWT signing algorithm to accept. |
-| `MCP_OAUTH_AUTHORIZATION_SERVERS` | _(issuer)_ | Comma-separated authorization-server URLs. Defaults to `[MCP_OAUTH_ISSUER]`. |
+| `UNIFI_API_KEY` | required unless `UNIFI_API_KEYS` is set | Your UniFi Site Manager API key ([Get Your API Key](#get-your-api-key)). |
+| `UNIFI_API_KEYS` | unset | JSON list of keys for multi-console MSP setups; when set, `UNIFI_API_KEY` is ignored ([Multi-key setup](docs/CONFIGURATION.md#multi-key-msp-setup)). |
+| `UNIFI_TOOL_MODE` | `discovery` | `discovery` advertises five meta-tools that search and call the domain tools; `full` advertises every tool ([details](#discovery-mode-default)). |
+| `UNIFI_READ_ONLY` | off | Hide write and action tools from the catalog and refuse them if called ([Read-only mode](#read-only-mode)). |
+| `UNIFI_REDACT_SECRETS` | off | Mask credential fields in responses ([details](docs/CONFIGURATION.md#credential-redaction)). |
+| `UNIFI_DRY_RUN` | off | Preview every write instead of sending it ([details](#dry-run-preview-for-all-writes-unifi_dry_run)). |
+| `UNIFI_AUDIT_LOG` | off | Append a record of every write attempt to a file ([details](#optional-audit-log-unifi_audit_log)). |
+| `UNIFI_TOOL_FAMILIES` | all | Advertise only some product families ([details](#tool-family-allowlist-unifi_tool_families)). |
+| `UNIFI_DISABLED_TOOL_FAMILIES` | none | Leave some product families out ([details](#tool-family-allowlist-unifi_tool_families)). |
+| `UNIFI_PAGINATE_MAX_PAGES` | unlimited | Cap how many pages a list call drains ([details](docs/PAGINATION.md)). |
+| `UNIFI_LOG_LEVEL` | `INFO` | Log verbosity (logs go to stderr only). |
+| `FASTMCP_TRANSPORT` | `stdio` locally, `streamable-http` in the image | `stdio`, `streamable-http` or `sse` ([transports](docs/CONFIGURATION.md#transport-configuration)). |
+| `MCP_AUTH_MODE` | unset: `bearer` if `MCP_BEARER_TOKEN` is set, otherwise no auth | HTTP transports: `bearer` (with `MCP_BEARER_TOKEN`) or `oauth` ([AUTH-TLS.md](docs/AUTH-TLS.md)). |
+| `MCP_BEARER_TOKEN` | unset | The shared token for `bearer` mode; generate it with `openssl rand -hex 32` ([Track B](#track-b--docker-http)). |
+| `MCP_ALLOWED_ORIGINS` | loopback and the `MCP_OAUTH_BASE_URL` origin | Comma-separated browser origins the HTTP transports also accept; any other `Origin` gets 403 ([details](docs/AUTH-TLS.md#host-and-origin-validation)). |
+| `MCP_ALLOWED_HOSTS` | unset | Comma-separated `Host` values accepted besides loopback; setting it checks `Host` on every bind address ([details](docs/AUTH-TLS.md#host-and-origin-validation)). |
+| `MCP_HOST_ORIGIN_PROTECTION` | on | `off` turns the Host and Origin checks off. |
+| `MCP_OAUTH_WRITE_SCOPE` | unset | `oauth` mode: the scope a token needs to call write tools ([details](docs/AUTH-OAUTH.md#scopes-and-write-access)). |
 
-**TLS selectors**
+HTTP deployments add authentication and TLS: [docs/AUTH-TLS.md](docs/AUTH-TLS.md) covers bearer tokens and the auth by TLS matrix, [docs/AUTH-OAUTH.md](docs/AUTH-OAUTH.md) the OAuth resource-server mode and [docs/TLS.md](docs/TLS.md) certificates and mTLS.
 
-| Env var | Default | Description |
-|---|---|---|
-| `MCP_TLS_MODE` | `none` | `none`, `https`, or `mtls`. |
-| `MCP_TLS_CERTFILE` | `""` | Server certificate path. Required for `https`/`mtls`. |
-| `MCP_TLS_KEYFILE` | `""` | Server private key path. Required for `https`/`mtls`. |
-| `MCP_TLS_CA_CERTS` | `""` | Client CA bundle for verifying client certs. Required for `mtls`. |
-| `MCP_TLS_KEY_PASSWORD` | `""` | Password for an encrypted private key. Optional. |
-| `MCP_TLS_CERT_REQS` | _(unset)_ | Client-cert verification level for `mtls`: `none`, `optional`, or `required`. |
+## Pagination, filtering and retries
 
-**Fail-closed validation:** `https`/`mtls` require a cert + key (`mtls` also a CA
-bundle); `oauth` requires issuer + JWKS URI + audience + base URL; `bearer` requires
-a non-empty `MCP_BEARER_TOKEN`; unknown enum values and `stdio` + auth/TLS are
-rejected at startup with a clear message.
-
-All auth modes (`none`, `bearer`, `oauth`) and TLS modes (`none`, `https`, `mtls`)
-are active and CI-tested. For OAuth setup see [`docs/AUTH-OAUTH.md`](docs/AUTH-OAUTH.md);
-for HTTPS / mTLS see [`docs/TLS.md`](docs/TLS.md).
-
-### Single key setup
-
-```bash
-export UNIFI_API_KEY="your-api-key-here"
-```
-
-### Multi-key MSP setup
-
-```bash
-export UNIFI_API_KEYS='[{"key": "key-a", "label": "org-east", "is_org_key": true}, {"key": "key-b", "label": "org-west"}]'
-```
-
-Organization keys (`is_org_key: true`) cover all sites under the org. Personal keys only access consoles owned by the key holder.
-
-> **Shell vs Docker env-file:** the single quotes above are correct for an interactive shell
-> or a script that uses `export`. If you store this value in a file consumed by Docker
-> (`--env-file` / `env_file:` in Compose), write the value **without surrounding quotes** —
-> Docker reads the file literally and passes the raw string to the container. Writing the
-> line with quotes in a Docker env file causes the literal quote characters to become part
-> of the value, which fails JSON parsing with a `SettingsError`. The same file cannot
-> serve both purposes without a wrapper: use the quoted form for shell, the unquoted form
-> for Docker.
-
-> **Per-host key routing:** Per-host operations (any tool that accepts a `host` parameter) resolve the API key that owns the target console and send the request on that key, so a console owned by any configured key in `UNIFI_API_KEYS` is reachable — not only one owned by the first key. `list_hosts`, `list_sites`, and `list_all_sites_aggregated` aggregate across every key. Single-key deployments are unaffected: with one configured key there is nothing to disambiguate and every request rides that key exactly as before. (The fleet-wide Site Manager query endpoints that take a list of `{hostId, siteId}` rather than a single `host` — e.g. `query_isp_metrics` — are scoped by the request body, not by per-host key routing.)
-
-## Pagination Behavior
-
-List tools return **all available results by default**. The server follows pagination
-automatically, draining every page before returning to the caller. For typical queries
-("list all sites", "list all clients") you receive a complete result set without any
-manual page handling.
-
-### Getting a single page
-
-To opt out of full-drain and receive exactly one page, supply explicit pagination
-parameters:
-
-- **Cursor-based tools** (those that return a `nextPageToken`): pass the prior
-  page token as `page_token=<value>`.
-- **Offset-based tools** (those that accept `offset` and `limit`): pass **both**
-  `offset=<n>` and `limit=<n>` together.
-
-Passing only one of `offset` or `limit` on an offset-based tool causes the server
-to drain from that starting position.
-
-### Partial results when a page cap is set
-
-When `UNIFI_PAGINATE_MAX_PAGES` is configured and the cap is reached before all
-results are collected, the response includes:
-
-```json
-{
-  "incomplete": true,
-  "incompleteReason": "page cap reached after N pages",
-  "data": [...]
-}
-```
-
-Check for `"incomplete": true` in results — when present, the data covers only a
-subset of what the API holds. Raise or remove the cap (the default is no cap) to
-retrieve the full dataset.
-
-Stall detection is always active regardless of the cap: the client raises an error if
-a page response returns the same continuation token twice or if a zero-result page
-arrives with an active token.
-
-### Server-side filtering
-
-Several Network Integration collection tools accept an optional `filter` argument:
-`list_networks`, `list_clients`, `list_site_devices`, `list_firewall_policies`, and
-`list_wifi_broadcasts` (alongside `list_local_sites`, `list_lags`, `list_mc_lag_domains`,
-and `list_switch_stacks`). The expression is forwarded **unchanged** to the upstream
-UniFi `filter` query parameter — the server implements no local filter language, so the
-controller evaluates the documented grammar and returns its own error for a malformed
-expression. Filtering is applied server-side in both full-drain and single-page modes,
-so a narrowed query returns a smaller `totalCount`/result set without draining the
-unfiltered collection first. When `filter` is omitted the parameter is not sent at all.
-
-```text
-list_networks(host="HQ", site="Default", filter="vlanId.eq(100)")
-list_clients(host="HQ", site="Default", filter="macAddress.eq('AA:BB:CC:DD:EE:FF')")
-list_site_devices(host="HQ", site="Default", filter="state.eq('ONLINE')")
-```
-
-See the [Network v10.3.58 OpenAPI](https://developer.ui.com/network/v10.3.58/openapi.json)
-for the filterable properties and grammar for each collection resource.
-
-## Retry & Backoff Behavior
-
-The MCP server automatically retries failed requests to handle transient failures and rate limits gracefully.
-
-### Rate Limit Handling (HTTP 429)
-
-When the UniFi API responds with HTTP 429 (Too Many Requests), the server retries with **exponential backoff + jitter**:
-
-- **Max retries**: 5 (6 total attempts)
-- **Backoff formula**: `delay = min(2^attempt, 32) + random_jitter`, where `attempt` is 0-based (0 for the sleep before the 2nd request, 1 before the 3rd, etc.)
-  - Attempt 1: immediate
-  - Attempt 2: 1-2 seconds (`2^0=1` + jitter 0-1)
-  - Attempt 3: 2-4 seconds (`2^1=2` + jitter 0-2)
-  - Attempt 4: 4-8 seconds (`2^2=4` + jitter 0-4)
-  - Attempt 5: 8-16 seconds (`2^3=8` + jitter 0-8)
-  - Attempt 6: 16-32 seconds (`2^4=16` + jitter 0-16)
-
-  > **Note:** With the default `max_retries=5` (6 total attempts), Attempt 6 is the final request. On a 429 at Attempt 6 the client raises `RateLimitError` immediately without sleeping. The highest sleep actually reached before exhaustion is therefore 16-32 seconds (the wait before Attempt 6, which is `base_delay=16` plus up to 16 seconds of jitter). The 32-second **base delay** cap requires `attempt>=5` and is only reachable if `max_retries` is increased beyond 5; however, the total sleep (base + jitter) already reaches 32 seconds with the default `max_retries=5` due to jitter.
-
-- **Jitter**: Uniform random(0, base_delay) added to avoid "thundering herd" — coordinated retries from multiple clients hitting the API at the same moment.
-
-After all retries are exhausted, a `RateLimitError` is raised. This is expected behavior when hitting API quotas; users should back off before retrying.
-
-### Network Errors (No Retry)
-
-The following errors are **not retried** and raise immediately:
-
-- **Timeout**: Request exceeds `UNIFI_REQUEST_TIMEOUT_SECONDS` (default 30)
-- **Connection failed**: Network unreachable, DNS failure, refused connection
-- **HTTP errors**: non-429 4xx (auth, not found) and 5xx (server error) are raised immediately without retry
-
-These are considered non-transient and retrying would not help. See [Troubleshooting](#troubleshooting) for how to handle them.
-
-### Configuration
-
-- **Timeout**: `UNIFI_REQUEST_TIMEOUT_SECONDS` (default: `30`)
-- **Max retries**: Hard-coded to 5 in the client; override by subclassing if needed
-- **Max concurrency**: `UNIFI_MAX_CONCURRENCY` (default: `10`) — limits parallel requests to prevent overwhelming the API
+See [pagination, filtering and retries](docs/README-RUNBOOK.md), with full [pagination](docs/PAGINATION.md) and [retry](docs/RETRY.md) details.
 
 ## Troubleshooting
 
 ### Common Setup Issues
 
 **"ModuleNotFoundError: No module named 'unifi_fabric'"**
-- Ensure you've installed the package with `pip install -e .` in the repo directory
+- Ensure the package is installed in the active environment: `pip install unifi-fabric-mcp-server==0.7.0` (or `pip install -e .` in a source checkout)
 - Verify your Python version is 3.12+: `python3 --version`
 - Try `pip install --upgrade pip` and reinstall if using an older pip version
 
 **"command not found: unifi-fabric-mcp"**
-- The entry point is only available after installation: `pip install -e .`
-- For local development without installation, run directly: `python3 -m unifi_fabric.server`
+- The entry point is only available after installation: `pipx install unifi-fabric-mcp-server==0.7.0` (or `pip install -e .` in a source checkout), or run it on demand with `uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp`
+- For local development, install the source checkout first: `python3 -m pip install -e .`, then run `unifi-fabric-mcp`
 - Check that your virtual environment is activated: `source .venv/bin/activate`
 
+**A detached `docker compose up` of a stdio server exits with code 0**
+- A stdio server needs a client on stdin/stdout. Configure your MCP client to spawn it instead: see [Override Transport in Docker Compose](docs/CONFIGURATION.md#override-transport-in-docker-compose)
+
 **Docker fails to start with "exit code 1"**
-- Verify the `UNIFI_API_KEY` environment variable is set and non-empty
-- Check Docker logs: `docker logs <container-id>`
-- Ensure you have internet connectivity to reach `api.ui.com`
+- Exit code 1 at startup means a configuration error: a missing key ("UNIFI_API_KEY is not set") or a malformed setting ("invalid configuration: <reason>"), printed on stderr. Read it with `docker logs <container-id>`
+- Startup makes no upstream call, so an unreachable `api.ui.com` or a rejected key does not stop the server; it shows up on the first tool call
 
 ### Environment Variable Misconfiguration
 
 **"401 Unauthorized" or "Invalid API key"**
-- Verify your `UNIFI_API_KEY` is correct — copy it directly from [UniFi Site Manager](https://unifi.ui.com) **Settings > API Keys**
+- Verify your `UNIFI_API_KEY` is correct — copy it directly from [UniFi Site Manager](https://unifi.ui.com) **API Keys** (left sidebar)
 - API keys expire or may be regenerated; if recently created, use the new key
-- Ensure no trailing whitespace in the env var: `export UNIFI_API_KEY="key-here"` (not `"key-here "`)
+- Ensure no trailing whitespace in the env var: `export UNIFI_API_KEY="key-here"` (not `"key-here "`). Startup rejects a key holding whitespace, naming the variable
 
 **"UNIFI_API_KEYS" JSON parse error**
 - Use proper JSON formatting: `[{"key": "...", "label": "..."}, ...]`
 - Escape quotes correctly in shell: `export UNIFI_API_KEYS='[{"key":"your-key"}]'` (single quotes)
-- If using Docker `--env-file` or Compose `env_file:`, write the value **without** surrounding quotes — Docker reads the file literally, so quotes become part of the value and break JSON parsing
-- Validate JSON at [jsonlint.com](https://www.jsonlint.com) before setting
+- In a Docker `--env-file`, write the value **without** surrounding quotes: the Docker CLI keeps them literally and they break JSON parsing. Compose `env_file:` removes surrounding quotes, but an unquoted line works with both ([details](docs/CONFIGURATION.md#multi-key-msp-setup))
+- Validate locally after setting the variable: `python3 -c 'import json, os; json.loads(os.environ["UNIFI_API_KEYS"]); print("Valid JSON")'`. Keep API keys out of online validators and public issue reports
 
 **"Base URL is incorrect" or "api.ui.com not found"**
 - The default base URL is `https://api.ui.com` — do not change this unless you have a private Ubiquiti API endpoint
 - If you must override, set `UNIFI_API_BASE_URL="https://your-custom-endpoint.com"`
-- Ensure no trailing slash: `https://api.ui.com` (not `https://api.ui.com/`)
+- It must be an absolute `http(s)` URL with a host and no credentials, query or fragment; startup rejects anything else, naming the variable. A trailing slash is ignored
 
 ### Connection Errors
 
 **"Connection refused" or "Cannot connect to api.ui.com"**
 - Check your internet connection: `ping api.ui.com`
 - Verify your firewall/proxy allows outbound HTTPS (port 443)
-- If behind a corporate proxy, you may need to configure `httpx` with custom certificates — open an issue if you need guidance
+- Behind an outbound proxy, set `HTTPS_PROXY` in the server's environment
 - The server makes requests to `https://api.ui.com/v1/` — ensure this endpoint is reachable
 
 **"Certificate verification failed" or "SSL: CERTIFICATE_VERIFY_FAILED"**
 - This typically occurs behind corporate proxies with MITM certificate injection
-- Verify your system CA bundle is up-to-date: `pip install --upgrade certifi`
-- If using a corporate proxy certificate, import it into your system trust store
-- As a last resort (not recommended), you can disable verification: `export UNIFI_API_VERIFY_SSL=false` (add support if needed — open an issue)
+- The UniFi API client trusts the certifi bundle, not the system trust store; keep it current with `pip install --upgrade certifi`
+- For a corporate CA, set `SSL_CERT_FILE` to a PEM bundle that contains it (or `SSL_CERT_DIR` to a directory of them); importing it into the system trust store has no effect
+- Certificate verification of the UniFi API cannot be turned off
 
 **"Request timeout" or "socket timeout"**
-- The default timeout is 30 seconds. If your network is slow, increase it:
-  ```bash
-  export UNIFI_REQUEST_TIMEOUT_SECONDS=60
-  ```
+- UniFi requests have no application elapsed-time deadline. The deprecated
+  `UNIFI_REQUEST_TIMEOUT_SECONDS` setting has been removed; delete it from deployment configuration before upgrading.
+- A timeout reported by a proxy, peer, or transport remains a network failure;
+  inspect that source and connection progress rather than increasing a local cap.
 - Check if `api.ui.com` is experiencing an outage: [status.ui.com](https://status.ui.com)
 - If using Docker, ensure the container has network connectivity: `docker run --network host ...`
 
 **"No hosts found" or "Site not found"**
-- Your API key must have access to the sites you're querying. Verify in [UniFi Site Manager](https://unifi.ui.com) **Settings > API Keys > <your-key> > Sites**
-- Organization keys (`is_org_key: true`) should see all sites; personal keys only see sites you own
-- If you just created the key or changed site permissions, wait 1-2 minutes for propagation and retry
+- Your API key must have access to the sites you're querying. Verify in [UniFi Site Manager](https://unifi.ui.com) by opening **API Keys**, then the key, then **Sites**
+- Which sites a key sees is set on the key in Site Manager (its Sites selection). `is_org_key` in `UNIFI_API_KEYS` is only a label the server reports back; it does not change access
+- If you just created the key or changed site permissions, wait 1-2 minutes for propagation and retry. The server also caches host and site lists for `UNIFI_CACHE_TTL_SECONDS` (default 900 s), and a not-found lookup does not refresh them: restart the server, or wait up to 15 minutes
+
+### Errors you may see
+
+**"HTTP 403" from a tool call** — The key lacks the scope for that product. Edit the key in UniFi Site Manager (API Keys) and enable Site Manager, Network, and Protect as needed. The error carries a hint naming the key and pointing at [Get Your API Key](#get-your-api-key).
+
+**"refused: the server is in read-only mode"** — `UNIFI_READ_ONLY` is set. Unset it (or turn off the plugin's Read-only mode) in the configuration that starts the server, and restart the server to allow writes. See [Read-only mode](#read-only-mode).
+
+**`ambiguous site '<name>'` / `ambiguous host '<name>'`** — Several sites or consoles share that name. Pass the id from `list_sites` / `list_hosts` instead.
+
+**`cannot resolve '<name>' unambiguously`** — The site or console list is incomplete, because a page cap (`UNIFI_PAGINATE_MAX_PAGES`) stopped it or the list drain stopped short, so another object with that name may exist. Use the exact id (unsetting the cap helps only in the first case).
+
+**`Classic API error from <METHOD> <path>: HTTP 200 with meta.rc 'error' (meta.msg 'api.err.…')`** — The Network controller rejected the request in its Classic response body although the HTTP status was 200. Every typed tool treats that as an upstream error and quotes the complete body (`meta` and `data`); `meta.msg` names the controller's reason (an invalid value, an unknown object).
+
+**Server starts but no tools appear (Codex, Antigravity)** — Usually the server did not start: the key was not in the environment of the process that launched the client, so it exited with "UNIFI_API_KEY is not set" on stderr. Export `UNIFI_API_KEY` and restart the client. Seeing only five tools is normal: that is [discovery mode](#discovery-mode-default).
 
 ### Getting Help
 
@@ -922,22 +977,25 @@ These are considered non-transient and retrying would not help. See [Troubleshoo
 - Include the following in bug reports:
   - Tool name and parameters you were using
   - Full error message (redact your API key and sensitive IPs)
+  - Server version (`unifi-fabric-mcp --version`)
   - Python version (`python3 --version`) and OS
   - Docker image tag (if applicable)
   - Relevant env vars (without secrets)
 
 ## Development
 
+<!-- install-case: readme-development mode=non-executable reason=developer-test-suite-not-runtime-install -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-development -->
 ```bash
 # Install dev dependencies
 pip install -e ".[dev]"
 
-# Run tests (Tier-1 hermetic — no credentials required)
-pytest
+# Run the tests (hermetic: with UNIFI_API_KEY set, live tests run too)
+env -u UNIFI_API_KEY -u UNIFI_API_KEYS pytest
 
-# Tier-2 live integration tests require live credentials and a host/site:
-#   UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> pytest
-# Tier-3 (full release sweep) is deferred until release
+# Live read-only integration tests:
+#   UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> pytest -m 'integration and not mutating'
+# Tests marked mutating change the console (create VLAN 3999, rename a camera, move PTZ, start talkback).
 
 # Lint
 ruff check src/ tests/
@@ -946,48 +1004,27 @@ ruff format --check src/ tests/
 
 ## Docker Deployment
 
-The server ships as a Docker image. When pinning deployments for production use,
-reference the image by digest rather than a mutable tag to ensure reproducibility
-and guard against tag mutation:
+See [Docker deployment details](docs/DOCKER.md) for image pinning and stateless operation.
 
-```bash
-# Pull by digest instead of :latest or a version tag
-docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
-```
+### Verify the image
 
-You can find the digest for a given release on the package page or via (the image must be present locally — run `docker pull` first):
+Release images are signed with Cosign and carry an SBOM and provenance attestation; see [Verify the image](docs/VERIFY-IMAGE.md).
 
-```bash
-docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
-docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
-```
+<a id="stateless-design-no-persistent-volumes"></a>
 
-### Stateless Design (No Persistent Volumes)
+## Get involved
 
-**By design, this container is stateless and does not require persistent volumes.** The MCP server:
-
-- Makes API calls to the remote UniFi Site Manager cloud API (`api.ui.com`)
-- Does not maintain local state between requests
-- Does not store credentials, configurations, or cached data on disk
-- Uses in-memory caching only (with configurable TTL, default 900 seconds)
-- Has no dependencies on local storage, databases, or filesystem persistence
-
-**Why stateless?** The server acts as an ephemeral proxy/bridge between AI assistants and the UniFi cloud API. Each session is independent; all configuration and data live in the cloud. Deployment is simplified by container orchestrators (Docker Compose, Kubernetes) with no persistent volume claims needed.
-
-**Implications:**
-- Cache is reset on container restart (this is safe and expected)
-- Multiple server instances can run in parallel without coordination
-- No data loss risk from container updates or replacements
-- Scaling is stateless and simple
+- [Request an endpoint](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/new?template=feature_request.md).
+- Join [GitHub Discussions](https://github.com/swkstudios/unifi-fabric-mcp-server/discussions).
+- See the [roadmap](https://github.com/swkstudios/unifi-fabric-mcp-server/issues).
 
 ## Contributing
 
 We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions,
 branch naming, commit conventions, CI gates, testing requirements, and the changelog
-rule. For security vulnerabilities, see [SECURITY.md](.github/SECURITY.md) — do not
-open a public issue.
+rule. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md). For security
+vulnerabilities, see [SECURITY.md](.github/SECURITY.md) — do not open a public issue.
 
 ## License
 
 MIT. See [LICENSE](LICENSE) for details.
-

@@ -1,0 +1,31 @@
+{
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "enabled": true,
+    "expires": 1700086400000,
+    "shareLink": "<redacted>",
+    "sharedByUser": "<redacted>",
+    "nvr": "<redacted>",
+    "cameraId": "0000000000000000000000aa",
+    "cameraName": "<redacted>",
+    "cameraType": "<redacted>",
+    "isConnected": true,
+    "hasAudio": true,
+    "profileImg": "",
+    "marketName": "<redacted>",
+    "guid": "00000000-0000-4000-8000-0000000000aa",
+    "isThirdPartyCamera": false,
+    "videoCodec": "<redacted>",
+    "image": "<redacted>"
+  },
+  "redacted_lengths": {
+    "shareLink": 59
+  },
+  "recorded_by_tool": "get_camera_share_link",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cameras/0000000000000000000000aa/sharedStream",
+    "query": {}
+  }
+}

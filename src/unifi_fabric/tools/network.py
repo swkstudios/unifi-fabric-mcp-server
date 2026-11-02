@@ -4,11 +4,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..client import UniFiClient, validate_id
+from ..client import UniFiClient, UniFiConnectionError, describe_shape, validate_id
 from ..config import APIKeyConfig
 from ..registry import Registry, _assert_uuid
-from ._pagination import collect_offset, mark_incomplete
-from ._payload import require_fields, sanitize_integration_write
+from ._classic_objects import (
+    addressed_body,
+    classic_rest,
+    purpose_hint,
+    resolve_networkconf_record,
+    with_purpose,
+)
+from ._keys import with_context
+from ._pagination import collect_offset, offset_list_result, validate_pagination
+from ._payload import (
+    integration_update_body,
+    require_fields,
+    strip_empty_list_values,
+    upstream_hint,
+    with_upstream_hint,
+)
 
 PROXY_BASE = "/v1/connector/consoles/{host_id}/proxy/network/integration/v1"
 
@@ -18,18 +32,6 @@ def _proxy(host_id: str, path: str) -> str:
 
 
 # --- Application / Local Sites ---
-
-
-def _page_params(offset: int, limit: int, filter: str | None) -> dict[str, Any]:
-    """Build validated Network Integration API pagination parameters."""
-    if offset < 0:
-        raise ValueError("offset must be greater than or equal to 0")
-    if not 0 <= limit <= 200:
-        raise ValueError("limit must be between 0 and 200")
-    params: dict[str, Any] = {"offset": offset, "limit": limit}
-    if filter is not None:
-        params["filter"] = filter
-    return params
 
 
 async def _offset_list(
@@ -43,30 +45,18 @@ async def _offset_list(
 ) -> dict[str, Any]:
     """Fetch an offset-paginated Integration list, draining all pages by default.
 
-    Passing offset or limit selects manual paging: a single validated page is
-    returned with the API's native envelope (offset/limit/count/totalCount)
-    preserved. Otherwise every page is drained into ``{data, totalCount}`` and a
-    capped drain is flagged incomplete instead of truncating silently. ``filter``
+    Limit alone requests a total gathered in batches; an explicit offset selects one
+    native page, with any limit forwarded as its page size. Otherwise every page is
+    drained into ``{data, totalCount}``; a capped drain is flagged incomplete. ``filter``
     is a server-side filter (not paging) and applies in either mode.
     """
-    if offset is not None or limit is not None:
-        page = _page_params(
-            offset if offset is not None else 0,
-            limit if limit is not None else 25,
-            filter,
-        )
-        result: dict[str, Any] = await client.get(url, key=key, params=page)
-        return result
     base: dict[str, Any] = {}
     if filter is not None:
         base["filter"] = filter
-    collected = await collect_offset(client, url, key=key, params=base or None)
-    total = collected["totalCount"]
-    drained: dict[str, Any] = {
-        "data": collected["items"],
-        "totalCount": total if total is not None else len(collected["items"]),
-    }
-    return mark_incomplete(drained, collected)
+    collected = await collect_offset(
+        client, url, key=key, params=base or None, offset=offset, limit=limit
+    )
+    return offset_list_result(collected)
 
 
 async def get_network_application_info(
@@ -92,15 +82,25 @@ async def list_local_sites(
     """List sites managed by one UniFi Network application.
 
     By default every offset page is drained and the complete list is returned.
-    offset/limit: fetch a single page manually (native envelope preserved). A
+    Limit alone requests a total gathered in batches; explicit offset selects a single
+    native page, with any limit forwarded as page size. A
     capped drain returns the sites gathered so far with incomplete=true rather
     than truncating silently.
     """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
-    return await _offset_list(
-        client, _proxy(host_id, "/sites"), key=key, offset=offset, limit=limit, filter=filter
+    collected = await collect_offset(
+        client,
+        _proxy(host_id, "/sites"),
+        key=key,
+        params={"filter": filter} if filter is not None else None,
+        offset=offset,
+        limit=limit,
     )
+    if offset is None and limit is None and filter is None and not collected["incomplete"]:
+        await registry.set_sites(host_id, collected["items"], key=key)
+    return offset_list_result(collected)
 
 
 # --- Networks / VLANs ---
@@ -121,11 +121,13 @@ async def list_networks(
     This Network Integration endpoint is offset-paginated (verified live: the
     response carries an ``{offset, limit, count, totalCount, data}`` envelope and the
     native default page size is only 25). By default every page is drained and the
-    complete list is returned as ``{data, totalCount}``; pass offset or limit to
-    fetch a single manual page (native envelope preserved). ``filter`` is a
+    complete list is returned as ``{data, totalCount}``; limit alone requests a total
+    gathered in batches. Explicit offset selects one native page, with any limit
+    forwarded as its page size. ``filter`` is a
     server-side filter (not paging) and applies in either mode. A capped drain is
     flagged ``incomplete`` rather than truncating silently.
     """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -155,8 +157,9 @@ async def create_network(
     required fields are management-mode-specific rather than universal, so only the
     discriminator is validated here; for ``management="GATEWAY"`` the API additionally
     requires ``name``, ``vlanId``, ``enabled``, ``internetAccessEnabled``,
-    ``isolationEnabled``, ``cellularBackupEnabled`` and ``ipV4Configuration`` (verified
-    live).
+    ``isolationEnabled``, ``cellularBackupEnabled`` and ``ipv4Configuration`` (Network
+    10.6.106 spec key, lower-case v). The body is forwarded verbatim — keys are never
+    renamed.
     """
     require_fields("create_network", network, {"management"})
     key = await registry.resolve_key_for_host(host)
@@ -201,10 +204,12 @@ async def update_network(
       write body with HTTP 400 ``unknown-property``.
     * Empty-string entries are stripped from list-valued fields — the API pads
       list fields with placeholder empty strings (e.g.
-      ``"dns_servers": ["192.168.1.1", "", ""]``) which fail validation as
+      ``ipv4Configuration.dhcpConfiguration.dnsServerIpAddressesOverride``
+      containing ``["192.168.1.1", "", ""]``) which fail validation as
       ``must be valid IPv4 address`` (HTTP 400) if passed back.
     """
     validate_id(network_id, "network_id")
+    network = integration_update_body("update_network", network)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -212,7 +217,7 @@ async def update_network(
     return await client.put(
         _proxy(host_id, f"/sites/{site_id}/networks/{network_id}"),
         key=key,
-        json=sanitize_integration_write(network),
+        json=network,
     )
 
 
@@ -222,14 +227,20 @@ async def delete_network(
     host: str,
     site: str,
     network_id: str,
-) -> None:
-    """Delete a network/VLAN."""
+    *,
+    force: bool | None = None,
+) -> Any:
+    """Delete a network/VLAN; the spec's optional ``force`` query is sent only when given."""
     validate_id(network_id, "network_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/networks/{network_id}"), key=key)
+    return await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/networks/{network_id}"),
+        key=key,
+        params=_force_params(force),
+    )
 
 
 # --- WiFi Broadcasts ---
@@ -241,6 +252,8 @@ async def list_wifi_broadcasts(
     host: str,
     site: str,
     *,
+    offset: int | None = None,
+    limit: int | None = None,
     filter: str | None = None,
 ) -> dict[str, Any]:
     """List all WiFi broadcast SSIDs for a site.
@@ -251,14 +264,30 @@ async def list_wifi_broadcasts(
     filter language — the upstream API validates the grammar and returns its own
     error for a malformed expression.
     """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    params: dict[str, Any] | None = {"filter": filter} if filter is not None else None
-    return await client.get(
-        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), key=key, params=params
+    return await _offset_list(
+        client,
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"),
+        key=key,
+        offset=offset,
+        limit=limit,
+        filter=filter,
     )
+
+
+#: The Integration error code a Network 11.0.89 controller answers (HTTP 400) when an access
+#: point already carries its maximum number of SSIDs (live 2026-10-28).
+_WIFI_BROADCAST_LIMIT = "too-many-wifi-broadcasts"
+_WIFI_BROADCAST_LIMIT_HINT = (
+    "the controller limits how many SSIDs one access point broadcasts. With "
+    "broadcastingDeviceFilter null the new SSID goes to every access point; scope it with "
+    "broadcastingDeviceFilter ({type: DEVICES or DEVICE_TAGS, ...}) to access points that "
+    "have a free slot, or remove an SSID from the full one first."
+)
 
 
 async def create_wifi_broadcast(
@@ -281,9 +310,15 @@ async def create_wifi_broadcast(
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.post(
-        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), key=key, json=broadcast
-    )
+    try:
+        return await client.post(
+            _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts"), key=key, json=broadcast
+        )
+    except UniFiConnectionError as exc:
+        if exc.status == 400 and _WIFI_BROADCAST_LIMIT in str(exc):
+            upstream_hint(exc, _WIFI_BROADCAST_LIMIT_HINT)
+            raise
+        raise
 
 
 async def get_wifi_broadcast(
@@ -320,6 +355,7 @@ async def update_wifi_broadcast(
     empty-string placeholders are stripped from list-valued fields.
     """
     validate_id(broadcast_id, "broadcast_id")
+    broadcast = integration_update_body("update_wifi_broadcast", broadcast)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -327,7 +363,7 @@ async def update_wifi_broadcast(
     return await client.put(
         _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"),
         key=key,
-        json=sanitize_integration_write(broadcast),
+        json=broadcast,
     )
 
 
@@ -337,16 +373,27 @@ async def delete_wifi_broadcast(
     host: str,
     site: str,
     broadcast_id: str,
-) -> None:
-    """Delete a WiFi broadcast SSID."""
+    *,
+    force: bool | None = None,
+) -> Any:
+    """Delete a WiFi broadcast SSID; the spec's optional ``force`` query is sent only when given."""
     validate_id(broadcast_id, "broadcast_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(
-        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"), key=key
+    return await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/wifi/broadcasts/{broadcast_id}"),
+        key=key,
+        params=_force_params(force),
     )
+
+
+def _force_params(force: bool | None) -> dict[str, str] | None:
+    """The spec's optional ``force`` DELETE query, present only when the caller gave it."""
+    if force is None:
+        return None
+    return {"force": "true" if force else "false"}
 
 
 # --- WAN Interfaces ---
@@ -360,29 +407,55 @@ async def list_wan_interfaces(
     registry: Registry,
     host: str,
     site: str,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
-    """List WAN interfaces for a site, enriched with IP, status, and speed from stat/health."""
+    """List WAN interfaces for a site, with the site's ``/stat/health`` body alongside.
+
+    Returns the drained Integration WAN list the way every Integration list tool does:
+    ``{data, totalCount}`` plus the upstream envelope fields, with the records verbatim
+    (``incomplete`` / ``incompleteReason`` when a capped drain stopped short;
+    ``totalCount`` is the upstream total, ``None`` when it reported none). The additive
+    ``_health`` is the Classic
+    ``/stat/health`` body verbatim (every subsystem, nothing filtered out; the WAN health
+    entries are its ``data[]`` entries with ``subsystem == "wan"``). A failed health read
+    still returns the interfaces and reports why under ``_wanHealthError`` (``_health`` is
+    then the body received when one was, e.g. an unexpected shape, else absent).
+    ``offset`` / ``limit`` fetch one page instead (the native page envelope, verbatim; a
+    page the upstream answers as a bare array is returned as that array, without
+    ``_health``).
+    """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    wans = await client.get(_proxy(host_id, f"/sites/{site_id}/wans"), key=key)
-    wan_list = wans if isinstance(wans, list) else wans.get("data", wans)
+    collected = await collect_offset(
+        client, _proxy(host_id, f"/sites/{site_id}/wans"), key=key, offset=offset, limit=limit
+    )
+    page = offset_list_result(collected)
+    if not isinstance(page, dict):
+        # An explicit page the upstream answered as a bare array is returned unchanged:
+        # an array has no room for the additive _health key, and wrapping it would
+        # invent an envelope the upstream never sent.
+        return page
+    result: dict[str, Any] = dict(page)
 
-    # Enrich with health data (IP, status, speed) from Classic REST stat/health
+    # The Classic stat/health read rides along under an additive key. A failed health read
+    # still returns the interfaces, and reports why under _wanHealthError.
     try:
         site_slug = await registry.resolve_site_slug(site, host_id, key=key)
         health_url = _STAT_BASE.format(host_id=host_id, site_slug=site_slug) + "/health"
-        health_data = await client.get(health_url, key=key)
-        health_list = (
-            health_data.get("data", health_data) if isinstance(health_data, dict) else health_data
-        )
-        wan_health = [h for h in (health_list or []) if h.get("subsystem") == "wan"]
-    except Exception:
-        wan_health = []
-
-    count = len(wan_list) if isinstance(wan_list, list) else 0
-    return {"wans": wan_list, "count": count, "wanHealth": wan_health}
+        health_body = await client.get(health_url, key=key)
+        result = with_context(result, {"_health": health_body})
+        if not isinstance(health_body, dict) or not isinstance(health_body.get("data"), list):
+            raise UniFiConnectionError(
+                f"Unexpected response shape from GET {health_url}: expected an object with a "
+                f"'data' array, got {describe_shape(health_body)}"
+            )
+    except Exception as exc:
+        result = with_context(result, {"_wanHealthError": f"{type(exc).__name__}: {exc}"})
+    return result
 
 
 async def update_wan_interface(
@@ -392,24 +465,38 @@ async def update_wan_interface(
     site: str,
     wan_id: str,
     wan: dict[str, Any],
-) -> dict[str, Any]:
-    """Update a WAN interface configuration.
+    /,
+) -> Any:
+    """Update a WAN interface (Integration id or Classic ``_id``) via Classic networkconf.
 
-    Sanitizes a previously-read WAN object so it round-trips cleanly into an
-    update: server-managed read-only fields (``id``, ``metadata``) are stripped
-    (the Integration API rejects them with HTTP 400 ``unknown-property``), and
-    empty-string placeholders are stripped from list-valued fields (e.g. padded
-    ``dns`` arrays).
+    The published Integration API serves WANs GET-only (PUT answers 404 "No endpoint" on
+    Network 11.0.81); the controller UI writes a WAN as the Classic networkconf record of
+    purpose ``wan``. The id is resolved among those records; PUT rest/networkconf/{_id}
+    merges the caller's fields (empty-string list placeholders dropped) and the upstream
+    envelope is returned verbatim. ``purpose`` is pinned to ``wan`` in the body (an absent
+    or null purpose is sent as ``wan``); any other purpose is sent as given and an upstream
+    error gets a hint, by the same rule as the VPN-server and tunnel updates.
     """
-    validate_id(wan_id, "wan_id")
-    key = await registry.resolve_key_for_host(host)
-    host_id = await registry.resolve_host_id(host, key=key)
-    site_id = await registry.resolve_site_id(site, host_id, key=key)
-    _assert_uuid(site_id)
-    return await client.put(
-        _proxy(host_id, f"/sites/{site_id}/wans/{wan_id}"),
-        key=key,
-        json=sanitize_integration_write(wan),
+    body = strip_empty_list_values(with_purpose("update_wan_interface", wan, "wan"))
+    key, host_id, site_slug, record = await resolve_networkconf_record(
+        client,
+        registry,
+        host,
+        site,
+        wan_id,
+        "wan",
+        "WAN interface",
+        "list_wan_interfaces",
+        "wan_id",
+    )
+    classic_id = record["_id"]
+    return await with_upstream_hint(
+        client.put(
+            classic_rest(host_id, site_slug, f"/networkconf/{classic_id}"),
+            key=key,
+            json=addressed_body(body, classic_id, record.get("external_id")),
+        ),
+        purpose_hint("update_wan_interface", wan, "wan"),
     )
 
 
@@ -423,7 +510,9 @@ async def get_network_references(
     site: str,
     network_id: str,
 ) -> dict[str, Any]:
-    """Get all references to a network (WiFi broadcasts, firewall policies, port profiles)."""
+    """Get network references: CLIENT, DEVICE, STATIC_ROUTE, OSPF_ROUTE, NEXT_AI, WIFI,
+    NAT_RULE, SD_WAN.
+    """
     validate_id(network_id, "network_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
@@ -448,6 +537,7 @@ async def _list_switching_resources(
     limit: int | None,
     filter: str | None,
 ) -> dict[str, Any]:
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -493,8 +583,9 @@ async def list_lags(
 ) -> dict[str, Any]:
     """List Link Aggregation Groups (LAGs) on a site.
 
-    Drains all pages by default; pass offset/limit for a single manual page. A
-    capped drain is flagged incomplete rather than truncated silently.
+    Drains all pages by default; limit alone requests a total gathered in batches,
+    and explicit offset selects one native page. A capped drain is flagged incomplete
+    rather than truncated silently.
     """
     return await _list_switching_resources(
         client,
@@ -531,8 +622,9 @@ async def list_mc_lag_domains(
 ) -> dict[str, Any]:
     """List Multi-Chassis Link Aggregation (MC-LAG) domains on a site.
 
-    Drains all pages by default; pass offset/limit for a single manual page. A
-    capped drain is flagged incomplete rather than truncated silently.
+    Drains all pages by default; limit alone requests a total gathered in batches,
+    and explicit offset selects one native page. A capped drain is flagged incomplete
+    rather than truncated silently.
     """
     return await _list_switching_resources(
         client,
@@ -577,8 +669,9 @@ async def list_switch_stacks(
 ) -> dict[str, Any]:
     """List switch stacks on a site.
 
-    Drains all pages by default; pass offset/limit for a single manual page. A
-    capped drain is flagged incomplete rather than truncated silently.
+    Drains all pages by default; limit alone requests a total gathered in batches,
+    and explicit offset selects one native page. A capped drain is flagged incomplete
+    rather than truncated silently.
     """
     return await _list_switching_resources(
         client,

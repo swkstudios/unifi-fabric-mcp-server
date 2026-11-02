@@ -1,0 +1,27 @@
+{
+ "recorded_by_tool": "export_protect_case",
+ "args": [
+  "prepare"
+ ],
+ "kwargs": {
+  "case_id": "000000000000000000fa0006"
+ },
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cases/000000000000000000fa0006/export/prepare",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": {
+  "archiveFileName": "archiveFileName-0001",
+  "caseId": "000000000000000000fa0006",
+  "id": "000000000000000000fa000e",
+  "pdfSucceeded": null,
+  "progressRatio": 0,
+  "remainingSeconds": null,
+  "status": "Initial",
+  "type": "CaseExport",
+  "userId": "000000000000000000fa0007"
+ }
+}

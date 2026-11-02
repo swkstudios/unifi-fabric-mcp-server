@@ -1,0 +1,371 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "wan_activity": {
+      "activity_by_network_group": {
+        "WAN": {
+          "history": [
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 18747419.0,
+              "avg_tx_rate_bps": 154132.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 76433271.0,
+              "max_tx_rate_bps": 398865.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791687300000
+            },
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 3469205.0,
+              "avg_tx_rate_bps": 100605.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 3515619.0,
+              "max_tx_rate_bps": 130850.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791687600000
+            },
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 3469773.0,
+              "avg_tx_rate_bps": 103961.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 8367426.0,
+              "max_tx_rate_bps": 261968.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791687900000
+            },
+            {
+              "avg_latency_ms": 4.0,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 3404768.0,
+              "avg_tx_rate_bps": 101890.0,
+              "max_latency_ms": 4.0,
+              "max_rx_rate_bps": 78385732.0,
+              "max_tx_rate_bps": 1829342.0,
+              "min_latency_ms": 4.0,
+              "timestamp": 1791688200000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 0.0,
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "rx_bytes": 590253958321,
+            "tx_bytes": 41246031063
+          }
+        },
+        "WAN2": {
+          "history": [
+            {
+              "avg_latency_ms": 39.8,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 107.0,
+              "avg_tx_rate_bps": 68.0,
+              "max_latency_ms": 47.0,
+              "max_rx_rate_bps": 312.0,
+              "max_tx_rate_bps": 248.0,
+              "min_latency_ms": 35.0,
+              "timestamp": 1791687300000
+            },
+            {
+              "avg_latency_ms": 44.4,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 109.0,
+              "avg_tx_rate_bps": 68.0,
+              "max_latency_ms": 47.0,
+              "max_rx_rate_bps": 291.0,
+              "max_tx_rate_bps": 133.0,
+              "min_latency_ms": 40.0,
+              "timestamp": 1791687600000
+            },
+            {
+              "avg_latency_ms": 35.6,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 104.0,
+              "avg_tx_rate_bps": 66.0,
+              "max_latency_ms": 44.0,
+              "max_rx_rate_bps": 291.0,
+              "max_tx_rate_bps": 178.0,
+              "min_latency_ms": 32.0,
+              "timestamp": 1791687900000
+            },
+            {
+              "avg_latency_ms": 37.5,
+              "avg_packet_loss_pct": 0.0,
+              "avg_rx_rate_bps": 109.0,
+              "avg_tx_rate_bps": 69.0,
+              "max_latency_ms": 44.0,
+              "max_rx_rate_bps": 132.0,
+              "max_tx_rate_bps": 132.0,
+              "min_latency_ms": 34.0,
+              "timestamp": 1791688200000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 0.0,
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "rx_bytes": 675824410,
+            "tx_bytes": 117172868
+          }
+        },
+        "WAN3": {
+          "history": [
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 23.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 171.0,
+              "timestamp": 1791687300000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 21.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 58.0,
+              "timestamp": 1791687600000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 21.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 58.0,
+              "timestamp": 1791687900000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 23.0,
+              "max_rx_rate_bps": 0.0,
+              "max_tx_rate_bps": 57.0,
+              "timestamp": 1791688200000
+            },
+            {
+              "avg_rx_rate_bps": 0.0,
+              "avg_tx_rate_bps": 0.0,
+              "timestamp": 1791726900000
+            }
+          ],
+          "summary": {
+            "rx_bytes": 0,
+            "tx_bytes": 1829300
+          }
+        }
+      },
+      "network_groups": [
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "isp_asn": [
+            64496
+          ],
+          "isp_name": [
+            "isp-name-0001"
+          ],
+          "name": "name-0019"
+        },
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "isp_asn": [
+            64497
+          ],
+          "isp_name": [
+            "isp-name-0002"
+          ],
+          "name": "name-0020"
+        },
+        {
+          "has_lte_mbb_stats": false,
+          "has_nr_mbb_stats": false,
+          "name": "name-0021"
+        }
+      ],
+      "total_activity": {
+        "history": [
+          {
+            "avg_latency_ms": 21.9,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 18747527.0,
+            "avg_tx_rate_bps": 154222.0,
+            "client_count": 48,
+            "max_latency_ms": 47.0,
+            "max_rx_rate_bps": 76433315.0,
+            "max_tx_rate_bps": 398865.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791687300000
+          },
+          {
+            "avg_latency_ms": 24.2,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 3469314.0,
+            "avg_tx_rate_bps": 100694.0,
+            "client_count": 48,
+            "max_latency_ms": 47.0,
+            "max_rx_rate_bps": 3515752.0,
+            "max_tx_rate_bps": 130983.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791687600000
+          },
+          {
+            "avg_latency_ms": 19.8,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 3469877.0,
+            "avg_tx_rate_bps": 104048.0,
+            "client_count": 48,
+            "max_latency_ms": 44.0,
+            "max_rx_rate_bps": 8367515.0,
+            "max_tx_rate_bps": 261968.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791687900000
+          },
+          {
+            "avg_latency_ms": 20.7,
+            "avg_packet_loss_pct": 0.0,
+            "avg_rx_rate_bps": 3404877.0,
+            "avg_tx_rate_bps": 101981.0,
+            "client_count": 48,
+            "max_latency_ms": 44.0,
+            "max_rx_rate_bps": 78385864.0,
+            "max_tx_rate_bps": 1829474.0,
+            "min_latency_ms": 4.0,
+            "timestamp": 1791688200000
+          },
+          {
+            "avg_rx_rate_bps": 0.0,
+            "avg_tx_rate_bps": 0.0,
+            "client_count": 0,
+            "timestamp": 1791726900000
+          }
+        ],
+        "summary": {
+          "rx_bytes": 590929782732,
+          "tx_bytes": 41365033232
+        }
+      }
+    },
+    "wan_history": [
+      {
+        "downtime_history": [],
+        "health_history": [
+          {
+            "failover_wan_active": false,
+            "high_latency": false,
+            "packet_loss": false,
+            "timestamp": 1791687300000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": false,
+            "packet_loss": false,
+            "timestamp": 1791687600000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": false,
+            "packet_loss": false,
+            "timestamp": 1791687900000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": false,
+            "packet_loss": false,
+            "timestamp": 1791688200000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "not_reported": true,
+            "timestamp": 1791726900000
+          }
+        ],
+        "isp_asn": 64496,
+        "isp_name": "isp-name-0001",
+        "network_group": "network-group-0001",
+        "uptime": 100.0
+      },
+      {
+        "downtime_history": [],
+        "health_history": [
+          {
+            "failover_wan_active": false,
+            "high_latency": true,
+            "latency_avg_ms": 40,
+            "latency_max_ms": 47,
+            "packet_loss": false,
+            "timestamp": 1791687300000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": true,
+            "latency_avg_ms": 44,
+            "latency_max_ms": 47,
+            "packet_loss": false,
+            "timestamp": 1791687600000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": true,
+            "latency_avg_ms": 36,
+            "latency_max_ms": 44,
+            "packet_loss": false,
+            "timestamp": 1791687900000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "failover_wan_active": false,
+            "high_latency": true,
+            "latency_avg_ms": 37,
+            "latency_max_ms": 44,
+            "packet_loss": false,
+            "timestamp": 1791688200000,
+            "wan2_failover_active": false,
+            "wan_downtime": false
+          },
+          {
+            "not_reported": true,
+            "timestamp": 1791726900000
+          }
+        ],
+        "isp_asn": 64497,
+        "isp_name": "isp-name-0002",
+        "network_group": "network-group-0002",
+        "uptime": 100.0
+      }
+    ]
+  },
+  "kwargs": {
+    "end": 1760227200,
+    "start": 1760140800
+  },
+  "recorded_by_tool": "get_observability_site_health",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/observability/sitehealth",
+    "query": {
+      "end": "1791773785000",
+      "start": "1791687385000"
+    }
+  },
+  "status": 200
+}

@@ -1,0 +1,15 @@
+{
+ "recorded_by_tool": "get_system_log",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/system-log/critical",
+  "query": {},
+  "json": {
+   "pageNumber": 0,
+   "pageSize": 3
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": []
+}

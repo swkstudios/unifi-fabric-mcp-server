@@ -1,0 +1,48 @@
+{
+  "args": [],
+  "body": {
+    "data": [
+      {
+        "counts": {
+          "critical_notification": 0,
+          "gateway_device": 1,
+          "guest_client": 0,
+          "lan_configuration": 20,
+          "offline_device": 1,
+          "offline_gateway_device": 0,
+          "offline_wifi_device": 1,
+          "offline_wired_device": 0,
+          "pending_update_device": 0,
+          "total_device": 6,
+          "wan_configuration": 3,
+          "wifi_client": 26,
+          "wifi_configuration": 5,
+          "wifi_device": 3,
+          "wired_client": 14,
+          "wired_device": 2
+        },
+        "description": "Default",
+        "id": "00000000-0000-4000-a000-000000000017",
+        "name": "default",
+        "percentages": {
+          "successful_association": -1.0,
+          "wan_uptime": 100.0
+        }
+      }
+    ],
+    "page_number": 0,
+    "total_element_count": 1,
+    "total_page_count": 1
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_sites_overview",
+  "request": {
+    "json_keys": [
+      "xxxxxxxx"
+    ],
+    "method": "POST",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/sites/overview",
+    "query": {}
+  },
+  "status": 200
+}

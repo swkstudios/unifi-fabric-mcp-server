@@ -1,0 +1,39 @@
+{
+ "recorded_by_tool": "list_firewall_groups",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/firewallgroup",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-b000-000000fa010d",
+    "short_id": 1,
+    "name": "name-0196",
+    "group_type": "address-group",
+    "external_id": "00000000-0000-4000-8000-000000fa00d9",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "group_members": [
+     "1.1.1.1"
+    ]
+   },
+   {
+    "_id": "00000000-0000-4000-9000-000000fa010e",
+    "short_id": 2,
+    "name": "name-0195",
+    "group_type": "port-group",
+    "external_id": "00000000-0000-4000-9000-000000000070",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "group_members": [
+     "9543"
+    ]
+   }
+  ]
+ }
+}

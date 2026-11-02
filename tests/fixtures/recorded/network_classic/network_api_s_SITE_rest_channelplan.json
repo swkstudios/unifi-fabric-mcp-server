@@ -1,0 +1,149 @@
+{
+ "recorded_by_tool": "get_channel_plan",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/channelplan",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-9000-000000fa01ad",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "date": "2026-09-11T02:43:47Z",
+    "high_priority_devices": [],
+    "ht_modes_6e": [
+     20,
+     40,
+     80,
+     160
+    ],
+    "method": "method-0001",
+    "channels_na": [
+     36,
+     40,
+     44,
+     48,
+     52
+    ],
+    "ht_modes_na": [
+     20,
+     40,
+     80
+    ],
+    "radio_table": [
+     {
+      "name": "name-0293",
+      "width": 160,
+      "channel": 64,
+      "tx_power": 20,
+      "device_mac": "02:00:5e:00:00:0c",
+      "tx_power_mode": "auto"
+     },
+     {
+      "name": "name-0293",
+      "width": 160,
+      "channel": 100,
+      "tx_power": 24,
+      "device_mac": "02:00:5e:00:00:1f",
+      "tx_power_mode": "auto"
+     }
+    ],
+    "ht_modes_ng": [
+     20
+    ],
+    "channels_ng": [
+     1,
+     6,
+     11
+    ],
+    "optimize": [
+     "optimize-0001"
+    ],
+    "radios": [
+     "radios-0002"
+    ],
+    "include_all_devices": true,
+    "channels_6e": [
+     1,
+     5,
+     9,
+     13,
+     17
+    ],
+    "exclude_devices": []
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000fa01ae",
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "date": "2026-07-31T18:57:27Z",
+    "high_priority_devices": [],
+    "ht_modes_6e": [
+     20,
+     40,
+     80,
+     160
+    ],
+    "method": "method-0001",
+    "channels_na": [
+     36,
+     40,
+     44,
+     48,
+     52
+    ],
+    "ht_modes_na": [
+     20,
+     40,
+     80
+    ],
+    "radio_table": [
+     {
+      "name": "name-0293",
+      "width": 80,
+      "channel": 161,
+      "tx_power": 20,
+      "device_mac": "02:00:5e:00:00:0c",
+      "tx_power_mode": "auto"
+     },
+     {
+      "name": "name-0293",
+      "width": 80,
+      "channel": 64,
+      "tx_power": 22,
+      "device_mac": "02:00:5e:00:00:09",
+      "tx_power_mode": "custom"
+     }
+    ],
+    "ht_modes_ng": [
+     20
+    ],
+    "channels_ng": [
+     1,
+     6,
+     11
+    ],
+    "optimize": [
+     "optimize-0001"
+    ],
+    "radios": [
+     "radios-0002"
+    ],
+    "include_all_devices": true,
+    "channels_6e": [
+     1,
+     5,
+     9,
+     13,
+     17
+    ],
+    "exclude_devices": []
+   }
+  ]
+ }
+}

@@ -1,0 +1,27 @@
+{
+  "args": [
+    "Default",
+    "MONTH"
+  ],
+  "body": {
+    "enterprise": false,
+    "has_subscription": false,
+    "ips_enabled": true,
+    "is_activating": false,
+    "scanned_bytes": 2051360266817,
+    "signature_capacity": 70000,
+    "signatures": 33130,
+    "threats": 0,
+    "updated_timestamp": 1791766956000
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_cybersecure_summary",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/cybersecure/summary",
+    "query": {
+      "period": "period-0004"
+    }
+  },
+  "status": 200
+}

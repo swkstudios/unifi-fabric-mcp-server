@@ -1,0 +1,20 @@
+{
+  "recorded_by_tool": "get_sensor_private",
+  "source": "Live private Protect GETs 2026-10-11; identity fields replaced before recording; camera/NVR/sensor settings only",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/sensors/0000000000000000000000bb",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "id": "0000000000000000000000bb",
+    "name": "name-0002",
+    "mountType": "door",
+    "ledSettings": {
+      "isEnabled": true,
+      "activityFeedback": true
+    }
+  }
+}

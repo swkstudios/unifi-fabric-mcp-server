@@ -1,0 +1,72 @@
+{
+  "_synthetic": "SYNTHETIC fixture: hand-written from the verified route list (route, method and the response keys named there). Not a capture; every id, title and value is invented.",
+  "doors": [
+    "door-synthetic-0001",
+    "door-synthetic-0002"
+  ],
+  "stats": {
+    "projects": 1,
+    "plans": 2,
+    "shapes": 7,
+    "_synthetic": true
+  },
+  "ucore_manifest": {
+    "name": "innerspace",
+    "version": "0.0.0-synthetic"
+  },
+  "ucore_status": {
+    "status": "ok",
+    "synthetic": true
+  },
+  "health": {
+    "status": "ok"
+  },
+  "plan_created": {
+    "data": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "type": "image",
+      "url": "/assets/synthetic.png",
+      "title": "Synthetic floor",
+      "siteId": "default"
+    }
+  },
+  "plan_deleted": {
+    "data": {
+      "plans": [],
+      "shapes": []
+    }
+  },
+  "dc_shapes": {
+    "data": {
+      "planIds": [
+        "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      ],
+      "mapFailures": []
+    }
+  },
+  "project": {
+    "data": {
+      "project": {
+        "id": "project-synthetic-1",
+        "title": "Synthetic project"
+      },
+      "plans": [
+        {
+          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "title": "Ground",
+          "ordering": 0,
+          "visible": true
+        },
+        {
+          "id": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+          "title": "First",
+          "ordering": 1,
+          "visible": true
+        }
+      ],
+      "shapes": [],
+      "products": [],
+      "wallTypes": []
+    }
+  }
+}

@@ -1,0 +1,477 @@
+{
+ "recorded_by_tool": "list_sensors",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/sensors",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "id": "000000000000000000fa012f",
+   "modelKey": "sensor",
+   "state": "CONNECTED",
+   "name": "name-0502",
+   "type": "USL-Entry-US",
+   "guid": "00000000-0000-4000-b000-000000000152",
+   "mac": "000000FA0130",
+   "mountType": "door",
+   "batteryStatus": {
+    "percentage": 99,
+    "isLow": false
+   },
+   "featureFlags": {
+    "open": {
+     "channelCount": 1
+    },
+    "tamper": {
+     "channelCount": 1
+    }
+   },
+   "stats": {
+    "light": {
+     "value": null,
+     "status": "unknown"
+    },
+    "humidity": {
+     "value": null,
+     "status": "unknown"
+    },
+    "temperature": {
+     "value": null,
+     "status": "unknown"
+    }
+   },
+   "lightSettings": {
+    "isEnabled": false,
+    "margin": 10,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "humiditySettings": {
+    "isEnabled": false,
+    "margin": 1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "temperatureSettings": {
+    "isEnabled": false,
+    "margin": 0.1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "isOpened": false,
+   "openStatusChangedAt": 1791496585687,
+   "isMotionDetected": false,
+   "motionDetectedAt": null,
+   "motionSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "glassBreakSettings": {
+    "isEnabled": false,
+    "sensitivity": 25,
+    "sensitivityWhenArmed": 50
+   },
+   "scheduleMode": "always",
+   "armProfileIds": null,
+   "hasCustomSensitivityWhenArmed": false,
+   "alarmTriggeredAt": null,
+   "alarmSettings": {
+    "isEnabled": false
+   },
+   "leakDetectedAt": null,
+   "externalLeakDetectedAt": null,
+   "leakSettings": {
+    "isInternalEnabled": false,
+    "isExternalEnabled": false
+   },
+   "tamperingDetectedAt": null,
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": 76,
+     "signalStrength": -72
+    },
+    "batteryStatus": {
+     "percentage": 99,
+     "isLow": false
+    },
+    "bridge": "000000000000000000fa016d"
+   }
+  },
+  {
+   "id": "000000000000000000fa014e",
+   "modelKey": "sensor",
+   "state": "CONNECTED",
+   "name": "name-0505",
+   "type": "USL-Entry-US",
+   "guid": "00000000-0000-4000-b000-000000000152",
+   "mac": "000000FA014F",
+   "mountType": "door",
+   "batteryStatus": {
+    "percentage": 96,
+    "isLow": false
+   },
+   "featureFlags": {
+    "open": {
+     "channelCount": 1
+    },
+    "tamper": {
+     "channelCount": 1
+    }
+   },
+   "stats": {
+    "light": {
+     "value": null,
+     "status": "unknown"
+    },
+    "humidity": {
+     "value": null,
+     "status": "unknown"
+    },
+    "temperature": {
+     "value": null,
+     "status": "unknown"
+    }
+   },
+   "lightSettings": {
+    "isEnabled": false,
+    "margin": 10,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "humiditySettings": {
+    "isEnabled": false,
+    "margin": 1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "temperatureSettings": {
+    "isEnabled": false,
+    "margin": 0.1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "isOpened": false,
+   "openStatusChangedAt": 1791739476339,
+   "isMotionDetected": false,
+   "motionDetectedAt": null,
+   "motionSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "glassBreakSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "scheduleMode": "always",
+   "armProfileIds": null,
+   "hasCustomSensitivityWhenArmed": false,
+   "alarmTriggeredAt": null,
+   "alarmSettings": {
+    "isEnabled": false
+   },
+   "leakDetectedAt": null,
+   "externalLeakDetectedAt": null,
+   "leakSettings": {
+    "isInternalEnabled": false,
+    "isExternalEnabled": false
+   },
+   "tamperingDetectedAt": null,
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": 94,
+     "signalStrength": -63
+    },
+    "batteryStatus": {
+     "percentage": 96,
+     "isLow": false
+    },
+    "bridge": "000000000000000000fa016d"
+   }
+  },
+  {
+   "id": "000000000000000000fa014c",
+   "modelKey": "sensor",
+   "state": "CONNECTED",
+   "name": "name-0504",
+   "type": "USL-Entry-US",
+   "guid": "00000000-0000-4000-b000-000000000152",
+   "mac": "000000FA014D",
+   "mountType": "door",
+   "batteryStatus": {
+    "percentage": 96,
+    "isLow": false
+   },
+   "featureFlags": {
+    "open": {
+     "channelCount": 1
+    },
+    "tamper": {
+     "channelCount": 1
+    }
+   },
+   "stats": {
+    "light": {
+     "value": null,
+     "status": "unknown"
+    },
+    "humidity": {
+     "value": null,
+     "status": "unknown"
+    },
+    "temperature": {
+     "value": null,
+     "status": "unknown"
+    }
+   },
+   "lightSettings": {
+    "isEnabled": false,
+    "margin": 10,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "humiditySettings": {
+    "isEnabled": false,
+    "margin": 1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "temperatureSettings": {
+    "isEnabled": false,
+    "margin": 0.1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "isOpened": false,
+   "openStatusChangedAt": 1791676986178,
+   "isMotionDetected": false,
+   "motionDetectedAt": null,
+   "motionSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "glassBreakSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "scheduleMode": "always",
+   "armProfileIds": null,
+   "hasCustomSensitivityWhenArmed": false,
+   "alarmTriggeredAt": null,
+   "alarmSettings": {
+    "isEnabled": false
+   },
+   "leakDetectedAt": null,
+   "externalLeakDetectedAt": null,
+   "leakSettings": {
+    "isInternalEnabled": false,
+    "isExternalEnabled": false
+   },
+   "tamperingDetectedAt": null,
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": 72,
+     "signalStrength": -74
+    },
+    "batteryStatus": {
+     "percentage": 96,
+     "isLow": false
+    },
+    "bridge": "000000000000000000fa016d"
+   }
+  },
+  {
+   "id": "000000000000000000fa0150",
+   "modelKey": "sensor",
+   "state": "CONNECTED",
+   "name": "name-0506",
+   "type": "USL-Entry-US",
+   "guid": "00000000-0000-4000-b000-000000000152",
+   "mac": "000000FA0151",
+   "mountType": "door",
+   "batteryStatus": {
+    "percentage": 95,
+    "isLow": false
+   },
+   "featureFlags": {
+    "open": {
+     "channelCount": 1
+    },
+    "tamper": {
+     "channelCount": 1
+    }
+   },
+   "stats": {
+    "light": {
+     "value": null,
+     "status": "unknown"
+    },
+    "humidity": {
+     "value": null,
+     "status": "unknown"
+    },
+    "temperature": {
+     "value": null,
+     "status": "unknown"
+    }
+   },
+   "lightSettings": {
+    "isEnabled": false,
+    "margin": 10,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "humiditySettings": {
+    "isEnabled": false,
+    "margin": 1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "temperatureSettings": {
+    "isEnabled": false,
+    "margin": 0.1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "isOpened": false,
+   "openStatusChangedAt": 1791739465337,
+   "isMotionDetected": false,
+   "motionDetectedAt": null,
+   "motionSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "glassBreakSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "scheduleMode": "always",
+   "armProfileIds": null,
+   "hasCustomSensitivityWhenArmed": false,
+   "alarmTriggeredAt": null,
+   "alarmSettings": {
+    "isEnabled": false
+   },
+   "leakDetectedAt": null,
+   "externalLeakDetectedAt": null,
+   "leakSettings": {
+    "isInternalEnabled": false,
+    "isExternalEnabled": false
+   },
+   "tamperingDetectedAt": null,
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": 100,
+     "signalStrength": -58
+    },
+    "batteryStatus": {
+     "percentage": 95,
+     "isLow": false
+    },
+    "bridge": "000000000000000000fa016d"
+   }
+  },
+  {
+   "id": "000000000000000000fa014a",
+   "modelKey": "sensor",
+   "state": "CONNECTED",
+   "name": "name-0503",
+   "type": "USL-Entry-US",
+   "guid": "00000000-0000-4000-b000-000000000152",
+   "mac": "000000FA014B",
+   "mountType": "door",
+   "batteryStatus": {
+    "percentage": 96,
+    "isLow": false
+   },
+   "featureFlags": {
+    "open": {
+     "channelCount": 1
+    },
+    "tamper": {
+     "channelCount": 1
+    }
+   },
+   "stats": {
+    "light": {
+     "value": null,
+     "status": "unknown"
+    },
+    "humidity": {
+     "value": null,
+     "status": "unknown"
+    },
+    "temperature": {
+     "value": null,
+     "status": "unknown"
+    }
+   },
+   "lightSettings": {
+    "isEnabled": false,
+    "margin": 10,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "humiditySettings": {
+    "isEnabled": false,
+    "margin": 1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "temperatureSettings": {
+    "isEnabled": false,
+    "margin": 0.1,
+    "lowThreshold": null,
+    "highThreshold": null
+   },
+   "isOpened": false,
+   "openStatusChangedAt": 1791705051437,
+   "isMotionDetected": false,
+   "motionDetectedAt": null,
+   "motionSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "glassBreakSettings": {
+    "isEnabled": false,
+    "sensitivity": 100,
+    "sensitivityWhenArmed": 50
+   },
+   "scheduleMode": "always",
+   "armProfileIds": null,
+   "hasCustomSensitivityWhenArmed": false,
+   "alarmTriggeredAt": null,
+   "alarmSettings": {
+    "isEnabled": false
+   },
+   "leakDetectedAt": null,
+   "externalLeakDetectedAt": null,
+   "leakSettings": {
+    "isInternalEnabled": false,
+    "isExternalEnabled": false
+   },
+   "tamperingDetectedAt": null,
+   "wirelessConnectionState": {
+    "signalState": {
+     "signalQuality": 74,
+     "signalStrength": -73
+    },
+    "batteryStatus": {
+     "percentage": 96,
+     "isLow": false
+    },
+    "bridge": "000000000000000000fa016d"
+   }
+  }
+ ]
+}

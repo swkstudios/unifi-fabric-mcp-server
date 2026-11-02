@@ -1,0 +1,35 @@
+{
+  "args": [
+    "Default",
+    "controller"
+  ],
+  "body": {
+    "data": [
+      {
+        "controller_low_disk_space": false,
+        "eol_device_count": 0,
+        "firmware_last_changed": 1791751106,
+        "has_upgradable_devices": false,
+        "last_firmware_update_query": 1791766450,
+        "last_firmware_update_query_status": "ok",
+        "lte_subscription_canceled_for": [],
+        "lte_subscription_check_required_for": [],
+        "lte_subscription_past_due_for": [],
+        "lts_device_count": 0,
+        "request_analytics_approvement": false,
+        "unsupported_device_count": 0
+      }
+    ],
+    "meta": {
+      "rc": "ok"
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "list_site_warnings",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/widget/warnings",
+    "query": {}
+  },
+  "status": 200
+}

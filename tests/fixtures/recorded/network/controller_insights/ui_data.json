@@ -1,0 +1,38 @@
+{
+  "args": [],
+  "body": {
+    "data": [
+      {
+        "lte": {
+          "pricing": {
+            "earlyAccess": {
+              "costPerGb": "costPerGb-0001",
+              "freeTrialGb": 1
+            },
+            "standard": {
+              "costPerGb": {
+                "additional": "additional-0001",
+                "first": "first-0001"
+              },
+              "freeTrialGb": 1
+            }
+          }
+        },
+        "mapbox": "mapbox-0001",
+        "stripe": "stripe-0001",
+        "unsplash": "0000000000000000000000000000000000000000000000000000000000fa0008"
+      }
+    ],
+    "meta": {
+      "rc": "ok"
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_ui_data",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/ui-data",
+    "query": {}
+  },
+  "status": 200
+}

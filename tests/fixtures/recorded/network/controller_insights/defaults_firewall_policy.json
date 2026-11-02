@@ -1,0 +1,46 @@
+{
+  "args": [
+    "firewall_policy",
+    "Default"
+  ],
+  "body": {
+    "action": "BLOCK",
+    "connection_state_type": "connection-state-type-0001",
+    "connection_states": [],
+    "create_allow_respond": true,
+    "destination": {
+      "match_opposite_ports": false,
+      "matching_target": "matching-target-0001",
+      "matching_target_type": "matching-target-type-0001",
+      "port_matching_type": "port-matching-type-0001"
+    },
+    "enabled": true,
+    "icmp_typename": "icmp-typename-0001",
+    "icmp_v6_typename": "icmp-v6-typename-0001",
+    "ip_version": "ip-version-0001",
+    "logging": false,
+    "match_ip_sec": false,
+    "match_ip_sec_type": "match-ip-sec-type-0001",
+    "match_opposite_protocol": false,
+    "predefined": false,
+    "protocol": "all",
+    "report_flow": true,
+    "schedule": {
+      "mode": "ALWAYS"
+    },
+    "source": {
+      "match_opposite_ports": false,
+      "matching_target": "matching-target-0001",
+      "matching_target_type": "matching-target-type-0001",
+      "port_matching_type": "port-matching-type-0001"
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/firewall-policies/defaults",
+    "query": {}
+  },
+  "status": 200
+}

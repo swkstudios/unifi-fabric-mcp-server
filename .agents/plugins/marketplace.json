@@ -1,0 +1,20 @@
+{
+  "name": "unifi-fabric",
+  "interface": {
+    "displayName": "UniFi Fabric MCP"
+  },
+  "plugins": [
+    {
+      "name": "unifi-fabric",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

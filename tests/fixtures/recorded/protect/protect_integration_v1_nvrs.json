@@ -1,0 +1,33 @@
+{
+ "recorded_by_tool": "get_nvr",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/nvrs",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "id": "000000000000000000fa01c7",
+  "modelKey": "nvr",
+  "name": "name-0012",
+  "type": "UDM-PRO",
+  "guid": "00000000-0000-4000-b000-000000000005",
+  "mac": "000000FA0002",
+  "doorbellSettings": {
+   "defaultMessageText": "defaultMessageText-0001",
+   "defaultMessageResetTimeoutMs": 60000,
+   "customMessages": [],
+   "customImages": []
+  },
+  "armMode": {
+   "status": "disabled",
+   "armedAt": null,
+   "willBeArmedAt": null,
+   "breachDetectedAt": null,
+   "breachEventCount": 0,
+   "breachTriggerEventId": null,
+   "breachEventId": null
+  }
+ }
+}

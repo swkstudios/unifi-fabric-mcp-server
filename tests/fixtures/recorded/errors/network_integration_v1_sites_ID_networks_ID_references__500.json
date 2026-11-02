@@ -1,0 +1,19 @@
+{
+ "recorded_by_tool": "get_network_references",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/networks/00000000-0000-4000-a000-000000fa003a/references",
+  "query": {}
+ },
+ "status": 500,
+ "content_type": "application/json",
+ "body": {
+  "statusCode": 500,
+  "statusName": "INTERNAL_SERVER_ERROR",
+  "code": "api.unexpected-error",
+  "message": "Unexpected error",
+  "timestamp": "2026-10-09T19:52:00.046941705Z",
+  "requestPath": "requestPath-0001",
+  "requestId": "00000000-0000-4000-a000-000000000024"
+ }
+}

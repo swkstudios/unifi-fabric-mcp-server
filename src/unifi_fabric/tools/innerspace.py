@@ -15,9 +15,8 @@ available and they are NOT interchangeable:
 3D is therefore the only mode carrying height information, so it is the default.
 
 The project document is returned verbatim: device ``meta.mac`` / ``meta.ip`` and
-floor-plan image/asset URLs are passed through unchanged. See the pass-through
-invariant in ``CLAUDE.md`` — the server is a faithful access layer and does not
-withhold data from its caller.
+floor-plan image/asset URLs are passed through unchanged. The server is a faithful
+access layer and does not withhold data from its caller.
 """
 
 from __future__ import annotations
@@ -26,32 +25,44 @@ import base64
 import re
 from typing import Any
 
-from ..client import UniFiClient, UniFiConnectionError, validate_id
+from ..client import (
+    UniFiClient,
+    UniFiConnectionError,
+    describe_shape,
+    is_finite_number,
+    path_segment,
+    validate_id,
+    validate_selector,
+)
 from ..registry import Registry
+from ._pagination import verbatim_list_result
 
 # Documented "UniFi InnerSpace Integration API" (v1.3.23) connector base. This is
 # the officially published, GET-only surface
 # (https://developer.ui.com/innerspace/.../openapi.json) and is tried FIRST.
 INNERSPACE_INTEGRATION_BASE = "/v1/connector/consoles/{host_id}/proxy/innerspace/integration"
 
-# Legacy, UNDOCUMENTED connector base (``/proxy/innerspace/api/*``). This is what
-# the tools originally called; UniFi appears to have cut connector relay for it
-# when it formalized the integration surface, which matches the 2026-08-09 403
-# regression. Kept as a fallback only.
+# Legacy, UNDOCUMENTED connector base (``/proxy/innerspace/api/*``). The connector
+# may answer 403 ``host not found`` for it while relaying the documented integration
+# base, so it is used only as a fallback for ``/project``.
 INNERSPACE_PROXY_BASE = "/v1/connector/consoles/{host_id}/proxy/innerspace/api"
 
 _VALID_MODES = ("2D", "3D")
 
-#: Positive allowlist for InnerSpace asset filenames. Published asset filenames are drawn
-#: from this charset — UUID-named images (for example the illustrative
-#: ``11111111-1111-4111-8111-111111111111.png``) and slugs such as ``2DPreview.svg``.
-_ASSET_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
-#: Inline-response cap for ``get_innerspace_asset``. A floor-plan image at or below
-#: this size is returned base64-encoded inline (mirroring the Protect snapshot /
-#: recognition-crop tools); a larger asset returns metadata only, with the connector
-#: path to fetch it out-of-band, so a single MCP response is never unbounded.
-MAX_ASSET_INLINE_BYTES = 10 * 1024 * 1024
+def exception_message(exc: BaseException) -> str:
+    """Render the error and unique notes over its cause chain, as the MCP middleware does."""
+    text = str(exc)
+    notes: list[str] = []
+    source: BaseException | None = exc
+    seen: set[int] = set()
+    while source is not None and id(source) not in seen:
+        seen.add(id(source))
+        for note in getattr(source, "__notes__", ()):
+            if note not in notes:
+                notes.append(note)
+        source = source.__cause__
+    return "\n\n".join((text, *notes)) if notes else text
 
 
 def _proxy(host_id: str, path: str) -> str:
@@ -62,27 +73,79 @@ def _integration_proxy(host_id: str, path: str) -> str:
     return INNERSPACE_INTEGRATION_BASE.format(host_id=host_id) + path
 
 
-def _unwrap_project(raw: Any) -> dict[str, Any]:
-    """Return the project document, unwrapping the ``{"data": {…}}`` envelope.
+#: Arrays every project document carries; each must be a JSON array.
+_PROJECT_ARRAYS = ("shapes", "plans", "products", "wallTypes")
 
-    BOTH the documented integration ``/v1/project`` and the legacy ``/api/project``
-    responses wrap the project in a ``data`` envelope (per the published OpenAPI
-    schema and the 2026-08-02 live capture). Reading shapes/plans at the top level
-    then yields nothing. Unwrap when ``data`` is a dict carrying ``shapes`` so all
-    downstream tools see the project at the level they expect; a genuinely
-    top-level payload (no such envelope) is returned unchanged.
+
+def _validated_project(raw: Any, path: str) -> dict[str, Any]:
+    """Return the project document, unwrapped from its ``{"data": {…}}`` envelope.
+
+    The documented integration ``/v1/project`` and the legacy ``/api/project`` both wrap
+    the project in a ``data`` envelope (per the published OpenAPI schema); a payload
+    without the envelope is the project itself. The shape is checked once, here, so no
+    tool reads a missing collection as empty: the document must be an object, ``data``
+    (when present) must be an object, ``shapes`` / ``plans`` / ``products`` /
+    ``wallTypes`` must be arrays, ``attenuationObjectTypes`` must be an array when
+    present, and ``project`` must be an object when present. Anything else raises
+    naming the shape received. The document itself is returned unchanged.
     """
-    project = raw if isinstance(raw, dict) else {"data": raw}
-    inner = project.get("data")
-    if isinstance(inner, dict) and "shapes" in inner:
-        return inner
+    if not isinstance(raw, dict):
+        raise UniFiConnectionError(
+            f"Unexpected InnerSpace project shape from GET {path}: expected an object, got "
+            f"{describe_shape(raw)}"
+        )
+    project = raw
+    if "data" in raw:
+        project = raw["data"]
+        if not isinstance(project, dict):
+            raise UniFiConnectionError(
+                f"Unexpected InnerSpace project shape from GET {path}: expected 'data' to be "
+                f"the project object, got {describe_shape(project)}"
+            )
+    for key in _PROJECT_ARRAYS:
+        if not isinstance(project.get(key), list):
+            got = describe_shape(project[key]) if key in project else "no such key"
+            raise UniFiConnectionError(
+                f"Unexpected InnerSpace project shape from GET {path}: expected {key!r} to be "
+                f"an array, got {got} (document keys: {sorted(project)})"
+            )
+    for key, kind, ok in (
+        ("attenuationObjectTypes", "an array", list),
+        ("project", "an object", dict),
+    ):
+        if key in project and not isinstance(project[key], ok):
+            raise UniFiConnectionError(
+                f"Unexpected InnerSpace project shape from GET {path}: expected {key!r} to be "
+                f"{kind}, got {describe_shape(project[key])}"
+            )
     return project
+
+
+def _require_objects(items: list[Any], key: str) -> list[dict[str, Any]]:
+    """``items`` (a project array) when every entry is an object; else raise naming the
+    first entry that is not, so a count or selection over the array is never silently short.
+
+    The published project schema lists ``shapes`` and ``plans`` as arrays of objects.
+    """
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise UniFiConnectionError(
+                f"Unexpected InnerSpace project shape: expected every {key!r} entry to be an "
+                f"object, got {describe_shape(item)} at {key}[{index}] ({len(items)} entries)"
+            )
+    return items
+
+
+class _NamespaceForbiddenError(UniFiConnectionError):
+    """An augmented InnerSpace namespace rejection retains its upstream status."""
+
+    status_code = 403
 
 
 def _is_namespace_forbidden(message: str) -> bool:
     """True when an error looks like the connector-namespace 403 (not a 5xx/timeout)."""
     lowered = message.lower()
-    return "host not found" in lowered or "forbidden" in lowered
+    return re.match(r"^http 403\b", lowered) is not None and "host not found" in lowered
 
 
 def _normalize_mode(mode: str) -> str:
@@ -99,28 +162,48 @@ async def _fetch_project(
     host: str,
     mode: str,
 ) -> dict[str, Any]:
+    """The InnerSpace project object (out of its ``data`` envelope), shape-checked."""
+    _body, project = await _fetch_project_document(client, registry, host, mode)
+    return project
+
+
+#: Public name for internal consumers (the placement snapshot) that read the project
+#: object itself; the ``get_innerspace_project`` tool returns the upstream body verbatim.
+fetch_project = _fetch_project
+
+
+async def _fetch_project_document(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    mode: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Fetch the InnerSpace project document, preferring the documented API.
+
+    Returns ``(body, project)``: the upstream response object verbatim, and the project
+    object it carries (``body["data"]`` when enveloped, else ``body``).
 
     Path preference (both accept ``mode=2D|3D``, default 3D):
     1. The documented **integration** path ``…/proxy/innerspace/integration/v1/project``
        (published "UniFi InnerSpace Integration API", GET-only). Tried FIRST.
     2. The legacy, undocumented ``…/proxy/innerspace/api/project`` — fallback only.
 
-    UniFi appears to have formalized the integration surface and cut connector
-    relay for the old ``/api/*`` route, which matches the 2026-08-09 regression
-    where ``/api/project`` began returning HTTP 403 ``host not found`` on a
-    console whose host id + key still worked for the ``network``/``protect``
-    namespaces.
+    The connector can answer HTTP 403 ``host not found`` for one of these routes on a
+    console whose host id + key work for the ``network``/``protect`` namespaces.
 
-    Fallback rule: a namespace-style rejection (403 / ``host not found`` /
-    ``forbidden``) on the integration path is treated as "this route is not
-    relayed for this key" and the legacy path is tried. Any other error (5xx,
-    timeout, network) is surfaced immediately — it is not the namespace
-    regression and must not be masked by a second attempt. If BOTH paths are
+    Fallback rule: a namespace-style rejection (403 / ``host not found``) on the
+    integration path is treated as "this route is not relayed for this key" and the
+    legacy path is tried. Any other error (5xx, timeout, network) is surfaced
+    immediately — it is not the namespace regression and must not be masked by a
+    second attempt. When the integration path
+    was rejected and the legacy fallback then fails with any other error (a 404 on a
+    console without the legacy route), that error is raised carrying the integration
+    path's rejection too, so the first reason is never lost. If BOTH paths are
     rejected, a single error naming both attempted paths and both plausible
     causes (truncated host id vs. connector no longer relaying InnerSpace) is
     raised — a message blaming only the host id would be misleading, since a
-    full, resolvable id can still 403 here.
+    full, resolvable id can still 403 here. The document returned is shape-checked
+    once by ``_validated_project``.
     """
     normalized = _normalize_mode(mode)
     key = await registry.resolve_key_for_host(host)
@@ -129,18 +212,37 @@ async def _fetch_project(
     legacy_path = _proxy(host_id, "/project")
 
     last_forbidden: UniFiConnectionError | None = None
+    upstream_errors: list[str] = []
     for path in (integration_path, legacy_path):
         try:
             raw = await client.get(path, key=key, params={"mode": normalized})
         except UniFiConnectionError as exc:
             if _is_namespace_forbidden(str(exc)):
                 last_forbidden = exc
+                upstream_errors.append(str(exc))
                 continue  # try the next candidate path
+            if upstream_errors and exc.status == 403:
+                # Both routes were denied, but only the first was established to be
+                # the host-not-found namespace case. Preserve both actual responses.
+                raise _NamespaceForbiddenError(
+                    "InnerSpace project requests to BOTH connector paths returned HTTP 403: "
+                    + " | ".join((*upstream_errors, str(exc)))
+                ) from exc
+            if upstream_errors:
+                # The fallback failed differently: report both, the first reason intact.
+                exc.add_note(
+                    f"This was the legacy fallback. The documented integration "
+                    f"path GET {integration_path}?mode={normalized} was rejected first: "
+                    + " | ".join(upstream_errors)
+                )
             raise  # non-forbidden (5xx/timeout/network): surface immediately
-        return _unwrap_project(raw)
+        project = _validated_project(raw, path)
+        return raw, project
 
-    raise UniFiConnectionError(
-        "InnerSpace project request was rejected on BOTH the documented and legacy "
+    raise _NamespaceForbiddenError(
+        "Upstream responses: "
+        + " | ".join(upstream_errors)
+        + "\n\nInnerSpace project request was rejected on BOTH the documented and legacy "
         "connector paths with 'host not found' (HTTP 403 forbidden). There are TWO "
         "known causes and this error does NOT by itself tell them apart:\n"
         "1. Host id incomplete/wrong: InnerSpace requires the full composite host id "
@@ -162,8 +264,8 @@ async def _fetch_project(
 def _scale_by_plan(shapes: list[Any]) -> dict[str, dict[str, Any]]:
     """Index the documented Integration-API ``scale`` shapes by their ``planId``.
 
-    On the documented ``/v1/project`` schema (issue #178) per-plan scale is no
-    longer a top-level ``planScales`` map nor a field on the plan object — it lives
+    On the documented ``/v1/project`` schema per-plan scale is neither a top-level
+    ``planScales`` map nor a field on the plan object — it lives
     on ``scale``-type shapes, each carrying ``planId``, ``scale`` (pixels per
     metre), ``computedScale``, ``height``, and the ``defaultScale`` /
     ``defaultHeight`` flags. This returns ``{planId: {scale, computedScale, height,
@@ -172,17 +274,19 @@ def _scale_by_plan(shapes: list[Any]) -> dict[str, dict[str, Any]]:
     of reporting ``null``.
     """
     out: dict[str, dict[str, Any]] = {}
-    for shape in shapes:
-        if not isinstance(shape, dict) or shape.get("type") != "scale":
+    for shape in _require_objects(shapes, "shapes"):
+        if shape.get("type") != "scale":
             continue
         plan_id = shape.get("planId")
-        if plan_id is None:
+        if plan_id is None:  # spec: planId is nullable; a null one names no plan to index
             continue
         entry: dict[str, Any] = {}
+        # A candidate is a finite JSON number (never a boolean, NaN or Infinity);
+        # the chosen value is passed through as the upstream sent it.
         scale = shape.get("scale")
-        if not isinstance(scale, (int, float)):
+        if not is_finite_number(scale):
             scale = shape.get("computedScale")
-        if isinstance(scale, (int, float)):
+        if is_finite_number(scale):
             entry["scale"] = scale
         for key in ("computedScale", "height", "defaultScale", "defaultHeight"):
             if key in shape:
@@ -198,7 +302,7 @@ def _plan_scale(
 
     Prefers a scale embedded on the plan (the legacy ``/api/project`` shape:
     ``scale`` / ``planScale`` / ``planScales``). When none is present — the
-    documented Integration API no longer publishes per-plan scale on the plan
+    documented Integration API does not publish per-plan scale on the plan
     object — it falls back to the ``scale`` shape for this plan id from
     ``scale_by_plan`` (see ``_scale_by_plan``). Returns ``None`` only when neither
     source carries a numeric scale.
@@ -206,15 +310,15 @@ def _plan_scale(
     for candidate in (plan.get("scale"), plan.get("planScale"), plan.get("planScales")):
         if isinstance(candidate, dict):
             value = candidate.get("scale")
-            if isinstance(value, (int, float)):
+            if is_finite_number(value):
                 return value
-        elif isinstance(candidate, (int, float)):
+        elif is_finite_number(candidate):
             return candidate
     if scale_by_plan:
         plan_id = plan.get("id")
         if plan_id is not None:
             entry = scale_by_plan.get(str(plan_id))
-            if entry is not None and isinstance(entry.get("scale"), (int, float)):
+            if entry is not None and is_finite_number(entry.get("scale")):
                 return entry["scale"]
     return None
 
@@ -224,16 +328,44 @@ async def get_innerspace_project(
     registry: Registry,
     host: str,
     mode: str = "3D",
+    user_email: str | None = None,
+    site_id: str | None = None,
 ) -> dict[str, Any]:
     """Return the full InnerSpace project geometry for a console.
 
     mode: '3D' (default; device shapes carry real metric mounting heights) or
     '2D' (device shapes are flattened to z=0). This is the complete ~66 KB
     document; call get_innerspace_summary first if you only need an inventory.
-    Returned verbatim, including device meta.mac / meta.ip and floor-plan asset URLs.
+    The upstream response object is returned verbatim (the documented API wraps the
+    project in a ``data`` envelope; the legacy path returns the project itself),
+    including device meta.mac / meta.ip and floor-plan asset URLs.
+
+    user_email / site_id: the legacy ``/api/project`` route's ``userEmail`` / ``siteId``
+    query parameters. The documented integration route takes only ``mode``, so when
+    either is given the request goes to the legacy route (the one route that takes
+    them), with ``mode`` too, and its body is returned verbatim.
     """
-    project = await _fetch_project(client, registry, host, mode)
-    return {"mode": _normalize_mode(mode), "project": project}
+    if user_email is None and site_id is None:
+        body, _project = await _fetch_project_document(client, registry, host, mode)
+        return body
+    params: dict[str, Any] = {"mode": _normalize_mode(mode)}
+    for wire, argument, value in (
+        ("userEmail", "user_email", user_email),
+        ("siteId", "site_id", site_id),
+    ):
+        if value is not None:
+            validate_selector(value, argument)
+            params[wire] = value
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    path = _proxy(host_id, "/project")
+    raw = await client.get(path, key=key, params=params)
+    if not isinstance(raw, dict):
+        raise UniFiConnectionError(
+            f"Unexpected InnerSpace project shape from GET {path}: expected an object, got "
+            f"{describe_shape(raw)}"
+        )
+    return raw
 
 
 async def get_innerspace_summary(
@@ -255,27 +387,24 @@ async def get_innerspace_summary(
     normalized = _normalize_mode(mode)
     project = await _fetch_project(client, registry, host, mode)
 
-    shapes = project.get("shapes") or []
+    # Totals over a malformed entry would be wrong, so a non-object entry raises.
+    shapes = _require_objects(project["shapes"], "shapes")
+    plans = _require_objects(project["plans"], "plans")
     shape_counts: dict[str, int] = {}
     wall_variants: dict[str, int] = {}
     for shape in shapes:
-        if not isinstance(shape, dict):
-            continue
         stype = str(shape.get("type", "unknown"))
         shape_counts[stype] = shape_counts.get(stype, 0) + 1
         if stype == "wall":
             variant = str(shape.get("variant", "unknown"))
             wall_variants[variant] = wall_variants.get(variant, 0) + 1
 
-    # Per-plan scale moved onto `scale`-type shapes in the documented Integration
-    # API (issue #178). Index them so plans and the plan_scales map can recover it.
+    # The documented Integration API carries per-plan scale on `scale`-type shapes.
+    # Index them so plans and the plan_scales map can recover it.
     scale_by_plan = _scale_by_plan(shapes)
 
-    plans = project.get("plans") or []
     plan_summaries: list[dict[str, Any]] = []
     for plan in plans:
-        if not isinstance(plan, dict):
-            continue
         plan_summaries.append(
             {
                 "ordering": plan.get("ordering"),
@@ -284,23 +413,19 @@ async def get_innerspace_summary(
             }
         )
 
-    project_meta = project.get("project")
-    project_meta = project_meta if isinstance(project_meta, dict) else {}
-
-    def _count(key: str) -> int:
-        value = project.get(key)
-        return len(value) if isinstance(value, (list, dict)) else 0
+    project_meta = project.get("project") or {}
+    attenuation = project.get("attenuationObjectTypes")
 
     # Prefer the legacy top-level planScales map; on the documented schema it is
     # absent, so derive an equivalent {planId: {scale, height, …}} map from the
-    # scale shapes instead of surfacing null (issue #178).
+    # scale shapes instead of surfacing null.
     plan_scales = project.get("planScales")
     if plan_scales is None and scale_by_plan:
         plan_scales = scale_by_plan
 
-    # Legacy `unit`/`migrated` are retained (they exist on the /api payload); the
-    # documented `project` object instead carries id/title/createdAt/updatedAt, so
-    # surface those when present rather than reporting an all-null block (#178).
+    # Legacy `unit`/`migrated` are reported (they exist on the /api payload); the
+    # documented `project` object carries id/title/createdAt/updatedAt, so those are
+    # surfaced when present rather than reporting an all-null block.
     project_block: dict[str, Any] = {
         "unit": project_meta.get("unit"),
         "migrated": project_meta.get("migrated"),
@@ -317,9 +442,10 @@ async def get_innerspace_summary(
         "plan_count": len(plan_summaries),
         "plans": plan_summaries,
         "plan_scales": plan_scales,
-        "product_count": _count("products"),
-        "wall_type_count": _count("wallTypes"),
-        "attenuation_object_type_count": _count("attenuationObjectTypes"),
+        "product_count": len(project["products"]),
+        "wall_type_count": len(project["wallTypes"]),
+        # null (not 0) when the document carries no attenuationObjectTypes array
+        "attenuation_object_type_count": len(attenuation) if attenuation is not None else None,
         "project": project_block,
         "multi_floor": len(plan_summaries) > 1,
     }
@@ -347,11 +473,10 @@ async def list_innerspace_devices(
     """
     normalized = _normalize_mode(mode)
     project = await _fetch_project(client, registry, host, mode)
-    shapes = project.get("shapes") or []
-    devices = [
-        shape for shape in shapes if isinstance(shape, dict) and shape.get("type") == "device"
-    ]
-    return {"mode": normalized, "devices": devices, "count": len(devices)}
+    # A non-object entry raises: its type is unknown, so dropping it could drop a device.
+    shapes = _require_objects(project["shapes"], "shapes")
+    devices = [shape for shape in shapes if shape.get("type") == "device"]
+    return {"shapes": devices, "_mode": normalized, "_count": len(devices)}
 
 
 # --- Integration-API-only read endpoints ------------------------------------
@@ -360,8 +485,8 @@ async def list_innerspace_devices(
 # documented integration base (`…/proxy/innerspace/integration/v1/*`). Unlike
 # `/v1/project` there is NO legacy `/api/*` equivalent, so these are fetched on the
 # integration path only. They share the same connector namespace as `/v1/project`,
-# so a namespace-style 403 (the 2026-08-09 regression) affects them identically —
-# translated here to the same helpful, two-cause error.
+# so a namespace-style 403 affects them identically — translated here to the same
+# two-cause error.
 
 
 def _site_params(site_id: str | None) -> dict[str, Any] | None:
@@ -386,13 +511,19 @@ def _extract_list(raw: Any, key: str) -> list[dict[str, Any]]:
         inner = raw.get("data")
         if isinstance(inner, dict) and isinstance(inner.get(key), list):
             return inner[key]
-    return []
+    # An unexpected shape is an error, not an empty list (which must mean "no items").
+    raise UniFiConnectionError(
+        f"Unexpected InnerSpace response shape: expected a {key!r} array (top level or "
+        f"under 'data'), got {describe_shape(raw)}"
+    )
 
 
-def _integration_namespace_error(host: str, full_path: str) -> UniFiConnectionError:
-    """The two-cause namespace-403 error, specialised for a single integration path."""
-    return UniFiConnectionError(
-        f"InnerSpace request to GET {full_path} was rejected with 'host not found' "
+def _integration_namespace_error(
+    host: str, full_path: str, upstream: Exception
+) -> UniFiConnectionError:
+    """The two-cause namespace-403 hint, appended to the verbatim upstream error."""
+    return _NamespaceForbiddenError(
+        f"{upstream}\n\nInnerSpace request to GET {full_path} was rejected with 'host not found' "
         "(HTTP 403 forbidden). This is a documented InnerSpace Integration API endpoint on "
         "the 'innerspace' connector namespace; the same 403 that affects /v1/project affects "
         "it. There are TWO known causes and this error does not by itself tell them apart:\n"
@@ -414,14 +545,18 @@ async def _fetch_integration_list(
     path: str,
     array_key: str,
     site_id: str | None,
-) -> list[dict[str, Any]]:
-    """GET a documented integration list endpoint and return its array.
+) -> dict[str, Any]:
+    """GET a documented integration list endpoint; return the body verbatim plus ``_count``.
 
     Resolves the key + host id (multi-key aware), issues a single GET on the
     documented integration base, translates a namespace-style 403 to the helpful
-    two-cause error, and returns the named array from the (optionally
-    ``data``-wrapped) response.
+    two-cause error, and returns the upstream body unchanged (every top-level key kept)
+    with the additive ``_count`` of the named array (read at the top level or under a
+    ``data`` wrapper; an unexpected shape raises). ``site_id`` is checked before any
+    request.
     """
+    if site_id is not None:
+        validate_selector(site_id, "site_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     full_path = _integration_proxy(host_id, path)
@@ -429,9 +564,9 @@ async def _fetch_integration_list(
         raw = await client.get(full_path, key=key, params=_site_params(site_id))
     except UniFiConnectionError as exc:
         if _is_namespace_forbidden(str(exc)):
-            raise _integration_namespace_error(host, full_path) from exc
+            raise _integration_namespace_error(host, full_path, exc) from exc
         raise
-    return _extract_list(raw, array_key)
+    return verbatim_list_result(raw, _extract_list(raw, array_key), full_path)
 
 
 async def list_innerspace_floor_plans(
@@ -447,15 +582,15 @@ async def list_innerspace_floor_plans(
     ``…/integration/v1/assets/{planId}/{filename}`` — fetch with
     get_innerspace_asset), ``ppm`` (pixels per metre — the scale needed to interpret
     coordinates/heights), ``width``/``height`` (image pixels), ``origin_x``/
-    ``origin_y``, and ``site_id`` when a siteId filter is applied. Returned verbatim.
+    ``origin_y``, and ``site_id`` when a siteId filter is applied. The upstream body is
+    returned verbatim (``floor_plans`` and every other top-level key) plus ``_count``.
 
     site_id: optional UniFi site filter — only floor plans whose product siteId
     matches are returned.
     """
-    items = await _fetch_integration_list(
+    return await _fetch_integration_list(
         client, registry, host, "/v1/floor_plans", "floor_plans", site_id
     )
-    return {"floor_plans": items, "count": len(items)}
 
 
 async def list_innerspace_access_points(
@@ -469,15 +604,15 @@ async def list_innerspace_access_points(
     Each access point carries ``id``, ``name``, ``model`` (SKU), ``mac``, ``serial``,
     ``floor_plan_id``, ``x``/``y`` (position on the floor-plan image in pixels),
     ``height`` (mounting height in metres above the floor), ``azimuth`` (antenna
-    orientation, 0-360 degrees), ``mount``, and ``status``. Returned verbatim,
-    including mac/serial identifiers.
+    orientation, 0-360 degrees), ``mount``, and ``status``. The upstream body is returned
+    verbatim (``access_points`` and every other top-level key, mac/serial included) plus
+    ``_count``.
 
     site_id: optional UniFi site filter — only APs whose product siteId matches.
     """
-    items = await _fetch_integration_list(
+    return await _fetch_integration_list(
         client, registry, host, "/v1/access_points", "access_points", site_id
     )
-    return {"access_points": items, "count": len(items)}
 
 
 async def list_innerspace_switches(
@@ -490,14 +625,14 @@ async def list_innerspace_switches(
 
     Each switch carries ``id``, ``name``, ``model``, ``type`` (``switch``), ``mac``,
     ``serial``, ``floor_plan_id``, ``x``/``y`` (position on the floor-plan image in
-    pixels), and ``status``. Returned verbatim, including mac/serial identifiers.
+    pixels), and ``status``. The upstream body is returned verbatim (``switches`` and every
+    other top-level key, mac/serial included) plus ``_count``.
 
     site_id: optional UniFi site filter — only switches whose product siteId matches.
     """
-    items = await _fetch_integration_list(
+    return await _fetch_integration_list(
         client, registry, host, "/v1/switches", "switches", site_id
     )
-    return {"switches": items, "count": len(items)}
 
 
 async def list_innerspace_inventory(
@@ -509,40 +644,33 @@ async def list_innerspace_inventory(
     """List UNPLACED device inventory for a console's InnerSpace project (Integration API).
 
     These are devices known to the project but not yet positioned on any floor plan.
-    Each carries ``id``, ``name``, ``model``, ``mac``, and ``serial``. Returned
-    verbatim, including mac/serial identifiers. The response array key is ``devices``.
+    Each carries ``id``, ``name``, ``model``, ``mac``, and ``serial``. The upstream body
+    is returned verbatim (the array key is ``devices``; every other top-level key kept,
+    mac/serial included) plus ``_count``.
 
     site_id: optional UniFi site filter — only inventory whose product siteId matches.
     """
-    items = await _fetch_integration_list(
+    return await _fetch_integration_list(
         client, registry, host, "/v1/inventory", "devices", site_id
     )
-    return {"devices": items, "count": len(items)}
 
 
-def _validate_asset_filename(filename: str) -> None:
-    """Reject any asset filename outside a strict positive allowlist.
+def _asset_filename_segment(filename: str) -> str:
+    """The asset filename validated against its spec and encoded as one path segment.
 
-    Validated positively against ``^[A-Za-z0-9._-]+$`` rather than by blocklisting
-    known-bad characters. Real InnerSpace asset filenames observed live are all
-    drawn from this charset, and positive validation removes the encoded-traversal
-    class of attack entirely: a name matching the allowlist cannot contain a path
-    separator ('/' or '\\'), a percent sign (so ``%2F``-style encoded separators are
-    impossible), whitespace, or any control character — there is nothing left for an
-    upstream to decode into a traversal. '.' and '..' are rejected explicitly so a
-    bare dot-name can never resolve to the current or parent directory.
+    The published ``{filename}`` is a string of 1-255 characters, so any such name
+    without a control character is accepted (:func:`client.path_segment`): it is
+    percent-encoded with nothing left safe (``/``, ``%`` and ``.`` included), so it can
+    never add a segment or be decoded into a traversal, and a name that is (or decodes to)
+    a ``.`` / ``..`` segment fails before any request.
     """
-    if not isinstance(filename, str) or not filename.strip():
-        raise ValueError("filename must be a non-empty string")
-    if len(filename) > 255:
-        raise ValueError(f"filename exceeds 255 characters ({len(filename)})")
-    if filename in (".", ".."):
-        raise ValueError(f"Invalid filename {filename!r}: must not be '.' or '..'")
-    if not _ASSET_FILENAME_RE.match(filename):
+    try:
+        return path_segment(filename, "filename", max_length=255)
+    except ValueError as exc:
         raise ValueError(
-            f"Invalid filename {filename!r}: only ASCII letters, digits, '.', '_', "
-            "and '-' are allowed"
-        )
+            f"{exc}. Pass the asset filename exactly as it appears after the last '/' of the "
+            "floor plan's image_url (e.g. 'floorplan.png')."
+        ) from exc
 
 
 async def get_innerspace_asset(
@@ -551,56 +679,47 @@ async def get_innerspace_asset(
     host: str,
     plan_id: str,
     filename: str,
+    metadata_only: bool = False,
 ) -> dict[str, Any]:
     """Download a floor-plan asset (image) from a console's InnerSpace project.
 
     Fetches the binary asset from the documented ``…/integration/v1/assets/{planId}/
-    {filename}`` endpoint (the ``image_url`` on a floor plan resolves here). The
-    bytes are returned base64-encoded inline under ``image_base64`` when the asset is
-    at or below the 10 MiB inline cap; a larger asset returns metadata only
-    (``image_base64`` = null) plus a ``note`` and the connector ``path`` to fetch it
-    out-of-band, so a single MCP response is never unbounded. ``content_type`` is the
-    upstream media type (typically image/jpeg or image/png).
+    {filename}`` endpoint (the ``image_url`` on a floor plan resolves here) and returns
+    the complete bytes base64-encoded under ``image_base64``, whatever the size — there
+    is no size cap. Pass ``metadata_only=True`` to leave out the bytes: the same keys
+    come back (``_plan_id``, ``_filename``, ``path``, ``content_type``, ``size_bytes``)
+    with ``image_base64`` = null. ``content_type``
+    is the upstream media type (typically image/jpeg or image/png), or None when the
+    upstream sends no Content-Type.
 
     plan_id: the id in the ``{planId}`` segment of the floor plan's ``image_url`` (the
     value between ``/assets/`` and the trailing ``/{filename}``). This is the
     asset-group UUID and is NOT the floor plan's own ``id`` field -- the two differ, and
-    passing the plan ``id`` returns HTTP 404 (verified live 2026-08). Parse both
-    ``plan_id`` and ``filename`` out of ``image_url`` (from list_innerspace_floor_plans)
-    rather than building them from the plan ``id``. The parameter is named ``plan_id``
-    for backward compatibility; it is forwarded verbatim as the ``{planId}`` path segment.
-    filename: the asset filename as published in the floor plan's ``image_url``.
+    passing the plan ``id`` returns HTTP 404. Parse both ``plan_id`` and ``filename`` out
+    of ``image_url`` (from list_innerspace_floor_plans) rather than building them from
+    the plan ``id``. ``plan_id`` is forwarded verbatim as the ``{planId}`` path segment.
+    filename: the asset filename as published in the floor plan's ``image_url``, as the
+    plain (decoded) name: it is percent-encoded here as one path segment. The vendored spec
+    and the recorded fixtures show no encoded ``image_url`` (the recorded asset is
+    ``2DPreview.svg``), so nothing is decoded: a segment carrying ``%XX`` escapes must be
+    passed percent-decoded, or the escapes are sent literally (``%25XX``).
     """
     validate_id(plan_id, "plan_id")
-    _validate_asset_filename(filename)
+    filename_seg = _asset_filename_segment(filename)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
-    full_path = _integration_proxy(host_id, f"/v1/assets/{plan_id}/{filename}")
+    full_path = _integration_proxy(host_id, f"/v1/assets/{plan_id}/{filename_seg}")
     try:
         content, content_type = await client.get_binary(full_path, key=key)
     except UniFiConnectionError as exc:
         if _is_namespace_forbidden(str(exc)):
-            raise _integration_namespace_error(host, full_path) from exc
+            raise _integration_namespace_error(host, full_path, exc) from exc
         raise
-    # Known limitation: client.get_binary already buffered the whole body, so this
-    # cap bounds the base64 payload we emit but not peak download RAM. A future
-    # streaming get_binary with a running byte-count would abort an oversized asset
-    # mid-download; see the note on client.get_binary. Not implemented this pass.
-    size = len(content)
-    result: dict[str, Any] = {
-        "plan_id": plan_id,
-        "filename": filename,
+    return {
+        "_plan_id": plan_id,
+        "_filename": filename,
         "content_type": content_type,
-        "size_bytes": size,
+        "size_bytes": len(content),
         "path": full_path,
+        "image_base64": None if metadata_only else base64.b64encode(content).decode(),
     }
-    if size <= MAX_ASSET_INLINE_BYTES:
-        result["image_base64"] = base64.b64encode(content).decode()
-    else:
-        result["image_base64"] = None
-        result["note"] = (
-            f"Asset is {size} bytes, exceeding the {MAX_ASSET_INLINE_BYTES}-byte inline cap; "
-            "base64 omitted to bound the response. Retrieve it directly from the connector "
-            "'path' with a binary-capable client."
-        )
-    return result

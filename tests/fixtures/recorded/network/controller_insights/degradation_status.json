@@ -1,0 +1,16 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "safe_mode": false
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_site_degradation_status",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/degradation-status",
+    "query": {}
+  },
+  "status": 200
+}

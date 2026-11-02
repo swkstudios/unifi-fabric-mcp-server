@@ -1,0 +1,33 @@
+{
+  "args": [],
+  "body": [
+    {
+      "offset": "offset-0001",
+      "timezone": "Etc/UTC"
+    },
+    {
+      "offset": "offset-0001",
+      "timezone": "Etc/UTC"
+    },
+    {
+      "offset": "offset-0001",
+      "timezone": "Etc/UTC"
+    },
+    {
+      "offset": "offset-0002",
+      "timezone": "Etc/UTC"
+    },
+    {
+      "offset": "offset-0002",
+      "timezone": "Etc/UTC"
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "list_timezones",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/timezones",
+    "query": {}
+  },
+  "status": 200
+}

@@ -1,0 +1,24 @@
+{
+  "args": [
+    "netflow",
+    "Default"
+  ],
+  "body": {
+    "auto_engine_id_enabled": true,
+    "enabled": false,
+    "export_frequency": 5,
+    "port": 2055,
+    "refresh_rate": 20,
+    "sampling_mode": "sampling-mode-0001",
+    "sampling_rate": 512,
+    "version": 10
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/netflow/defaults",
+    "query": {}
+  },
+  "status": 200
+}

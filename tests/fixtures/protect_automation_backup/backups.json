@@ -1,0 +1,7 @@
+{
+  "data": [
+    {"id": "backup-1718000000000", "createdAt": 1718000000000, "size": 1048576, "type": "manual"},
+    {"id": "backup-1718003600000", "createdAt": 1718003600000, "size": 1049600, "type": "scheduled"}
+  ],
+  "nvrVersion": "5.3.18"
+}

@@ -1,0 +1,25 @@
+{
+ "recorded_by_tool": "get_historical_stats",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/report/hourly.site",
+  "query": {},
+  "json": {
+   "attrs": [
+    "attrs-0001",
+    "attrs-0002",
+    "attrs-0003"
+   ],
+   "start": 1791568315000,
+   "end": 1791575515000
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": []
+ }
+}

@@ -1,0 +1,87 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "model_list": [
+      {
+        "blueprint_dark_image_id": "",
+        "blueprint_image_id": "",
+        "default_image_id": "00000000000000000000000000fa0009",
+        "id": "00000000-0000-d000-d000-000000000019",
+        "model_abbreviation": "model-abbreviation-0001",
+        "model_fullName": "model-fullName-0001",
+        "model_name": "model-name-0001",
+        "model_sysid": "model-sysid-0001",
+        "nopadding_image_id": "00000000000000000000000000fa000a",
+        "rack_image_id": "",
+        "sku": "sku-0001",
+        "topology_image_id": "00000000000000000000000000fa000b"
+      },
+      {
+        "blueprint_dark_image_id": "",
+        "blueprint_image_id": "",
+        "default_image_id": "00000000000000000000000000fa000c",
+        "id": "00000000-0000-4000-a000-000000fa000d",
+        "model_abbreviation": "model-abbreviation-0002",
+        "model_fullName": "model-fullName-0002",
+        "model_name": "model-name-0002",
+        "model_sysid": "model-sysid-0002",
+        "nopadding_image_id": "00000000000000000000000000fa000e",
+        "rack_image_id": "",
+        "sku": "sku-0002",
+        "topology_image_id": "00000000000000000000000000fa000f"
+      },
+      {
+        "blueprint_dark_image_id": "",
+        "blueprint_image_id": "",
+        "default_image_id": "00000000000000000000000000fa0010",
+        "id": "00000000-0000-4000-a000-000000fa0011",
+        "model_abbreviation": "model-abbreviation-0003",
+        "model_fullName": "model-fullName-0003",
+        "model_name": "model-name-0003",
+        "model_sysid": "model-sysid-0003",
+        "nopadding_image_id": "00000000000000000000000000fa0012",
+        "rack_image_id": "00000000000000000000000000fa0013",
+        "sku": "sku-0003",
+        "topology_image_id": "00000000000000000000000000fa0014"
+      },
+      {
+        "blueprint_dark_image_id": "",
+        "blueprint_image_id": "",
+        "default_image_id": "00000000000000000000000000fa0015",
+        "id": "00000000-0000-4000-a000-000000fa0016",
+        "model_abbreviation": "model-abbreviation-0004",
+        "model_fullName": "model-fullName-0004",
+        "model_name": "model-name-0004",
+        "model_sysid": "model-sysid-0004",
+        "nopadding_image_id": "00000000000000000000000000fa0017",
+        "rack_image_id": "",
+        "sku": "sku-0004",
+        "topology_image_id": "00000000000000000000000000fa0018"
+      },
+      {
+        "blueprint_dark_image_id": "00000000000000000000000000fa0019",
+        "blueprint_image_id": "00000000000000000000000000fa001a",
+        "default_image_id": "00000000000000000000000000fa001b",
+        "id": "00000000-0000-4000-a000-000000fa001c",
+        "model_abbreviation": "model-abbreviation-0005",
+        "model_fullName": "model-fullName-0005",
+        "model_name": "model-name-0005",
+        "model_sysid": "model-sysid-0005",
+        "nopadding_image_id": "00000000000000000000000000fa001d",
+        "rack_image_id": "00000000000000000000000000fa001e",
+        "sku": "sku-0005",
+        "topology_image_id": "00000000000000000000000000fa001f"
+      }
+    ]
+  },
+  "kwargs": {},
+  "recorded_by_tool": "list_device_models",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/models",
+    "query": {}
+  },
+  "status": 200
+}

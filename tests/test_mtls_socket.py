@@ -42,7 +42,6 @@ import os
 import socket
 import ssl
 import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -56,10 +55,7 @@ from unifi_fabric.config import MCPTransportSettings
 from unifi_fabric.server import build_uvicorn_config
 
 HTTP = "streamable-http"
-_READY_TIMEOUT_S = 15.0
-_SHUTDOWN_TIMEOUT_S = 15.0
 # Bounded so a reject that (wrongly) hangs fails fast instead of stalling CI.
-_CLIENT_TIMEOUT_S = 10.0
 
 
 @pytest.fixture(autouse=True)
@@ -98,7 +94,7 @@ class _MtlsCertBundle:
         server_cert.private_key_pem.write_to_path(str(self.server_keyfile))
 
         # A valid client cert chaining to the trusted CA. Its identity is
-        # cosmetic — mTLS here is transport admission, not app identity (#3).
+        # cosmetic — mTLS here is transport admission, not app identity.
         client_cert = self.ca.issue_cert("client.mtls.test")
         self.client_certfile = tmp / "client-cert.pem"
         self.client_keyfile = tmp / "client-key.pem"
@@ -124,11 +120,13 @@ def _free_localhost_socket() -> socket.socket:
     """Bind an ephemeral 127.0.0.1 port and hand the live socket to uvicorn.
 
     Binding ourselves (rather than letting uvicorn pick a port) lets us read the
-    real port via ``getsockname`` with no TOCTOU race against a separate probe.
+    real port via ``getsockname`` with no TOCTOU race against a separate probe. The
+    socket listens at once and does not set ``SO_REUSEADDR``, so no other socket can
+    bind the same port while it waits for uvicorn to start serving on it.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", 0))
+    sock.listen()
     return sock
 
 
@@ -149,22 +147,41 @@ def _serve_mtls(uvicorn_config: dict) -> Iterator[str]:
     port = sock.getsockname()[1]
 
     config = uvicorn.Config(mcp.http_app(), log_level="warning", **uvicorn_config)
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    ready = threading.Event()
+    failures: list[BaseException] = []
+
+    class CompletionServer(uvicorn.Server):
+        async def startup(self, sockets=None):
+            await super().startup(sockets=sockets)
+            ready.set()
+
+    server = CompletionServer(config)
+
+    def run_server():
+        try:
+            server.run(sockets=[sock])
+        except BaseException as exc:  # Thread failures must reach the test, including SystemExit.
+            failures.append(exc)
+        finally:
+            ready.set()  # A failed startup also releases the test to report the failure.
+
+    thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
 
     try:
-        deadline = time.monotonic() + _READY_TIMEOUT_S
-        while not server.started:
-            if time.monotonic() > deadline:
-                raise TimeoutError("uvicorn mTLS server did not become ready in time")
-            time.sleep(0.05)
+        ready.wait()
+        if failures:
+            raise RuntimeError("TLS server failed during startup") from failures[0]
+        if not server.started:
+            raise RuntimeError("TLS server exited before completing startup")
         yield f"https://127.0.0.1:{port}/mcp"
     finally:
         server.should_exit = True
-        thread.join(timeout=_SHUTDOWN_TIMEOUT_S)
+        thread.join()
         with contextlib.suppress(OSError):
             sock.close()
+        if failures:
+            raise RuntimeError("TLS server thread failed") from failures[0]
 
 
 def _mtls_settings(monkeypatch, certs: _MtlsCertBundle) -> MCPTransportSettings:
@@ -222,7 +239,7 @@ def _mcp_initialize_request() -> tuple[dict, dict]:
 def _post_initialize_ok(url: str, ctx: ssl.SSLContext) -> httpx.Response:
     """Drive a real MCP ``initialize`` with the given client context (control/happy path)."""
     payload, headers = _mcp_initialize_request()
-    with httpx.Client(verify=ctx, timeout=_CLIENT_TIMEOUT_S) as client:
+    with httpx.Client(verify=ctx, timeout=None) as client:  # noqa: S113 - wait for local socket completion
         return client.post(url, json=payload, headers=headers)
 
 
@@ -298,7 +315,7 @@ def test_mtls_no_client_cert_is_rejected(monkeypatch, certs):
         # Security assertion: a client presenting NO certificate is refused.
         no_cert_ctx = _client_ctx(certs.ca_pem)  # trusts server CA, presents nothing
         payload, headers = _mcp_initialize_request()
-        with httpx.Client(verify=no_cert_ctx, timeout=_CLIENT_TIMEOUT_S) as client:
+        with httpx.Client(verify=no_cert_ctx, timeout=None) as client:  # noqa: S113 - wait for local socket completion
             with pytest.raises(httpx.TransportError):
                 client.post(url, json=payload, headers=headers)
 
@@ -334,6 +351,6 @@ def test_mtls_untrusted_client_cert_is_rejected(monkeypatch, certs):
             client_key=certs.foreign_client_keyfile,
         )
         payload, headers = _mcp_initialize_request()
-        with httpx.Client(verify=foreign_ctx, timeout=_CLIENT_TIMEOUT_S) as client:
+        with httpx.Client(verify=foreign_ctx, timeout=None) as client:  # noqa: S113 - wait for local socket completion
             with pytest.raises(httpx.TransportError):
                 client.post(url, json=payload, headers=headers)

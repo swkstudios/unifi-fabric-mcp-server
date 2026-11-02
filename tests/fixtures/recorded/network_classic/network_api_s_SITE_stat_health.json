@@ -1,0 +1,246 @@
+{
+ "recorded_by_tool": "list_wan_interfaces",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/health",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "subsystem": "wlan",
+    "num_user": 28,
+    "num_guest": 0,
+    "num_iot": 0,
+    "tx_bytes-r": 42891,
+    "rx_bytes-r": 52359,
+    "status": "ok",
+    "num_ap": 2,
+    "num_adopted": 3,
+    "num_disabled": 1,
+    "num_disconnected": 0,
+    "num_pending": 0
+   },
+   {
+    "subsystem": "wan",
+    "num_gw": 1,
+    "num_adopted": 1,
+    "num_disconnected": 0,
+    "num_pending": 0,
+    "status": "ok",
+    "wan_ip": "203.0.113.2",
+    "gateways": [
+     "203.0.113.5"
+    ],
+    "netmask": "netmask-0001",
+    "nameservers": [],
+    "num_sta": 45,
+    "tx_bytes-r": 74033,
+    "rx_bytes-r": 159439,
+    "gw_mac": "02:00:5e:00:00:03",
+    "gw_name": "gw-name-0001",
+    "gw_system-stats": {
+     "cpu": "25.2",
+     "mem": "79.7",
+     "uptime": "557462"
+    },
+    "gw_version": "6.0.11.36173",
+    "isp_name": "isp-name-0001",
+    "isp_organization": "isp-organization-0001",
+    "asn": 64496,
+    "uptime_stats": {
+     "WAN": {
+      "alerting_monitors": [
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0001",
+        "latency_average": 4,
+        "target": "target-0001",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0002",
+        "latency_average": 16,
+        "target": "1.1.1.1",
+        "type": "dns"
+       },
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0003",
+        "latency_average": 25,
+        "target": "8.8.8.8",
+        "type": "dns"
+       }
+      ],
+      "availability": 100.0,
+      "latency_average": 4,
+      "monitors": [
+       {
+        "availability": 100.0,
+        "id": "id-0004",
+        "latency_average": 4,
+        "target": "target-0001",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0005",
+        "latency_average": 4,
+        "target": "target-0002",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0006",
+        "latency_average": 24,
+        "target": "target-0003",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0007",
+        "latency_average": 4,
+        "target": "1.1.1.1",
+        "type": "icmp"
+       }
+      ],
+      "time_period": 86400,
+      "uptime": 18729
+     },
+     "WAN2": {
+      "alerting_monitors": [
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0008",
+        "latency_average": 36,
+        "target": "target-0001",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0009",
+        "latency_average": 42,
+        "target": "1.1.1.1",
+        "type": "dns"
+       },
+       {
+        "availability": 100.0,
+        "health": "good",
+        "id": "id-0010",
+        "latency_average": 52,
+        "target": "8.8.8.8",
+        "type": "dns"
+       }
+      ],
+      "availability": 100.0,
+      "latency_average": 36,
+      "monitors": [
+       {
+        "availability": 100.0,
+        "id": "id-0011",
+        "latency_average": 36,
+        "target": "target-0001",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0012",
+        "latency_average": 50,
+        "target": "target-0002",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0013",
+        "latency_average": 44,
+        "target": "target-0003",
+        "type": "icmp"
+       },
+       {
+        "availability": 100.0,
+        "id": "id-0014",
+        "latency_average": 33,
+        "target": "1.1.1.1",
+        "type": "icmp"
+       }
+      ],
+      "time_period": 86400,
+      "uptime": 18729
+     },
+     "WAN3": {
+      "alerting_monitors": [
+       {
+        "availability": 0.0,
+        "health": "bad",
+        "id": "id-0015",
+        "target": "target-0001",
+        "type": "icmp"
+       }
+      ],
+      "downtime": 18729,
+      "monitors": [
+       {
+        "availability": 0.0,
+        "id": "id-0016",
+        "target": "target-0001",
+        "type": "icmp"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "subsystem": "www",
+    "status": "ok",
+    "tx_bytes-r": 74033,
+    "rx_bytes-r": 159439,
+    "latency": 14,
+    "uptime": 211580,
+    "drops": 3,
+    "xput_up": 0.0,
+    "xput_down": 0.0,
+    "speedtest_status": "Error",
+    "speedtest_lastrun": 1791556728,
+    "speedtest_ping": 0,
+    "gw_mac": "02:00:5e:00:00:03"
+   },
+   {
+    "subsystem": "lan",
+    "lan_ip": null,
+    "status": "ok",
+    "num_user": 17,
+    "num_guest": 0,
+    "num_iot": 0,
+    "tx_bytes-r": 255614,
+    "rx_bytes-r": 179741,
+    "num_sw": 2,
+    "num_adopted": 2,
+    "num_disconnected": 0,
+    "num_pending": 0
+   },
+   {
+    "subsystem": "vpn",
+    "status": "ok",
+    "remote_user_enabled": true,
+    "remote_user_num_active": 0,
+    "remote_user_num_inactive": 0,
+    "remote_user_rx_bytes": 0,
+    "remote_user_tx_bytes": 0,
+    "remote_user_rx_packets": 0,
+    "remote_user_tx_packets": 0,
+    "site_to_site_enabled": false
+   }
+  ]
+ }
+}

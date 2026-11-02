@@ -1,0 +1,17 @@
+{
+  "provenance": "synthetic shape (no production capture); live validation pending",
+  "request": {
+    "method": "GET",
+    "path": "/proxy/network/v2/api/site/{site}/quick-scan/wifi-uplink/status",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "state": "COMPLETED",
+    "progress": 100,
+    "results": [
+      {"ssid": "ssid-0001", "bssid": "02:00:5e:00:00:c1", "band": "RADIO_NA", "signal": -61}
+    ]
+  }
+}

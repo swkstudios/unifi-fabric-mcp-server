@@ -1,0 +1,117 @@
+{
+ "recorded_by_tool": "list_wifi_broadcasts",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/wifi/broadcasts",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 5,
+  "totalCount": 5,
+  "data": [
+   {
+    "type": "STANDARD",
+    "id": "00000000-0000-4000-b000-000000000025",
+    "name": "name-0020",
+    "enabled": true,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "securityConfiguration": {
+     "type": "WPA2_PERSONAL"
+    },
+    "broadcastingFrequenciesGHz": [
+     2.4
+    ]
+   },
+   {
+    "type": "STANDARD",
+    "id": "00000000-0000-4000-a000-000000000026",
+    "name": "name-0021",
+    "enabled": true,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "network": {
+     "type": "NATIVE"
+    },
+    "securityConfiguration": {
+     "type": "WPA2_ENTERPRISE"
+    },
+    "broadcastingFrequenciesGHz": [
+     5,
+     2.4
+    ]
+   },
+   {
+    "type": "STANDARD",
+    "id": "00000000-0000-4000-8000-000000000027",
+    "name": "name-0022",
+    "enabled": true,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "network": {
+     "type": "SPECIFIC",
+     "networkId": "00000000-0000-4000-9000-000000fa0014"
+    },
+    "securityConfiguration": {
+     "type": "WPA2_WPA3_PERSONAL"
+    },
+    "broadcastingFrequenciesGHz": [
+     5,
+     6
+    ]
+   },
+   {
+    "type": "STANDARD",
+    "id": "00000000-0000-4000-9000-000000000029",
+    "name": "name-0023",
+    "enabled": true,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "network": {
+     "type": "SPECIFIC",
+     "networkId": "00000000-0000-4000-8000-000000000028"
+    },
+    "securityConfiguration": {
+     "type": "OPEN"
+    },
+    "broadcastingFrequenciesGHz": [
+     5,
+     2.4
+    ],
+    "hotspotConfiguration": {}
+   },
+   {
+    "type": "STANDARD",
+    "id": "00000000-0000-4000-a000-000000fa0015",
+    "name": "name-0024",
+    "enabled": true,
+    "metadata": {
+     "origin": "USER_DEFINED"
+    },
+    "network": {
+     "type": "SPECIFIC",
+     "networkId": "00000000-0000-4000-9000-000000fa0014"
+    },
+    "securityConfiguration": {
+     "type": "WPA3_PERSONAL"
+    },
+    "broadcastingFrequenciesGHz": [
+     5,
+     6,
+     2.4
+    ]
+   }
+  ]
+ }
+}

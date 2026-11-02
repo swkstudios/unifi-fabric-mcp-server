@@ -1,0 +1,25 @@
+{
+  "args": [],
+  "body": [
+    {
+      "name": "name-0001"
+    },
+    {
+      "name": "name-0002"
+    },
+    {
+      "name": "name-0003"
+    },
+    {
+      "name": "name-0004"
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "list_installed_applications",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/system/installed-applications",
+    "query": {}
+  },
+  "status": 200
+}

@@ -1,0 +1,17 @@
+{
+  "args": [
+    -1
+  ],
+  "body": {
+    "errorCode": 404,
+    "message": "Device list could not be found for folder"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_device_fingerprint",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/fingerprint_devices/-1",
+    "query": {}
+  },
+  "status": 404
+}

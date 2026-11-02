@@ -1,0 +1,6788 @@
+{
+ "schemas": {
+  "adopt_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device"
+   ],
+   "type": "object"
+  },
+  "alarm_hub_trigger_output": {
+   "additionalProperties": false,
+   "properties": {
+    "alarm_hub_id": {
+     "type": "string"
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "delay": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "enable": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "output_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "alarm_hub_id",
+    "output_id"
+   ],
+   "type": "object"
+  },
+  "allow_network_on_port_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "profile_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "profile_id",
+    "network_id"
+   ],
+   "type": "object"
+  },
+  "approve_pending_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "assign_carrier_subscriber_plan": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "plan_id": {
+     "type": "string"
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id",
+    "plan_id"
+   ],
+   "type": "object"
+  },
+  "attach_carrier_subscriber_host": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host_id": {
+     "type": "string"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id",
+    "host_id"
+   ],
+   "type": "object"
+  },
+  "block_client": {
+   "additionalProperties": false,
+   "properties": {
+    "client_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "client_id"
+   ],
+   "type": "object"
+  },
+  "bulk_delete_hotspot_vouchers": {
+   "additionalProperties": false,
+   "properties": {
+    "filter_params": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "filter_params"
+   ],
+   "type": "object"
+  },
+  "compare_site_performance": {
+   "additionalProperties": false,
+   "properties": {
+    "sites": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "sites"
+   ],
+   "type": "object"
+  },
+  "create_acl_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule"
+   ],
+   "type": "object"
+  },
+  "create_arm_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "name",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "create_carrier_subscriber": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "email": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "metadata": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "notes": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "plan_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "service_address": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_number": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_number"
+   ],
+   "type": "object"
+  },
+  "create_device_tag": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tag": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tag"
+   ],
+   "type": "object"
+  },
+  "create_dns_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy"
+   ],
+   "type": "object"
+  },
+  "create_firewall_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy"
+   ],
+   "type": "object"
+  },
+  "create_firewall_zone_proxy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "zone": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "zone"
+   ],
+   "type": "object"
+  },
+  "create_hotspot_operator": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "note": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "password": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "name",
+    "password"
+   ],
+   "type": "object"
+  },
+  "create_hotspot_vouchers": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "voucher_config": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "voucher_config"
+   ],
+   "type": "object"
+  },
+  "create_liveview": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "settings": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "name"
+   ],
+   "type": "object"
+  },
+  "create_network": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "network_config": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "network_config"
+   ],
+   "type": "object"
+  },
+  "create_port_forward": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "create_radius_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "acct_server_ip": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "acct_server_port": {
+     "default": 1813,
+     "type": "integer"
+    },
+    "acct_server_secret": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "auth_server_ip": {
+     "type": "string"
+    },
+    "auth_server_port": {
+     "type": "integer"
+    },
+    "auth_server_secret": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "name",
+    "auth_server_ip",
+    "auth_server_port",
+    "auth_server_secret"
+   ],
+   "type": "object"
+  },
+  "create_rtsps_stream": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "qualities": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "qualities"
+   ],
+   "type": "object"
+  },
+  "create_site_to_site_tunnel": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tunnel": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tunnel"
+   ],
+   "type": "object"
+  },
+  "create_traffic_matching_list": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "traffic_list": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "traffic_list"
+   ],
+   "type": "object"
+  },
+  "create_traffic_route": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "create_traffic_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "create_vpn_server": {
+   "additionalProperties": false,
+   "properties": {
+    "enabled": {
+     "default": true,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "subnet": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "vpn_type": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "name",
+    "vpn_type"
+   ],
+   "type": "object"
+  },
+  "create_wifi_broadcast": {
+   "additionalProperties": false,
+   "properties": {
+    "broadcast": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "broadcast"
+   ],
+   "type": "object"
+  },
+  "delete_acl_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id"
+   ],
+   "type": "object"
+  },
+  "delete_arm_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "arm_profile_id": {
+     "type": "string"
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "arm_profile_id"
+   ],
+   "type": "object"
+  },
+  "delete_device_tag": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tag_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tag_id"
+   ],
+   "type": "object"
+  },
+  "delete_dns_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id"
+   ],
+   "type": "object"
+  },
+  "delete_firewall_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id"
+   ],
+   "type": "object"
+  },
+  "delete_firewall_zone_proxy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "zone_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "zone_id"
+   ],
+   "type": "object"
+  },
+  "delete_hotspot_operator": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "operator_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "operator_id"
+   ],
+   "type": "object"
+  },
+  "delete_hotspot_voucher": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "voucher_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "voucher_id"
+   ],
+   "type": "object"
+  },
+  "delete_network": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "network_id"
+   ],
+   "type": "object"
+  },
+  "delete_port_forward": {
+   "additionalProperties": false,
+   "properties": {
+    "forward_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "forward_id"
+   ],
+   "type": "object"
+  },
+  "delete_rtsps_stream": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "qualities": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "qualities"
+   ],
+   "type": "object"
+  },
+  "delete_site_to_site_tunnel": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tunnel_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tunnel_id"
+   ],
+   "type": "object"
+  },
+  "delete_traffic_matching_list": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "list_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "list_id"
+   ],
+   "type": "object"
+  },
+  "delete_traffic_route": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "route_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "route_id"
+   ],
+   "type": "object"
+  },
+  "delete_traffic_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id"
+   ],
+   "type": "object"
+  },
+  "delete_vpn_server": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "server_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "server_id"
+   ],
+   "type": "object"
+  },
+  "delete_wifi_broadcast": {
+   "additionalProperties": false,
+   "properties": {
+    "broadcast_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "broadcast_id"
+   ],
+   "type": "object"
+  },
+  "detach_carrier_subscriber_host": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id"
+   ],
+   "type": "object"
+  },
+  "disable_arm": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "disable_camera_mic_permanently": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "enable_arm": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "exclude_network_on_port_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "profile_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "profile_id",
+    "network_id"
+   ],
+   "type": "object"
+  },
+  "execute_client_action": {
+   "additionalProperties": false,
+   "properties": {
+    "action": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "client_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "client_id",
+    "action"
+   ],
+   "type": "object"
+  },
+  "execute_device_action": {
+   "additionalProperties": false,
+   "properties": {
+    "action": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id",
+    "action"
+   ],
+   "type": "object"
+  },
+  "execute_port_action": {
+   "additionalProperties": false,
+   "properties": {
+    "action": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "port_idx": {
+     "type": "integer"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id",
+    "port_idx",
+    "action"
+   ],
+   "type": "object"
+  },
+  "fabric_connector_delete": {
+   "additionalProperties": false,
+   "properties": {
+    "body": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "path"
+   ],
+   "type": "object"
+  },
+  "fabric_connector_get": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "params": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "path": {
+     "type": "string"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "path"
+   ],
+   "type": "object"
+  },
+  "fabric_connector_patch": {
+   "additionalProperties": false,
+   "properties": {
+    "body": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "path"
+   ],
+   "type": "object"
+  },
+  "fabric_connector_post": {
+   "additionalProperties": false,
+   "properties": {
+    "body": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "path"
+   ],
+   "type": "object"
+  },
+  "fabric_connector_put": {
+   "additionalProperties": false,
+   "properties": {
+    "body": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "path"
+   ],
+   "type": "object"
+  },
+  "get_account": {
+   "additionalProperties": false,
+   "properties": {
+    "account_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "account_id"
+   ],
+   "type": "object"
+  },
+  "get_acl_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id"
+   ],
+   "type": "object"
+  },
+  "get_acl_rule_ordering": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_alarm_hub": {
+   "additionalProperties": false,
+   "properties": {
+    "alarm_hub_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "alarm_hub_id"
+   ],
+   "type": "object"
+  },
+  "get_arm_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "arm_profile_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "arm_profile_id"
+   ],
+   "type": "object"
+  },
+  "get_bridge": {
+   "additionalProperties": false,
+   "properties": {
+    "bridge_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "bridge_id"
+   ],
+   "type": "object"
+  },
+  "get_camera": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "get_camera_snapshot": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "get_carrier_service_plan": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "plan_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "plan_id"
+   ],
+   "type": "object"
+  },
+  "get_carrier_subscriber": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id"
+   ],
+   "type": "object"
+  },
+  "get_channel_plan": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_chime": {
+   "additionalProperties": false,
+   "properties": {
+    "chime_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "chime_id"
+   ],
+   "type": "object"
+  },
+  "get_client": {
+   "additionalProperties": false,
+   "properties": {
+    "client_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "client_id"
+   ],
+   "type": "object"
+  },
+  "get_client_link_diagnostics": {
+   "additionalProperties": false,
+   "properties": {
+    "client_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "client_ids": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "get_device_port_state": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "port_idx": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "get_device_statistics": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "get_device_stp_state": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "get_dns_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id"
+   ],
+   "type": "object"
+  },
+  "get_dynamic_dns": {
+   "additionalProperties": false,
+   "properties": {
+    "ddns_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "ddns_id"
+   ],
+   "type": "object"
+  },
+  "get_firewall_group": {
+   "additionalProperties": false,
+   "properties": {
+    "group_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "group_id"
+   ],
+   "type": "object"
+  },
+  "get_firewall_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id"
+   ],
+   "type": "object"
+  },
+  "get_firewall_policy_ordering": {
+   "additionalProperties": false,
+   "properties": {
+    "destination_zone_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "source_zone_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "source_zone_id",
+    "destination_zone_id"
+   ],
+   "type": "object"
+  },
+  "get_firewall_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id"
+   ],
+   "type": "object"
+  },
+  "get_firewall_zone_proxy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "zone_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "zone_id"
+   ],
+   "type": "object"
+  },
+  "get_fleet_summary": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "get_fob": {
+   "additionalProperties": false,
+   "properties": {
+    "fob_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "fob_id"
+   ],
+   "type": "object"
+  },
+  "get_historical_stats": {
+   "additionalProperties": false,
+   "properties": {
+    "attrs": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "end": {
+     "type": "integer"
+    },
+    "host": {
+     "type": "string"
+    },
+    "interval": {
+     "type": "string"
+    },
+    "scope": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "start": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "interval",
+    "scope",
+    "start",
+    "end"
+   ],
+   "type": "object"
+  },
+  "get_host": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_hotspot_package": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "package_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "package_id"
+   ],
+   "type": "object"
+  },
+  "get_hotspot_voucher": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "voucher_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "voucher_id"
+   ],
+   "type": "object"
+  },
+  "get_innerspace_asset": {
+   "additionalProperties": false,
+   "properties": {
+    "filename": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "plan_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "plan_id",
+    "filename"
+   ],
+   "type": "object"
+  },
+  "get_innerspace_project": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "mode": {
+     "default": "3D",
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_innerspace_summary": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "mode": {
+     "default": "3D",
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_isp_metrics": {
+   "additionalProperties": false,
+   "properties": {
+    "interval": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "interval"
+   ],
+   "type": "object"
+  },
+  "get_lag": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "lag_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "lag_id"
+   ],
+   "type": "object"
+  },
+  "get_light": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "light_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "light_id"
+   ],
+   "type": "object"
+  },
+  "get_link_station": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "link_station_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "link_station_id"
+   ],
+   "type": "object"
+  },
+  "get_liveview": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "liveview_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "liveview_id"
+   ],
+   "type": "object"
+  },
+  "get_mc_lag_domain": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "mc_lag_domain_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "mc_lag_domain_id"
+   ],
+   "type": "object"
+  },
+  "get_mobility_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "get_network": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "network_id"
+   ],
+   "type": "object"
+  },
+  "get_network_application_info": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_network_references": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "network_id"
+   ],
+   "type": "object"
+  },
+  "get_nvr": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_port_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "profile_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "profile_id"
+   ],
+   "type": "object"
+  },
+  "get_protect_application_info": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "get_protect_user": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "user_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "user_id"
+   ],
+   "type": "object"
+  },
+  "get_radius_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "profile_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "profile_id"
+   ],
+   "type": "object"
+  },
+  "get_recognition_group_counts": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "type": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "type"
+   ],
+   "type": "object"
+  },
+  "get_recognition_group_image": {
+   "additionalProperties": false,
+   "properties": {
+    "group_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "type": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "type",
+    "group_id"
+   ],
+   "type": "object"
+  },
+  "get_relay": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "relay_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "relay_id"
+   ],
+   "type": "object"
+  },
+  "get_rtsps_stream": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "get_scheduled_task": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "task_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "task_id"
+   ],
+   "type": "object"
+  },
+  "get_sdwan_config": {
+   "additionalProperties": false,
+   "properties": {
+    "config_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "config_id"
+   ],
+   "type": "object"
+  },
+  "get_sdwan_config_status": {
+   "additionalProperties": false,
+   "properties": {
+    "config_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "config_id"
+   ],
+   "type": "object"
+  },
+  "get_sensor": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "sensor_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "sensor_id"
+   ],
+   "type": "object"
+  },
+  "get_setting": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "setting_key": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "setting_key"
+   ],
+   "type": "object"
+  },
+  "get_siren": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "siren_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "siren_id"
+   ],
+   "type": "object"
+  },
+  "get_site_health_summary": {
+   "additionalProperties": false,
+   "properties": {
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_site_inventory": {
+   "additionalProperties": false,
+   "properties": {
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_site_statistics": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_speaker": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "speaker_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "speaker_id"
+   ],
+   "type": "object"
+  },
+  "get_switch_stack": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "switch_stack_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "switch_stack_id"
+   ],
+   "type": "object"
+  },
+  "get_system_info": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "get_thumbnail": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "thumbnail_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "thumbnail_id"
+   ],
+   "type": "object"
+  },
+  "get_traffic_matching_list": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "list_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "list_id"
+   ],
+   "type": "object"
+  },
+  "get_traffic_route": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "route_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "route_id"
+   ],
+   "type": "object"
+  },
+  "get_ulp_user": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "ulp_user_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "ulp_user_id"
+   ],
+   "type": "object"
+  },
+  "get_user": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "user_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "user_id"
+   ],
+   "type": "object"
+  },
+  "get_viewer": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "viewer_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "viewer_id"
+   ],
+   "type": "object"
+  },
+  "get_vpn_server": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "server_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "server_id"
+   ],
+   "type": "object"
+  },
+  "get_wifi_broadcast": {
+   "additionalProperties": false,
+   "properties": {
+    "broadcast_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "broadcast_id"
+   ],
+   "type": "object"
+  },
+  "get_wlan_config": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "wlan_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "wlan_id"
+   ],
+   "type": "object"
+  },
+  "get_wlan_group": {
+   "additionalProperties": false,
+   "properties": {
+    "group_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "group_id"
+   ],
+   "type": "object"
+  },
+  "list_accounts": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_acl_rules": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_active_clients_stats": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_alarm_hubs": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_all_clients": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_all_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "status_filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_all_sites_aggregated": {
+   "additionalProperties": false,
+   "properties": {},
+   "type": "object"
+  },
+  "list_arm_profiles": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_bridges": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_cameras": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_carrier_service_plans": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_carrier_subscribers": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "plan_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "sort": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "suspended": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_chimes": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_client_sessions": {
+   "additionalProperties": false,
+   "properties": {
+    "end": {
+     "type": "integer"
+    },
+    "host": {
+     "type": "string"
+    },
+    "session_type": {
+     "default": "all",
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "start": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "start",
+    "end"
+   ],
+   "type": "object"
+  },
+  "list_clients": {
+   "additionalProperties": false,
+   "properties": {
+    "client_type": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_configured_api_keys": {
+   "additionalProperties": false,
+   "properties": {},
+   "type": "object"
+  },
+  "list_countries": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_device_stats": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_device_tags": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "page_token": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_dns_policies": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_dpi_applications": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "default": "",
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_dpi_categories": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "default": "",
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_dynamic_dns": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_firewall_groups": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_firewall_policies": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_firewall_rules": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_firewall_zones_proxy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_fobs": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_hosts": {
+   "additionalProperties": false,
+   "properties": {
+    "page_token": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_hotspot_operators": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_hotspot_packages": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_hotspot_vouchers": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_innerspace_access_points": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_innerspace_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "mode": {
+     "default": "3D",
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_innerspace_floor_plans": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_innerspace_inventory": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_innerspace_switches": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_known_clients": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_lags": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_lights": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_link_stations": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_liveviews": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_local_sites": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_mc_lag_domains": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_mobility_admins": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id"
+   ],
+   "type": "object"
+  },
+  "list_mobility_clients": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "list_mobility_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id"
+   ],
+   "type": "object"
+  },
+  "list_mobility_workspaces": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_networks": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_pending_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_port_forwards": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_port_profiles": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_protect_events": {
+   "additionalProperties": false,
+   "properties": {
+    "cameras": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "categories": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "end": {
+     "type": "integer"
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "order_direction": {
+     "default": "ASC",
+     "type": "string"
+    },
+    "smart_detect_types": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "start": {
+     "type": "integer"
+    },
+    "types": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "without_descriptions": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "start",
+    "end"
+   ],
+   "type": "object"
+  },
+  "list_protect_files": {
+   "additionalProperties": false,
+   "properties": {
+    "file_type": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "file_type"
+   ],
+   "type": "object"
+  },
+  "list_protect_users": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_radius_profiles": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_recognition_detections": {
+   "additionalProperties": false,
+   "properties": {
+    "end": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "group_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "page": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "page_size": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "type": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "type",
+    "group_id"
+   ],
+   "type": "object"
+  },
+  "list_recognition_groups": {
+   "additionalProperties": false,
+   "properties": {
+    "has_name": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "order_by": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "order_direction": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "page": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "page_size": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "type": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "type"
+   ],
+   "type": "object"
+  },
+  "list_relays": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_rogue_aps": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rogue_only": {
+     "default": false,
+     "type": "boolean"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_routing_entries": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_scheduled_tasks": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_sdwan_configs": {
+   "additionalProperties": false,
+   "properties": {
+    "page_token": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_sensors": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_settings": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_sirens": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_site_devices": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_site_to_site_tunnels": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_sites": {
+   "additionalProperties": false,
+   "properties": {
+    "page_token": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "type": "object"
+  },
+  "list_speakers": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_switch_stacks": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_traffic_matching_lists": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_traffic_routes": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_traffic_rules": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_ulp_users": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_users": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_viewers": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host"
+   ],
+   "type": "object"
+  },
+  "list_vpn_servers": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "limit": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_wan_interfaces": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_wifi_broadcasts": {
+   "additionalProperties": false,
+   "properties": {
+    "filter": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_wlan_configs": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "list_wlan_groups": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site"
+   ],
+   "type": "object"
+  },
+  "locate_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "enabled": {
+     "default": true,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "patch_firewall_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "fields": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id",
+    "fields"
+   ],
+   "type": "object"
+  },
+  "pos_ingest_transaction": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "transaction": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "transaction"
+   ],
+   "type": "object"
+  },
+  "ptz_goto_preset": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "slot": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "slot"
+   ],
+   "type": "object"
+  },
+  "ptz_patrol_start": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "slot": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "slot"
+   ],
+   "type": "object"
+  },
+  "ptz_patrol_stop": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "query_isp_metrics": {
+   "additionalProperties": false,
+   "properties": {
+    "end_time": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "interval": {
+     "type": "string"
+    },
+    "site": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "sites": {
+     "anyOf": [
+      {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "start_time": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "interval"
+   ],
+   "type": "object"
+  },
+  "reconnect_client": {
+   "additionalProperties": false,
+   "properties": {
+    "client_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "client_id"
+   ],
+   "type": "object"
+  },
+  "reject_pending_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "relay_activate_output": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "output_id": {
+     "type": "string"
+    },
+    "pulse_duration": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "relay_id": {
+     "type": "string"
+    },
+    "state": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "relay_id",
+    "output_id"
+   ],
+   "type": "object"
+  },
+  "restart_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "resume_carrier_subscriber": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id"
+   ],
+   "type": "object"
+  },
+  "search_across_sites": {
+   "additionalProperties": false,
+   "properties": {
+    "query": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  },
+  "search_device_fleet": {
+   "additionalProperties": false,
+   "properties": {
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "query": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  },
+  "set_acl_rule_ordering": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "ordering": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "ordering"
+   ],
+   "type": "object"
+  },
+  "set_firewall_policy_ordering": {
+   "additionalProperties": false,
+   "properties": {
+    "destination_zone_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "ordering": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    },
+    "source_zone_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "source_zone_id",
+    "destination_zone_id",
+    "ordering"
+   ],
+   "type": "object"
+  },
+  "siren_play": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host": {
+     "type": "string"
+    },
+    "siren_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "siren_id"
+   ],
+   "type": "object"
+  },
+  "siren_stop": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "siren_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "siren_id"
+   ],
+   "type": "object"
+  },
+  "siren_test_sound": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "siren_id": {
+     "type": "string"
+    },
+    "volume": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "siren_id"
+   ],
+   "type": "object"
+  },
+  "speaker_test_sound": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "speaker_id": {
+     "type": "string"
+    },
+    "volume": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "host",
+    "speaker_id"
+   ],
+   "type": "object"
+  },
+  "start_talkback_session": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id"
+   ],
+   "type": "object"
+  },
+  "suspend_carrier_subscriber": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "subscriber_id"
+   ],
+   "type": "object"
+  },
+  "trigger_alarm_webhook": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "host": {
+     "type": "string"
+    },
+    "webhook_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "webhook_id"
+   ],
+   "type": "object"
+  },
+  "unadopt_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "unblock_client": {
+   "additionalProperties": false,
+   "properties": {
+    "client_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "client_id"
+   ],
+   "type": "object"
+  },
+  "update_acl_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "rule": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id",
+    "rule"
+   ],
+   "type": "object"
+  },
+  "update_alarm_hub": {
+   "additionalProperties": false,
+   "properties": {
+    "alarm_hub_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "alarm_hub_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_arm_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "arm_profile_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "arm_profile_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_arm_profile_settings": {
+   "additionalProperties": false,
+   "properties": {
+    "arm_profile_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "arm_profile_id"
+   ],
+   "type": "object"
+  },
+  "update_bridge": {
+   "additionalProperties": false,
+   "properties": {
+    "bridge_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "bridge_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_camera": {
+   "additionalProperties": false,
+   "properties": {
+    "camera_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "camera_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_carrier_subscriber": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "email": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "metadata": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "notes": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "plan_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "service_address": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "subscriber_id": {
+     "type": "string"
+    },
+    "subscriber_number": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "subscriber_id"
+   ],
+   "type": "object"
+  },
+  "update_chime": {
+   "additionalProperties": false,
+   "properties": {
+    "chime_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "chime_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_device_tag": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tag": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "tag_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tag_id",
+    "tag"
+   ],
+   "type": "object"
+  },
+  "update_dns_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id",
+    "policy"
+   ],
+   "type": "object"
+  },
+  "update_dynamic_dns": {
+   "additionalProperties": false,
+   "properties": {
+    "ddns_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "ddns_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_firewall_policy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "policy": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "policy_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "policy_id",
+    "policy"
+   ],
+   "type": "object"
+  },
+  "update_firewall_zone_proxy": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "zone": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "zone_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "zone_id",
+    "zone"
+   ],
+   "type": "object"
+  },
+  "update_fob": {
+   "additionalProperties": false,
+   "properties": {
+    "fob_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "fob_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_hotspot_operator": {
+   "additionalProperties": false,
+   "properties": {
+    "fields": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "operator_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "operator_id",
+    "fields"
+   ],
+   "type": "object"
+  },
+  "update_light": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "light_id": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "light_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_link_station": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "link_station_id": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "link_station_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_liveview": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "liveview_id": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "liveview_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_mobility_device_name": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "device_id": {
+     "type": "string"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "name": {
+     "type": "string"
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id",
+    "device_id",
+    "name"
+   ],
+   "type": "object"
+  },
+  "update_mobility_device_network": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "device_id": {
+     "type": "string"
+    },
+    "dhcp_lease_time": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "dhcp_mode": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "dhcp_range_start": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "dhcp_range_stop": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "host_address": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "update_mobility_device_wireless": {
+   "additionalProperties": false,
+   "properties": {
+    "confirm": {
+     "default": false,
+     "type": "boolean"
+    },
+    "device_id": {
+     "type": "string"
+    },
+    "key_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "password": {
+     "type": "string"
+    },
+    "ssid": {
+     "type": "string"
+    },
+    "workspace_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "workspace_id",
+    "device_id",
+    "ssid",
+    "password"
+   ],
+   "type": "object"
+  },
+  "update_network": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "network_config": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "network_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "network_id",
+    "network_config"
+   ],
+   "type": "object"
+  },
+  "update_port_forward": {
+   "additionalProperties": false,
+   "properties": {
+    "forward_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "forward_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_port_profile": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "profile_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "profile_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_relay": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "relay_id": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "relay_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_sensor": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "sensor_id": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "sensor_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_setting": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "setting_key": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "setting_key",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_siren": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "siren_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "siren_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_site_to_site_tunnel": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "tunnel": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "tunnel_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "tunnel_id",
+    "tunnel"
+   ],
+   "type": "object"
+  },
+  "update_speaker": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "speaker_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "speaker_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_traffic_matching_list": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "list_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "traffic_list": {
+     "additionalProperties": true,
+     "type": "object"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "list_id",
+    "traffic_list"
+   ],
+   "type": "object"
+  },
+  "update_traffic_route": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "route_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "route_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_traffic_rule": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "rule_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "rule_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_user": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    },
+    "user_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "user_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "update_viewer": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "viewer_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "viewer_id",
+    "settings"
+   ],
+   "type": "object"
+  },
+  "update_vpn_server": {
+   "additionalProperties": false,
+   "properties": {
+    "fields": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "host": {
+     "type": "string"
+    },
+    "server_id": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "server_id",
+    "fields"
+   ],
+   "type": "object"
+  },
+  "update_wan_interface": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    },
+    "wan": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "wan_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "wan_id",
+    "wan"
+   ],
+   "type": "object"
+  },
+  "update_wifi_broadcast": {
+   "additionalProperties": false,
+   "properties": {
+    "broadcast": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "broadcast_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "broadcast_id",
+    "broadcast"
+   ],
+   "type": "object"
+  },
+  "update_wlan_config": {
+   "additionalProperties": false,
+   "properties": {
+    "host": {
+     "type": "string"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "site": {
+     "type": "string"
+    },
+    "wlan_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "wlan_id",
+    "payload"
+   ],
+   "type": "object"
+  },
+  "upgrade_device": {
+   "additionalProperties": false,
+   "properties": {
+    "device_id": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "site": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "site",
+    "device_id"
+   ],
+   "type": "object"
+  },
+  "upload_protect_file": {
+   "additionalProperties": false,
+   "properties": {
+    "file_content_base64": {
+     "type": "string"
+    },
+    "file_type": {
+     "type": "string"
+    },
+    "filename": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "host",
+    "file_type",
+    "filename",
+    "file_content_base64"
+   ],
+   "type": "object"
+  }
+ },
+ "source": "tools/list input schemas of the v0.6.2 release (FastMCP 3.2.4), description keywords removed",
+ "tool_count": 283
+}

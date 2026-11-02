@@ -1,0 +1,52 @@
+{
+ "recorded_by_tool": "query_isp_metrics",
+ "request": {
+  "method": "POST",
+  "path": "/v1/isp-metrics/1h/query",
+  "query": {},
+  "json": {
+   "sites": [
+    {
+     "hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",
+     "siteId": "000000000000000000fa0014",
+     "beginTimestamp": "2026-10-09T17:00:00Z",
+     "endTimestamp": "2026-10-09T19:00:00Z"
+    }
+   ]
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": {
+   "metrics": [
+    {
+     "metricType": "1h",
+     "periods": [
+      {
+       "data": {
+        "wan": {
+         "avgLatency": 4,
+         "download_kbps": 2000000,
+         "downtime": 0,
+         "ispAsn": "64496",
+         "ispName": "ispName-0001",
+         "maxLatency": 4,
+         "packetLoss": 0,
+         "upload_kbps": 2000000,
+         "uptime": 100
+        }
+       },
+       "metricTime": "2026-10-09T17:00:00Z",
+       "version": "11.0.81"
+      }
+     ],
+     "hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",
+     "siteId": "000000000000000000fa0014"
+    }
+   ]
+  },
+  "httpStatusCode": 200,
+  "traceId": "00000000000000000000000000fa0035"
+ }
+}

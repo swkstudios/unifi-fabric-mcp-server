@@ -1,0 +1,13 @@
+{
+ "recorded_by_tool": "list_protect_cases",
+ "args": [],
+ "kwargs": {},
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cases",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": []
+}

@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from tests._protect_writes import assert_write, resp
+from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.tools.protect import (
+    PROTECT_MUTATIONS_ENV,
+    PROTECT_PRIVATE_BASE,
     PROTECT_PROXY_BASE,
     disable_mic_permanently,
     get_camera,
@@ -29,8 +33,9 @@ BASE = PROTECT_PROXY_BASE.format(host_id=HOST_ID)
 @pytest.fixture()
 def client():
     c = AsyncMock()
+    c.request = AsyncMock(return_value=resp({}))
     c.get = AsyncMock()
-    c.get_bytes = AsyncMock()
+    c.get_binary = AsyncMock()
     c.post = AsyncMock()
     c.patch = AsyncMock()
     c.delete = AsyncMock()
@@ -53,18 +58,18 @@ class TestListCameras:
         client.get.return_value = [{"id": "cam-1", "name": "Front Door"}]
         result = await list_cameras(client, registry, "myhost")
         client.get.assert_called_once_with(f"{BASE}/cameras", key=None)
-        assert result == {"cameras": [{"id": "cam-1", "name": "Front Door"}], "count": 1}
+        assert result == {"result": [{"id": "cam-1", "name": "Front Door"}], "_count": 1}
 
     async def test_data_wrapper(self, client, registry):
         client.get.return_value = {"data": [{"id": "cam-2"}, {"id": "cam-3"}]}
         result = await list_cameras(client, registry, "myhost")
-        assert result["count"] == 2
-        assert len(result["cameras"]) == 2
+        assert result["_count"] == 2
+        assert len(result["data"]) == 2
 
     async def test_empty_list(self, client, registry):
         client.get.return_value = []
         result = await list_cameras(client, registry, "myhost")
-        assert result == {"cameras": [], "count": 0}
+        assert result == {"result": [], "_count": 0}
 
     async def test_resolves_host(self, client, registry):
         client.get.return_value = []
@@ -83,10 +88,10 @@ class TestGetCamera:
         assert result["id"] == "cam-1"
         assert result["state"] == "CONNECTED"
 
-    async def test_non_dict_wrapped(self, client, registry):
+    async def test_non_object_body_raises(self, client, registry):
         client.get.return_value = ["raw"]
-        result = await get_camera(client, registry, "h", "cam-1")
-        assert result == {"data": ["raw"]}
+        with pytest.raises(UniFiConnectionError, match="expected an object, got array"):
+            await get_camera(client, registry, "h", "cam-1")
 
     async def test_resolves_host(self, client, registry):
         client.get.return_value = {"id": "cam-1"}
@@ -99,27 +104,56 @@ class TestGetCamera:
 
 class TestUpdateCamera:
     async def test_basic(self, client, registry):
-        client.patch.return_value = {"id": "cam-1", "name": "Backyard"}
+        client.get.side_effect = [
+            {"id": "cam-1", "name": "Old"},
+            {"id": "cam-1", "name": "Backyard"},
+        ]
+        client.request.return_value = resp({"id": "cam-1", "name": "Backyard"})
         result = await update_camera(client, registry, "h", "cam-1", name="Backyard")
-        client.patch.assert_called_once_with(
-            f"{BASE}/cameras/cam-1", json={"name": "Backyard"}, key=None
+        assert_write(
+            client,
+            "PATCH",
+            f"{BASE}/cameras/cam-1",
+            json={"name": "Backyard"},
+            key=None,
         )
-        assert result["name"] == "Backyard"
+        assert result["response"]["name"] == "Backyard"
+        assert result["verified"] is True
+        assert result["before"]["name"] == "Old"
+
+    async def test_noop_when_already_set(self, client, registry):
+        client.get.return_value = {"id": "cam-1", "name": "Backyard"}
+        result = await update_camera(client, registry, "h", "cam-1", name="Backyard")
+        client.request.assert_not_called()
+        assert result["status"] == "noop"
 
     async def test_multiple_fields(self, client, registry):
-        client.patch.return_value = {"id": "cam-1", "name": "Gate", "recordingMode": "always"}
+        client.get.side_effect = [
+            {"id": "cam-1"},
+            {"id": "cam-1", "name": "Gate", "recordingMode": "always"},
+        ]
+        client.request.return_value = resp(
+            {"id": "cam-1", "name": "Gate", "recordingMode": "always"}
+        )
         result = await update_camera(
             client, registry, "h", "cam-1", name="Gate", recordingMode="always"
         )
-        call_json = client.patch.call_args[1]["json"]
+        call_json = client.request.call_args[1]["json"]
         assert call_json["name"] == "Gate"
         assert call_json["recordingMode"] == "always"
-        assert result["recordingMode"] == "always"
+        assert result["response"]["recordingMode"] == "always"
 
-    async def test_non_dict_wrapped(self, client, registry):
-        client.patch.return_value = None
+    async def test_empty_body_is_reported_not_raised(self, client, registry):
+        client.get.side_effect = [{"id": "cam-1"}, {"id": "cam-1", "name": "X"}]
+        client.request.return_value = resp()
         result = await update_camera(client, registry, "h", "cam-1", name="X")
-        assert result == {"data": None}
+        assert result == {
+            "status": "updated",
+            "verified": True,
+            "before": {"id": "cam-1"},
+            "after": {"id": "cam-1", "name": "X"},
+            "response": None,
+        }
 
 
 # --- get_camera_snapshot ---
@@ -128,33 +162,64 @@ class TestUpdateCamera:
 class TestGetCameraSnapshot:
     async def test_basic(self, client, registry):
         jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 16
-        client.get_bytes.return_value = jpeg_bytes
+        client.get_binary.return_value = (jpeg_bytes, "image/jpeg")
         result = await get_camera_snapshot(client, registry, "h", "cam-1")
-        client.get_bytes.assert_called_once_with(f"{BASE}/cameras/cam-1/snapshot", key=None)
+        client.get_binary.assert_called_once_with(f"{BASE}/cameras/cam-1/snapshot", key=None)
         assert result["image_base64"] == base64.b64encode(jpeg_bytes).decode()
         assert result["content_type"] == "image/jpeg"
         assert result["size_bytes"] == len(jpeg_bytes)
 
     async def test_resolves_host(self, client, registry):
-        client.get_bytes.return_value = b"\xff\xd8\xff"
+        client.get_binary.return_value = (b"\xff\xd8\xff", "image/jpeg")
         await get_camera_snapshot(client, registry, "console-1", "cam-99")
         registry.resolve_host_id.assert_called_once_with("console-1", key=None)
+
+    @pytest.mark.parametrize(
+        "kwargs,params",
+        [
+            ({"channel": "package"}, {"channel": "package"}),
+            ({"channel": "main", "high_quality": True}, {"channel": "main", "highQuality": "true"}),
+            ({"high_quality": False}, {"highQuality": "false"}),
+        ],
+    )
+    async def test_channel_and_high_quality_passed_through(self, client, registry, kwargs, params):
+        # The spec's optional channel / highQuality query parameters are sent only when
+        # given, channel verbatim (package camera included).
+        client.get_binary.return_value = (b"\xff\xd8\xff", "image/jpeg")
+        await get_camera_snapshot(client, registry, "h", "cam-1", **kwargs)
+        client.get_binary.assert_called_once_with(
+            f"{BASE}/cameras/cam-1/snapshot", key=None, params=params
+        )
 
 
 # --- get_rtsps_stream ---
 
 
+def _rtsps_body():
+    return {
+        "high": "rtsps://192.0.2.1:7441/synthetic-high",
+        "medium": "rtsps://192.0.2.1:7441/synthetic-medium",
+        "low": None,
+        "package": None,
+    }
+
+
 class TestGetRtspsStream:
     async def test_basic(self, client, registry):
-        client.get.return_value = {"url": "rtsps://192.168.1.1/stream"}
+        # Live response: two stream strings and nullable low/package channels.
+        body = _rtsps_body()
+        client.get.return_value = body
         result = await get_rtsps_stream(client, registry, "h", "cam-1")
         client.get.assert_called_once_with(f"{BASE}/cameras/cam-1/rtsps-stream", key=None)
-        assert result["url"].startswith("rtsps://")
+        assert set(result) == {"high", "medium", "low", "package"}
+        assert result["high"].startswith("rtsps://")
+        assert result == body
+        assert result["low"] is None and result["package"] is None
 
-    async def test_non_dict_wrapped(self, client, registry):
+    async def test_non_object_body_raises(self, client, registry):
         client.get.return_value = None
-        result = await get_rtsps_stream(client, registry, "h", "cam-1")
-        assert result == {"data": None}
+        with pytest.raises(UniFiConnectionError, match="expected an object, got NoneType"):
+            await get_rtsps_stream(client, registry, "h", "cam-1")
 
 
 # --- talkback_start ---
@@ -162,21 +227,25 @@ class TestGetRtspsStream:
 
 class TestTalkbackStart:
     async def test_basic(self, client, registry):
-        client.post.return_value = {"sessionId": "sess-1", "status": "started"}
-        result = await talkback_start(client, registry, "h", "cam-1")
-        client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/talkback-session", json={}, key=None
+        client.request.return_value = resp({"sessionId": "sess-1", "status": "started"})
+        result = await talkback_start(client, registry, "h", "cam-1", confirm=True)
+        assert_write(
+            client,
+            "POST",
+            f"{BASE}/cameras/cam-1/talkback-session",
+            json=None,
+            key=None,
         )
-        assert result["status"] == "started"
+        assert result["response"]["status"] == "started"
 
     async def test_non_dict_fallback(self, client, registry):
-        client.post.return_value = None
-        result = await talkback_start(client, registry, "h", "cam-1")
-        assert result == {"status": "ok"}
+        client.request.return_value = resp()
+        result = await talkback_start(client, registry, "h", "cam-1", confirm=True)
+        assert result == {"status": "sent", "response": None}  # empty body reported
 
     async def test_resolves_host(self, client, registry):
-        client.post.return_value = {"status": "ok"}
-        await talkback_start(client, registry, "console-x", "cam-5")
+        client.request.return_value = resp({"status": "ok"})
+        await talkback_start(client, registry, "console-x", "cam-5", confirm=True)
         registry.resolve_host_id.assert_called_once_with("console-x", key=None)
 
 
@@ -185,21 +254,25 @@ class TestTalkbackStart:
 
 class TestDisableMicPermanently:
     async def test_basic(self, client, registry):
-        client.post.return_value = {"micDisabled": True}
-        result = await disable_mic_permanently(client, registry, "h", "cam-1")
-        client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/disable-mic-permanently", json={}, key=None
+        client.request.return_value = resp({"micDisabled": True})
+        result = await disable_mic_permanently(client, registry, "h", "cam-1", confirm=True)
+        assert_write(
+            client,
+            "POST",
+            f"{BASE}/cameras/cam-1/disable-mic-permanently",
+            json=None,
+            key=None,
         )
-        assert result["micDisabled"] is True
+        assert result["response"]["micDisabled"] is True
 
     async def test_non_dict_fallback(self, client, registry):
-        client.post.return_value = None
-        result = await disable_mic_permanently(client, registry, "h", "cam-1")
-        assert result == {"status": "ok"}
+        client.request.return_value = resp()
+        result = await disable_mic_permanently(client, registry, "h", "cam-1", confirm=True)
+        assert result == {"status": "sent", "response": None}  # empty body reported
 
     async def test_resolves_host(self, client, registry):
-        client.post.return_value = {"status": "ok"}
-        await disable_mic_permanently(client, registry, "console-y", "cam-7")
+        client.request.return_value = resp({"status": "ok"})
+        await disable_mic_permanently(client, registry, "console-y", "cam-7", confirm=True)
         registry.resolve_host_id.assert_called_once_with("console-y", key=None)
 
 
@@ -208,25 +281,25 @@ class TestDisableMicPermanently:
 
 class TestPtzGoto:
     async def test_basic(self, client, registry):
-        client.post.return_value = {"status": "moving"}
-        result = await ptz_goto(client, registry, "h", "cam-1", 2)
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/2", json={}, key=None)
-        assert result["status"] == "moving"
+        client.request.return_value = resp({"status": "moving"})
+        result = await ptz_goto(client, registry, "h", "cam-1", 2, confirm=True)
+        assert_write(client, "POST", f"{BASE}/cameras/cam-1/ptz/goto/2", json=None, key=None)
+        assert result["response"]["status"] == "moving"
 
     async def test_slot_zero(self, client, registry):
-        client.post.return_value = {"status": "ok"}
-        result = await ptz_goto(client, registry, "h", "cam-1", 0)
-        client.post.assert_called_once_with(f"{BASE}/cameras/cam-1/ptz/goto/0", json={}, key=None)
-        assert result == {"status": "ok"}
+        client.request.return_value = resp({"status": "ok"})
+        result = await ptz_goto(client, registry, "h", "cam-1", 0, confirm=True)
+        assert_write(client, "POST", f"{BASE}/cameras/cam-1/ptz/goto/0", json=None, key=None)
+        assert result == {"status": "sent", "response": {"status": "ok"}}
 
     async def test_non_dict_fallback(self, client, registry):
-        client.post.return_value = None
-        result = await ptz_goto(client, registry, "h", "cam-1", 1)
-        assert result == {"status": "ok"}
+        client.request.return_value = resp()
+        result = await ptz_goto(client, registry, "h", "cam-1", 1, confirm=True)
+        assert result == {"status": "sent", "response": None}  # empty body reported
 
     async def test_resolves_host(self, client, registry):
-        client.post.return_value = {"status": "ok"}
-        await ptz_goto(client, registry, "ptz-console", "cam-ptz", 3)
+        client.request.return_value = resp({"status": "ok"})
+        await ptz_goto(client, registry, "ptz-console", "cam-ptz", 3, confirm=True)
         registry.resolve_host_id.assert_called_once_with("ptz-console", key=None)
 
 
@@ -235,17 +308,21 @@ class TestPtzGoto:
 
 class TestPtzPatrolStart:
     async def test_basic(self, client, registry):
-        client.post.return_value = {"patrolling": True}
-        result = await ptz_patrol_start(client, registry, "h", "cam-1", 1)
-        client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/ptz/patrol/start/1", json={}, key=None
+        client.request.return_value = resp({"patrolling": True})
+        result = await ptz_patrol_start(client, registry, "h", "cam-1", 1, confirm=True)
+        assert_write(
+            client,
+            "POST",
+            f"{BASE}/cameras/cam-1/ptz/patrol/start/1",
+            json=None,
+            key=None,
         )
-        assert result["patrolling"] is True
+        assert result["response"]["patrolling"] is True
 
     async def test_non_dict_fallback(self, client, registry):
-        client.post.return_value = None
-        result = await ptz_patrol_start(client, registry, "h", "cam-1", 0)
-        assert result == {"status": "ok"}
+        client.request.return_value = resp()
+        result = await ptz_patrol_start(client, registry, "h", "cam-1", 0, confirm=True)
+        assert result == {"status": "sent", "response": None}  # empty body reported
 
 
 # --- ptz_patrol_stop ---
@@ -253,19 +330,124 @@ class TestPtzPatrolStart:
 
 class TestPtzPatrolStop:
     async def test_basic(self, client, registry):
-        client.post.return_value = {"patrolling": False}
-        result = await ptz_patrol_stop(client, registry, "h", "cam-1")
-        client.post.assert_called_once_with(
-            f"{BASE}/cameras/cam-1/ptz/patrol/stop", json={}, key=None
+        client.request.return_value = resp({"patrolling": False})
+        result = await ptz_patrol_stop(client, registry, "h", "cam-1", confirm=True)
+        assert_write(
+            client,
+            "POST",
+            f"{BASE}/cameras/cam-1/ptz/patrol/stop",
+            json=None,
+            key=None,
         )
-        assert result["patrolling"] is False
+        assert result["response"]["patrolling"] is False
 
     async def test_non_dict_fallback(self, client, registry):
-        client.post.return_value = None
-        result = await ptz_patrol_stop(client, registry, "h", "cam-1")
-        assert result == {"status": "ok"}
+        client.request.return_value = resp()
+        result = await ptz_patrol_stop(client, registry, "h", "cam-1", confirm=True)
+        assert result == {"status": "sent", "response": None}  # empty body reported
 
     async def test_resolves_host(self, client, registry):
-        client.post.return_value = {"status": "ok"}
-        await ptz_patrol_stop(client, registry, "console-z", "cam-ptz")
+        client.request.return_value = resp({"status": "ok"})
+        await ptz_patrol_stop(client, registry, "console-z", "cam-ptz", confirm=True)
         registry.resolve_host_id.assert_called_once_with("console-z", key=None)
+
+
+# --- Confirm + mutation-gate guards for physical camera actions ---
+# Each tuple: (callable, extra positional args, expected POST path suffix). The gate
+# must refuse BEFORE any upstream HTTP call in both the no-confirm and the
+# mutations-disabled cases.
+_CAMERA_ACTIONS = [
+    (talkback_start, ("cam-1",), "/cameras/cam-1/talkback-session"),
+    (disable_mic_permanently, ("cam-1",), "/cameras/cam-1/disable-mic-permanently"),
+    (ptz_goto, ("cam-1", 2), "/cameras/cam-1/ptz/goto/2"),
+    (ptz_patrol_start, ("cam-1", 1), "/cameras/cam-1/ptz/patrol/start/1"),
+    (ptz_patrol_stop, ("cam-1",), "/cameras/cam-1/ptz/patrol/stop"),
+]
+
+
+@pytest.mark.parametrize("fn,args,suffix", _CAMERA_ACTIONS)
+async def test_camera_action_runs_without_confirm(client, registry, fn, args, suffix):
+    # No gate: confirm is accepted but ignored; the action runs without it.
+    client.request.return_value = resp({})
+    result = await fn(client, registry, "h", *args)
+    # physical actions are never auto-retried on 429 (a retry could repeat them)
+    assert_write(client, "POST", f"{BASE}{suffix}", json=None, key=None)
+    assert result == {"status": "sent", "response": {}}
+
+
+@pytest.mark.parametrize("fn,args,suffix", _CAMERA_ACTIONS)
+async def test_camera_action_executes_with_confirm(client, registry, fn, args, suffix):
+    client.request.return_value = resp({})
+    result = await fn(client, registry, "h", *args, confirm=True)
+    # physical actions are never auto-retried on 429 (a retry could repeat them)
+    assert_write(client, "POST", f"{BASE}{suffix}", json=None, key=None)
+    assert result == {"status": "sent", "response": {}}
+
+
+@pytest.mark.parametrize("fn,args,suffix", _CAMERA_ACTIONS)
+async def test_camera_action_gate_disabled_beats_confirm(
+    monkeypatch, client, registry, fn, args, suffix
+):
+    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "off")
+    with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
+        await fn(client, registry, "h", *args, confirm=True)
+    client.request.assert_not_called()
+
+
+# --- get_camera_snapshot ts (recording-snapshot) ---
+
+
+class TestGetCameraSnapshotAtTime:
+    """``ts`` reads a past moment from the private recording-snapshot route."""
+
+    PRIVATE = PROTECT_PRIVATE_BASE.format(host_id=HOST_ID)
+
+    async def test_ts_routes_to_the_private_recording_snapshot(self, client, registry):
+        jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 16
+        client.get_binary.return_value = (jpeg, "image/jpeg")
+        result = await get_camera_snapshot(client, registry, "h", "cam-1", ts=1_760_140_800_000)
+        client.get_binary.assert_called_once_with(
+            f"{self.PRIVATE}/cameras/cam-1/recording-snapshot",
+            key=None,
+            params={"ts": 1_760_140_800_000},
+        )
+        assert result["image_base64"] == base64.b64encode(jpeg).decode()
+        assert result["content_type"] == "image/jpeg"
+
+    async def test_ts_is_sent_as_given_with_the_other_optional_params(self, client, registry):
+        client.get_binary.return_value = (b"\xff\xd8\xff", "image/jpeg")
+        await get_camera_snapshot(
+            client, registry, "h", "cam-1", channel="main", high_quality=True, ts=0
+        )
+        # ts=0 is a value the caller gave, so it is sent (not dropped as falsy).
+        client.get_binary.assert_called_once_with(
+            f"{self.PRIVATE}/cameras/cam-1/recording-snapshot",
+            key=None,
+            params={"channel": "main", "highQuality": "true", "ts": 0},
+        )
+
+    async def test_without_ts_the_live_integration_route_is_unchanged(self, client, registry):
+        client.get_binary.return_value = (b"\xff\xd8\xff", "image/jpeg")
+        await get_camera_snapshot(client, registry, "h", "cam-1")
+        client.get_binary.assert_called_once_with(f"{BASE}/cameras/cam-1/snapshot", key=None)
+
+    async def test_upstream_404_reaches_the_caller_untouched(self, client, registry):
+        # Probed 2026-10-17 (Protect 5.3.18): ts accepted, answer 404 "Recording not found".
+        client.get_binary.side_effect = RuntimeError("HTTP 404: Recording not found")
+        with pytest.raises(RuntimeError, match="Recording not found"):
+            await get_camera_snapshot(client, registry, "h", "cam-1", ts=1)
+
+    async def test_invalid_camera_id_sends_nothing(self, client, registry):
+        with pytest.raises(ValueError):
+            await get_camera_snapshot(client, registry, "h", "", ts=1)
+        client.get_binary.assert_not_called()
+        registry.resolve_host_id.assert_not_called()
+
+    def test_ts_provenance_is_documented_on_the_tool(self):
+        from unifi_fabric import server
+
+        tool = server.get_camera_snapshot
+        doc = (getattr(tool, "description", None) or "") + (tool.__doc__ or "")
+        for needle in ("2026-10-17", "5.3.18", "400", "404", "Recording not found", "inferred"):
+            assert needle in doc, needle
+        assert "unverified" in doc

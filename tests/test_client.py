@@ -12,8 +12,9 @@ from unifi_fabric.client import (
     RateLimitError,
     UniFiClient,
     UniFiConnectionError,
-    _sanitize_body,
-    _sanitize_path,
+    UniFiHTTPError,
+    decode_body,
+    error_body_text,
     validate_host_id,
     validate_id,
 )
@@ -79,6 +80,27 @@ class TestAPIKeyHeader:
         assert route.calls[0].request.headers["x-api-key"] == "sk-acme"
         assert route.calls[1].request.headers["x-api-key"] == "sk-globex"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_same_label_different_key_never_shares_a_pool(self, client):
+        """The HTTP client cache is keyed by label AND key fingerprint, so a second
+        config that reuses a label still sends its own X-API-KEY."""
+        route = respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(200, json={"data": []}))
+        await client.get("/ea/hosts", key=APIKeyConfig(key="sk-first", label="dup"))
+        await client.get("/ea/hosts", key=APIKeyConfig(key="sk-second", label="dup"))
+        assert route.calls[0].request.headers["x-api-key"] == "sk-first"
+        assert route.calls[1].request.headers["x-api-key"] == "sk-second"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_client_cache_key_never_holds_the_raw_key(self, client):
+        respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(200, json={"data": []}))
+        await client.get("/ea/hosts", key=APIKeyConfig(key="sk-raw-canary", label="a"))
+        assert client._clients, "no client was cached (vacuous)"  # noqa: SLF001
+        for label, fingerprint in client._clients:  # noqa: SLF001
+            assert label == "a"
+            assert "sk-raw-canary" not in fingerprint
+
 
 # --- Multi-key management ---
 
@@ -90,7 +112,7 @@ class TestMultiKey:
         assert key.is_org_key is True
 
     def test_get_key_by_label_missing(self, multi_client):
-        with pytest.raises(KeyError, match="nope"):
+        with pytest.raises(ValueError, match="nope"):
             multi_client.get_key_by_label("nope")
 
     def test_list_key_labels(self, multi_client):
@@ -122,11 +144,11 @@ class TestGetBinary:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_defaults_content_type_when_absent(self, client):
+    async def test_content_type_is_none_when_absent(self, client):
         respx.get(f"{BASE}/asset.bin").mock(return_value=Response(200, content=b"raw"))
         content, content_type = await client.get_binary("/asset.bin")
         assert content == b"raw"
-        assert content_type == "application/octet-stream"
+        assert content_type is None  # never invented
 
 
 # --- Backoff / rate-limit ---
@@ -155,10 +177,32 @@ class TestBackoff:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_final_429_carries_the_last_upstream_body(self, client, monkeypatch):
+        async def _no_sleep(_delay):
+            return None
+
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
+        respx.post(f"{BASE}/v1/x").mock(
+            side_effect=[
+                Response(429, json={"message": "first"}),
+                Response(429, json={"message": "quota: retry after 60s", "code": "rl"}),
+            ]
+        )
+        with pytest.raises(RateLimitError) as exc_info:
+            await client.request("POST", "/v1/x", max_retries=1)
+        msg = str(exc_info.value)
+        assert "POST /v1/x" in msg and "HTTP 429" in msg
+        assert "quota: retry after 60s" in msg and '"code":"rl"' in msg
+        assert "first" not in msg
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_non_429_error_raises_immediately(self, client):
-        respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(500))
-        with pytest.raises(Exception):
+        route = respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(500))
+        with pytest.raises(UniFiHTTPError) as exc_info:
             await client.get("/ea/hosts")
+        assert exc_info.value.status == 500
+        assert route.call_count == 1
 
 
 # --- Error body surfacing ---
@@ -190,73 +234,137 @@ class TestErrorBodySurfacing:
         with pytest.raises(UniFiConnectionError, match="400") as exc_info:
             await client.post("/ea/networks", json={})
         msg = str(exc_info.value)
-        assert "aabbccddee" not in msg
-        assert "550e8400-e29b-41d4-a716-446655440000" not in msg
+        assert "/ea/networks" in msg
+        assert "bad request" in msg
 
 
-# --- Error redaction ---
+# --- Error messages: complete and actionable ---
 
 
-class TestErrorRedaction:
+class TestErrorMessages:
+    """Upstream errors carry the full body and the real path: identifiers are not
+    secrets. Credential fields are masked only with UNIFI_REDACT_SECRETS on."""
+
     @respx.mock
     @pytest.mark.asyncio
-    async def test_error_message_redacts_console_id(self, client):
+    async def test_error_message_keeps_console_id_and_site_uuid(self, client):
         console_id = "aabbccddee00000000000000"
-        path = f"/ea/sites/{console_id}/networks"
+        site_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        path = f"/ea/sites/{console_id}/devices/{site_uuid}"
         respx.get(f"{BASE}{path}").mock(return_value=Response(404, text="not found"))
         with pytest.raises(UniFiConnectionError) as exc_info:
             await client.get(path)
-        assert console_id not in str(exc_info.value)
-        assert "[REDACTED]" in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert console_id in msg and site_uuid in msg
+        assert "[REDACTED]" not in msg
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_error_message_redacts_site_uuid(self, client):
-        site_uuid = "550e8400-e29b-41d4-a716-446655440000"
-        path = f"/ea/sites/{site_uuid}/devices"
-        respx.get(f"{BASE}{path}").mock(return_value=Response(403, text="forbidden"))
-        with pytest.raises(UniFiConnectionError) as exc_info:
-            await client.get(path)
-        assert site_uuid not in str(exc_info.value)
-        assert "[REDACTED]" in str(exc_info.value)
-
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_error_body_redacts_uuids(self, client):
+    async def test_error_body_complete_and_not_truncated(self, client):
         uuid_in_body = "660f9511-f30c-52e5-b827-557766551111"
-        body = f'{{"error": "not found", "id": "{uuid_in_body}"}}'
+        long_detail = "d" * 5000
+        body = f'{{"error": "not found", "id": "{uuid_in_body}", "detail": "{long_detail}"}}'
         respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(404, text=body))
         with pytest.raises(UniFiConnectionError) as exc_info:
             await client.get("/ea/hosts")
-        assert uuid_in_body not in str(exc_info.value)
-        assert "[REDACTED]" in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert msg.endswith(body)
+        assert uuid_in_body in msg
 
-    def test_sanitize_path_preserves_structure(self):
-        uuid = "550e8400-e29b-41d4-a716-446655440000"
-        console = "aabbccddee001122334455"
-        path = f"/ea/hosts/{console}:12345/sites/{uuid}/networks"
-        result = _sanitize_path(path)
-        assert uuid not in result
-        assert console not in result
-        assert "/ea/hosts/" in result
-        assert "/sites/" in result
-        assert "/networks" in result
-        assert "[REDACTED]" in result
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_error_body_secret_kept_when_redaction_off(self, client):
+        body = '{"error": "bad", "x_passphrase": "pw-value"}'
+        respx.post(f"{BASE}/ea/networks").mock(return_value=Response(400, text=body))
+        with pytest.raises(UniFiConnectionError) as exc_info:
+            await client.post("/ea/networks", json={})
+        assert "pw-value" in str(exc_info.value)
 
-    def test_sanitize_body_redacts_objectid(self):
-        objectid = "507f1f77bcf86cd799439011"
-        body = f'{{"_id": "{objectid}", "name": "test"}}'
-        result = _sanitize_body(body)
-        assert objectid not in result
-        assert "[REDACTED]" in result
-        assert '"name": "test"' in result
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_error_body_secret_masked_when_redaction_on(self):
+        on = UniFiClient(Settings(api_key="sk-single-test", redact_secrets=True))
+        body = '{"error": "bad", "x_passphrase": "pw-value", "id": "net-1"}'
+        respx.post(f"{BASE}/ea/networks").mock(return_value=Response(400, text=body))
+        with pytest.raises(UniFiConnectionError) as exc_info:
+            await on.post("/ea/networks", json={})
+        msg = str(exc_info.value)
+        assert "pw-value" not in msg
+        assert "net-1" in msg and "bad" in msg  # the reason survives
 
-    def test_sanitize_body_redacts_uuid(self):
-        uuid = "550e8400-e29b-41d4-a716-446655440000"
-        body = f'{{"siteId": "{uuid}"}}'
-        result = _sanitize_body(body)
-        assert uuid not in result
-        assert "[REDACTED]" in result
+    def test_error_body_text_helper(self):
+        assert error_body_text("plain text", redact_secrets=True) == "plain text"
+        assert error_body_text('{"password": "p"}', redact_secrets=False) == '{"password": "p"}'
+        assert "p" not in error_body_text('{"password": "p"}', redact_secrets=True).split(":")[1]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_json_success_body_returned_verbatim(self, client):
+        text = "<html>" + "x" * 3000 + "</html>"
+        respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(200, text=text))
+        assert await client.get("/ea/hosts") == text
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_json_page_raises_with_shape_when_draining(self, client):
+        respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(200, text="<html>"))
+        with pytest.raises(UniFiConnectionError, match="got str"):
+            await client.paginate("/ea/hosts")
+
+
+# --- Body decoding: one pass-through rule for every method ---
+
+_DECODE_METHODS = ["get", "post", "put", "patch", "delete"]
+
+
+class TestDecodeBody:
+    """Every client method decodes a 2xx body through the one decode_body rule."""
+
+    @staticmethod
+    async def _call(client, method):
+        if method == "get":
+            return await client.get("/ea/x")
+        return await getattr(client, method)("/ea/x", json={"a": 1})
+
+    @pytest.mark.parametrize("method", _DECODE_METHODS)
+    @pytest.mark.parametrize(
+        ("response", "expected"),
+        [
+            (Response(200, json={"data": [1]}), {"data": [1]}),
+            (Response(200, json=[{"id": "a"}]), [{"id": "a"}]),
+            (Response(200, text="OK done"), "OK done"),
+            (Response(200, content=b""), None),
+            (Response(204), None),
+            (Response(201, json={"id": "n"}), {"id": "n"}),
+        ],
+    )
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_success_body(self, client, method, response, expected):
+        respx.route(method=method.upper(), url=f"{BASE}/ea/x").mock(return_value=response)
+        assert await self._call(client, method) == expected
+
+    @pytest.mark.parametrize("method", _DECODE_METHODS)
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_error_status_still_raises(self, client, method):
+        respx.route(method=method.upper(), url=f"{BASE}/ea/x").mock(
+            return_value=Response(400, text="bad thing")
+        )
+        with pytest.raises(UniFiConnectionError, match=f"HTTP 400 from {method.upper()}"):
+            await self._call(client, method)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_multipart_empty_body(self, client):
+        respx.post(f"{BASE}/ea/x").mock(return_value=Response(204))
+        assert await client.post_multipart("/ea/x", files={"f": ("a", b"x")}) is None
+
+    def test_helper_is_public(self):
+        req = httpx.Request("GET", f"{BASE}/x")
+        assert decode_body(Response(200, text="plain", request=req)) == "plain"
+        assert decode_body(Response(204, request=req)) is None
+        assert decode_body(Response(200, json={"k": None}, request=req)) == {"k": None}
 
 
 # --- Pagination ---
@@ -286,23 +394,34 @@ class TestPagination:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_page_size_sent_as_limit_param(self, client):
+    async def test_page_size_sent_as_page_size_param(self, client):
+        """Site Manager /v1 lists take ``pageSize`` (published spec), not ``limit``."""
         route = respx.get(f"{BASE}/ea/hosts").mock(
             return_value=Response(200, json={"data": [{"id": "h1"}]})
         )
         await client.paginate("/ea/hosts", page_size=50)
         assert route.called
-        assert route.calls[0].request.url.params["limit"] == "50"
+        assert route.calls[0].request.url.params["pageSize"] == "50"
+        assert "limit" not in route.calls[0].request.url.params
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_custom_params_not_overridden_by_limit(self, client):
+    async def test_custom_params_not_overridden_by_page_size(self, client):
         route = respx.get(f"{BASE}/ea/hosts").mock(
             return_value=Response(200, json={"data": [{"id": "h1"}]})
         )
-        await client.paginate("/ea/hosts", params={"limit": "10"}, page_size=200)
+        await client.paginate("/ea/hosts", params={"pageSize": "10"}, page_size=200)
         assert route.called
-        assert route.calls[0].request.url.params["limit"] == "10"
+        assert route.calls[0].request.url.params["pageSize"] == "10"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_bare_list_response_is_one_complete_page(self, client):
+        route = respx.get(f"{BASE}/ea/hosts").mock(
+            return_value=Response(200, json=[{"id": "h1"}, {"id": "h2"}])
+        )
+        assert await client.paginate("/ea/hosts") == [{"id": "h1"}, {"id": "h2"}]
+        assert route.call_count == 1
 
     @respx.mock
     @pytest.mark.asyncio
@@ -316,6 +435,22 @@ class TestPagination:
         with pytest.raises(PaginationAbortedError, match="stall detected"):
             await client.paginate("/ea/hosts")
         assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_consecutive_cursor_cycle_stops_with_pages_gathered(self, client):
+        """A -> B -> A: the cycle is detected on the first revisit, never looped."""
+        route = respx.get(f"{BASE}/ea/hosts")
+        route.side_effect = [
+            Response(200, json={"data": [{"id": "h1"}], "nextToken": "A"}),
+            Response(200, json={"data": [{"id": "h2"}], "nextToken": "B"}),
+            Response(200, json={"data": [{"id": "h3"}], "nextToken": "A"}),
+            Response(500, text="looped past the cycle"),
+        ]
+        with pytest.raises(PaginationAbortedError, match="cursor cycle detected") as exc:
+            await client.paginate("/ea/hosts")
+        assert route.call_count == 3
+        assert exc.value.items == [{"id": "h1"}, {"id": "h2"}, {"id": "h3"}]
 
     @respx.mock
     @pytest.mark.asyncio
@@ -474,8 +609,9 @@ class TestAuthHeaderNotLeaked:
         respx.get(f"{BASE}/ea/hosts").mock(
             return_value=Response(403, text='{"error": "forbidden"}')
         )
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(UniFiHTTPError) as exc_info:
             await client.get("/ea/hosts")
+        assert exc_info.value.status == 403
         assert "sk-single-test" not in str(exc_info.value)
         assert "Authorization" not in str(exc_info.value)
 
@@ -484,8 +620,9 @@ class TestAuthHeaderNotLeaked:
     async def test_http_error_does_not_contain_authorization_header(self, client):
         """Stringified exception must not include the Authorization header name/value."""
         respx.post(f"{BASE}/ea/networks").mock(return_value=Response(500, text="server error"))
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(UniFiHTTPError) as exc_info:
             await client.post("/ea/networks", json={})
+        assert exc_info.value.status == 500
         exc_str = str(exc_info.value)
         assert "sk-single-test" not in exc_str
         # The error message should contain useful context (status + path)
@@ -555,3 +692,73 @@ class TestLifecycle:
         assert len(client._clients) == 1
         await client.close()
         assert len(client._clients) == 0
+
+
+class TestRouteSecretWiring:
+    """Opt-in masking of text response bodies and dry-run request fields."""
+
+    OVPN = "/network/v2/api/site/default/vpn/openvpn/0000000000000000000000aa/configuration"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_text_body_route_masked_under_opt_in(self):
+        from unifi_fabric.redaction import REDACTION_MASK
+
+        respx.get(f"{BASE}{self.OVPN}").mock(
+            return_value=Response(200, text="client\n<key>SENTINEL-OVPN-KEY</key>")
+        )
+        on = UniFiClient(Settings(api_key="sk-single-test", redact_secrets=True))
+        resp = await on.request("GET", self.OVPN)
+        assert "SENTINEL-OVPN-KEY" not in resp.text
+        assert REDACTION_MASK in resp.text
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_text_body_route_verbatim_without_opt_in(self):
+        respx.get(f"{BASE}{self.OVPN}").mock(
+            return_value=Response(200, text="client\n<key>SENTINEL-OVPN-KEY</key>")
+        )
+        off = UniFiClient(Settings(api_key="sk-single-test"))
+        resp = await off.request("GET", self.OVPN)
+        assert "SENTINEL-OVPN-KEY" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_dry_run_preview_masks_registered_request_fields(self):
+        path = "/network/v2/api/site/default/matter/nodes"
+        body = {"setup_code": "SENTINEL-SETUP-CODE", "name": "visible"}
+        on = UniFiClient(Settings(api_key="sk-t", dry_run=True, redact_secrets=True))
+        text = (await on.request("POST", path, json=body)).text
+        assert "SENTINEL-SETUP-CODE" not in text and "visible" in text
+        off = UniFiClient(Settings(api_key="sk-t", dry_run=True))
+        assert "SENTINEL-SETUP-CODE" in (await off.request("POST", path, json=body)).text
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+@pytest.mark.parametrize("redact", [False, True])
+@pytest.mark.parametrize("only_mask", [False, True])
+@respx.mock
+async def test_write_mask_interpretation_requires_explicit_redaction(method, redact, only_mask):
+    import json
+
+    body = {"note": "***REDACTED***"}
+    if not only_mask:
+        body["enabled"] = True
+    route = respx.route(method=method, url=f"{BASE}/v1/connector/consoles/H/proxy/network/x")
+    route.mock(return_value=Response(200, json={"ok": True}))
+    async_client = UniFiClient(Settings(api_key="synthetic-key", redact_secrets=redact))
+    try:
+        if redact and only_mask:
+            with pytest.raises(ValueError, match="redaction mask"):
+                await async_client.request(
+                    method, "/v1/connector/consoles/H/proxy/network/x", json=body
+                )
+            assert not route.called
+        else:
+            await async_client.request(
+                method, "/v1/connector/consoles/H/proxy/network/x", json=body
+            )
+            assert json.loads(route.calls[0].request.content) == (
+                {"enabled": True} if redact else body
+            )
+    finally:
+        await async_client.close()

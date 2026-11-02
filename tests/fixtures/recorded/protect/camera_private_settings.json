@@ -1,0 +1,189 @@
+{
+  "recorded_by_tool": "get_camera_private",
+  "source": "Live private Protect GETs 2026-10-11; identity fields replaced before recording; camera/NVR/sensor settings only",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cameras/0000000000000000000000aa",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "id": "0000000000000000000000aa",
+    "name": "name-0001",
+    "type": "UVC G4 Instant",
+    "recordingSettings": {
+      "prePaddingSecs": 2,
+      "postPaddingSecs": 2,
+      "smartDetectPrePaddingSecs": 2,
+      "smartDetectPostPaddingSecs": 2,
+      "accessEventPrePaddingSecs": 2,
+      "accessEventPostPaddingSecs": 2,
+      "minMotionEventTrigger": 1000,
+      "endMotionEventDelay": 3000,
+      "suppressIlluminationSurge": false,
+      "mode": "always",
+      "inScheduleMode": "always",
+      "outScheduleMode": "never",
+      "recordAudio": true,
+      "recordVideo": true,
+      "geofencing": "off",
+      "retentionDurationMs": null,
+      "retentionDurationLQMs": null,
+      "motionAlgorithm": "enhanced",
+      "enableMotionDetection": false,
+      "createAccessEvent": true,
+      "useNewMotionAlgorithm": true
+    },
+    "privacyZones": [],
+    "motionZones": [
+      {
+        "id": 100,
+        "name": "name-0100",
+        "color": "#AB46BC",
+        "points": [
+          [
+            0.3805970149253731,
+            0.005899705014749304
+          ],
+          [
+            0.65969320066335,
+            0
+          ],
+          [
+            0.763,
+            0.476
+          ],
+          [
+            0.7647081260364841,
+            0.9144542772861358
+          ],
+          [
+            0.37396351575456055,
+            0.8775811209439527
+          ],
+          [
+            0.37023217247097845,
+            0.4712389380530974
+          ]
+        ],
+        "sensitivity": 50,
+        "isTriggerLightEnabled": true,
+        "mergeId": null
+      }
+    ],
+    "smartDetectZones": [
+      {
+        "id": 100,
+        "name": "name-0100",
+        "color": "#AB46BC",
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            0,
+            1
+          ]
+        ],
+        "sensitivity": 50,
+        "objectTypes": [
+          "person",
+          "vehicle",
+          "animal"
+        ],
+        "isTriggerLightEnabled": true,
+        "source": "unifi-protect",
+        "triggerAccessTypes": [],
+        "enableAccessLPOnlyMode": false,
+        "mergeId": null
+      }
+    ],
+    "ispSettings": {
+      "aeMode": "auto",
+      "irLedMode": "auto",
+      "irLedLevel": 255,
+      "wdr": 1,
+      "icrSensitivity": 0,
+      "icrSwitchMode": "sensitivity",
+      "icrCustomValue": 8,
+      "brightness": 50,
+      "contrast": 50,
+      "hue": 50,
+      "saturation": 50,
+      "sharpness": 50,
+      "denoise": 50,
+      "isColorNightVisionEnabled": false,
+      "spotlightDuration": 15,
+      "isFlippedVertical": false,
+      "isFlippedHorizontal": false,
+      "isAutoRotateEnabled": true,
+      "isLdcEnabled": true,
+      "is3dnrEnabled": true,
+      "isExternalIrEnabled": false,
+      "isAggressiveAntiFlickerEnabled": false,
+      "isPauseMotionEnabled": false,
+      "dZoomCenterX": 50,
+      "dZoomCenterY": 50,
+      "dZoomScale": 0,
+      "dZoomStreamId": 4,
+      "focusMode": "ztrig",
+      "focusPosition": 0,
+      "touchFocusX": 1001,
+      "touchFocusY": 1001,
+      "zoomPosition": 0,
+      "mountPosition": "wall",
+      "hdrMode": "superHdr",
+      "sceneMode": "auto",
+      "isSmokeCoverModeEnabled": false
+    },
+    "speakerSettings": {
+      "isEnabled": true,
+      "areSystemSoundsEnabled": false,
+      "volume": 100,
+      "ringVolume": 100,
+      "ringtoneId": null,
+      "repeatTimes": 1,
+      "speakerVolume": 100
+    },
+    "smartDetectSettings": {
+      "objectTypes": [
+        "animal",
+        "person",
+        "vehicle",
+        "face",
+        "licensePlate"
+      ],
+      "autoTrackingObjectTypes": [],
+      "autoTrackingWithZoom": true,
+      "autoTrackingTimeoutSec": 20,
+      "audioTypes": [
+        "alrmCmonx",
+        "alrmSmoke",
+        "alrmSpeak",
+        "alrmBabyCry"
+      ],
+      "enableTamperDetection": false,
+      "detectionRange": {
+        "max": null,
+        "min": null
+      }
+    },
+    "chimeDuration": 0,
+    "ledSettings": {
+      "isEnabled": true,
+      "welcomeLed": true,
+      "floodLed": true
+    },
+    "micVolume": 1
+  }
+}

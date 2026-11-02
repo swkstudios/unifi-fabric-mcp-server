@@ -4,7 +4,7 @@ Tests per-key isolation (key label config) and read-only operations for tools
 not covered by other integration test files.
 
 Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
-Mutating / host-scoped tests additionally require UNIFI_TEST_HOST and UNIFI_TEST_SITE.
+Host-scoped tests additionally require UNIFI_TEST_HOST and UNIFI_TEST_SITE.
 
 Run:
     UNIFI_API_KEY=<key> pytest tests/test_console_integration.py -v
@@ -105,11 +105,14 @@ class TestKeyIsolation:
         assert cfg.label == default_label
 
     def test_get_key_by_label_unknown_raises(self, client):
-        with pytest.raises(KeyError):
+        # 0.7.0: an unknown label raises ValueError naming the label and listing the
+        # valid labels (selector_args.unknown_key_label_problem), not a bare KeyError.
+        with pytest.raises(ValueError, match=r"No API key with label .*valid labels: "):
             client.get_key_by_label("nonexistent-console")
 
     def test_key_label_matches_list(self, client):
         labels = client.list_key_labels()
+        assert labels, "no key label is configured (vacuous)"
         for label in labels:
             cfg = client.get_key_by_label(label)
             assert cfg.label == label
@@ -124,17 +127,17 @@ class TestKeyIsolation:
 class TestListWifiBroadcastsIntegration:
     async def test_returns_broadcasts(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_wifi_broadcasts(client, registry, _TEST_HOST, _TEST_SITE)
         assert isinstance(result, dict), "list_wifi_broadcasts must return a dict"
 
     async def test_broadcast_has_name_field(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_wifi_broadcasts(client, registry, _TEST_HOST, _TEST_SITE)
         items = result.get("data", result.get("broadcasts", []))
         if not items:
-            pytest.skip("No WiFi broadcasts on site — skipping field check")
+            pytest.fail("No WiFi broadcasts on site — field check requires data")
         assert "name" in items[0], "Broadcast must have a name field"
 
 
@@ -142,11 +145,11 @@ class TestListWifiBroadcastsIntegration:
 class TestGetWifiBroadcastIntegration:
     async def test_get_broadcast_by_id(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_wifi_broadcasts(client, registry, _TEST_HOST, _TEST_SITE)
         items = result.get("data", result.get("broadcasts", []))
         if not items:
-            pytest.skip("No WiFi broadcasts on site — skipping get test")
+            pytest.fail("No WiFi broadcasts on site — get test requires data")
         broadcast_id = items[0].get("id") or items[0].get("_id")
         assert broadcast_id, "Could not determine broadcast id from list"
 
@@ -164,17 +167,17 @@ class TestGetWifiBroadcastIntegration:
 class TestListSiteDevicesIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_site_devices(client, registry, _TEST_HOST, _TEST_SITE)
         assert isinstance(result, (list, dict)), "list_site_devices must return list or dict"
 
     async def test_device_has_id_field(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_site_devices(client, registry, _TEST_HOST, _TEST_SITE)
         devices = result if isinstance(result, list) else result.get("data", [])
         if not devices:
-            pytest.skip("No devices on this site — skipping field check")
+            pytest.fail("No devices on this site — field check requires data")
         device = devices[0]
         assert "id" in device or "deviceId" in device or "mac" in device, (
             "Device must have an id, deviceId, or mac field"
@@ -185,7 +188,7 @@ class TestListSiteDevicesIntegration:
 class TestListPendingDevicesIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST:
-            pytest.skip("UNIFI_TEST_HOST must be set")
+            pytest.fail("UNIFI_TEST_HOST must be set")
         result = await list_pending_devices(client, registry, _TEST_HOST)
         assert isinstance(result, (list, dict)), "list_pending_devices must return list or dict"
 
@@ -199,17 +202,17 @@ class TestListPendingDevicesIntegration:
 class TestListClientsIntegration:
     async def test_returns_list_or_dict(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_clients(client, registry, _TEST_HOST, _TEST_SITE)
         assert isinstance(result, (list, dict)), "list_clients must return list or dict"
 
     async def test_client_has_expected_field(self, client, registry):
         if not _TEST_HOST or not _TEST_SITE:
-            pytest.skip("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
+            pytest.fail("UNIFI_TEST_HOST and UNIFI_TEST_SITE must be set")
         result = await list_clients(client, registry, _TEST_HOST, _TEST_SITE)
         clients = result if isinstance(result, list) else result.get("data", [])
         if not clients:
-            pytest.skip("No clients on this site — skipping field check")
+            pytest.fail("No clients on this site — field check requires data")
         c = clients[0]
         assert "id" in c or "mac" in c or "hostname" in c, "Client must have id, mac, or hostname"
 
@@ -228,8 +231,9 @@ class TestKeyConsistencyIntegration:
         registry.invalidate()
         second = await list_hosts(client, registry)
 
-        first_ids = {h.get("id") for h in first["hosts"]}
-        second_ids = {h.get("id") for h in second["hosts"]}
+        # 0.7.0 passes the /v1/hosts records through verbatim under the upstream "data".
+        first_ids = {h.get("id") for h in first["data"]}
+        second_ids = {h.get("id") for h in second["data"]}
         assert first_ids == second_ids, "Host list should be stable across calls"
 
     async def test_list_sites_consistent_across_calls(self, client, registry):
@@ -239,8 +243,9 @@ class TestKeyConsistencyIntegration:
         registry.invalidate()
         second = await list_sites(client, registry)
 
-        first_ids = {s.get("siteId") or s.get("id") for s in first["sites"]}
-        second_ids = {s.get("siteId") or s.get("id") for s in second["sites"]}
+        # 0.7.0 passes the /v1/sites records through verbatim under the upstream "data".
+        first_ids = {s.get("siteId") or s.get("id") for s in first["data"]}
+        second_ids = {s.get("siteId") or s.get("id") for s in second["data"]}
         assert first_ids == second_ids, "Site list should be stable across calls"
 
 
@@ -260,11 +265,11 @@ class TestInnerSpaceIntegration:
 
     async def test_summary_or_skip_when_unlicensed(self, client, registry):
         if not _TEST_HOST:
-            pytest.skip("UNIFI_TEST_HOST must be set for InnerSpace test")
+            pytest.fail("UNIFI_TEST_HOST must be set for InnerSpace test")
         try:
             result = await get_innerspace_summary(client, registry, _TEST_HOST)
         except UniFiConnectionError as exc:
             if "403" in str(exc):
-                pytest.skip(f"InnerSpace not licensed on this host (403): {exc}")
+                pytest.fail(f"InnerSpace not licensed on this host (403): {exc}")
             raise
         assert isinstance(result, dict)

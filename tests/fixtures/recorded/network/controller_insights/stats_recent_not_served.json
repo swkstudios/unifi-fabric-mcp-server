@@ -1,0 +1,24 @@
+{
+  "args": [
+    "recent"
+  ],
+  "kwargs": {
+    "bucket": "OF_5_MINUTES",
+    "end": 1760227200,
+    "period": "DAY",
+    "schema": "clientCountBySite"
+  },
+  "recorded_by_tool": "get_controller_stats",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/stats/recent",
+    "query": {
+      "bucket": "bucket-0001",
+      "end": "1791773785000",
+      "period": "period-0001",
+      "schema": "schema-0001"
+    }
+  },
+  "status": 404,
+  "text": "<!doctype html><html lang=\"en\"><head><title>HTTP Status 404 \u2013 Not Found</title><style type=\"text/css\">body {font-family:Tahoma,Arial,sans-serif;} h1, h2, h3, b {color:white;background-color:#525D76;} h1 {font-size:22px;} h2 {font-size:16px;} h3 {font-size:14px;} p {font-size:12px;} a {color:black;} .line {height:1px;background-color:#525D76;border:none;}</style></head><body><h1>HTTP Status 404 \u2013 N"
+}

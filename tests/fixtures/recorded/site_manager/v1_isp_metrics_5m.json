@@ -1,0 +1,108 @@
+{
+ "recorded_by_tool": "get_isp_metrics",
+ "request": {
+  "method": "GET",
+  "path": "/v1/isp-metrics/5m",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": [
+   {
+    "metricType": "5m",
+    "periods": [
+     {
+      "data": {
+       "wan": {
+        "avgLatency": 4,
+        "download_kbps": 2000000,
+        "downtime": 0,
+        "ispAsn": "64496",
+        "ispName": "ispName-0001",
+        "maxLatency": 4,
+        "packetLoss": 0,
+        "upload_kbps": 2000000,
+        "uptime": 100
+       }
+      },
+      "metricTime": "2026-10-08T19:40:00Z",
+      "version": "11.0.81"
+     },
+     {
+      "data": {
+       "wan": {
+        "avgLatency": 4,
+        "download_kbps": 2000000,
+        "downtime": 0,
+        "ispAsn": "64496",
+        "ispName": "ispName-0001",
+        "maxLatency": 4,
+        "packetLoss": 0,
+        "upload_kbps": 2000000,
+        "uptime": 100
+       }
+      },
+      "metricTime": "2026-10-08T19:45:00Z",
+      "version": "11.0.81"
+     },
+     {
+      "data": {
+       "wan": {
+        "avgLatency": 4,
+        "download_kbps": 2000000,
+        "downtime": 0,
+        "ispAsn": "64496",
+        "ispName": "ispName-0001",
+        "maxLatency": 4,
+        "packetLoss": 0,
+        "upload_kbps": 2000000,
+        "uptime": 100
+       }
+      },
+      "metricTime": "2026-10-08T19:50:00Z",
+      "version": "11.0.81"
+     },
+     {
+      "data": {
+       "wan": {
+        "avgLatency": 4,
+        "download_kbps": 2000000,
+        "downtime": 0,
+        "ispAsn": "64496",
+        "ispName": "ispName-0001",
+        "maxLatency": 4,
+        "packetLoss": 0,
+        "upload_kbps": 2000000,
+        "uptime": 100
+       }
+      },
+      "metricTime": "2026-10-08T19:55:00Z",
+      "version": "11.0.81"
+     },
+     {
+      "data": {
+       "wan": {
+        "avgLatency": 4,
+        "download_kbps": 2000000,
+        "downtime": 0,
+        "ispAsn": "64496",
+        "ispName": "ispName-0001",
+        "maxLatency": 4,
+        "packetLoss": 0,
+        "upload_kbps": 2000000,
+        "uptime": 100
+       }
+      },
+      "metricTime": "2026-10-08T20:00:00Z",
+      "version": "11.0.81"
+     }
+    ],
+    "hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",
+    "siteId": "000000000000000000fa0014"
+   }
+  ],
+  "httpStatusCode": 200,
+  "traceId": "00000000000000000000000000fa0034"
+ }
+}

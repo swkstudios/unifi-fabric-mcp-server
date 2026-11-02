@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import copy
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import respx
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
@@ -26,6 +30,23 @@ from unifi_fabric.tools.site_manager import (
     query_isp_metrics,
     search_across_sites,
 )
+
+
+def _paged(responses):
+    """client.get side effect for a server that honours offset: each first page (offset 0
+    or no offset) takes the next queued response; any later page (offset > 0) is empty,
+    which is how a real drain without totalCount learns it reached the end."""
+    queue = list(responses)
+
+    async def _get(path, *, key=None, params=None, **kwargs):
+        if params and params.get("offset"):
+            return {"data": []}
+        item = queue.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+    return _get
 
 
 @pytest.fixture
@@ -67,7 +88,7 @@ class TestGPSSurvival:
         }
         client.get = AsyncMock(return_value=mock_data)
         result = await list_hosts(client, registry)
-        reported = result["hosts"][0]["reportedState"]
+        reported = result["data"][0]["reportedState"]
         assert reported["latitude"] == 40.7128
         assert reported["longitude"] == -74.0060
         assert reported["geoInfo"] == {"city": "NYC"}
@@ -80,7 +101,7 @@ class TestGPSSurvival:
         )
         registry.resolve_host_id = AsyncMock(return_value="h1")
         result = await get_host(client, registry, "h1")
-        assert result["reportedState"]["latitude"] == 40.7128
+        assert result["data"]["reportedState"]["latitude"] == 40.7128
 
 
 class TestListHosts:
@@ -101,23 +122,25 @@ class TestListHosts:
         client.get = AsyncMock(return_value=mock_data)
 
         result = await list_hosts(client, registry)
-        assert result["count"] == 1
+        assert result["_count"] == 1
         # Host records pass through verbatim, coordinates included.
-        assert result["hosts"][0]["reportedState"]["latitude"] == 40.0
+        assert result["data"][0]["reportedState"]["latitude"] == 40.0
 
     @pytest.mark.asyncio
     async def test_list_hosts_drains_all_pages(self, client, registry):
         # Default (no page_token): drain every page and return the complete set.
         client.get = AsyncMock(
-            side_effect=[
-                {"data": [{"id": "h1"}], "nextToken": "t1"},
-                {"data": [{"id": "h2"}]},
-            ]
+            side_effect=_paged(
+                [
+                    {"data": [{"id": "h1"}], "nextToken": "t1"},
+                    {"data": [{"id": "h2"}]},
+                ]
+            )
         )
         result = await list_hosts(client, registry)
         assert client.get.call_count == 2
-        assert result["count"] == 2
-        assert [h["id"] for h in result["hosts"]] == ["h1", "h2"]
+        assert result["_count"] == 2
+        assert [h["id"] for h in result["data"]] == ["h1", "h2"]
         # A complete drain surfaces no continuation cursor and no incomplete marker.
         assert "nextToken" not in result
         assert "incomplete" not in result
@@ -125,13 +148,13 @@ class TestListHosts:
         assert client.get.call_args_list[1].kwargs["params"]["nextToken"] == "t1"
 
     @pytest.mark.asyncio
-    async def test_list_hosts_sends_limit_param(self, client, registry):
+    async def test_list_hosts_sends_page_size_param(self, client, registry):
         client.get = AsyncMock(return_value={"data": []})
 
         await list_hosts(client, registry, page_size=50)
 
         _, kwargs = client.get.call_args
-        assert kwargs["params"]["limit"] == 50
+        assert kwargs["params"]["pageSize"] == 50
 
     @pytest.mark.asyncio
     async def test_list_hosts_page_token_returns_single_page(self, client, registry):
@@ -162,8 +185,8 @@ class TestListHosts:
 
         assert result["incomplete"] is True
         assert "page cap of 2" in result["incompleteReason"]
-        assert result["count"] == 2
-        assert [h["id"] for h in result["hosts"]] == ["h1", "h2"]
+        assert result["_count"] == 2
+        assert [h["id"] for h in result["data"]] == ["h1", "h2"]
         assert "nextToken" not in result
 
 
@@ -176,7 +199,7 @@ class TestGetHost:
         )
 
         result = await get_host(client, registry, "host-id-1")
-        assert result["id"] == "host-id-1"
+        assert result == {"data": {"id": "host-id-1", "reportedState": {"hostname": "c1"}}}
 
 
 class TestListSites:
@@ -188,20 +211,22 @@ class TestListSites:
         client.get = AsyncMock(return_value=mock_data)
 
         result = await list_sites(client, registry)
-        assert result["count"] == 1
-        assert result["sites"][0]["siteName"] == "Main Office"
+        assert result["_count"] == 1
+        assert result["data"][0]["siteName"] == "Main Office"
 
     @pytest.mark.asyncio
     async def test_list_sites_drains_all_pages(self, client, registry):
         client.get = AsyncMock(
-            side_effect=[
-                {"data": [{"siteId": "s1"}], "nextToken": "t1"},
-                {"data": [{"siteId": "s2"}]},
-            ]
+            side_effect=_paged(
+                [
+                    {"data": [{"siteId": "s1"}], "nextToken": "t1"},
+                    {"data": [{"siteId": "s2"}]},
+                ]
+            )
         )
         result = await list_sites(client, registry)
         assert client.get.call_count == 2
-        assert result["count"] == 2
+        assert result["_count"] == 2
         assert "nextToken" not in result
         assert "incomplete" not in result
 
@@ -220,7 +245,7 @@ class TestListSites:
         result = await list_sites(capped, registry)
         assert result["incomplete"] is True
         assert "page cap of 1" in result["incompleteReason"]
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
 
 class TestListDevices:
@@ -232,20 +257,22 @@ class TestListDevices:
         client.get = AsyncMock(return_value=mock_data)
 
         result = await list_devices(client, registry)
-        assert result["count"] == 1
-        assert result["devices"][0]["model"] == "U6-Pro"
+        assert result["_count"] == 1
+        assert result["data"][0]["model"] == "U6-Pro"
 
     @pytest.mark.asyncio
     async def test_list_devices_drains_all_pages(self, client, registry):
         client.get = AsyncMock(
-            side_effect=[
-                {"data": [{"id": "d1"}], "nextToken": "t1"},
-                {"data": [{"id": "d2"}]},
-            ]
+            side_effect=_paged(
+                [
+                    {"data": [{"id": "d1"}], "nextToken": "t1"},
+                    {"data": [{"id": "d2"}]},
+                ]
+            )
         )
         result = await list_devices(client, registry)
         assert client.get.call_count == 2
-        assert result["count"] == 2
+        assert result["_count"] == 2
         assert "incomplete" not in result
 
     @pytest.mark.asyncio
@@ -262,16 +289,31 @@ class TestListDevices:
         registry = Registry(capped, ttl_seconds=900)
         result = await list_devices(capped, registry)
         assert result["incomplete"] is True
-        assert result["count"] == 1
+        assert result["_count"] == 1
+
+
+_REC = Path(__file__).parent / "fixtures" / "recorded" / "site_manager"
+_ISP_GET_BODY = json.loads((_REC / "v1_isp_metrics_5m.json").read_text())["body"]
+_ISP_QUERY_BODY = json.loads((_REC / "v1_isp_metrics_1h_query.json").read_text())["body"]
 
 
 class TestISPMetrics:
     @pytest.mark.asyncio
-    async def test_get_isp_metrics_list_response(self, client):
-        client.get = AsyncMock(return_value={"data": [{"speed": 100}]})
+    async def test_get_isp_metrics_returns_recorded_body_verbatim(self, client):
+        client.get = AsyncMock(return_value=copy.deepcopy(_ISP_GET_BODY))
 
         result = await get_isp_metrics(client, "5m")
-        assert result["periods"][0]["speed"] == 100
+        # the real body, unchanged: data[i] is a per-site object with its own periods
+        assert result == _ISP_GET_BODY
+        assert result["data"][0]["periods"][0]["data"]["wan"]["avgLatency"] == 4
+        assert "traceId" in result and "httpStatusCode" in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [None, "<html>gateway</html>", [1, 2]])
+    async def test_get_isp_metrics_non_object_body_raises_with_shape(self, client, body):
+        client.get = AsyncMock(return_value=body)
+        with pytest.raises(UniFiConnectionError, match="GET /v1/isp-metrics/5m"):
+            await get_isp_metrics(client, "5m")
 
     @pytest.mark.asyncio
     async def test_get_isp_metrics_invalid_interval(self, client):
@@ -279,16 +321,26 @@ class TestISPMetrics:
             await get_isp_metrics(client, "wan")
 
     @pytest.mark.asyncio
-    async def test_query_isp_metrics(self, client):
-        client.post = AsyncMock(return_value={"data": [{"latency": 5}]})
+    async def test_query_isp_metrics_returns_recorded_body_verbatim(self, client):
+        client.post = AsyncMock(return_value=copy.deepcopy(_ISP_QUERY_BODY))
 
         result = await query_isp_metrics(
             client,
-            "5m",
+            "1h",
             sites=[{"hostId": "h1", "siteId": "s1"}],
             start_time="2026-01-01T00:00:00Z",
         )
-        assert result["periods"][0]["latency"] == 5
+        assert result == _ISP_QUERY_BODY
+        assert result["data"]["metrics"][0]["periods"][0]["data"]["wan"]["uptime"] == 100
+
+    @pytest.mark.asyncio
+    async def test_query_isp_metrics_partial_success_status_kept(self, client):
+        body = copy.deepcopy(_ISP_QUERY_BODY)
+        body["data"]["status"] = "partialSuccess"
+        body["data"]["message"] = "some sites returned no data"
+        client.post = AsyncMock(return_value=copy.deepcopy(body))
+        result = await query_isp_metrics(client, "1h", sites=[{"hostId": "h1", "siteId": "s1"}])
+        assert result == body
 
     @pytest.mark.asyncio
     async def test_query_isp_metrics_body_shape(self, client):
@@ -383,16 +435,6 @@ class TestISPMetrics:
             await query_isp_metrics(client, "packetloss")
 
     @pytest.mark.asyncio
-    async def test_query_isp_metrics_requires_sites(self, client):
-        # The UniFi API rejects an unscoped query body with an opaque HTTP 400.
-        # The tool guards against that by requiring at least one site filter and
-        # never issues the request when none is supplied.
-        client.post = AsyncMock()
-        with pytest.raises(ValueError, match="at least one site"):
-            await query_isp_metrics(client, "5m")
-        client.post.assert_not_awaited()
-
-    @pytest.mark.asyncio
     async def test_query_isp_metrics_rejects_epoch_string_start_time(self, client):
         # A bare-epoch string slips past the str-typed signature but is a meaningless
         # timestamp to the API. The tool rejects it with the expected ISO 8601 format
@@ -444,19 +486,21 @@ class TestSDWAN:
         client.get = AsyncMock(return_value={"data": [{"id": "cfg1", "name": "Mesh VPN"}]})
 
         result = await list_sdwan_configs(client)
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     @pytest.mark.asyncio
     async def test_list_sdwan_configs_drains_all_pages(self, client):
         client.get = AsyncMock(
-            side_effect=[
-                {"data": [{"id": "cfg1"}], "nextToken": "t1"},
-                {"data": [{"id": "cfg2"}]},
-            ]
+            side_effect=_paged(
+                [
+                    {"data": [{"id": "cfg1"}], "nextToken": "t1"},
+                    {"data": [{"id": "cfg2"}]},
+                ]
+            )
         )
         result = await list_sdwan_configs(client)
         assert client.get.call_count == 2
-        assert result["count"] == 2
+        assert result["_count"] == 2
         assert "incomplete" not in result
 
     @pytest.mark.asyncio
@@ -472,21 +516,23 @@ class TestSDWAN:
         capped.get = AsyncMock(return_value={"data": [{"id": "cfg1"}], "nextToken": "t1"})
         result = await list_sdwan_configs(capped)
         assert result["incomplete"] is True
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
     @pytest.mark.asyncio
     async def test_get_sdwan_config(self, client):
-        client.get = AsyncMock(return_value={"data": {"id": "cfg1"}})
+        body = {"data": {"id": "cfg1"}, "httpStatusCode": 200, "traceId": "t"}
+        client.get = AsyncMock(return_value=body)
 
         result = await get_sdwan_config(client, "cfg1")
-        assert result["id"] == "cfg1"
+        assert result == body
 
     @pytest.mark.asyncio
     async def test_get_sdwan_config_status(self, client):
-        client.get = AsyncMock(return_value={"data": {"status": "active"}})
+        body = {"data": {"status": "active"}, "httpStatusCode": 200, "traceId": "t"}
+        client.get = AsyncMock(return_value=body)
 
         result = await get_sdwan_config_status(client, "cfg1")
-        assert result["status"] == "active"
+        assert result == body
 
 
 class TestListAllSitesAggregated:
@@ -502,23 +548,23 @@ class TestListAllSitesAggregated:
         )
 
         result = await list_all_sites_aggregated(client, registry)
-        assert result["count"] == 2
-        assert result["sites"][0]["siteName"] == "HQ"
+        assert result["_count"] == 2
+        assert result["data"][0]["siteName"] == "HQ"
 
     @pytest.mark.asyncio
     async def test_empty_response(self, client, registry):
         client.get = AsyncMock(return_value={"data": []})
 
         result = await list_all_sites_aggregated(client, registry)
-        assert result["count"] == 0
-        assert result["sites"] == []
+        assert result["_count"] == 0
+        assert result["data"] == []
 
     @pytest.mark.asyncio
     async def test_list_response_without_data_wrapper(self, client, registry):
         client.get = AsyncMock(return_value=[{"siteId": "s1", "siteName": "HQ"}])
 
         result = await list_all_sites_aggregated(client, registry)
-        assert result["count"] == 1
+        assert result["_count"] == 1
 
 
 class TestResolveEaHostSite:
@@ -586,6 +632,29 @@ class TestResolveEaHostSite:
             await _resolve_ea_host_site(registry, "ghost-site")
 
     @pytest.mark.asyncio
+    async def test_not_found_lists_valid_sites(self, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[{"hostId": "host-h1", "siteId": "s1", "meta": {"name": "hq"}}]
+        )
+        with pytest.raises(ValueError, match=r"Site 'ghost' not found; valid: hq"):
+            await _resolve_ea_host_site(registry, "ghost")
+
+    @pytest.mark.asyncio
+    async def test_same_name_on_two_consoles_is_ambiguous(self, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "meta": {"name": "default"}},
+                {"hostId": "host-h2", "siteId": "s2", "meta": {"name": "default"}},
+            ]
+        )
+        with pytest.raises(ValueError) as exc:
+            await _resolve_ea_host_site(registry, "Default")
+        msg = str(exc.value)
+        assert "ambiguous site 'Default'" in msg
+        assert "siteId=s1, hostId=host-h1" in msg and "siteId=s2, hostId=host-h2" in msg
+        assert await _resolve_ea_host_site(registry, "s2") == ("host-h2", "s2")
+
+    @pytest.mark.asyncio
     async def test_raises_on_malformed_host_id(self, registry):
         registry.get_ea_sites = AsyncMock(
             return_value=[
@@ -603,15 +672,30 @@ class TestGetSiteHealthSummary:
     @pytest.mark.asyncio
     async def test_by_site_name(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h2", "siteId": "objectid-abc", "siteName": "My Site"}]
+            return_value=[
+                {
+                    "hostId": "host-h2",
+                    "siteId": "objectid-abc",
+                    "siteName": "My Site",
+                    "meta": {"name": "default"},
+                }
+            ]
         )
-        registry.resolve_site_slug = AsyncMock(return_value="default")
-        client.get = AsyncMock(return_value={"data": [{"subsystem": "wlan", "alerts": 3}]})
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        envelope = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wlan", "num_user": 3}]}
+        client.get = AsyncMock(return_value=dict(envelope))
 
         result = await get_site_health_summary(client, registry, "My Site")
-        # Bare list from /stat/health is wrapped
-        assert result["count"] == 1
-        assert result["health"][0]["alerts"] == 3
+        # the Classic {meta, data} envelope verbatim; the only addition is the
+        # _-prefixed _healthSummary digest (a record without status counts as not ok)
+        assert {k: v for k, v in result.items() if k != "_healthSummary"} == envelope
+        assert result["_healthSummary"] == {
+            "subsystems": {"wlan": None},
+            "notOk": ["wlan"],
+            "allOk": False,
+        }
         # URL routes through Classic REST stat/health, not /v1/sites/{uuid}
         call_path = client.get.call_args[0][0]
         assert "/stat/health" in call_path
@@ -621,39 +705,80 @@ class TestGetSiteHealthSummary:
     async def test_routes_through_classic_stat_health(self, client, registry):
         """Routes through Classic REST /stat/health using site_slug, not /v1/sites/{uuid}."""
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "objectid-123", "siteName": "Default"}]
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "objectid-123",
+                    "siteName": "Default",
+                    "meta": {"name": "default"},
+                }
+            ]
         )
-        registry.resolve_site_slug = AsyncMock(return_value="default")
-        client.get = AsyncMock(return_value={"data": {"numSta": 5}})
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": {"numSta": 5}})
 
         result = await get_site_health_summary(client, registry, "Default")
-        assert result["numSta"] == 5
-        registry.resolve_site_slug.assert_called_once_with("Default", "host-h1", key=None)
+        assert result == {"meta": {"rc": "ok"}, "data": {"numSta": 5}}
+        registry.get_sites.assert_called_once_with("host-h1", key=None)
         call_path = client.get.call_args[0][0]
         assert "/stat/health" in call_path
         assert "host-h1" in call_path
         assert "default" in call_path
 
     @pytest.mark.asyncio
-    async def test_list_response_wrapped(self, client, registry):
-        """Bare list from /stat/health is normalized to {health: [...], count: N}."""
+    async def test_envelope_meta_and_error_rc_passed_through(self, client, registry):
+        """The upstream meta (rc, msg, count) is never dropped, even for rc=error."""
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h3", "siteId": "s3", "siteName": "Branch"}]
+            return_value=[
+                {
+                    "hostId": "host-h3",
+                    "siteId": "s3",
+                    "siteName": "Branch",
+                    "meta": {"name": "branch"},
+                }
+            ]
         )
-        registry.resolve_site_slug = AsyncMock(return_value="branch")
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "branch"}]
+        )
         health_list = [{"subsystem": "wan", "status": "ok"}, {"subsystem": "wlan", "status": "ok"}]
-        client.get = AsyncMock(return_value={"data": health_list})
+        envelope = {
+            "meta": {"rc": "error", "msg": "api.err.Invalid", "count": 2},
+            "data": health_list,
+        }
+        client.get = AsyncMock(return_value=dict(envelope))
 
         result = await get_site_health_summary(client, registry, "Branch")
-        assert result["count"] == 2
-        assert result["health"] == health_list
+        assert {k: v for k, v in result.items() if k != "_healthSummary"} == envelope
+        assert result["_healthSummary"] == {
+            "subsystems": {"wan": "ok", "wlan": "ok"},
+            "notOk": [],
+            "allOk": True,
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [None, "<html>gateway</html>", [{"subsystem": "wan"}]])
+    async def test_non_object_body_raises_naming_request_and_shape(self, client, registry, body):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {"hostId": "host-h3", "siteId": "s3", "siteName": "B", "meta": {"name": "b"}}
+            ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "b"}]
+        )
+        client.get = AsyncMock(return_value=body)
+        with pytest.raises(UniFiConnectionError, match=r"GET .*/stat/health"):
+            await get_site_health_summary(client, registry, "B")
 
 
 class TestCompareSitePerformance:
     @pytest.mark.asyncio
     async def test_compare_two_sites(self, client, registry):
-        health_a = {"health": [{"subsystem": "wan", "status": "ok"}], "count": 1}
-        health_b = {"health": [{"subsystem": "wlan", "status": "ok"}], "count": 1}
+        health_a = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wan", "status": "ok"}]}
+        health_b = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wlan", "status": "ok"}]}
 
         with patch(
             "unifi_fabric.tools.site_manager.get_site_health_summary",
@@ -662,15 +787,15 @@ class TestCompareSitePerformance:
         ):
             result = await compare_site_performance(client, registry, ["Site A", "Site B"])
 
-        assert result["count"] == 2
-        assert result["comparison"][0]["_siteLabel"] == "Site A"
-        assert result["comparison"][1]["_siteLabel"] == "Site B"
+        assert result["_count"] == 2
+        assert result["_comparison"][0]["_siteLabel"] == "Site A"
+        assert result["_comparison"][1]["_siteLabel"] == "Site B"
         # verify each result includes the health data
-        assert result["comparison"][0]["health"] == health_a["health"]
+        assert result["_comparison"][0] == {**health_a, "_siteLabel": "Site A"}
 
     @pytest.mark.asyncio
     async def test_error_handled_per_site(self, client, registry):
-        health_a = {"health": [{"subsystem": "wan", "status": "ok"}], "count": 1}
+        health_a = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wan", "status": "ok"}]}
 
         with patch(
             "unifi_fabric.tools.site_manager.get_site_health_summary",
@@ -679,177 +804,359 @@ class TestCompareSitePerformance:
         ):
             result = await compare_site_performance(client, registry, ["Site A", "Site B"])
 
-        assert result["count"] == 2
-        assert "error" in result["comparison"][1]
-        assert result["comparison"][1]["_siteLabel"] == "Site B"
+        assert result["_count"] == 2
+        assert "error" in result["_comparison"][1]
+        assert result["_comparison"][1]["_siteLabel"] == "Site B"
 
     @pytest.mark.asyncio
     async def test_uses_stat_health_not_v1_sites(self, client, registry):
         """Verify compare_site_performance routes through stat/health, not /v1/sites."""
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "s1", "siteName": "Site A"}]
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "s1",
+                    "siteName": "Site A",
+                    "meta": {"name": "default"},
+                }
+            ]
         )
-        registry.resolve_site_slug = AsyncMock(return_value="default")
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
         client.get = AsyncMock(return_value={"data": [{"subsystem": "wan", "status": "ok"}]})
 
         result = await compare_site_performance(client, registry, ["Site A"])
-        assert result["count"] == 1
+        assert result["_count"] == 1
         call_path = client.get.call_args[0][0]
         assert "/stat/health" in call_path
         assert "/v1/sites/" not in call_path
+        # each entry carries the additive _healthSummary of get_site_health_summary
+        assert result["_comparison"][0]["_healthSummary"] == {
+            "subsystems": {"wan": "ok"},
+            "notOk": [],
+            "allOk": True,
+        }
+        assert result["_comparison"][0]["data"] == [{"subsystem": "wan", "status": "ok"}]
+
+
+class TestSearchAcrossSitesReporting:
+    """Sites that cannot be searched are reported with a reason, and counts are honest."""
 
     @pytest.mark.asyncio
-    async def test_empty_sites_list(self, client, registry):
-        result = await compare_site_performance(client, registry, [])
-        assert result["count"] == 0
-        assert result["comparison"] == []
+    async def test_unresolvable_site_is_reported_not_counted_as_searched(self, client, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "s1",
+                    "siteName": "HQ",
+                    "meta": {"name": "default"},
+                },
+                {
+                    "hostId": "../bad",
+                    "siteId": "s2",
+                    "siteName": "Broken",
+                    "meta": {"name": "default"},
+                },
+            ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(side_effect=_paged([{"data": []}, {"data": []}]))
+        result = await search_across_sites(client, registry, "x")
+        assert result["_sitesTotal"] == 2
+        assert result["_sitesSearched"] == 1
+        assert result["_sitesSucceeded"] == 1
+        assert result["_sitesFailed"] == 0
+        assert result["_skipped"][0]["siteId"] == "s2"
+        assert result["_skipped"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_fetch_failure_counts_site_as_failed(self, client, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "siteName": "HQ", "meta": {"name": "default"}}
+            ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged([UniFiConnectionError("HTTP 500 boom"), {"data": []}])
+        )
+        result = await search_across_sites(client, registry, "x")
+        assert result["_sitesSearched"] == 1
+        assert result["_sitesFailed"] == 1
+        assert result["_sitesSucceeded"] == 0
+        assert "HTTP 500 boom" in result["errors"][0]["reason"]
+        assert set(result["errors"][0]) == {"key", "siteId", "scope", "reason"}
+
+    @pytest.mark.asyncio
+    async def test_multi_key_searches_every_keys_sites(self):
+        from unifi_fabric.config import APIKeyConfig
+
+        mk = UniFiClient(
+            Settings(
+                api_keys=[
+                    APIKeyConfig(key="sk-a", label="alpha"),
+                    APIKeyConfig(key="sk-b", label="beta"),
+                ]
+            )
+        )
+        reg = Registry(mk, ttl_seconds=900)
+
+        async def sites_for(*, key=None):
+            if key is not None and key.label == "beta":
+                return [
+                    {
+                        "hostId": "host-b1",
+                        "siteId": "sb",
+                        "siteName": "Branch",
+                        "meta": {"name": "default"},
+                    }
+                ]
+            return [
+                {"hostId": "host-a1", "siteId": "sa", "siteName": "HQ", "meta": {"name": "default"}}
+            ]
+
+        reg.get_ea_sites = AsyncMock(side_effect=sites_for)
+        reg.resolve_key_for_host = AsyncMock(return_value=None)
+        reg.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        mk.get = AsyncMock(return_value={"data": []})
+        result = await search_across_sites(mk, reg, "x")
+        assert result["_sitesTotal"] == 2
+        assert result["_sitesSearched"] == 2
 
 
 class TestSearchAcrossSites:
     @pytest.mark.asyncio
+    async def test_null_field_never_matches_none(self, client, registry):
+        # str(None) == "None": a null ipAddress/model must not make "none" match.
+        registry.get_ea_sites = AsyncMock(
+            return_value=[{"hostId": "host-h1", "siteId": "s1", "meta": {"name": "default"}}]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        device = {"name": "ap-1", "macAddress": None, "ipAddress": None, "model": None}
+        client.get = AsyncMock(side_effect=_paged([{"data": [device]}, {"data": []}, {"data": []}]))
+        result = await search_across_sites(client, registry, "none")
+        assert result["_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_matches_integration_mac_and_ip_fields(self, client, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[{"hostId": "host-h1", "siteId": "s1", "meta": {"name": "default"}}]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        device = {"name": "ap-1", "macAddress": "02:00:5E:00:00:03", "ipAddress": "10.0.3.139"}
+        client.get = AsyncMock(side_effect=_paged([{"data": [device]}, {"data": []}, {"data": []}]))
+        by_mac = await search_across_sites(client, registry, "02:00:5e:00:00:03")
+        assert [m["macAddress"] for m in by_mac["data"]] == ["02:00:5E:00:00:03"]
+
+    @pytest.mark.asyncio
     async def test_finds_matching_device(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "s1", "siteName": "HQ"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {
-                    "data": [
-                        {
-                            "name": "AP-Living-Room",
-                            "mac": "aa:bb:cc:dd:ee:ff",
-                            "ip": "192.168.1.10",
-                            "model": "U6-Pro",
-                        }
-                    ]
-                },
-                {"data": []},
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "siteName": "HQ", "meta": {"name": "default"}}
             ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {
+                        "data": [
+                            {
+                                "name": "AP-Living-Room",
+                                "mac": "aa:bb:cc:dd:ee:ff",
+                                "ip": "192.168.1.10",
+                                "model": "U6-Pro",
+                            }
+                        ]
+                    },
+                    {"data": []},
+                ]
+            )
         )
 
         result = await search_across_sites(client, registry, "AP-Living")
-        assert result["count"] == 1
-        assert result["matches"][0]["name"] == "AP-Living-Room"
-        assert result["matches"][0]["_type"] == "device"
-        assert result["sitesSearched"] == 1
+        assert result["_count"] == 1
+        assert result["data"][0]["name"] == "AP-Living-Room"
+        assert result["data"][0]["_type"] == "device"
+        assert result["_sitesSearched"] == 1
 
     @pytest.mark.asyncio
     async def test_finds_matching_client(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "s1", "siteName": "HQ"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {"data": []},
-                {
-                    "data": [
-                        {
-                            "hostname": "my-laptop",
-                            "mac": "11:22:33:44:55:66",
-                            "ip": "10.0.0.5",
-                            "name": "",
-                        }
-                    ]
-                },
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "siteName": "HQ", "meta": {"name": "default"}}
             ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {"data": []},
+                    {
+                        "data": [
+                            {
+                                "hostname": "my-laptop",
+                                "mac": "11:22:33:44:55:66",
+                                "ip": "10.0.0.5",
+                                "name": "",
+                            }
+                        ]
+                    },
+                ]
+            )
         )
 
         result = await search_across_sites(client, registry, "my-laptop")
-        assert result["count"] == 1
-        assert result["matches"][0]["_type"] == "client"
+        assert result["_count"] == 1
+        assert result["data"][0]["_type"] == "client"
 
     @pytest.mark.asyncio
     async def test_no_matches(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "s1", "siteName": "HQ"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {
-                    "data": [
-                        {
-                            "name": "Switch-1",
-                            "mac": "aa:bb:cc:00:00:01",
-                            "ip": "10.0.0.1",
-                            "model": "USW-8",
-                        }
-                    ]
-                },
-                {"data": []},
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "siteName": "HQ", "meta": {"name": "default"}}
             ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {
+                        "data": [
+                            {
+                                "name": "Switch-1",
+                                "mac": "aa:bb:cc:00:00:01",
+                                "ip": "10.0.0.1",
+                                "model": "USW-8",
+                            }
+                        ]
+                    },
+                    {"data": []},
+                ]
+            )
         )
 
         result = await search_across_sites(client, registry, "nonexistent-xyz")
-        assert result["count"] == 0
+        assert result["_count"] == 0
 
     @pytest.mark.asyncio
     async def test_site_error_skipped(self, client, registry):
         registry.get_ea_sites = AsyncMock(
             return_value=[
-                {"hostId": "host-h1", "siteId": "s1", "siteName": "Good"},
-                {"hostId": "host-h2", "siteId": "s2", "siteName": "Bad"},
+                {
+                    "hostId": "host-h1",
+                    "siteId": "s1",
+                    "siteName": "Good",
+                    "meta": {"name": "default"},
+                },
+                {
+                    "hostId": "host-h2",
+                    "siteId": "s2",
+                    "siteName": "Bad",
+                    "meta": {"name": "default"},
+                },
             ]
         )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
         client.get = AsyncMock(
-            side_effect=[
-                {
-                    "data": [
-                        {
-                            "name": "Router-A",
-                            "mac": "aa:00:00:00:00:01",
-                            "ip": "10.0.0.1",
-                            "model": "UDM",
-                        }
-                    ]
-                },
-                {"data": []},
-                UniFiConnectionError("site unreachable"),
-                UniFiConnectionError("site unreachable"),
-            ]
+            side_effect=_paged(
+                [
+                    {
+                        "data": [
+                            {
+                                "name": "Router-A",
+                                "mac": "aa:00:00:00:00:01",
+                                "ip": "10.0.0.1",
+                                "model": "UDM",
+                            }
+                        ]
+                    },
+                    {"data": []},
+                    UniFiConnectionError("site unreachable"),
+                    UniFiConnectionError("site unreachable"),
+                ]
+            )
         )
 
         result = await search_across_sites(client, registry, "router")
-        assert result["sitesSearched"] == 2
-        assert result["count"] == 1
+        assert result["_sitesSearched"] == 2
+        assert result["_count"] == 1
 
 
 class TestGetSiteInventory:
     @pytest.mark.asyncio
     async def test_returns_devices_and_clients(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "objectid-abc", "siteName": "HQ"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {"data": [{"id": "d1", "model": "U6-Pro"}, {"id": "d2", "model": "USW-8"}]},
-                {"data": [{"mac": "aa:bb:cc:dd:ee:01"}, {"mac": "aa:bb:cc:dd:ee:02"}]},
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "objectid-abc",
+                    "siteName": "HQ",
+                    "meta": {"name": "default"},
+                }
             ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {"data": [{"id": "d1", "model": "U6-Pro"}, {"id": "d2", "model": "USW-8"}]},
+                    {"data": [{"mac": "aa:bb:cc:dd:ee:01"}, {"mac": "aa:bb:cc:dd:ee:02"}]},
+                ]
+            )
         )
 
         result = await get_site_inventory(client, registry, "HQ")
-        assert result["siteId"] == _UUID_SITE
-        assert result["deviceCount"] == 2
-        assert result["clientCount"] == 2
-        assert result["devices"][0]["model"] == "U6-Pro"
+        assert result["_siteId"] == _UUID_SITE
+        assert result["_deviceCount"] == 2
+        assert result["_clientCount"] == 2
+        assert result["_devices"][0]["model"] == "U6-Pro"
 
     @pytest.mark.asyncio
     async def test_proxy_url_uses_uuid(self, client, registry):
         """Proxy URLs must use UUID from resolve_site_id, not ObjectId from EA sites."""
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "objectid-123", "siteName": "Default"}]
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "objectid-123",
+                    "siteName": "Default",
+                    "meta": {"name": "default"},
+                }
+            ]
         )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(side_effect=[{"data": []}, {"data": []}])
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(side_effect=_paged([{"data": []}, {"data": []}]))
 
         await get_site_inventory(client, registry, "Default")
 
-        registry.resolve_site_id.assert_called_once_with("Default", "host-h1", key=None)
+        registry.get_sites.assert_called_once_with("host-h1", key=None)
         # Both proxy calls should use the UUID
+        assert client.get.call_args_list, "no proxy call was made (vacuous)"
         for call in client.get.call_args_list:
             assert _UUID_SITE in call[0][0]
             assert "objectid-123" not in call[0][0]
@@ -857,36 +1164,57 @@ class TestGetSiteInventory:
     @pytest.mark.asyncio
     async def test_empty_inventory(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "objectid-empty", "siteName": "Empty"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {"data": []},
-                {"data": []},
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "objectid-empty",
+                    "siteName": "Empty",
+                    "meta": {"name": "default"},
+                }
             ]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {"data": []},
+                    {"data": []},
+                ]
+            )
         )
 
         result = await get_site_inventory(client, registry, "Empty")
-        assert result["deviceCount"] == 0
-        assert result["clientCount"] == 0
+        assert result["_deviceCount"] == 0
+        assert result["_clientCount"] == 0
 
     @pytest.mark.asyncio
-    async def test_non_list_response_handled(self, client, registry):
+    async def test_unexpected_response_shape_raises_with_the_shape(self, client, registry):
         registry.get_ea_sites = AsyncMock(
-            return_value=[{"hostId": "host-h1", "siteId": "objectid-x", "siteName": "X"}]
-        )
-        registry.resolve_site_id = AsyncMock(return_value=_UUID_SITE)
-        client.get = AsyncMock(
-            side_effect=[
-                {"error": "not found"},
-                {"error": "not found"},
+            return_value=[
+                {
+                    "hostId": "host-h1",
+                    "siteId": "objectid-x",
+                    "siteName": "X",
+                    "meta": {"name": "default"},
+                }
             ]
         )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "x", "internalReference": "default"}]
+        )
+        client.get = AsyncMock(
+            side_effect=_paged(
+                [
+                    {"error": "not found"},
+                    {"error": "not found"},
+                ]
+            )
+        )
 
-        result = await get_site_inventory(client, registry, "X")
-        assert result["devices"] == []
-        assert result["clients"] == []
+        with pytest.raises(UniFiConnectionError, match=r"keys \['error'\]"):
+            await get_site_inventory(client, registry, "X")
 
 
 # --- MSP multi-key aggregation for the list tools (issue #19) ---
@@ -906,9 +1234,9 @@ class TestListHostsMultiKey:
         multikey_client.paginate = AsyncMock(side_effect=_paginate)
 
         result = await list_hosts(multikey_client, multikey_registry)
-        assert result["count"] == 2
-        assert result["key_labels"] == ["alpha", "beta"]
-        ids = {h["id"]: h["_keyLabel"] for h in result["hosts"]}
+        assert result["_count"] == 2
+        assert result["_key_labels"] == ["alpha", "beta"]
+        ids = {h["id"]: h["_keyLabel"] for h in result["data"]}
         assert ids == {"h-a": "alpha", "h-b": "beta"}
         assert "errors" not in result
 
@@ -924,8 +1252,8 @@ class TestListHostsMultiKey:
         multikey_client.paginate = AsyncMock(side_effect=_paginate)
 
         result = await list_hosts(multikey_client, multikey_registry)
-        assert result["count"] == 1
-        assert result["hosts"][0]["_keyLabel"] == "alpha"
+        assert result["_count"] == 1
+        assert result["data"][0]["_keyLabel"] == "alpha"
         assert "errors" in result
         assert any("beta" in e for e in result["errors"])
 
@@ -946,7 +1274,7 @@ class TestListHostsMultiKey:
 
         # Data-survival: aggregated host records carry coordinates through unchanged.
         result = await list_hosts(multikey_client, multikey_registry)
-        assert all(h["reportedState"]["latitude"] == 1.0 for h in result["hosts"])
+        assert all(h["reportedState"]["latitude"] == 1.0 for h in result["data"])
 
 
 class TestListSitesMultiKey:
@@ -961,9 +1289,9 @@ class TestListSitesMultiKey:
         multikey_client.paginate = AsyncMock(side_effect=_paginate)
 
         result = await list_sites(multikey_client, multikey_registry)
-        assert result["count"] == 2
-        assert result["key_labels"] == ["alpha", "beta"]
-        labels = {s["siteId"]: s["_keyLabel"] for s in result["sites"]}
+        assert result["_count"] == 2
+        assert result["_key_labels"] == ["alpha", "beta"]
+        labels = {s["siteId"]: s["_keyLabel"] for s in result["data"]}
         assert labels == {"s-a": "alpha", "s-b": "beta"}
 
 
@@ -979,9 +1307,9 @@ class TestListAllSitesAggregatedMultiKey:
         multikey_client.get = AsyncMock(side_effect=_get)
 
         result = await list_all_sites_aggregated(multikey_client, multikey_registry)
-        assert result["count"] == 2
-        assert result["key_labels"] == ["alpha", "beta"]
-        labels = {s["id"]: s["_keyLabel"] for s in result["sites"]}
+        assert result["_count"] == 2
+        assert result["_key_labels"] == ["alpha", "beta"]
+        labels = {s["id"]: s["_keyLabel"] for s in result["data"]}
         assert labels == {"s-a": "alpha", "s-b": "beta"}
 
     @pytest.mark.asyncio
@@ -994,13 +1322,14 @@ class TestListAllSitesAggregatedMultiKey:
         multikey_client.get = AsyncMock(side_effect=_get)
 
         result = await list_all_sites_aggregated(multikey_client, multikey_registry)
-        assert result["count"] == 1
-        assert result["sites"][0]["_keyLabel"] == "beta"
+        assert result["_count"] == 1
+        assert result["data"][0]["_keyLabel"] == "beta"
         assert "errors" in result
 
 
+@respx.mock
 class TestNamespaceURLPinning:
-    """Pin the EXACT Site Manager URL each tool builds (issues #198/#192).
+    """Pin the EXACT Site Manager URL each tool builds.
 
     All five families were migrated /ea/ -> /v1/ in place. These tests assert
     the precise path (including the /v1/ prefix) so a future refactor that
@@ -1011,9 +1340,10 @@ class TestNamespaceURLPinning:
 
     @pytest.mark.asyncio
     async def test_list_hosts_calls_v1_hosts(self, client, registry):
-        client.paginate = AsyncMock(return_value=[])
+        client.get = AsyncMock(return_value={"data": [], "nextToken": None})
         await list_hosts(client, registry)
-        path = client.paginate.call_args.args[0]
+        client.get.assert_awaited_once()
+        path = client.get.call_args.args[0]
         assert path == "/v1/hosts"
         assert not path.startswith("/ea/")
 
@@ -1029,17 +1359,19 @@ class TestNamespaceURLPinning:
 
     @pytest.mark.asyncio
     async def test_list_sites_calls_v1_sites(self, client, registry):
-        client.paginate = AsyncMock(return_value=[])
+        client.get = AsyncMock(return_value={"data": [], "nextToken": None})
         await list_sites(client, registry)
-        path = client.paginate.call_args.args[0]
+        client.get.assert_awaited_once()
+        path = client.get.call_args.args[0]
         assert path == "/v1/sites"
         assert not path.startswith("/ea/")
 
     @pytest.mark.asyncio
     async def test_list_devices_calls_v1_devices(self, client, registry):
-        client.paginate = AsyncMock(return_value=[])
+        client.get = AsyncMock(return_value={"data": [], "nextToken": None})
         await list_devices(client, registry)
-        path = client.paginate.call_args.args[0]
+        client.get.assert_awaited_once()
+        path = client.get.call_args.args[0]
         assert path == "/v1/devices"
         assert not path.startswith("/ea/")
 
@@ -1061,9 +1393,10 @@ class TestNamespaceURLPinning:
 
     @pytest.mark.asyncio
     async def test_list_sdwan_configs_calls_v1_sd_wan_configs(self, client):
-        client.paginate = AsyncMock(return_value=[])
+        client.get = AsyncMock(return_value={"data": [], "nextToken": None})
         await list_sdwan_configs(client)
-        path = client.paginate.call_args.args[0]
+        client.get.assert_awaited_once()
+        path = client.get.call_args.args[0]
         assert path == "/v1/sd-wan-configs"
         assert not path.startswith("/ea/")
 
@@ -1095,3 +1428,40 @@ class TestNamespaceURLPinning:
         for family in ("hosts", "sites", "devices", "isp-metrics", "sd-wan-configs"):
             assert (ea + family + '"') not in src
             assert (ea + family + "/") not in src
+
+
+class TestProxySiteMappingNeverGuesses:
+    """A Site Manager site maps to a console site only by internalReference or a unique
+    label; otherwise it raises listing the console's sites (no single-site guess)."""
+
+    @pytest.mark.asyncio
+    async def test_single_site_console_without_a_match_raises_with_choices(self, client, registry):
+        registry.get_ea_sites = AsyncMock(
+            return_value=[{"hostId": "host-h1", "siteId": "s1", "meta": {"name": "branch"}}]
+        )
+        registry.get_sites = AsyncMock(
+            return_value=[{"id": _UUID_SITE, "description": "HQ", "internalReference": "default"}]
+        )
+        with pytest.raises(ValueError) as exc:
+            await get_site_inventory(client, registry, "s1")
+        msg = str(exc.value)
+        assert "does not map to exactly one site" in msg
+        assert f"HQ (id={_UUID_SITE}, internalReference=default)" in msg
+
+    @pytest.mark.asyncio
+    async def test_health_summary_never_guesses_the_slug(self, client, registry):
+        # Matched by label, but the console reports no internalReference: the Classic
+        # REST slug is unknown and is not taken from the Site Manager meta.name.
+        registry.get_ea_sites = AsyncMock(
+            return_value=[
+                {"hostId": "host-h1", "siteId": "s1", "meta": {"name": "default", "desc": "HQ"}}
+            ]
+        )
+        registry.get_sites = AsyncMock(return_value=[{"id": _UUID_SITE, "description": "HQ"}])
+        client.get = AsyncMock()
+        with pytest.raises(ValueError) as exc:
+            await get_site_health_summary(client, registry, "s1")
+        msg = str(exc.value)
+        assert "has no internalReference" in msg
+        assert f"Console sites: HQ (id={_UUID_SITE}, internalReference=None)" in msg
+        client.get.assert_not_called()

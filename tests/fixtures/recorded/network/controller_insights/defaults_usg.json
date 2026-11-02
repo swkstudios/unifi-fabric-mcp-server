@@ -1,0 +1,36 @@
+{
+  "args": [
+    "usg",
+    "Default"
+  ],
+  "body": {
+    "dns_verification": {
+      "domain": "domain-0001",
+      "primary_dns_server": "1.1.1.1",
+      "secondary_dns_server": "8.8.8.8",
+      "setting_preference": "auto"
+    },
+    "icmp_timeout": 30,
+    "other_timeout": 600,
+    "tcp_close_timeout": 10,
+    "tcp_close_wait_timeout": 60,
+    "tcp_established_timeout": 7440,
+    "tcp_fin_wait_timeout": 120,
+    "tcp_last_ack_timeout": 30,
+    "tcp_syn_recv_timeout": 60,
+    "tcp_syn_sent_timeout": 120,
+    "tcp_time_wait_timeout": 120,
+    "timeout_setting_preference": "auto",
+    "udp_other_timeout": 30,
+    "udp_stream_timeout": 180,
+    "unbind_wan_monitors": false
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/usg/defaults",
+    "query": {}
+  },
+  "status": 200
+}

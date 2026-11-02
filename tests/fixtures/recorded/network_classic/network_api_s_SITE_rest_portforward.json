@@ -1,0 +1,96 @@
+{
+ "recorded_by_tool": "list_port_forwards",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/portforward",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-8000-000000fa010f",
+    "name": "name-0256",
+    "enabled": true,
+    "log": true,
+    "dst_port": "dst-port-0001",
+    "fwd": "10.0.6.2",
+    "fwd_port": "fwd-port-0001",
+    "proto": "tcp_udp",
+    "pfwd_interface": "pfwd-interface-0001",
+    "src_limiting_enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121",
+    "destination_ips": [
+     {
+      "interface": "wan",
+      "destination_ip": "destination-ip-0001"
+     },
+     {
+      "interface": "wan2",
+      "destination_ip": "destination-ip-0001"
+     }
+    ]
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000fa0110",
+    "name": "name-0257",
+    "enabled": true,
+    "log": false,
+    "src": "src-0001",
+    "dst_port": "8211",
+    "fwd": "10.0.7.2",
+    "fwd_port": "8211",
+    "proto": "udp",
+    "pfwd_interface": "pfwd-interface-0002",
+    "src_limiting_enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   },
+   {
+    "_id": "00000000-0000-4000-8000-000000000170",
+    "name": "name-0258",
+    "enabled": true,
+    "log": false,
+    "src": "src-0001",
+    "dst_port": "27015",
+    "fwd": "10.0.7.2",
+    "fwd_port": "27015",
+    "proto": "udp",
+    "pfwd_interface": "pfwd-interface-0002",
+    "src_limiting_enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   },
+   {
+    "_id": "00000000-0000-4000-a000-000000000171",
+    "name": "name-0259",
+    "enabled": true,
+    "log": false,
+    "src": "src-0001",
+    "dst_port": "8221",
+    "fwd": "10.0.7.2",
+    "fwd_port": "8221",
+    "proto": "udp",
+    "pfwd_interface": "pfwd-interface-0002",
+    "src_limiting_enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000172",
+    "name": "name-0260",
+    "enabled": true,
+    "log": false,
+    "src": "src-0001",
+    "dst_port": "27016",
+    "fwd": "10.0.7.2",
+    "fwd_port": "27016",
+    "proto": "udp",
+    "pfwd_interface": "pfwd-interface-0002",
+    "src_limiting_enabled": false,
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   }
+  ]
+ }
+}

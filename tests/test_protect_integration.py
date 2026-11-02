@@ -3,7 +3,8 @@
 Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
 Skip all tests automatically when the env var is absent.
 
-Also requires UNIFI_TEST_HOST to identify the Protect console.
+Also requires UNIFI_TEST_HOST to identify the Protect console. Mutating tests require
+explicit marker selection and UNIFI_TEST_ALLOW_MUTATIONS=1, with dry-run disabled.
 
 Run:
     UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
@@ -19,6 +20,7 @@ import pytest_asyncio
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
 from unifi_fabric.registry import Registry
+from unifi_fabric.route_secrets import MASK
 from unifi_fabric.tools.protect import (
     get_camera,
     get_camera_snapshot,
@@ -49,6 +51,15 @@ pytestmark = [
 _TEST_HOST = os.environ.get("UNIFI_TEST_HOST", "")
 
 
+@pytest.fixture(autouse=True)
+def _authorize_live_mutation(request):
+    if request.node.get_closest_marker("mutating"):
+        if os.environ.get("UNIFI_TEST_ALLOW_MUTATIONS") != "1":
+            pytest.fail("Set UNIFI_TEST_ALLOW_MUTATIONS=1 to authorize live mutations")
+        if Settings().dry_run:
+            pytest.fail("UNIFI_DRY_RUN cannot verify a live mutation")
+
+
 @pytest.fixture(scope="module")
 def settings():
     return Settings()
@@ -68,7 +79,17 @@ def registry(client, settings):
 
 def _require_host():
     if not _TEST_HOST:
-        pytest.skip("UNIFI_TEST_HOST must be set for Protect tests")
+        pytest.fail("UNIFI_TEST_HOST must be set for Protect tests")
+
+
+def _cameras(result: dict) -> list:
+    """The camera list from a 0.7.0 list_cameras result.
+
+    The upstream bare JSON array is returned under "result" (FastMCP's key for a list
+    result); an upstream object carrying a "data" array would be returned verbatim. The
+    additive "_count" is the number of cameras either way.
+    """
+    return result["result"] if "result" in result else result["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,28 +104,29 @@ class TestListCamerasIntegration:
     async def test_returns_cameras_dict(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        assert "cameras" in result
-        assert "count" in result
+        assert "result" in result or "data" in result
+        assert isinstance(_cameras(result), list)
+        assert "_count" in result
 
     async def test_count_matches_cameras_length(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        assert result["count"] == len(result["cameras"])
+        assert result["_count"] == len(_cameras(result))
 
     async def test_camera_has_id_field(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console — skipping field check")
-        camera = result["cameras"][0]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console — field check requires data")
+        camera = _cameras(result)[0]
         assert "id" in camera, "Camera must have an id field"
 
     async def test_camera_has_name_field(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console — skipping field check")
-        camera = result["cameras"][0]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console — field check requires data")
+        camera = _cameras(result)[0]
         assert "name" in camera or "displayName" in camera, (
             "Camera must have a name or displayName field"
         )
@@ -119,9 +141,9 @@ class TestGetCameraIntegration:
     async def test_get_camera_by_id(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         camera = await get_camera(client, registry, _TEST_HOST, camera_id)
         returned_id = camera.get("id")
@@ -130,9 +152,9 @@ class TestGetCameraIntegration:
     async def test_get_camera_has_state_field(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         camera = await get_camera(client, registry, _TEST_HOST, camera_id)
         assert isinstance(camera, dict), "get_camera must return a dict"
@@ -151,13 +173,13 @@ class TestUpdateCameraIntegration:
     async def test_update_camera_name_roundtrip(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera = result["cameras"][0]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera = _cameras(result)[0]
         camera_id = camera["id"]
         current_name = camera.get("name") or camera.get("displayName")
         if not current_name:
-            pytest.skip("Camera has no name field — cannot do roundtrip update")
+            pytest.fail("Camera has no name field — cannot do roundtrip update")
 
         updated = await update_camera(client, registry, _TEST_HOST, camera_id, name=current_name)
         assert isinstance(updated, dict), "update_camera must return a dict"
@@ -172,9 +194,9 @@ class TestGetCameraSnapshotIntegration:
     async def test_snapshot_returns_dict(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         snapshot = await get_camera_snapshot(client, registry, _TEST_HOST, camera_id)
         assert isinstance(snapshot, dict), "get_camera_snapshot must return a dict"
@@ -182,15 +204,14 @@ class TestGetCameraSnapshotIntegration:
     async def test_snapshot_has_url_or_data(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         snapshot = await get_camera_snapshot(client, registry, _TEST_HOST, camera_id)
-        has_content = any(k in snapshot for k in ("url", "data", "src", "imageUrl"))
-        assert has_content or isinstance(snapshot, dict), (
-            "Snapshot response should contain url, data, src, or imageUrl"
-        )
+        # 0.7.0 returns the image bytes as base64 with the upstream Content-Type and size.
+        assert snapshot.get("image_base64"), "Snapshot response should carry image data"
+        assert snapshot.get("size_bytes", 0) > 0, "Snapshot response should report its size"
 
 
 # ---------------------------------------------------------------------------
@@ -202,9 +223,9 @@ class TestGetRtspsStreamIntegration:
     async def test_stream_returns_dict(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         stream = await get_rtsps_stream(client, registry, _TEST_HOST, camera_id)
         assert isinstance(stream, dict), "get_rtsps_stream must return a dict"
@@ -212,16 +233,23 @@ class TestGetRtspsStreamIntegration:
     async def test_stream_has_rtsps_url(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
-        if result["count"] == 0:
-            pytest.skip("No cameras on Protect console")
-        camera_id = result["cameras"][0]["id"]
+        if result["_count"] == 0:
+            pytest.fail("No cameras on Protect console")
+        camera_id = _cameras(result)[0]["id"]
 
         stream = await get_rtsps_stream(client, registry, _TEST_HOST, camera_id)
-        url_value = stream.get("url") or stream.get("rtspsUrl") or stream.get("streamUrl")
-        if url_value:
-            assert "rtsp" in url_value.lower() or url_value.startswith("http"), (
-                "Stream URL should be an RTSPS or HTTP URL"
-            )
+        # 0.7.0 returns the upstream body verbatim: one URL (or null) per stream quality.
+        # The URLs carry stream tokens, so under the opt-in UNIFI_REDACT_SECRETS they are
+        # replaced by the redaction mask; booleans are asserted so no URL reaches a log.
+        redacting = client._settings.redact_secrets is True
+        for quality in ("high", "medium", "low", "package"):
+            url_value = stream.get(quality)
+            if url_value:
+                if redacting:
+                    ok = url_value == MASK
+                else:
+                    ok = "rtsp" in url_value.lower() or url_value.startswith("http")
+                assert ok, f"{quality} stream URL should be an RTSPS or HTTP URL (or masked)"
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +267,7 @@ class TestPtzIntegration:
     async def _first_ptz_camera(self, client, registry):
         """Return the first camera that advertises PTZ support, or skip."""
         result = await list_cameras(client, registry, _TEST_HOST)
-        for cam in result["cameras"]:
+        for cam in _cameras(result):
             feature_flags = cam.get("featureFlags") or {}
             if feature_flags.get("hasPtz") or feature_flags.get("ptz"):
                 return cam["id"]
@@ -249,16 +277,16 @@ class TestPtzIntegration:
         _require_host()
         camera_id = await self._first_ptz_camera(client, registry)
         if not camera_id:
-            pytest.skip("No PTZ-capable cameras found on Protect console")
+            pytest.fail("No PTZ-capable cameras found on Protect console")
 
-        result = await ptz_goto(client, registry, _TEST_HOST, camera_id, 0)
+        result = await ptz_goto(client, registry, _TEST_HOST, camera_id, 0, confirm=True)
         assert isinstance(result, dict), "ptz_goto must return a dict"
 
 
 # ---------------------------------------------------------------------------
 # talkback_start — LIVE ACTUATION against the production console. This opens a real
 # two-way audio/speaker session on the camera or doorbell (confirmed firing during
-# sprint validation); it is NOT a passive "endpoint responds" check and it DOES start
+# live validation); it is NOT a passive "endpoint responds" check and it DOES start
 # an audio session. The session is transient and persists no state, but it is a real
 # speaker actuation in a possibly-occupied space. Marked mutating and excluded from the
 # unattended canary (deselected by marker: `-m 'integration and not mutating'`).
@@ -270,7 +298,7 @@ class TestTalkbackStartIntegration:
     async def _first_talkback_camera(self, client, registry):
         """Return the first camera with talkback support, or None."""
         result = await list_cameras(client, registry, _TEST_HOST)
-        for cam in result["cameras"]:
+        for cam in _cameras(result):
             feature_flags = cam.get("featureFlags") or {}
             if feature_flags.get("hasSpeaker") or feature_flags.get("talkback"):
                 return cam["id"]
@@ -280,7 +308,7 @@ class TestTalkbackStartIntegration:
         _require_host()
         camera_id = await self._first_talkback_camera(client, registry)
         if not camera_id:
-            pytest.skip("No talkback-capable cameras found on Protect console")
+            pytest.fail("No talkback-capable cameras found on Protect console")
 
-        result = await talkback_start(client, registry, _TEST_HOST, camera_id)
+        result = await talkback_start(client, registry, _TEST_HOST, camera_id, confirm=True)
         assert isinstance(result, dict), "talkback_start must return a dict"

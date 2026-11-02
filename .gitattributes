@@ -1,3 +1,2 @@
-# CHANGELOG uses union merge so parallel [Unreleased] additions never conflict across
-# the batch merge train.
+# CHANGELOG uses union merge so parallel [Unreleased] additions never conflict.
 CHANGELOG.md merge=union

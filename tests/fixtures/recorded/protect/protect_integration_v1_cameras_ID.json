@@ -1,0 +1,75 @@
+{
+ "recorded_by_tool": "get_camera",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/integration/v1/cameras/000000000000000000fa0016",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "id": "000000000000000000fa0016",
+  "modelKey": "camera",
+  "state": "CONNECTED",
+  "name": "name-0068",
+  "type": "UVC G4 Instant",
+  "guid": "00000000-0000-4000-a000-000000000007",
+  "mac": "000000FA0017",
+  "isMicEnabled": true,
+  "osdSettings": {
+   "isNameEnabled": true,
+   "isDateEnabled": true,
+   "isLogoEnabled": false,
+   "isDebugEnabled": false,
+   "overlayLocation": "topLeft"
+  },
+  "ledSettings": {
+   "isEnabled": true,
+   "welcomeLed": true,
+   "floodLed": true
+  },
+  "micVolume": 1,
+  "activePatrolSlot": null,
+  "videoMode": "default",
+  "hdrType": "on",
+  "featureFlags": {
+   "supportFullHdSnapshot": false,
+   "hasHdr": true,
+   "smartDetectTypes": [
+    "person",
+    "vehicle",
+    "animal"
+   ],
+   "smartDetectAudioTypes": [
+    "alrmSmoke",
+    "alrmCmonx",
+    "alrmBabyCry",
+    "alrmSpeak"
+   ],
+   "videoModes": [
+    "default",
+    "sport",
+    "slowShutter"
+   ],
+   "hasMic": true,
+   "hasLedStatus": true,
+   "hasSpeaker": true
+  },
+  "smartDetectSettings": {
+   "objectTypes": [
+    "animal",
+    "person",
+    "vehicle",
+    "face",
+    "licensePlate"
+   ],
+   "audioTypes": [
+    "alrmCmonx",
+    "alrmSmoke",
+    "alrmSpeak",
+    "alrmBabyCry"
+   ]
+  },
+  "hasPackageCamera": false
+ }
+}

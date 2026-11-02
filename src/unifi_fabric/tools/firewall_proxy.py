@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..client import UniFiClient, validate_id
+from ..client import UniFiClient, validate_id, validate_spec_id
 from ..registry import Registry, _assert_uuid
-from ._pagination import collect_offset, mark_incomplete
-from ._payload import require_fields, sanitize_integration_write
+from ._pagination import collect_offset, offset_list_result, validate_pagination
+from ._payload import integration_update_body, require_fields
 from .network import _proxy
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ async def list_firewall_policies(
     Integration API ``filter`` query parameter and applied in either mode; when
     ``None`` it is omitted rather than sent as the string ``"None"``.
     """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -87,12 +88,7 @@ async def list_firewall_policies(
     collected = await collect_offset(
         client, url, key=key, params=base or None, offset=offset, limit=limit
     )
-    total = collected["totalCount"]
-    result: dict[str, Any] = {
-        "data": collected["items"],
-        "totalCount": total if total is not None else len(collected["items"]),
-    }
-    return mark_incomplete(result, collected)
+    return offset_list_result(collected)
 
 
 async def create_firewall_policy(
@@ -142,6 +138,7 @@ async def update_firewall_policy(
 ) -> dict[str, Any]:
     validate_id(policy_id, "policy_id")
     _warn_source_port_filter("update_firewall_policy", policy)
+    policy = integration_update_body("update_firewall_policy", policy)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -149,7 +146,7 @@ async def update_firewall_policy(
     return await client.put(
         _proxy(host_id, f"/sites/{site_id}/firewall/policies/{policy_id}"),
         key=key,
-        json=sanitize_integration_write(policy),
+        json=policy,
     )
 
 
@@ -162,6 +159,7 @@ async def patch_firewall_policy(
     fields: dict[str, Any],
 ) -> dict[str, Any]:
     validate_id(policy_id, "policy_id")
+    fields = integration_update_body("patch_firewall_policy", fields)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -169,19 +167,21 @@ async def patch_firewall_policy(
     return await client.patch(
         _proxy(host_id, f"/sites/{site_id}/firewall/policies/{policy_id}"),
         key=key,
-        json=sanitize_integration_write(fields),
+        json=fields,
     )
 
 
 async def delete_firewall_policy(
     client: UniFiClient, registry: Registry, host: str, site: str, policy_id: str
-) -> None:
+) -> Any:
     validate_id(policy_id, "policy_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/firewall/policies/{policy_id}"), key=key)
+    return await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/firewall/policies/{policy_id}"), key=key
+    )
 
 
 async def get_firewall_policy_ordering(
@@ -192,6 +192,9 @@ async def get_firewall_policy_ordering(
     source_zone_id: str,
     destination_zone_id: str,
 ) -> dict[str, Any]:
+    # Query-only (sourceFirewallZoneId / destinationFirewallZoneId: format uuid).
+    validate_spec_id(source_zone_id, "source_zone_id", uuid=True)
+    validate_spec_id(destination_zone_id, "destination_zone_id", uuid=True)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -225,6 +228,9 @@ async def set_firewall_policy_ordering(
     here explicitly as query params so a set round-trips against the same zone pair a
     get was read from.
     """
+    # Query-only (sourceFirewallZoneId / destinationFirewallZoneId: format uuid).
+    validate_spec_id(source_zone_id, "source_zone_id", uuid=True)
+    validate_spec_id(destination_zone_id, "destination_zone_id", uuid=True)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -250,6 +256,8 @@ async def list_firewall_zones(
     site: str,
     offset: int | None = None,
     limit: int | None = None,
+    *,
+    filter: str | None = None,
 ) -> dict[str, Any]:
     """List firewall zones for a site.
 
@@ -258,20 +266,20 @@ async def list_firewall_zones(
     native default page size of 25). By default every page is drained and the
     complete list is returned as ``{data, totalCount}``; pass offset or limit for a
     single manual page. A capped drain is flagged ``incomplete`` rather than
-    truncating silently.
+    truncating silently. ``filter`` is forwarded unchanged as the server-side filter
+    expression in either mode (omitted when ``None``).
     """
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
     url = _proxy(host_id, f"/sites/{site_id}/firewall/zones")
-    collected = await collect_offset(client, url, key=key, offset=offset, limit=limit)
-    total = collected["totalCount"]
-    result: dict[str, Any] = {
-        "data": collected["items"],
-        "totalCount": total if total is not None else len(collected["items"]),
-    }
-    return mark_incomplete(result, collected)
+    params = {"filter": filter} if filter is not None else None
+    collected = await collect_offset(
+        client, url, key=key, params=params, offset=offset, limit=limit
+    )
+    return offset_list_result(collected)
 
 
 async def create_firewall_zone(
@@ -312,6 +320,7 @@ async def update_firewall_zone(
     zone: dict[str, Any],
 ) -> dict[str, Any]:
     validate_id(zone_id, "zone_id")
+    zone = integration_update_body("update_firewall_zone_proxy", zone)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -319,32 +328,51 @@ async def update_firewall_zone(
     return await client.put(
         _proxy(host_id, f"/sites/{site_id}/firewall/zones/{zone_id}"),
         key=key,
-        json=sanitize_integration_write(zone),
+        json=zone,
     )
 
 
 async def delete_firewall_zone(
     client: UniFiClient, registry: Registry, host: str, site: str, zone_id: str
-) -> None:
+) -> Any:
     validate_id(zone_id, "zone_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/firewall/zones/{zone_id}"), key=key)
+    return await client.delete(
+        _proxy(host_id, f"/sites/{site_id}/firewall/zones/{zone_id}"), key=key
+    )
 
 
 # --- ACL Rules ---
 
 
 async def list_acl_rules(
-    client: UniFiClient, registry: Registry, host: str, site: str
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+    filter: str | None = None,
 ) -> dict[str, Any]:
+    validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    return await client.get(_proxy(host_id, f"/sites/{site_id}/acl-rules"), key=key)
+    params = {"filter": filter} if filter is not None else None
+    collected = await collect_offset(
+        client,
+        _proxy(host_id, f"/sites/{site_id}/acl-rules"),
+        key=key,
+        params=params,
+        offset=offset,
+        limit=limit,
+    )
+    return offset_list_result(collected)
 
 
 async def create_acl_rule(
@@ -386,6 +414,7 @@ async def update_acl_rule(
     rule: dict[str, Any],
 ) -> dict[str, Any]:
     validate_id(rule_id, "rule_id")
+    rule = integration_update_body("update_acl_rule", rule)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
@@ -393,19 +422,21 @@ async def update_acl_rule(
     return await client.put(
         _proxy(host_id, f"/sites/{site_id}/acl-rules/{rule_id}"),
         key=key,
-        json=sanitize_integration_write(rule),
+        # The published "ACL rule update" schema lists ``index`` as a request property,
+        # so the caller's position change is forwarded (firewall policies drop it).
+        json=rule,
     )
 
 
 async def delete_acl_rule(
     client: UniFiClient, registry: Registry, host: str, site: str, rule_id: str
-) -> None:
+) -> Any:
     validate_id(rule_id, "rule_id")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_id = await registry.resolve_site_id(site, host_id, key=key)
     _assert_uuid(site_id)
-    await client.delete(_proxy(host_id, f"/sites/{site_id}/acl-rules/{rule_id}"), key=key)
+    return await client.delete(_proxy(host_id, f"/sites/{site_id}/acl-rules/{rule_id}"), key=key)
 
 
 async def get_acl_rule_ordering(

@@ -1,0 +1,13 @@
+{
+ "recorded_by_tool": "get_network_application_info",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/info",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "applicationVersion": "11.0.81"
+ }
+}

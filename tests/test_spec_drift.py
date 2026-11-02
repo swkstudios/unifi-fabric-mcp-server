@@ -1,6 +1,6 @@
-"""Spec-drift audit tests (issue #199).
+"""Spec-drift audit tests.
 
-Two layers, mirroring ``test_catalog_audit.py`` (PR #195):
+Two layers, mirroring ``test_catalog_audit.py``:
 
 1. **Hermetic (always in CI).** Unit tests for the pure logic in
    ``unifi_fabric._spec_drift`` — root-index parsing, endpoint signing, snapshot
@@ -168,7 +168,24 @@ def test_extract_service_endpoints_rejects_shapeless_doc() -> None:
 
 
 def _spec(name: str, version: str, endpoints: dict[str, str]) -> ServiceSpec:
-    return ServiceSpec(name=name, version=version, spec_url=f"http://x/{name}", endpoints=endpoints)
+    paths = {}
+    for endpoint, signature in endpoints.items():
+        method, path = endpoint.split(" ", 1)
+        paths.setdefault(path, {})[method.lower()] = {
+            "operationId": signature,
+            "responses": {"200": {}},
+        }
+    return ServiceSpec(
+        name=name,
+        version=version,
+        spec_url=f"http://x/{name}",
+        endpoints=endpoints,
+        raw_document={
+            "openapi": "3.0.3",
+            "info": {"title": name, "version": version},
+            "paths": paths,
+        },
+    )
 
 
 def test_snapshot_round_trips() -> None:
@@ -202,7 +219,9 @@ def test_diff_service_flags_new_changed_removed() -> None:
     new = _spec("svc", "1.0.0", {"GET /a": "s1", "GET /b": "CHANGED", "GET /d": "s4"})
     diff = diff_service("svc", old, new)
     assert [f.endpoint for f in diff.new_endpoints] == ["GET /d"]
-    assert [f.endpoint for f in diff.changed_endpoints] == ["GET /b"]
+    assert [
+        f.endpoint for f in diff.changed_endpoints if not f.endpoint.startswith("DOCUMENT")
+    ] == ["GET /b"]
     assert [f.endpoint for f in diff.removed_endpoints] == ["GET /c"]
     assert diff.has_actionable_findings
 
@@ -217,7 +236,7 @@ def test_diff_service_version_drift() -> None:
 
 
 def test_diff_service_new_write_endpoint_is_a_write_capability() -> None:
-    # The CEO case: a read-only family grows a write route.
+    # The key case: a read-only family grows a write route.
     old = _spec("innerspace", "1.3.23", {"GET /v1/project": "s1"})
     new = _spec(
         "innerspace",
@@ -248,7 +267,7 @@ def test_diff_service_changed_implemented_endpoint_is_breakage() -> None:
     old = _spec("innerspace", "1.3.23", {"GET /v1/project": "s1"})
     new = _spec("innerspace", "1.3.23", {"GET /v1/project": "MOVED"})
     diff = diff_service("innerspace", old, new)
-    (finding,) = diff.changed_endpoints
+    (finding,) = [f for f in diff.changed_endpoints if not f.endpoint.startswith("DOCUMENT")]
     assert finding.breakage is True
 
 
@@ -298,7 +317,7 @@ def test_committed_baseline_parses_and_has_expected_services() -> None:
         "site-manager",
         "carrier-fabric",
     } <= set(baseline.services)
-    # InnerSpace is the fully-covered, CEO-named family: exactly six GET endpoints.
+    # InnerSpace is the fully-covered family: exactly six GET endpoints.
     innerspace = baseline.services["innerspace"]
     assert len(innerspace.endpoints) == 6
     assert all(ep.startswith("GET ") for ep in innerspace.endpoints)
@@ -309,10 +328,12 @@ def test_committed_baseline_round_trips() -> None:
     assert snapshot_from_dict(snapshot_to_dict(baseline)) == baseline
 
 
-def test_committed_baseline_diffs_clean_against_itself() -> None:
+def test_legacy_committed_baseline_without_raw_evidence_requires_review() -> None:
     baseline = _load_baseline()
     report = diff_snapshot(baseline, baseline)
-    assert report.is_clean, report.summary()
+    assert not report.is_clean
+    assert "raw-document evidence unavailable" in report.summary()
+    assert "needs_review" in report.summary()
 
 
 def test_committed_baseline_surfaces_network_console_gap() -> None:
@@ -320,14 +341,14 @@ def test_committed_baseline_surfaces_network_console_gap() -> None:
     # 10.4.57 — never the real estate build) vs published 10.4.57 — surfaced, not failing.
     baseline = _load_baseline()
     report = diff_snapshot(baseline, baseline)
-    assert report.is_clean
+    assert not report.is_clean  # Legacy evidence is unavailable, independently of the gap.
     gap_names = {d.name for d in report.console_gaps}
     assert "network" in gap_names
-    assert "console runs v10.5.99" in report.summary()
+    assert "console runs v10.7.99" in report.summary()
 
 
 def test_committed_baseline_console_versions_are_synthetic_not_real() -> None:
-    # PR #253 review, item 2: the committed baseline must NEVER carry a real, distinct estate
+    # The committed baseline must NEVER carry a real, distinct estate
     # console build. The single write-boundary normalisation (synthesize_console_versions) is
     # idempotent on a clean baseline, so the committed console_versions must be a FIXED POINT
     # of it — a field-equals-its-synthesis-rule invariant that catches any distinct real value
@@ -356,10 +377,10 @@ def test_synthetic_next_week_drift_is_caught_in_every_class() -> None:
     baseline = _load_baseline()
     payload = snapshot_to_dict(baseline)
     services = payload["services"]
-    # Version bump on network (to a value distinct from BOTH the baseline 10.4.57 and the
-    # recorded console 10.5.99, so this service shows version drift AND a console gap).
-    services["network"]["version"] = "10.5.0"
-    # InnerSpace grows a write route (the CEO case) and loses one implemented GET.
+    # Version bump on network (to a value distinct from BOTH the baseline 10.6.106 and the
+    # recorded console 10.7.99, so this service shows version drift AND a console gap).
+    services["network"]["version"] = "10.7.0"
+    # InnerSpace grows a write route (the key case) and loses one implemented GET.
     services["innerspace"]["endpoints"]["POST /v1/project"] = "newsig"
     del services["innerspace"]["endpoints"]["GET /v1/switches"]
     # A protect endpoint's contract changes.
@@ -385,15 +406,15 @@ def test_synthetic_next_week_drift_is_caught_in_every_class() -> None:
     # version drift + changed endpoint present
     network_diff = next(d for d in report.service_diffs if d.name == "network")
     assert network_diff.version_changed
-    assert network_diff.console_gap  # 10.5.0 published vs 10.5.99 console
+    assert network_diff.console_gap  # 10.7.0 published vs 10.7.99 console
     protect_diff = next(d for d in report.service_diffs if d.name == "protect")
     assert protect_diff.changed_endpoints
 
     # Render the full drift summary and assert every class surfaces in the text.
     summary = report.summary()
     assert "SPEC DRIFT" in summary
-    assert "VERSION_DRIFT 10.4.57 -> 10.5.0" in summary
-    assert "CONSOLE_GAP: published v10.5.0, console runs v10.5.99" in summary
+    assert "VERSION_DRIFT 10.6.106 -> 10.7.0" in summary
+    assert "CONSOLE_GAP: published v10.7.0, console runs v10.7.99" in summary
     assert "NEW      POST /v1/project (WRITE capability)" in summary
     assert "REMOVED  GET /v1/switches (BREAKAGE: implemented)" in summary
     assert "CHANGED" in summary
@@ -431,7 +452,7 @@ def test_known_service_slugs_union() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Synthetic console-version derivation + write-boundary normalisation (PR #253, item 2).
+# Synthetic console-version derivation + write-boundary normalisation (item 2).
 # ---------------------------------------------------------------------------
 
 
@@ -529,7 +550,194 @@ def test_live_published_specs_have_no_actionable_drift() -> None:
         root_index_url=os.environ.get("SPEC_DRIFT_ROOT_INDEX_URL", ROOT_INDEX_URL),
         console_versions=dict(baseline.console_versions),
     )
-    report = diff_snapshot(baseline, current)
+    from check_spec_drift import hydrate_pinned_baseline
+
+    report = diff_snapshot(hydrate_pinned_baseline(baseline), current)
     # Any actionable drift here means the published contract moved since the baseline was
     # cut — legitimate signal to review and advance the baseline, not a test bug.
     assert report.is_clean, report.summary()
+
+
+# Live-fetch completeness and removal safety (hermetic transport).
+_COMPLETE_INDEX = """# Ubiquiti Developer Documentation
+## OpenAPI Specifications
+- [Network](https://developer.ui.com/network/v1.0.0/openapi.json)
+## Network (v1.0.0)
+Documentation follows.
+"""
+
+
+def _mock_live_index(monkeypatch, index=_COMPLETE_INDEX, *, status=200, spec_status=200):
+    import httpx
+
+    original_client = httpx.Client
+
+    def respond(request):
+        if request.url.path == "/llms.txt":
+            return httpx.Response(status, text=index)
+        return httpx.Response(spec_status, json={"paths": {"/v1/info": {"get": {}}}})
+
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+
+
+def test_complete_live_index_reports_removed_baseline_service(monkeypatch):
+    from check_spec_drift import fetch_live_snapshot
+
+    _mock_live_index(monkeypatch)
+    baseline = SpecSnapshot(
+        services={
+            "network": _spec("network", "1.0.0", {"GET /v1/info": "old"}),
+            "protect": _spec("protect", "1.0.0", {"GET /v1/cameras": "old"}),
+        }
+    )
+    current = fetch_live_snapshot(expected_services=set(baseline.services))
+    report = diff_snapshot(baseline, current)
+    assert "REMOVED" in report.summary()
+    assert "protect" in report.summary()
+    assert set(current.services) == {"network"}
+
+
+@pytest.mark.parametrize(
+    "status,index",
+    [
+        (503, _COMPLETE_INDEX),
+        (200, _COMPLETE_INDEX.split("## Network")[0]),
+        (200, "- [Network](https://developer.ui.com/network/v1.0.0/openapi.json)"),
+        (
+            200,
+            _COMPLETE_INDEX.replace(
+                "## Network",
+                "- [Broken](https://developer.ui.com/protect/openapi.json)\n## Network",
+            ),
+        ),
+    ],
+)
+def test_failed_or_partial_live_root_index_is_incomplete(monkeypatch, status, index):
+    from check_spec_drift import fetch_live_snapshot
+
+    _mock_live_index(monkeypatch, index, status=status)
+    with pytest.raises((RuntimeError, ValueError), match="incomplete|fetch failed"):
+        fetch_live_snapshot(expected_services={"network"})
+
+
+def test_failed_indexed_spec_fetch_is_incomplete(monkeypatch):
+    from check_spec_drift import fetch_live_snapshot
+
+    _mock_live_index(monkeypatch, spec_status=503)
+    with pytest.raises(RuntimeError, match="incomplete spec fetch"):
+        fetch_live_snapshot(expected_services={"network", "protect"})
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_baseline_update_refuses_removal(monkeypatch, tmp_path, capsys, live):
+    from check_spec_drift import main, write_snapshot_file
+
+    baseline = SpecSnapshot(
+        services={
+            "network": _spec("network", "1.0.0", {"GET /v1/info": "old"}),
+            "protect": _spec("protect", "1.0.0", {"GET /v1/cameras": "old"}),
+        }
+    )
+    path = tmp_path / "baseline.json"
+    write_snapshot_file(path, baseline)
+    original = path.read_bytes()
+    argv = ["--baseline", str(path), "--update-baseline"]
+    if live:
+        _mock_live_index(monkeypatch)
+        argv += ["--live"]
+    else:
+        snapshot = tmp_path / "current.json"
+        write_snapshot_file(
+            snapshot, SpecSnapshot(services={"network": baseline.services["network"]})
+        )
+        argv += ["--snapshot", str(snapshot)]
+    assert main(argv) == 1
+    assert path.read_bytes() == original
+    captured = capsys.readouterr()
+    assert "REMOVED" in captured.out
+    assert "refusing baseline update" in captured.err
+
+
+@pytest.mark.parametrize(
+    "status,index",
+    [
+        (503, _COMPLETE_INDEX),
+        (200, _COMPLETE_INDEX.split("## Network")[0]),
+    ],
+)
+def test_baseline_update_preserves_baseline_after_incomplete_fetch(
+    monkeypatch, tmp_path, capsys, status, index
+):
+    from check_spec_drift import main, write_snapshot_file
+
+    path = tmp_path / "baseline.json"
+    write_snapshot_file(
+        path, SpecSnapshot(services={"network": _spec("network", "1.0.0", {"GET /v1/info": "old"})})
+    )
+    original = path.read_bytes()
+    _mock_live_index(monkeypatch, index, status=status)
+    assert main(["--baseline", str(path), "--live", "--update-baseline"]) == 2
+    assert path.read_bytes() == original
+    assert "could not fetch live specs" in capsys.readouterr().err
+
+
+def test_legacy_raw_recovery_uses_historical_fixture_not_upstream(monkeypatch, tmp_path):
+    import check_spec_drift
+    import httpx
+
+    document = {
+        "openapi": "3.1.0",
+        "paths": {"/widgets": {"get": {"responses": {"200": {}}}}},
+        "futureContract": {"mode": 1},
+    }
+    spec = build_service_spec("test", "1", "https://example.invalid/pinned", document)
+    payload = snapshot_to_dict(SpecSnapshot(services={"test": spec}))
+    del payload["services"]["test"]["raw_document"]
+    legacy = snapshot_from_dict(payload)
+    directory = tmp_path / "tests" / "fixtures" / "openapi"
+    directory.mkdir(parents=True)
+    (directory / "test.json").write_text(json.dumps(document))
+    (directory / "manifest.json").write_text(
+        json.dumps(
+            {
+                "test": {"version": "1", "source_url": spec.spec_url, "file": "test.json"},
+            }
+        )
+    )
+    monkeypatch.setattr(check_spec_drift, "ROOT", tmp_path)
+
+    def no_upstream(*args, **kwargs):
+        raise AssertionError("baseline recovery must not fetch replacement upstream evidence")
+
+    monkeypatch.setattr(httpx.Client, "get", no_upstream)
+    hydrated = check_spec_drift.hydrate_pinned_baseline(legacy)
+    assert hydrated.services["test"].raw_document == document
+    current_document = json.loads(json.dumps(document))
+    current_document["futureContract"]["mode"] = 2
+    current = SpecSnapshot(
+        services={
+            "test": build_service_spec("test", "1", spec.spec_url, current_document),
+        }
+    )
+    report = diff_snapshot(hydrated, current)
+    assert not report.is_clean
+    assert "#/futureContract/mode needs_review" in report.summary()
+
+
+def test_legacy_raw_recovery_refuses_missing_committed_pin(monkeypatch, tmp_path):
+    import check_spec_drift
+
+    document = {"paths": {"/widgets": {"get": {"responses": {"200": {}}}}}}
+    spec = build_service_spec("test", "1", "https://example.invalid/pinned", document)
+    payload = snapshot_to_dict(SpecSnapshot(services={"test": spec}))
+    del payload["services"]["test"]["raw_document"]
+    directory = tmp_path / "tests" / "fixtures" / "openapi"
+    directory.mkdir(parents=True)
+    (directory / "manifest.json").write_text("{}")
+    monkeypatch.setattr(check_spec_drift, "ROOT", tmp_path)
+    with pytest.raises(ValueError, match="no committed raw baseline evidence"):
+        check_spec_drift.hydrate_pinned_baseline(snapshot_from_dict(payload))

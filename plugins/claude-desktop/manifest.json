@@ -1,0 +1,80 @@
+{
+  "manifest_version": "0.3",
+  "name": "unifi-fabric",
+  "display_name": "UniFi Fabric MCP",
+  "version": "0.7.0",
+  "description": "Run the open-source UniFi Fabric MCP server on your own Mac or Windows PC with your own UniFi Site Manager API key.",
+  "long_description": "Launches `uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp` on your machine with the UniFi Site Manager API key you enter at install time. Claude can then read and manage your UniFi sites, devices, clients, Wi-Fi, firewall, VPN and Protect cameras through the UniFi Fabric API in Ubiquiti's cloud (api.ui.com). Writes are on by default; turn on Read-only mode to hide and refuse every write and action tool. Requires uv (https://docs.astral.sh/uv/). Not affiliated with Ubiquiti Inc.",
+  "author": {
+    "name": "SWK Studios",
+    "url": "https://github.com/swkstudios"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/swkstudios/unifi-fabric-mcp-server"
+  },
+  "homepage": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+  "documentation": "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/main/plugins/claude-desktop/README.md",
+  "support": "https://github.com/swkstudios/unifi-fabric-mcp-server/issues",
+  "server": {
+    "type": "binary",
+    "entry_point": "uvx",
+    "mcp_config": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp"
+      ],
+      "env": {
+        "UNIFI_API_KEY": "${user_config.unifi_api_key}",
+        "UNIFI_READ_ONLY": "${user_config.read_only}",
+        "FASTMCP_TRANSPORT": "stdio",
+        "UNIFI_TOOL_MODE": "${user_config.tool_mode}"
+      }
+    }
+  },
+  "tools_generated": true,
+  "keywords": [
+    "unifi",
+    "network",
+    "site-manager",
+    "protect",
+    "firewall",
+    "mcp"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/main/PRIVACY.md",
+    "https://www.ui.com/legal/privacypolicy/"
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ]
+  },
+  "user_config": {
+    "unifi_api_key": {
+      "type": "string",
+      "title": "UniFi Site Manager API key",
+      "description": "Your own UniFi Site Manager API key. Create one at https://unifi.ui.com: choose your organization, open API Keys in the left sidebar, select Create New API Key, enable the Site Manager and Network scopes (add Protect for cameras), and copy the key. The server sends it only to api.ui.com.",
+      "sensitive": true,
+      "required": true
+    },
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only mode",
+      "description": "Off by default: read and write tools both work. Turn on to hide every write and action tool and refuse any call to one before anything is sent to UniFi (sets UNIFI_READ_ONLY).",
+      "default": false,
+      "required": false
+    },
+    "tool_mode": {
+      "type": "string",
+      "title": "Tool mode",
+      "description": "discovery (default) advertises discovery meta-tools, with the write dispatcher hidden in read-only mode; full advertises every selected domain tool. Choose full to keep the previous catalog or for gateways.",
+      "default": "discovery",
+      "required": false
+    }
+  }
+}

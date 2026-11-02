@@ -1,55 +1,439 @@
 name: Publish
 
+# One workflow builds the server image in the source repository and in the public
+# repository; the publication transform changes only its runs-on labels.
+#
+# Events:
+#   workflow_dispatch (both repositories): a release, dispatched on its release tag
+#     (vX.Y.Z) with that tag as input. Builds linux/amd64 and linux/arm64.
+#   push of a v* tag (public copy and its forks): the same release build, so a fork
+#     publishes its own tags. The canonical public repository is released through the
+#     dispatch above, so its own tag pushes are skipped (no second build of a release).
+#   A pre-release tag (vX.Y.Z-rc.N) builds linux/amd64 only.
+#
+# The image name is ghcr.io/<owner>/<repository> of the repository running the workflow
+# (lower-cased for GHCR), so the same file publishes the source, public and fork images.
+#
+# Each platform leg builds its image without emulation (natively, or cross-built when
+# arm64 runs on an amd64 runner), boots it and sends the README initialize call (under
+# QEMU for an arm64 image on an amd64 runner), and pushes it by digest. The merge job
+# then creates
+# one image index with every tag, checks that the index lists exactly the platforms that
+# were built and, in the public repository only, signs that index digest (keyless
+# Cosign), attaches an SPDX SBOM attestation and a build-provenance attestation. The
+# private image is never signed.
+
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g., v0.3.10)'
+        description: 'Release tag (vX.Y.Z)'
         required: true
+
+concurrency:
+  # Serialize the release builds: two builds of the same commit (for example its version
+  # tag and its release dispatch) push identical layers, and concurrent pushes of the
+  # same blob race in GHCR ("blob upload unknown to registry"). The group is not the
+  # commit, so same-commit runs share it. An in-flight publish is never cancelled (a
+  # half-finished push leaves orphaned blobs). A group holds one running and one pending
+  # run, and a newer pending run cancels the older pending one, so the frequent
+  # workflow_run builds have a group of their own: they never displace a pending release
+  # (and a newer one replaces an older pending one, which is the wanted image anyway).
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && 'branch' || 'release' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: swkstudios/unifi-fabric-mcp-server
 
 jobs:
-  publish:
+  build-amd64:
+    name: build (linux/amd64)
+    # workflow_run builds only a green CI run of a push to this repository: a fork pull
+    # request whose head branch carries the same name also matches the branch filter.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository != 'swkstudios/unifi-fabric-mcp-server') ||
+      (github.event.repository.private && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    env:
+      PLATFORM: linux/amd64
+      ARCH: amd64
     steps:
+      - name: Image name from the repository
+        # GHCR names are lower case; github.repository keeps the owner's case.
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - name: Validate tag format
+        if: github.event_name != 'workflow_run'
+        # The tag reaches the shell only through an env var, never as an inline
+        # expression, so a crafted tag cannot inject commands before validation. A
+        # dispatched release is a clean vX.Y.Z; a pushed or created tag may also carry a
+        # pre-release suffix (for example -rc.1), which builds linux/amd64 only.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          if [[ ! "${{ github.event.inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid tag format. Must match vX.Y.Z"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          else
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$'
+          fi
+          if [[ ! "$INPUT_TAG" =~ $pattern ]]; then
+            echo "::error::Invalid tag format. Must match vX.Y.Z (a pushed or created tag may add a pre-release suffix such as -rc.1)"
             exit 1
           fi
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Require the release tag as the workflow ref
+        if: github.event_name == 'workflow_dispatch'
+        # Keyless signatures embed the workflow ref. Refusing any other ref keeps the
+        # signing identity (publish.yml@refs/tags/v*) true.
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          if [[ "$WORKFLOW_REF" != "refs/tags/${INPUT_TAG}" ]]; then
+            echo "::error::Dispatch this workflow on the release tag (--ref ${INPUT_TAG}) so the image signature identity is the tag."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.tag }}
+          persist-credentials: false
+          ref: ${{ github.event.inputs.tag || github.event.workflow_run.head_sha || github.sha }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
-      - name: Log in to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
-          registry: ghcr.io
+          # Run the docker-container buildkitd in the Docker daemon's own network
+          # namespace, so builds use the daemon's resolver on a Docker-in-Docker worker.
+          driver-opts: network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata
+      - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ github.event.inputs.tag }}
-            type=raw,value=latest,enable=${{ !contains(github.event.inputs.tag, '-') }}
-      - name: Build and push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+          images: ${{ env.IMAGE }}
+      - name: Build the image for this platform
+        # The Dockerfile runs every RUN step on the build platform, so this needs no
+        # emulation on any runner.
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ env.PLATFORM }}
+          load: true
+          tags: unifi-fabric-mcp-server:publish-${{ env.ARCH }}
+          network: host
+          allow: network.host
+          cache-from: type=gha,scope=publish-${{ env.ARCH }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=publish-${{ env.ARCH }}
+      - name: Check the built image platform
+        run: |
+          BUILT="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "unifi-fabric-mcp-server:publish-${ARCH}")"
+          echo "built image platform: ${BUILT}"
+          if [ "$BUILT" != "$PLATFORM" ]; then
+            echo "::error::built ${BUILT}, expected ${PLATFORM}"
+            exit 1
+          fi
+      - name: Set up QEMU for an arm64 image on an amd64 runner
+        # Test only: the image above was built without emulation.
+        if: env.ARCH == 'arm64' && runner.arch == 'X64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          image: tonistiigi/binfmt:qemu-v10.0.4@sha256:8f58e6214f4cc9dc83ce8f5acad1ece508eb6b20e696a8c1e9f274481982c541
+          platforms: arm64
+      - name: Warn that the arm64 image was not built on an arm64 runner
+        if: env.ARCH == 'arm64' && runner.arch == 'X64'
+        run: echo "::warning::linux/arm64 ran on an amd64 runner, so the image is cross-built and boots under QEMU emulation."
+      - name: Boot the image and send the README initialize call
+        # Every leg boots its image: natively, or an arm64 image on an amd64 runner under QEMU.
+        if: (env.ARCH == 'amd64' && runner.arch == 'X64') || env.ARCH == 'arm64'
+        run: bash scripts/smoke_image.sh "unifi-fabric-mcp-server:publish-${ARCH}" "${PLATFORM}"
+      - name: Push the image by digest
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ env.PLATFORM }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          network: host
+          allow: network.host
+          cache-from: type=gha,scope=publish-${{ env.ARCH }}
+      - name: Record the platform digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+      - name: Upload the platform digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ env.ARCH }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+
+  build-arm64:
+    name: build (linux/arm64)
+    # Clean releases only: a dispatched release or a vX.Y.Z tag with no pre-release suffix.
+    # It never runs for a pre-release tag, and it runs natively on the hosted arm64 runner.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') && github.repository != 'swkstudios/unifi-fabric-mcp-server') ||
+      (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PLATFORM: linux/arm64
+      ARCH: arm64
+    steps:
+      - name: Image name from the repository
+        # GHCR names are lower case; github.repository keeps the owner's case.
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Validate tag format
+        if: github.event_name != 'workflow_run'
+        # The tag reaches the shell only through an env var, never as an inline
+        # expression, so a crafted tag cannot inject commands before validation. A
+        # dispatched release is a clean vX.Y.Z; a pushed or created tag may also carry a
+        # pre-release suffix (for example -rc.1), which builds linux/amd64 only.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          else
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$'
+          fi
+          if [[ ! "$INPUT_TAG" =~ $pattern ]]; then
+            echo "::error::Invalid tag format. Must match vX.Y.Z (a pushed or created tag may add a pre-release suffix such as -rc.1)"
+            exit 1
+          fi
+      - name: Require the release tag as the workflow ref
+        if: github.event_name == 'workflow_dispatch'
+        # Keyless signatures embed the workflow ref. Refusing any other ref keeps the
+        # signing identity (publish.yml@refs/tags/v*) true.
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          if [[ "$WORKFLOW_REF" != "refs/tags/${INPUT_TAG}" ]]; then
+            echo "::error::Dispatch this workflow on the release tag (--ref ${INPUT_TAG}) so the image signature identity is the tag."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.inputs.tag || github.event.workflow_run.head_sha || github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # Run the docker-container buildkitd in the Docker daemon's own network
+          # namespace, so builds use the daemon's resolver on a Docker-in-Docker worker.
+          driver-opts: network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+      - name: Build the image for this platform
+        # The Dockerfile runs every RUN step on the build platform, so this needs no
+        # emulation on any runner.
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ env.PLATFORM }}
+          load: true
+          tags: unifi-fabric-mcp-server:publish-${{ env.ARCH }}
+          network: host
+          allow: network.host
+          cache-from: type=gha,scope=publish-${{ env.ARCH }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=publish-${{ env.ARCH }}
+      - name: Check the built image platform
+        run: |
+          BUILT="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "unifi-fabric-mcp-server:publish-${ARCH}")"
+          echo "built image platform: ${BUILT}"
+          if [ "$BUILT" != "$PLATFORM" ]; then
+            echo "::error::built ${BUILT}, expected ${PLATFORM}"
+            exit 1
+          fi
+      - name: Set up QEMU for an arm64 image on an amd64 runner
+        # Test only: the image above was built without emulation.
+        if: env.ARCH == 'arm64' && runner.arch == 'X64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          image: tonistiigi/binfmt:qemu-v10.0.4@sha256:8f58e6214f4cc9dc83ce8f5acad1ece508eb6b20e696a8c1e9f274481982c541
+          platforms: arm64
+      - name: Warn that the arm64 image was not built on an arm64 runner
+        if: env.ARCH == 'arm64' && runner.arch == 'X64'
+        run: echo "::warning::linux/arm64 ran on an amd64 runner, so the image is cross-built and boots under QEMU emulation."
+      - name: Boot the image and send the README initialize call
+        # Every leg boots its image: natively, or an arm64 image on an amd64 runner under QEMU.
+        if: (env.ARCH == 'amd64' && runner.arch == 'X64') || env.ARCH == 'arm64'
+        run: bash scripts/smoke_image.sh "unifi-fabric-mcp-server:publish-${ARCH}" "${PLATFORM}"
+      - name: Push the image by digest
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ env.PLATFORM }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          network: host
+          allow: network.host
+          cache-from: type=gha,scope=publish-${{ env.ARCH }}
+      - name: Record the platform digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+      - name: Upload the platform digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ env.ARCH }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+
+  merge:
+    name: merge, verify and sign
+    needs: [build-amd64, build-arm64]
+    # amd64 must have succeeded. arm64 must have succeeded too, except where it does not
+    # run (a pre-release tag, vX.Y.Z-rc.N): there the index holds amd64 only.
+    if: >-
+      !cancelled() && needs.build-amd64.result == 'success' &&
+      (needs.build-arm64.result == 'success' ||
+       (needs.build-arm64.result == 'skipped' &&
+        (github.event_name == 'workflow_run' || contains(github.ref, '-'))))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      EXPECTED_PLATFORMS: ${{ needs.build-arm64.result == 'success' && 'linux/amd64 linux/arm64' || 'linux/amd64' }}
+    steps:
+      - name: Image name from the repository
+        # GHCR names are lower case; github.repository keeps the owner's case.
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.inputs.tag || github.event.workflow_run.head_sha || github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          # A version tag (create, or a release dispatched on its tag) publishes the
+          # version image; only a clean tag (vX.Y.Z, no pre-release suffix) moves the
+          # :X.Y and :latest aliases. A release dispatch or tag push also keeps the v tag.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+            type=raw,value=${{ github.event.inputs.tag || github.ref_name }},enable=${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+      - name: Download the platform digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - name: Create the image index and its tags
+        id: image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag_args=()
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then tag_args+=(--tag "$tag"); fi
+          done <<< "$TAGS"
+          sources=()
+          for digest in "${RUNNER_TEMP}"/digests/*; do
+            sources+=("${IMAGE}@sha256:$(basename "$digest")")
+          done
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+          DIGEST="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}:${VERSION}")"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+      - name: Verify the platforms in the image index
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          read -r -a platforms <<< "$EXPECTED_PLATFORMS"
+          bash scripts/check_image_platforms.sh "${IMAGE}@${DIGEST}" "${platforms[@]}"
+      # Signing and attestation run ONLY when the repository is public: keyless signing
+      # writes the signer identity, commit SHAs and the image package list to the permanent
+      # public Sigstore logs, which must never happen for the private image.
+      - name: Install Cosign
+        if: github.event.repository.visibility == 'public'
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+      - name: Generate SPDX SBOM
+        if: github.event.repository.visibility == 'public'
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.image.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Keylessly sign image and attest SBOM
+        if: github.event.repository.visibility == 'public'
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+          cosign attest --yes --predicate sbom.spdx.json --type spdxjson "${IMAGE}@${DIGEST}"
+      # GitHub does not provide artifact attestations for user-owned private repositories.
+      - name: Attest build provenance
+        if: github.event.repository.visibility == 'public'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+      - name: Record the built release
+        # The MCP registry workflow consumes this receipt (the exact tag and commit built).
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          printf '{"tag": "%s", "sha": "%s"}\n' "$INPUT_TAG" "$(git rev-parse HEAD)" > built-release.json
+      - name: Upload the built release receipt
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: built-release
+          path: built-release.json
+          if-no-files-found: error

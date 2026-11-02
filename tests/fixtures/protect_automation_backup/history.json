@@ -1,0 +1,4 @@
+[
+  {"id": "run-1", "automationId": "66f1a2b3c4d5e6f7a8b9c0d1", "start": 1718000000000, "status": "success"},
+  {"id": "run-2", "automationId": "66f1a2b3c4d5e6f7a8b9c0d1", "start": 1718003600000, "status": "failed", "error": "synthetic"}
+]

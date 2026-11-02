@@ -1,0 +1,21 @@
+{
+  "description": "Existing examples identified by CommonMark content to preserve README and generated documentation edit boundaries.",
+  "examples": [
+    {
+      "file": "README.md",
+      "section": "Troubleshooting",
+      "body_sha256": "952a13889995dbdea943dbce51ace3891fe6c29dbc3de719e37d0bfc5302f7cc",
+      "source": "file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af",
+      "support": "0.7.0",
+      "citation": "file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af"
+    },
+    {
+      "file": "docs/TOOLS.md",
+      "section": "Enabling / disabling connector writes",
+      "body_sha256": "cba2819e7e38a914597d475f4d2d208b3c74fd1539fbff670ee61f110e76194a",
+      "source": "file:scripts/gen_tools_doc.py@sha256:f3ec27dff124a812e4bf2aafbe70ddaadb1426a36b9b6a6d9d587255f0464ff4",
+      "support": "0.7.0",
+      "citation": "file:scripts/gen_tools_doc.py@sha256:f3ec27dff124a812e4bf2aafbe70ddaadb1426a36b9b6a6d9d587255f0464ff4"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "provenance": "synthetic shape (no production capture); live validation pending",
+  "request": {
+    "method": "PUT",
+    "path": "/proxy/network/api/s/{site}/rest/networkconf/{_id}",
+    "query": {}
+  },
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "meta": {"rc": "ok"},
+    "data": [
+      {
+        "_id": "00000000-0000-4000-8000-000000fa00e3",
+        "purpose": "wan",
+        "name": "name-0033",
+        "is_wifi_tethering": true,
+        "enabled": true,
+        "port": 9,
+        "uplink_ssid": "ssid-0001",
+        "uplink_security": "WPA2_PERSONAL",
+        "uplink_band": "RADIO_NA"
+      }
+    ]
+  }
+}

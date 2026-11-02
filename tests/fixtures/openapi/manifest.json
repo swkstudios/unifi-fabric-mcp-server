@@ -1,0 +1,50 @@
+{
+  "carrier-fabric": {
+    "version": "1.0.0",
+    "source_url": "https://developer.ui.com/carrier-fabric/v1.0.0/openapi.json",
+    "source_sha256": "83450354a6a8f9a681a8101d18d063d063ae81b96582a231de39c1482cad5378",
+    "file": "carrier-fabric-1.0.0.json",
+    "file_sha256": "735a1937d02fcd5cdefe3db0f77e322e71d83a919468f65fb575128d38f92e8d",
+    "transform": "example/examples annotation keywords removed"
+  },
+  "innerspace": {
+    "version": "1.3.23",
+    "source_url": "https://developer.ui.com/innerspace/v1.3.23/openapi.json",
+    "source_sha256": "537a2c7620eaad80e13eeb23c983a9a1981fc32946e615e6055ecbb6abd9add3",
+    "file": "innerspace-1.3.23.json",
+    "file_sha256": "2bc9fbe3c03d54b5092d7e7a93008df827c75847fcde0d1bceaa75c851e444fb",
+    "transform": "example/examples annotation keywords removed"
+  },
+  "mobility": {
+    "version": "1.0.0",
+    "source_url": "https://developer.ui.com/mobility/v1.0.0/openapi.json",
+    "source_sha256": "a82ffea0e14ee9b3bba342c9723b931d354d0a50477f2e24786faa1085677e1d",
+    "file": "mobility-1.0.0.json",
+    "file_sha256": "4fd2bef87091b12a8986ce858fc4d45ef0d1a11e2cf4a608070db893c2e984e2",
+    "transform": "example/examples annotation keywords removed"
+  },
+  "network": {
+    "version": "10.6.106",
+    "source_url": "https://developer.ui.com/network/v10.6.106/openapi.json",
+    "source_sha256": "c91054d31bcefa38d7408cb12a975dd660a7304017d781ffdbc884caaf84c75d",
+    "file": "network-10.6.106.json",
+    "file_sha256": "bcaa6e290a7f0611735589e395d9f689b5ac12f40c8d0ab5dfe8fa964189eaad",
+    "transform": "example/examples annotation keywords removed"
+  },
+  "protect": {
+    "version": "7.3.70",
+    "source_url": "https://developer.ui.com/protect/v7.3.70/openapi.json",
+    "source_sha256": "85caa3c70a5febd8ae2e4f90dbe31b8ad544fc9b74b6c02ca477c8af03d14dc6",
+    "file": "protect-7.3.70.json",
+    "file_sha256": "e58f4bcc969e49ce4efe5d8db47ea6c55f6938979818ef92dc77e091a3fc1d3c",
+    "transform": "example/examples annotation keywords removed"
+  },
+  "site-manager": {
+    "version": "1.0.0",
+    "source_url": "https://developer.ui.com/site-manager/v1.0.0/openapi.json",
+    "source_sha256": "16daa37f17c9489a6f579d88611bd5827232f65be603125e3c707bb4ef30ad9f",
+    "file": "site-manager-1.0.0.json",
+    "file_sha256": "1469cc371f5c1e72b01a800a519081211f1483573d0021aec28b9cd8dbabf517",
+    "transform": "example/examples annotation keywords removed"
+  }
+}

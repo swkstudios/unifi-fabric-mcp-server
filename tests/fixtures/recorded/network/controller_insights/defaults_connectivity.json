@@ -1,0 +1,19 @@
+{
+  "args": [
+    "connectivity",
+    "Default"
+  ],
+  "body": {
+    "enabled": true,
+    "mlo_mesh_enabled": false,
+    "uplink_type": "gateway"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/connectivity/defaults",
+    "query": {}
+  },
+  "status": 200
+}

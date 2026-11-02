@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp"
+      ]
+    }
+  }
+}

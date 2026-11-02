@@ -1,0 +1,34 @@
+{
+  "args": [
+    "ips_advanced_filtering",
+    "Default"
+  ],
+  "body": {
+    "advanced_filtering_preference": "manual",
+    "enabled_categories": [
+      "enabled-categories-0001",
+      "enabled-categories-0002",
+      "enabled-categories-0003",
+      "enabled-categories-0004",
+      "enabled-categories-0005"
+    ],
+    "enabled_networks": [
+      "00000000-0000-4000-8000-000000000003",
+      "00000000-0000-4000-a000-000000000007",
+      "00000000-0000-4000-a000-000000000014",
+      "00000000-0000-4000-8000-000000000015",
+      "00000000-0000-4000-a000-000000000016"
+    ],
+    "ips_mode": "ids",
+    "key": "ips",
+    "memory_optimized": true
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/ips/advanced-filtering-defaults",
+    "query": {}
+  },
+  "status": 200
+}

@@ -1,0 +1,20 @@
+{
+  "args": [
+    "ssl_inspection_setting",
+    "Default"
+  ],
+  "body": {
+    "identity_certificate_all_users": true,
+    "identity_certificate_groups": [],
+    "identity_certificate_users": [],
+    "state": "off"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/ssl-inspection/setting/defaults",
+    "query": {}
+  },
+  "status": 200
+}

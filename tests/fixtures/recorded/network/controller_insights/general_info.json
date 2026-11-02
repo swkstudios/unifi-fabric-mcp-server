@@ -1,0 +1,15 @@
+{
+  "args": [],
+  "body": {
+    "cloud_access_enabled": true,
+    "cloud_backup_enabled": true
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_console_general_info",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/unifi-core/general-info",
+    "query": {}
+  },
+  "status": 200
+}

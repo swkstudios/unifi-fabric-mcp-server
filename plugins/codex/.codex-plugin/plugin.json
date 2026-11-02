@@ -1,0 +1,30 @@
+{
+  "name": "unifi-fabric",
+  "version": "0.7.0",
+  "description": "Runs the open-source UniFi Fabric MCP server on your own machine with your own UniFi Site Manager API key, so Codex can read and manage your UniFi sites, devices, clients, firewall, VPN and Protect cameras through Ubiquiti's cloud API (api.ui.com). Not affiliated with Ubiquiti Inc.",
+  "author": {
+    "name": "SWK Studios",
+    "url": "https://github.com/swkstudios"
+  },
+  "homepage": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+  "repository": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+  "license": "MIT",
+  "keywords": ["unifi", "network", "site-manager", "protect", "firewall", "mcp"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "UniFi Fabric MCP",
+    "shortDescription": "Your UniFi sites, your own key",
+    "longDescription": "Runs the UniFi Fabric MCP server locally with uvx and your own UniFi Site Manager API key, read from the UNIFI_API_KEY environment variable of the shell that starts Codex. Reads and manages UniFi sites, devices, clients, Wi-Fi, firewall, VPN, Protect cameras and InnerSpace through Ubiquiti's cloud API (api.ui.com). Writes are on by default; export UNIFI_READ_ONLY=1 to hide and refuse every write and action tool. Not affiliated with Ubiquiti Inc.",
+    "developerName": "SWK Studios",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+    "supportURL": "https://github.com/swkstudios/unifi-fabric-mcp-server/issues",
+    "privacyPolicyURL": "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/main/PRIVACY.md",
+    "defaultPrompt": [
+      "List my UniFi sites and the devices in each one.",
+      "Which UniFi devices are offline or need a firmware update?",
+      "Show the firewall policies on my main site."
+    ]
+  }
+}

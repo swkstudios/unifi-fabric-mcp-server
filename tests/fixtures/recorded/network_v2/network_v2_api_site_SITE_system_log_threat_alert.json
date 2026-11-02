@@ -1,0 +1,172 @@
+{
+ "recorded_by_tool": "list_ips_events",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/system-log/threat-alert",
+  "query": {},
+  "json": {
+   "threatTypes": [
+    "HONEYPOT",
+    "THREAT"
+   ],
+   "pageNumber": 0,
+   "pageSize": 3
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "data": [
+   {
+    "category": "SECURITY",
+    "event": "THREAT_DETECTED",
+    "external_id": "00000000-0000-4000-c100-000000000001",
+    "id": "00000000-0000-4000-c100-000000000002",
+    "key": "THREAT_DETECTED_KNOWN_SOURCE_CLIENT",
+    "message": "message-0003",
+    "message_raw": "message_raw-0004",
+    "parameters": {
+     "SRC_CLIENT": {
+      "id": "02:00:5e:00:00:05",
+      "name": "name-0006"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "CONSOLE_WITH_DEVICE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "DEVICE": {
+      "device_fingerprint_id": 3522,
+      "fingerprint_source": 0,
+      "id": "02:00:5e:00:00:06",
+      "ip": "192.0.2.8",
+      "model": "model-0008",
+      "model_name": "UDMPRO",
+      "name": "console_name-0001",
+      "version": "version-0009"
+     },
+     "DST_IP": {
+      "id": "192.0.2.11",
+      "name": "name-0007",
+      "not_actionable": true
+     },
+     "INITIATOR_ID": {
+      "id": "00000000-0000-4000-c100-00000000000b"
+     }
+    },
+    "severity": "HIGH",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SECURITY_INTRUSION_PREVENTION",
+    "target": "DEVICE",
+    "timestamp": 1791744352367,
+    "title_raw": "title_raw-0012",
+    "type": "THREAT_DETECTION_AND_PREVENTION"
+   },
+   {
+    "category": "SECURITY",
+    "event": "THREAT_DETECTED",
+    "external_id": "00000000-0000-4000-c100-00000000000d",
+    "id": "00000000-0000-4000-c100-00000000000e",
+    "key": "THREAT_DETECTED_KNOWN_SOURCE_CLIENT",
+    "message": "message-0003",
+    "message_raw": "message_raw-0004",
+    "parameters": {
+     "SRC_CLIENT": {
+      "id": "02:00:5e:00:00:05",
+      "name": "name-0008"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "CONSOLE_WITH_DEVICE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "DEVICE": {
+      "device_fingerprint_id": 3522,
+      "fingerprint_source": 0,
+      "id": "02:00:5e:00:00:06",
+      "ip": "192.0.2.8",
+      "model": "model-0008",
+      "model_name": "UDMPRO",
+      "name": "console_name-0001",
+      "version": "version-0009"
+     },
+     "DST_IP": {
+      "id": "192.0.2.11",
+      "name": "name-0009",
+      "not_actionable": true
+     },
+     "INITIATOR_ID": {
+      "id": "00000000-0000-4000-c100-00000000000f"
+     }
+    },
+    "severity": "HIGH",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SECURITY_INTRUSION_PREVENTION",
+    "target": "DEVICE",
+    "timestamp": 1791744350243,
+    "title_raw": "title_raw-0012",
+    "type": "THREAT_DETECTION_AND_PREVENTION"
+   },
+   {
+    "category": "SECURITY",
+    "event": "THREAT_DETECTED",
+    "external_id": "00000000-0000-4000-c100-000000000010",
+    "id": "00000000-0000-4000-c100-000000000011",
+    "key": "THREAT_DETECTED_KNOWN_SOURCE_CLIENT",
+    "message": "message-0003",
+    "message_raw": "message_raw-0004",
+    "parameters": {
+     "SRC_CLIENT": {
+      "id": "02:00:5e:00:00:05",
+      "name": "name-0010"
+     },
+     "CONSOLE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "CONSOLE_WITH_DEVICE_NAME": {
+      "id": "console_name-0001",
+      "name": "console_name-0001"
+     },
+     "DEVICE": {
+      "device_fingerprint_id": 3522,
+      "fingerprint_source": 0,
+      "id": "02:00:5e:00:00:06",
+      "ip": "192.0.2.8",
+      "model": "model-0008",
+      "model_name": "UDMPRO",
+      "name": "console_name-0001",
+      "version": "version-0009"
+     },
+     "DST_IP": {
+      "id": "192.0.2.11",
+      "name": "name-0011",
+      "not_actionable": true
+     },
+     "INITIATOR_ID": {
+      "id": "00000000-0000-4000-c100-000000000012"
+     }
+    },
+    "severity": "HIGH",
+    "show_on_dashboard": false,
+    "status": "NEW",
+    "subcategory": "SECURITY_INTRUSION_PREVENTION",
+    "target": "DEVICE",
+    "timestamp": 1791744347224,
+    "title_raw": "title_raw-0012",
+    "type": "THREAT_DETECTION_AND_PREVENTION"
+   }
+  ],
+  "page_number": 0,
+  "total_element_count": 18572,
+  "total_page_count": 6191
+ }
+}

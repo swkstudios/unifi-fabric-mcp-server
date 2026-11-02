@@ -1,53 +1,45 @@
 name: Lint Public Language
 
+# The opened/synchronize/reopened PR scan runs from ci.yml, which calls this file as a
+# reusable workflow (one workflow per PR push instead of a separate run). This file
+# keeps only the triggers ci.yml does not carry: issues, and PR title/body edits.
 on:
+  workflow_call:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [edited]
   issues:
     types: [opened, edited]
 
+permissions:
+  contents: read
+
+
 jobs:
   lint-public-language:
+    # Every scan step below is gated on the public repository, so in this repo the job
+    # only checked out and defined patterns. Skip it at job level here (no runner
+    # allocated); the public copy runs exactly as before.
+    if: github.repository == 'swkstudios/unifi-fabric-mcp-server'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name == 'pull_request'
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Define forbidden patterns
         id: patterns
         run: |
-          # Single regex combining all forbidden terms
-          # NOTE: the agent-name list below must stay in sync with the identical
-          # agent-name blocklist maintained elsewhere under .github/workflows/.
-          # If you add or remove a name in one place, update all copies.
-          # Internal QA marker (UNTESTABLE-LIVE-ON-ESTATE) is blocked in PR/issue metadata too.
-          # The POSSESSIVE forms ("our/this estate") are intentionally NOT listed here: this
-          # gate scans public-authored PR/issue text, where a user legitimately writes
-          # "this estate has N sites" (generic usage). Those forms are enforced only in the
-          # content-scan battery in the publish workflow, over the authored tree.
+          # Public-only publication checks; private terms were stripped with their list.
           cat > /tmp/forbidden.txt <<'PATTERNS'
-          \b(Sentinel|Raven|Forge|Atlas|Pixel|Hawk|Probe|Scribe|Scout|Shield|Glitch|Anvil|Rusty|Courier|Clark|Anna|Viper|Compass|Accountant)\b
-          \bTeknoCentral\b
-          \bPaperclip\b
-          \bdevbox\b
           \bS[0-9]{2,}\b
-          CEO sign-off|CEO approval
-          directive [0-9]{4}-[0-9]{2}-[0-9]{2}
-          Raven (ruling|verdict|advisory)
-          binding verdict
           CLAUDE\.md
-          dispatch_preamble
-          tekno-pm
-          tekno-memory
           192\.168\.[0-9]+\.[0-9]+
           10\.[0-9]+\.[0-9]+\.[0-9]+
           100\.[0-9]+\.[0-9]+\.[0-9]+
-          UNTESTABLE-LIVE-ON-ESTATE
           PATTERNS
-          # Build single regex from lines (strip leading whitespace)
-          REGEX=$(sed 's/^[[:space:]]*//' /tmp/forbidden.txt | paste -sd'|' -)
+          REGEX=$(paste -sd'|' /tmp/forbidden.txt)
           echo "regex=${REGEX}" >> "$GITHUB_OUTPUT"
 
       - name: Scan PR title

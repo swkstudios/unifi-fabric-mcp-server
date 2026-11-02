@@ -1,0 +1,57 @@
+{
+ "recorded_by_tool": "list_recognition_groups",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/recognition/face/groups",
+  "query": {
+   "pageSize": "2",
+   "page": "2"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "groups": [
+   {
+    "id": "id-0019",
+    "name": "name-0351",
+    "matchedName": "matchedName-0002",
+    "type": "face",
+    "imagePath": "imagePath-0003",
+    "enhancedPath": null,
+    "detectionsCount": 126,
+    "firstDetectedAt": 1790908978282,
+    "lastDetectedAt": 1791558725711,
+    "isNotificationEnabled": false,
+    "isDegraded": false,
+    "tags": [],
+    "description": null,
+    "createdAt": 1779813623419,
+    "metadata": {},
+    "userId": null
+   },
+   {
+    "id": "id-0020",
+    "name": "name-0352",
+    "matchedName": "matchedName-0003",
+    "type": "face",
+    "imagePath": "imagePath-0004",
+    "enhancedPath": null,
+    "detectionsCount": 115,
+    "firstDetectedAt": 1790973959057,
+    "lastDetectedAt": 1791550043484,
+    "isNotificationEnabled": false,
+    "isDegraded": false,
+    "tags": [],
+    "description": null,
+    "createdAt": 1784682382018,
+    "metadata": {},
+    "userId": null
+   }
+  ],
+  "links": {
+   "prev": "prev-0001",
+   "next": "next-0002"
+  }
+ }
+}

@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "content_type": "application/json",
+  "body": {
+    "success": true
+  },
+  "recorded_by_tool": "disable_camera_share_link",
+  "request": {
+    "method": "DELETE",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cameras/0000000000000000000000aa/sharedStream",
+    "query": {}
+  }
+}

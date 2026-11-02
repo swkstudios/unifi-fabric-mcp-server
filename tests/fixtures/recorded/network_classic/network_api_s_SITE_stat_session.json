@@ -1,0 +1,38 @@
+{
+ "recorded_by_tool": "list_client_sessions",
+ "request": {
+  "method": "POST",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/session",
+  "query": {},
+  "json": {
+   "type": "all",
+   "start": 1791571915,
+   "end": 1791575515
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-b000-000000fa01b3",
+    "o": "o-0001",
+    "oid": "00000000-0000-4000-a000-000000000121",
+    "mac": "02:00:5e:00:00:42",
+    "is_guest": false,
+    "assoc_time": 1791572924,
+    "duration": 39,
+    "rx_bytes": 148498,
+    "tx_bytes": 158556,
+    "is_wired": false,
+    "ap_mac": "02:00:5e:00:00:1f",
+    "satisfaction": 99.0,
+    "satisfaction_avg": 99.0,
+    "roaming_sessions": []
+   }
+  ]
+ }
+}

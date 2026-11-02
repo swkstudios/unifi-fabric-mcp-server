@@ -1,0 +1,46 @@
+{
+  "args": [],
+  "body": [
+    {
+      "console_mac": "02:00:5e:00:00:02",
+      "icon": {
+        "icon_filename": "00000000-0000-4000-9000-000000000018",
+        "icon_resolutions": [
+          [
+            25,
+            25
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            51,
+            51
+          ],
+          [
+            64,
+            64
+          ],
+          [
+            101,
+            101
+          ]
+        ]
+      },
+      "model": "UDMPRO",
+      "name": "name-0005",
+      "square_wave_incompatible": false,
+      "state": "unpaired",
+      "ups_mac": null
+    }
+  ],
+  "kwargs": {},
+  "recorded_by_tool": "list_ups_devices",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/ups/consoles",
+    "query": {}
+  },
+  "status": 200
+}

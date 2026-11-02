@@ -1,0 +1,25 @@
+{
+  "args": [
+    "super_mgmt"
+  ],
+  "body": {
+    "data_retention": {
+      "per_client_stats_enabled": true,
+      "setting_preference": "auto",
+      "time_enabled": true,
+      "time_in_hours_for_5minutes_scale": 24,
+      "time_in_hours_for_daily_scale": 2160,
+      "time_in_hours_for_hourly_scale": 168,
+      "time_in_hours_for_monthly_scale": 8760,
+      "time_in_hours_for_others": 2160
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/settings/super-mgmt/defaults",
+    "query": {}
+  },
+  "status": 200
+}

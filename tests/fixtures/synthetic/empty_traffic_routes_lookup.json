@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "content_type": "application/json",
+  "body": [
+    {
+      "_id": "0000000000000000000000aa",
+      "name": "probe-object",
+      "matching_target": "INTERNET",
+      "network_id": "00000000-0000-4000-8000-0000000000aa",
+      "target_devices": [
+        {
+          "type": "ALL_CLIENTS"
+        }
+      ]
+    }
+  ]
+}

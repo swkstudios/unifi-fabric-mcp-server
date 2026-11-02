@@ -1,0 +1,17 @@
+{
+ "recorded_by_tool": "export_protect_case",
+ "args": [
+  "download"
+ ],
+ "kwargs": {
+  "export_id": "000000000000000000fa000e"
+ },
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/cases/export/download/000000000000000000fa000e",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/zip",
+ "binary_len": 5037303
+}

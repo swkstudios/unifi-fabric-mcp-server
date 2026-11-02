@@ -1,0 +1,28 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "data": [
+      {
+        "connected": true,
+        "enabled": true,
+        "has_sso_auth": false,
+        "is_cloud_key": false,
+        "is_udm": true,
+        "ubic_env": "ubic-env-0001"
+      }
+    ],
+    "meta": {
+      "rc": "ok"
+    }
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_sdn_status",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/stat/sdn",
+    "query": {}
+  },
+  "status": 200
+}

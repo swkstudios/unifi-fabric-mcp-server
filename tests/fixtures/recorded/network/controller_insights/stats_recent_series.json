@@ -1,0 +1,65 @@
+{
+  "args": [
+    "recent_series"
+  ],
+  "body": [
+    {
+      "series": [
+        {
+          "distinctClientCount": 48,
+          "distinctGuestClientCount": 0,
+          "distinctUserClientCount": 48,
+          "duration": 300000,
+          "timestamp": 1791687300000
+        },
+        {
+          "distinctClientCount": 48,
+          "distinctGuestClientCount": 0,
+          "distinctUserClientCount": 48,
+          "duration": 300000,
+          "timestamp": 1791687600000
+        },
+        {
+          "distinctClientCount": 48,
+          "distinctGuestClientCount": 0,
+          "distinctUserClientCount": 48,
+          "duration": 300000,
+          "timestamp": 1791687900000
+        },
+        {
+          "distinctClientCount": 48,
+          "distinctGuestClientCount": 0,
+          "distinctUserClientCount": 48,
+          "duration": 300000,
+          "timestamp": 1791688200000
+        },
+        {
+          "distinctClientCount": 49,
+          "distinctGuestClientCount": 0,
+          "distinctUserClientCount": 49,
+          "duration": 300000,
+          "timestamp": 1791688500000
+        }
+      ],
+      "siteId": "00000000-0000-4000-a000-000000000017"
+    }
+  ],
+  "kwargs": {
+    "bucket": "OF_5_MINUTES",
+    "end": 1760227200,
+    "period": "DAY",
+    "schema": "clientCountBySite"
+  },
+  "recorded_by_tool": "get_controller_stats",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/stats/recent/series",
+    "query": {
+      "bucket": "bucket-0001",
+      "end": "1791773785000",
+      "period": "period-0001",
+      "schema": "schema-0001"
+    }
+  },
+  "status": 200
+}

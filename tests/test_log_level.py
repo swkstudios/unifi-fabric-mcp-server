@@ -2,21 +2,9 @@
 
 from __future__ import annotations
 
-import importlib
 import logging
 
 import pytest
-
-
-def _reload_server(monkeypatch, *, log_level: str = "INFO") -> None:
-    """Reload config module with UNIFI_LOG_LEVEL set and return fresh Settings."""
-    monkeypatch.setenv("UNIFI_LOG_LEVEL", log_level)
-    monkeypatch.setenv("UNIFI_API_KEY", "sk-test-log-level")
-    import unifi_fabric.config as cfg
-
-    importlib.reload(cfg)
-    return cfg
-
 
 # ---------------------------------------------------------------------------
 # Config layer
@@ -85,7 +73,7 @@ class TestLogLevelServerWiring:
         original_level = root.level
         root.handlers = []
         try:
-            async with srv.lifespan(None):
+            async with srv.lifespan(srv.FastMCP("log-level-test")):
                 assert root.level == logging.DEBUG
         finally:
             root.handlers = original_handlers
@@ -103,7 +91,7 @@ class TestLogLevelServerWiring:
         original_level = root.level
         root.handlers = []
         try:
-            async with srv.lifespan(None):
+            async with srv.lifespan(srv.FastMCP("log-level-test")):
                 assert root.level == logging.INFO
         finally:
             root.handlers = original_handlers

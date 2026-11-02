@@ -1,0 +1,303 @@
+{
+  "object-oriented-network-configs": [],
+  "network-members-groups": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture",
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture",
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "members": [
+        "synthetic-fixture"
+      ],
+      "name": "synthetic-fixture",
+      "type": "CLIENTS"
+    }
+  ],
+  "firewall-app-blocks": [],
+  "firewall/zone-matrix": [
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": "synthetic-fixture",
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    },
+    {
+      "_id": "00000000-0000-4000-8000-000000000001",
+      "data": [
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        },
+        {
+          "_id": "00000000-0000-4000-8000-000000000001",
+          "action": null,
+          "policy_count": 0
+        }
+      ],
+      "name": "synthetic-fixture",
+      "zone_key": "synthetic-fixture"
+    }
+  ]
+}

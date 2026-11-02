@@ -1,0 +1,374 @@
+{
+ "recorded_by_tool": "list_protect_events",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/protect/api/events",
+  "query": {
+   "start": "1791571915000",
+   "end": "1791575515000",
+   "orderDirection": "orderDirection-0001",
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": [
+  {
+   "id": "000000000000000000fa01cb",
+   "modelKey": "event",
+   "type": "smartAudioDetect",
+   "start": 1791571948136,
+   "end": 1791571992170,
+   "score": 0,
+   "smartDetectTypes": [
+    "alrmSpeak"
+   ],
+   "camera": "000000000000000000fa01b4",
+   "partition": null,
+   "user": null,
+   "metadata": {
+    "hallwayMode": "disabled",
+    "ramDescription": "",
+    "detectedThumbnails": [
+     {
+      "type": "alrmSpeak",
+      "croppedId": "000000FA01B6-1791571964412",
+      "clockBestWall": 1791571950136
+     }
+    ]
+   },
+   "timestamp": 1791571970153,
+   "thumbnail": "e-000000000000000000fa01cb",
+   "heatmap": "e-000000000000000000fa01cb",
+   "isFavorite": false,
+   "favoriteObjectIds": null,
+   "description": {
+    "eventMetadata": {
+     "eventType": "smartAudioDetect",
+     "category": "detection",
+     "subCategory": "smartAudioEvent",
+     "severity": "high",
+     "title": "title-0001",
+     "deviceEventClassId": 2161
+    },
+    "messageRaw": "{deviceLink} detected someone speaking.",
+    "messageKeys": [
+     {
+      "key": "deviceLink",
+      "text": "text-0002",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewDeviceDetails",
+      "params": {
+       "deviceId": "000000000000000000fa01b4"
+      }
+     },
+     {
+      "key": "viewLink",
+      "text": "text-0003",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewCameraTimelapse",
+      "params": {
+       "cameraId": "000000000000000000fa01b4",
+       "start": 1791571948136
+      }
+     }
+    ]
+   },
+   "category": "smart"
+  },
+  {
+   "id": "000000000000000000fa01cc",
+   "modelKey": "event",
+   "type": "smartAudioDetect",
+   "start": 1791572017970,
+   "end": 1791572062123,
+   "score": 0,
+   "smartDetectTypes": [
+    "alrmSpeak"
+   ],
+   "camera": "000000000000000000fa01b4",
+   "partition": null,
+   "user": null,
+   "metadata": {
+    "hallwayMode": "disabled",
+    "ramDescription": "",
+    "detectedThumbnails": [
+     {
+      "type": "alrmSpeak",
+      "croppedId": "000000FA01B6-1791572034464",
+      "clockBestWall": 1791572019970
+     }
+    ]
+   },
+   "timestamp": 1791572040046,
+   "thumbnail": "e-000000000000000000fa01cc",
+   "heatmap": "e-000000000000000000fa01cc",
+   "isFavorite": false,
+   "favoriteObjectIds": null,
+   "description": {
+    "eventMetadata": {
+     "eventType": "smartAudioDetect",
+     "category": "detection",
+     "subCategory": "smartAudioEvent",
+     "severity": "high",
+     "title": "title-0001",
+     "deviceEventClassId": 2161
+    },
+    "messageRaw": "{deviceLink} detected someone speaking.",
+    "messageKeys": [
+     {
+      "key": "deviceLink",
+      "text": "text-0002",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewDeviceDetails",
+      "params": {
+       "deviceId": "000000000000000000fa01b4"
+      }
+     },
+     {
+      "key": "viewLink",
+      "text": "text-0003",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewCameraTimelapse",
+      "params": {
+       "cameraId": "000000000000000000fa01b4",
+       "start": 1791572017970
+      }
+     }
+    ]
+   },
+   "category": "smart"
+  },
+  {
+   "id": "00000000-0000-4000-b000-000000fa01cd",
+   "modelKey": "event",
+   "type": "smartDetectZone",
+   "start": 1791572065439,
+   "end": 1791572080403,
+   "score": 51,
+   "smartDetectTypes": [
+    "person"
+   ],
+   "camera": "000000000000000000fa01b9",
+   "partition": null,
+   "user": null,
+   "metadata": {
+    "count": null,
+    "weather": {
+     "iconCode": "30",
+     "temperature": 19.9,
+     "temperatureUnit": "C"
+    },
+    "hallwayMode": null,
+    "linesStatus": null,
+    "zonesStatus": {
+     "1": {
+      "level": 51,
+      "status": "leave"
+     }
+    },
+    "loiterStatus": null,
+    "tamperStatus": null,
+    "detectedAreas": [
+     {
+      "routePath": {
+       "waypoints": [
+        [
+         617,
+         438
+        ],
+        [
+         729,
+         446
+        ]
+       ],
+       "lastDirection": [
+        112,
+        8
+       ]
+      },
+      "areaIndexes": [
+       15,
+       16,
+       17,
+       18,
+       25
+      ],
+      "smartDetectObject": "00000000-0000-4000-8000-000000fa01ce"
+     }
+    ],
+    "linesSettings": null,
+    "ramDescription": "",
+    "detectedThumbnails": [
+     {
+      "type": "person",
+      "coord": [
+       654,
+       122,
+       157,
+       327
+      ],
+      "labels": [
+       "labels-0001",
+       "labels-0002"
+      ],
+      "objectId": "00000000-0000-4000-8000-000000fa01ce",
+      "croppedId": "000000FA01BA-1791572087434",
+      "attributes": {
+       "zone": [
+        1
+       ],
+       "trackerId": 2881,
+       "objectType": "person"
+      },
+      "confidence": 73,
+      "clockBestWall": 1791572075512
+     }
+    ]
+   },
+   "timestamp": 1791572072921,
+   "thumbnail": "e-00000000-0000-4000-b000-000000fa01cd",
+   "heatmap": "e-00000000-0000-4000-b000-000000fa01cd",
+   "isFavorite": false,
+   "favoriteObjectIds": null,
+   "description": {
+    "eventMetadata": {
+     "eventType": "smartDetectZone",
+     "category": "detection",
+     "subCategory": "smartDetectEvent",
+     "severity": "medium",
+     "title": "title-0002",
+     "deviceEventClassId": 2161
+    },
+    "messageRaw": "{deviceLink} has recorded a person. {viewLink}",
+    "messageKeys": [
+     {
+      "key": "deviceLink",
+      "text": "text-0004",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewDeviceDetails",
+      "params": {
+       "deviceId": "000000000000000000fa01b9"
+      }
+     },
+     {
+      "key": "viewLink",
+      "text": "text-0003",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewCameraTimelapse",
+      "params": {
+       "cameraId": "000000000000000000fa01b9",
+       "start": 1791572065439
+      }
+     }
+    ]
+   },
+   "category": "smart"
+  },
+  {
+   "id": "000000000000000000fa01cf",
+   "modelKey": "event",
+   "type": "smartAudioDetect",
+   "start": 1791572123025,
+   "end": 1791572217270,
+   "score": 0,
+   "smartDetectTypes": [
+    "alrmSpeak"
+   ],
+   "camera": "000000000000000000fa01b4",
+   "partition": null,
+   "user": null,
+   "metadata": {
+    "hallwayMode": "disabled",
+    "ramDescription": "",
+    "detectedThumbnails": [
+     {
+      "type": "alrmSpeak",
+      "croppedId": "000000FA01B6-1791572139242",
+      "clockBestWall": 1791572125025
+     }
+    ]
+   },
+   "timestamp": 1791572170147,
+   "thumbnail": "e-000000000000000000fa01cf",
+   "heatmap": "e-000000000000000000fa01cf",
+   "isFavorite": false,
+   "favoriteObjectIds": null,
+   "description": {
+    "eventMetadata": {
+     "eventType": "smartAudioDetect",
+     "category": "detection",
+     "subCategory": "smartAudioEvent",
+     "severity": "high",
+     "title": "title-0001",
+     "deviceEventClassId": 2161
+    },
+    "messageRaw": "{deviceLink} detected someone speaking.",
+    "messageKeys": [
+     {
+      "key": "deviceLink",
+      "text": "text-0002",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewDeviceDetails",
+      "params": {
+       "deviceId": "000000000000000000fa01b4"
+      }
+     },
+     {
+      "key": "viewLink",
+      "text": "text-0003",
+      "style": [
+       "style-0001"
+      ],
+      "action": "viewCameraTimelapse",
+      "params": {
+       "cameraId": "000000000000000000fa01b4",
+       "start": 1791572123025
+      }
+     }
+    ]
+   },
+   "category": "smart"
+  },
+  {
+   "id": "000000000000000000fa01d0",
+   "modelKey": "event",
+   "type": "fogDetection",
+   "start": 1791572375430,
+   "end": 1791572375430,
+   "score": 0,
+   "smartDetectTypes": [],
+   "camera": "000000000000000000fa01b7",
+   "partition": null,
+   "user": null,
+   "metadata": {
+    "lensId": 1,
+    "cameraName": "cameraName-0001",
+    "fogConfidence": 0.888889,
+    "fogPrediction": "clear",
+    "ramDescription": ""
+   },
+   "timestamp": 1791572375430,
+   "thumbnail": "e-000000000000000000fa01d0",
+   "heatmap": "e-000000000000000000fa01d0",
+   "isFavorite": false,
+   "favoriteObjectIds": null,
+   "category": null
+  }
+ ]
+}

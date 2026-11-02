@@ -1,0 +1,33 @@
+{
+ "recorded_by_tool": "list_wan_interfaces",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/wans",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 3,
+  "totalCount": 3,
+  "data": [
+   {
+    "id": "00000000-0000-4000-b000-000000fa0040",
+    "name": "name-0033"
+   },
+   {
+    "id": "00000000-0000-4000-9000-000000fa0041",
+    "name": "name-0034"
+   },
+   {
+    "id": "00000000-0000-4000-a000-000000fa0042",
+    "name": "name-0035"
+   }
+  ]
+ }
+}

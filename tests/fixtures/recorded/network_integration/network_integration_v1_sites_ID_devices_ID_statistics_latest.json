@@ -1,0 +1,25 @@
+{
+ "recorded_by_tool": "get_device_statistics",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/devices/00000000-0000-3000-8000-000000000030/statistics/latest",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "uptimeSec": 557462,
+  "lastHeartbeatAt": "2026-10-09T19:51:59Z",
+  "nextHeartbeatAt": "2026-10-09T19:53:29Z",
+  "loadAverage1Min": 3.75,
+  "loadAverage5Min": 2.96,
+  "loadAverage15Min": 3.06,
+  "cpuUtilizationPct": 25.2,
+  "memoryUtilizationPct": 79.7,
+  "uplink": {
+   "txRateBps": 592264,
+   "rxRateBps": 1275512
+  },
+  "interfaces": {}
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "recorded_by_tool": "list_scheduled_tasks",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/scheduletask",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-9000-000000000174",
+    "name": "name-0514",
+    "action": "quick-scan",
+    "cron_expr": "cron-expr-0001",
+    "timezone": "Etc/UTC",
+    "site_id": "00000000-0000-4000-a000-000000fa0171",
+    "execute_only_once": false
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000175",
+    "name": "name-0515",
+    "action": "upgrade",
+    "cron_expr": "cron-expr-0002",
+    "site_id": "00000000-0000-4000-a000-000000fa0171",
+    "execute_only_once": false,
+    "upgrade_targets": [
+     {
+      "mac": "02:00:5e:00:00:3f"
+     },
+     {
+      "mac": "02:00:5e:00:00:40"
+     },
+     {
+      "mac": "02:00:5e:00:00:41"
+     }
+    ]
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000176",
+    "name": "name-0516",
+    "action": "speedtest",
+    "cron_expr": "cron-expr-0003",
+    "timezone": "timezone-0001",
+    "site_id": "00000000-0000-4000-a000-000000fa0171",
+    "execute_only_once": false
+   }
+  ]
+ }
+}

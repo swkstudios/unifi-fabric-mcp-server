@@ -1,0 +1,43 @@
+{
+ "recorded_by_tool": "list_traffic_matching_lists",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/traffic-matching-lists",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 2,
+  "totalCount": 2,
+  "data": [
+   {
+    "type": "PORTS",
+    "id": "00000000-0000-4000-9000-000000fa002d",
+    "name": "name-0073",
+    "items": [
+     {
+      "type": "PORT_NUMBER",
+      "value": 9543
+     }
+    ]
+   },
+   {
+    "type": "IPV4_ADDRESSES",
+    "id": "00000000-0000-4000-8000-000000fa002e",
+    "name": "name-0074",
+    "items": [
+     {
+      "type": "IP_ADDRESS",
+      "value": "1.1.1.1"
+     }
+    ]
+   }
+  ]
+ }
+}

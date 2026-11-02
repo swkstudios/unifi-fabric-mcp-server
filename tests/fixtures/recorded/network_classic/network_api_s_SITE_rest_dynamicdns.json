@@ -1,0 +1,37 @@
+{
+ "recorded_by_tool": "list_dynamic_dns",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/dynamicdns",
+  "query": {}
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "meta": {
+   "rc": "ok"
+  },
+  "data": [
+   {
+    "_id": "00000000-0000-4000-b000-000000000173",
+    "interface": "wan",
+    "service": "afraid",
+    "server": "server-0001",
+    "host_name": "host-name-0001",
+    "login": "login-0001",
+    "x_password": "xxxxxxxx",
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   },
+   {
+    "_id": "00000000-0000-4000-b000-000000000174",
+    "interface": "wan",
+    "service": "duckdns",
+    "server": "server-0002",
+    "host_name": "host-name-0002",
+    "login": "login-0002",
+    "x_password": "xxxxxxxx",
+    "site_id": "00000000-0000-4000-a000-000000000121"
+   }
+  ]
+ }
+}

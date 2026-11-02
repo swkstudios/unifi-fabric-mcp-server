@@ -27,7 +27,6 @@ import os
 import socket
 import ssl
 import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -42,8 +41,6 @@ from unifi_fabric.config import MCPTransportSettings
 from unifi_fabric.server import build_uvicorn_config
 
 HTTP = "streamable-http"
-_READY_TIMEOUT_S = 15.0
-_SHUTDOWN_TIMEOUT_S = 15.0
 
 
 @pytest.fixture(autouse=True)
@@ -87,11 +84,13 @@ def _free_localhost_socket() -> socket.socket:
     """Bind an ephemeral 127.0.0.1 port and hand the live socket to uvicorn.
 
     Binding ourselves (rather than letting uvicorn pick a port) lets us read the
-    real port via ``getsockname`` with no TOCTOU race against a separate probe.
+    real port via ``getsockname`` with no TOCTOU race against a separate probe. The
+    socket listens at once and does not set ``SO_REUSEADDR``, so no other socket can
+    bind the same port while it waits for uvicorn to start serving on it.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", 0))
+    sock.listen()
     return sock
 
 
@@ -112,22 +111,41 @@ def _serve_tls(uvicorn_config: dict) -> Iterator[str]:
     port = sock.getsockname()[1]
 
     config = uvicorn.Config(mcp.http_app(), log_level="warning", **uvicorn_config)
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    ready = threading.Event()
+    failures: list[BaseException] = []
+
+    class CompletionServer(uvicorn.Server):
+        async def startup(self, sockets=None):
+            await super().startup(sockets=sockets)
+            ready.set()
+
+    server = CompletionServer(config)
+
+    def run_server():
+        try:
+            server.run(sockets=[sock])
+        except BaseException as exc:  # Thread failures must reach the test, including SystemExit.
+            failures.append(exc)
+        finally:
+            ready.set()  # A failed startup also releases the test to report the failure.
+
+    thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
 
     try:
-        deadline = time.monotonic() + _READY_TIMEOUT_S
-        while not server.started:
-            if time.monotonic() > deadline:
-                raise TimeoutError("uvicorn TLS server did not become ready in time")
-            time.sleep(0.05)
+        ready.wait()
+        if failures:
+            raise RuntimeError("TLS server failed during startup") from failures[0]
+        if not server.started:
+            raise RuntimeError("TLS server exited before completing startup")
         yield f"https://127.0.0.1:{port}/mcp"
     finally:
         server.should_exit = True
-        thread.join(timeout=_SHUTDOWN_TIMEOUT_S)
+        thread.join()
         with contextlib.suppress(OSError):
             sock.close()
+        if failures:
+            raise RuntimeError("TLS server thread failed") from failures[0]
 
 
 def _https_settings(monkeypatch, certs: _CertBundle) -> MCPTransportSettings:
@@ -181,7 +199,7 @@ def test_https_handshake_and_mcp_request_succeed(monkeypatch, certs):
     payload, headers = _mcp_initialize_request()
 
     with _serve_tls(uvicorn_config) as url:
-        with httpx.Client(verify=_client_ssl_context(certs.ca_pem), timeout=10.0) as client:
+        with httpx.Client(verify=_client_ssl_context(certs.ca_pem), timeout=None) as client:  # noqa: S113 - wait for local socket completion
             resp = client.post(url, json=payload, headers=headers)
 
     assert resp.status_code == 200
@@ -204,7 +222,7 @@ def test_https_wrong_ca_handshake_is_rejected(monkeypatch, certs):
 
     with _serve_tls(uvicorn_config) as url:
         wrong = _client_ssl_context(certs.wrong_ca_pem)
-        with httpx.Client(verify=wrong, timeout=10.0) as client:
+        with httpx.Client(verify=wrong, timeout=None) as client:  # noqa: S113 - wait for local socket completion
             with pytest.raises(httpx.ConnectError) as exc:
                 client.post(url, json=payload, headers=headers)
 
@@ -226,7 +244,7 @@ def test_https_default_system_trust_rejects_self_signed(monkeypatch, certs):
     payload, headers = _mcp_initialize_request()
 
     with _serve_tls(uvicorn_config) as url:
-        with httpx.Client(verify=True, timeout=10.0) as client:
+        with httpx.Client(verify=True, timeout=None) as client:  # noqa: S113 - wait for local socket completion
             with pytest.raises(httpx.ConnectError) as exc:
                 client.post(url, json=payload, headers=headers)
 
@@ -325,4 +343,49 @@ def test_mtls_cert_reqs_none_rejected(monkeypatch):
             MCP_TLS_CERT_REQS="none",
             FASTMCP_TRANSPORT=HTTP,
         )
-    assert "tls_cert_reqs" in str(exc.value)
+    assert "MCP_TLS_CERT_REQS" in str(exc.value)
+
+
+def test_https_startup_failure_is_reported_after_thread_completion(monkeypatch, certs):
+    async def failed_startup(self, sockets=None):
+        raise RuntimeError("synthetic startup failure")
+
+    monkeypatch.setattr(uvicorn.Server, "startup", failed_startup)
+    config = build_uvicorn_config(_https_settings(monkeypatch, certs))
+    with pytest.raises(RuntimeError, match="TLS server thread failed") as exc:
+        with _serve_tls(config):
+            pytest.fail("a server that failed startup must never be yielded")
+    assert str(exc.value.__cause__) == "synthetic startup failure"
+
+
+@pytest.mark.parametrize(
+    ("filename", "case", "fence", "endpoint"),
+    [
+        ("TLS.md", "docs-tls-3", "sh", "https://127.0.0.1:3000/mcp"),
+        ("TLS.md", "docs-tls-7", "sh", "https://127.0.0.1:3000/mcp"),
+        ("TLS.md", "docs-tls-11", "bash", "https://localhost:3000/mcp"),
+        ("CONFIGURATION.md", "docs-configuration-4", "bash", "http://localhost:3000/sse"),
+        ("AUTH-OAUTH.md", "docs-auth-oauth-12", "bash", "http://127.0.0.1:8000/sse"),
+    ],
+)
+def test_documented_transport_curl_probes_observe_progress_without_deadlines(
+    filename, case, fence, endpoint
+):
+    text = (Path(__file__).resolve().parents[1] / "docs" / filename).read_text()
+    example = text.split(f"<!-- install-case: {case} ", 1)[1].split(f"```{fence}\n", 1)[1]
+    example = example.split("```", 1)[0]
+    assert "--max-time" not in example
+    assert "--connect-timeout" not in example
+    assert "Keep the probe bounded" not in example
+    assert endpoint in example
+    if filename == "TLS.md":
+        assert "--cacert" in example
+    else:
+        # SSE is a stream: expose headers/events as they arrive instead of waiting
+        # for curl's exit-time status formatter or an artificial disconnect.
+        assert "--include --no-buffer" in example
+        assert "--write-out" not in example and "-w " not in example
+    if case in {"docs-tls-7", "docs-tls-11"}:
+        assert "--cert client-cert.pem --key client-key.pem" in example
+    if filename == "AUTH-OAUTH.md":
+        assert "Authorization: Bearer ${TOKEN}" in example

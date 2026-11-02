@@ -7,11 +7,14 @@ keeps public release notes accurate.
 
 ## Design invariant: the server is a faithful pass-through
 
-**Tools return whatever the upstream UniFi API returns, unchanged. Do not add
-runtime filtering, redaction, sanitisation, or field-stripping to tool
-*responses*** — not for credential fields (passphrases, passwords, tokens), not
-for identifiers (MAC/IP/hostname/name), not for GPS coordinates, not for asset
-URLs. Responses must carry the complete upstream payload.
+**Tools return whatever the upstream UniFi API returns, unchanged, apart from two
+built-in transforms: the server's own configured secrets (its API keys,
+`MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` wherever a
+response echoes them, and the operator's opt-in `UNIFI_REDACT_SECRETS` masks
+credential fields. Do not add other runtime filtering, redaction, sanitisation, or
+field-stripping to tool *responses*** — not for credential fields (passphrases,
+passwords, tokens), not for identifiers (MAC/IP/hostname/name), not for GPS
+coordinates, not for asset URLs. Responses must carry the complete upstream payload.
 
 Please read this reasoning before "cleaning up" any response, because the rule
 only holds if the reasoning does:
@@ -29,10 +32,11 @@ only holds if the reasoning does:
   the **data-survival tests** exist as the
   check on that and are meant to fail such a change loudly.
 
-This is scoped to response *bodies*. Redacting identifiers inside error-message
-text stays, and the committed-fixture sanitisation check
-(`.github/scripts/check_fixtures_sanitization.py`) stays — those are separate
-concerns. Do not conflate committed-fixture hygiene with runtime responses.
+The same applies to error messages: the real path and the complete upstream error
+body are reported (identifiers are not secrets; nothing is truncated), and credential
+fields are masked only under the opt-in `UNIFI_REDACT_SECRETS`. The committed-fixture
+sanitisation check (`.github/scripts/check_fixtures_sanitization.py`) stays — that is a
+separate concern. Do not conflate committed-fixture hygiene with runtime responses.
 
 ## Before you start
 
@@ -41,6 +45,7 @@ concerns. Do not conflate committed-fixture hygiene with runtime responses.
 - For security vulnerabilities, use the private reporting path in
   [SECURITY.md](.github/SECURITY.md). Do not open a public issue for
   security bugs.
+- Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Questions? Open a
   [GitHub Discussion](https://github.com/swkstudios/unifi-fabric-mcp-server/discussions).
 
@@ -63,18 +68,15 @@ concerns. Do not conflate committed-fixture hygiene with runtime responses.
    pip install -e ".[dev]"
    ```
 
-4. Verify the setup by running the test suite:
+4. Verify the setup with a targeted run (the full suite and its coverage gate run in CI):
 
    ```bash
-   pytest tests/ -v --cov=src/unifi_fabric --cov-fail-under=91
+   pytest tests/test_cross_tool_invariants.py tests/test_secret_leak_invariant.py -n 4
    ```
 
 ## Branch naming
 
-This guide is for external contributors working from the public mirror — branch off `main`.
-(Internal maintainers work off `dev`; see `CLAUDE.md` for that workflow.)
-
-Create branches off `main` with a descriptive type prefix:
+Branch off `main`, with a descriptive type prefix:
 
 | Prefix | Use for |
 |--------|---------|
@@ -113,8 +115,8 @@ and a refactor is harder to review and revert.
 
 ## Changelog requirement
 
-**Every PR that changes user-visible behavior must include a `CHANGELOG.md`
-entry under `## [Unreleased]`.**
+**Every PR that changes user-visible behavior must include one `changelog.d`
+fragment.** Do not edit `CHANGELOG.md`: the maintainers fold the fragments into it.
 
 This matters: the changelog text is published verbatim in public release notes.
 It has to read well to a stranger, carry no internal vocabulary, and reference
@@ -137,35 +139,26 @@ only public issue numbers.
 
 If your PR falls into the no-entry category, add the **`skip-changelog`** label
 in GitHub. The `changelog-check` CI job will pass without requiring a
-`CHANGELOG.md` update.
+`changelog.d` fragment.
 
 ### Format
 
-Add your entry under the appropriate sub-heading inside `## [Unreleased]`:
+Add one Markdown file to `changelog.d/` with a unique, sortable filename ending in
+`.added.md`, `.changed.md`, `.fixed.md`, or `.security.md`, for example
+`changelog.d/site-default.fixed.md`. It contains one or more release-note bullets, each
+beginning with `- `, and no heading, release-version heading or HTML comment. See
+`changelog.d/README.md` for the full fragment format.
 
 ```markdown
-## [Unreleased]
-
-### Added
-- `new_tool` — what it does and when to use it.
-
-### Changed
-- `existing_tool` parameter `foo` now accepts a list in addition to a string.
-
-### Fixed
 - `some_tool` no longer returns a 500 when `site` is omitted.
 ```
 
-Sub-headings: `### Added`, `### Changed`, `### Fixed`, `### Removed`.
-
-**Append to the existing sub-heading; do not add a second one.** Each PR adds its
-bullet under the matching heading if that heading already exists under
-`## [Unreleased]` — never open a second `### Fixed` (or `### Added`, etc.) block.
-Because PRs land concurrently, `[Unreleased]` still drifts into duplicate headings
-and mixed ordering over time. **Consolidation is a release-time step:** when cutting
-a release, merge `[Unreleased]` into exactly one block per heading, ordered
-`Added → Changed → Removed → Fixed`, before moving the section under the new version
-number. Do not rely on individual PRs to keep the ordering perfect.
+While a release is being prepared, its section (`## [0.7.0]` for this release, undated
+until it ships) is the in-flight version section. When preparing the release, the
+maintainers append each fragment's bullets to its
+category (`### Added`, `### Changed`, `### Fixed`, `### Security`) in that section and
+deletes the fragment. When the release ships, the maintainers date that version heading,
+and every released section stays verbatim.
 
 ### Issue references
 
@@ -181,14 +174,15 @@ let the description stand on its own.
 
 ## CI gates
 
-All of the following checks must pass before a PR can merge. Run the first four
-locally before pushing to catch failures early:
+All of the following checks must pass before a PR can merge. Before pushing, run lint,
+types and the tests that cover your change (the local test rule is in
+[AGENTS.md](AGENTS.md), "Mandatory local test before push"); the full suite runs in CI:
 
 ```bash
-ruff check src/ tests/
-ruff format --check src/ tests/
+ruff check src/ tests/ scripts/ .github/scripts/
+ruff format --check src/ tests/ scripts/ .github/scripts/
 mypy src/unifi_fabric --ignore-missing-imports
-pytest tests/ -v --cov=src/unifi_fabric --cov-fail-under=91
+pytest tests/test_<module>.py tests/test_cross_tool_invariants.py tests/test_secret_leak_invariant.py -n 4
 ```
 
 Full CI gate matrix:
@@ -197,17 +191,30 @@ Full CI gate matrix:
 |-------|-----------------|
 | `lint` | `ruff check` (rules: E, F, I, W, B, S, ANN, UP) |
 | `typecheck` | `mypy` static type analysis |
-| `docs` | `gen_tools_doc.py --check` — `TOOLS.md` matches the runtime |
-| `test` | `pytest` + 91% line-coverage minimum |
+| `docs` | `gen_tools_doc.py --check`: `TOOLS.md` matches the runtime; `gen_catalog_figures.py --check`: README and CHANGELOG catalog sizes and tool counts match the runtime; `check_markdown.py`; the README catalog-size and discovery-accuracy tests |
+| `test` | `pytest` + 97% line-coverage minimum |
+| `test-locked` | The full suite again in an environment installed exactly from `requirements.lock` (`pip install --require-hashes`), with the same 97% coverage minimum |
+| `scrub-oracle` | The 210,000-case scrubber acceptance corpus (50 chunks, `-m slow -n 4`) and its aggregate coverage-floor step, both of which the full suite skips. Runs in parallel with `test`, whenever `test` runs and on an integration PR that changes the scrubber, the oracle or its generator |
 | `gitleaks` | No secrets committed (file scan + PR diff scan) |
 | `fixtures-sanitization` | No real MACs, IPs, or API keys in fixtures |
-| `changelog-check` | `CHANGELOG.md` updated, or `skip-changelog` label set |
+| `version-consistency` | `scripts/check_server_json_version.py` — the `server.json` version and its OCI image identifier tag equal the `pyproject.toml` version (no leading `v`) |
+| `docker-build` | The production container image builds from the `Dockerfile` (no push) |
+| `changelog-check` | When `src/` changes: a `changelog.d` fragment or a `CHANGELOG.md` change, or the `skip-changelog` label set |
+| `lint-public-language` | The pull request title, body, commit messages and author emails use public language (runs on the public repository) |
 
 ## Testing requirements
 
+Catalog-size checks in `tests/test_catalog_size_budget.py` use proportional
+budgets: 2,400 bytes per tool on average for the full `tools/list` response,
+10,000 bytes per input schema, and 10,000 bytes per generated body shape with a
+2,000-byte shape average. `tests/test_client_surface_limits.py` enforces the
+existing 2,048-character description cap. `tests/test_readme_catalog_size.py`
+checks the README table's exact tool counts and sizes within 2%. The discovery-mode
+PR owns the separate `DISCOVERY_BUDGET_BYTES = 8_000` ceiling and its test.
+
 Every PR that modifies `src/` must:
 
-**Add tests for the changed behavior.** The 91% coverage gate is enforced in CI.
+**Add tests for the changed behavior.** The 97% coverage gate is enforced in CI.
 New code without tests will cause CI to fail.
 
 **Use only synthetic test data.** No real MAC addresses, IP addresses, API keys,
@@ -246,8 +253,10 @@ If your PR adds, removes, or renames any `@mcp.tool()` function, regenerate
 python3 scripts/gen_tools_doc.py
 ```
 
-The `docs` CI job runs `gen_tools_doc.py --check` and fails if `TOOLS.md` is out
-of sync with the runtime.
+Then run `python3 scripts/gen_catalog_figures.py` to refresh the catalog sizes and
+tool counts in the README and CHANGELOG. Never edit either generated figure by hand.
+The `docs` CI job runs both generators with `--check` and fails if either is out of
+sync with the runtime.
 
 **Do not remove or rename existing tools without a discussion.** External MCP
 clients depend on stable tool names. A rename is a breaking change.
@@ -267,5 +276,10 @@ clients depend on stable tool names. A rename is a breaking change.
 4. Confirm all CI checks pass.
 5. A maintainer will review your changes and may request revisions.
 
-PRs that change `src/` without a `CHANGELOG.md` entry (and without the
-`skip-changelog` label) will fail the `changelog-check` CI job.
+The `changelog-check` CI job fails a PR that changes `src/` without a `changelog.d`
+fragment or a `CHANGELOG.md` change, unless the `skip-changelog` label is set. Add a
+fragment; the maintainers fold fragments into `CHANGELOG.md`.
+
+Release maintainers reconcile exact-revision acceptance evidence for every tool.
+The evidence checker supplements behavioral and live verification; independent
+review must confirm that cited artifacts support their claims.

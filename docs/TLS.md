@@ -56,6 +56,8 @@ effective level is `CERT_NONE`); the selector is ignored.
 A single self-signed certificate (no separate CA) is enough to exercise
 `https` locally. Generate one valid for `localhost` / `127.0.0.1`:
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout dev-key.pem -out dev-cert.pem \
@@ -76,6 +78,8 @@ both out of version control (they are dev throwaways).
 
 ## Run with in-server HTTPS
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 export FASTMCP_TRANSPORT=streamable-http
 export FASTMCP_HOST=127.0.0.1
@@ -92,11 +96,13 @@ The server now listens for HTTPS on the configured host/port. Because the
 certificate is self-signed, clients must trust it explicitly — point the client
 at the certificate (or its issuing CA) rather than disabling verification:
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 # Smoke-test the TLS handshake against the MCP endpoint.
-# --max-time 3 disconnects after headers are received; a GET /mcp opens a
-# persistent SSE stream so curl would otherwise hang indefinitely.
-curl --max-time 3 --cacert dev-cert.pem \
+# Wait for the handshake and response to complete. A sessionless GET returns HTTP 400
+# in stateful mode or 405 in stateless mode; either confirms TLS negotiation.
+curl --cacert dev-cert.pem \
   -H "Accept: application/json, text/event-stream" \
   -s -o /dev/null -w "%{http_code}\n" \
   https://127.0.0.1:3000/mcp
@@ -126,23 +132,28 @@ match the actual listener** — both the scheme **and** the port:
   HTTP-level probe must point at the cert/CA (e.g. `curl --cacert ...`) or the
   probe itself will fail closed.
 
-Example override (adjust the port to your `FASTMCP_PORT`). An HTTP GET to
-`/mcp` opens a persistent SSE stream, so a bare `curl https://.../mcp` hangs
-until Docker SIGKILLs it (exit 137 = unhealthy). Use a TLS handshake probe
-instead — it verifies the certificate without touching the HTTP layer. In non-dev deployments replace `'127.0.0.1'` with the DNS name your cert was issued for (e.g. `'mcp.example.com'`):
+Example override (adjust the port to your `FASTMCP_PORT`). A sessionless GET to
+`/mcp` does not demonstrate a successful MCP operation (it answers 400 or 405, see
+above). Use a TLS handshake probe to verify certificate trust and listener availability
+without depending on MCP session state. In non-dev deployments replace `'127.0.0.1'` with the DNS name your cert was issued for (e.g. `'mcp.example.com'`):
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-4 mode=non-executable reason=deployment-or-client-interaction -->
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD python3 -c "\
 import ssl, socket; \
 ctx = ssl.create_default_context(cafile='/certs/cert.pem'); \
-s = ctx.wrap_socket(socket.create_connection(('127.0.0.1', 3000), timeout=5), \
+s = ctx.wrap_socket(socket.create_connection(('127.0.0.1', 3000)), \
     server_hostname='127.0.0.1'); \
 s.close()" || exit 1
 ```
 
 This confirms the TLS handshake succeeds (correct certificate, server is up)
-without opening an HTTP stream that would hang.
+without making an HTTP request.
+
+[Docker controls the healthcheck runtime](https://docs.docker.com/reference/dockerfile/#healthcheck);
+the probe itself adds no socket deadline.
 
 The default `Dockerfile` is intentionally left on the TCP probe and is not
 changed by enabling these variables — switching the healthcheck is the operator's
@@ -162,8 +173,9 @@ certificate signed by an untrusted CA. By default the client-cert check is
 > a key your CA signed — it does **not** tell the application *which user* is
 > calling, and this server does not map the certificate subject to any app-level
 > principal. If you need application identity (per-caller authorization, audit,
-> scopes), **pair mTLS with an app-auth mode** (`MCP_AUTH_MODE=bearer` or
-> `oauth`). The two compose: mTLS gates the transport, app-auth gates the request.
+> scopes), **pair mTLS with `MCP_AUTH_MODE=oauth`**; `MCP_AUTH_MODE=bearer` adds one
+> shared secret, so every bearer caller is the same identity. The two compose: mTLS
+> gates the transport, app-auth gates the request.
 
 ## Generate a CA + server cert + client cert for dev/testing
 
@@ -173,10 +185,11 @@ commands below mint a throwaway local CA and issue a server cert (for
 locally. Nothing here is committed; keep every `*.pem`, `*.csr`, and `*.srl`
 file out of version control.
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-5 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
-# bash required — the <(...) process substitution below is a bash feature and will
-# fail with a syntax error or be treated as a literal filename under sh/dash/zsh.
-# Run these commands in bash (e.g. `bash` or `#!/usr/bin/env bash`).
+# These commands use <(...) process substitution, supported by bash and zsh.
+# POSIX sh/dash do not support it. Run the examples in bash or zsh.
 
 # 1. A throwaway local CA (root key + self-signed cert).
 #    The basicConstraints and keyUsage extensions are required for Python 3.13+,
@@ -211,6 +224,8 @@ different CAs — split them as needed.
 
 ## Run with in-server mTLS
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-6 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 export FASTMCP_TRANSPORT=streamable-http
 export FASTMCP_HOST=127.0.0.1
@@ -227,11 +242,13 @@ unifi-fabric-mcp
 The server now demands a client certificate during the TLS handshake. A client
 must present its cert/key **and** trust the server CA:
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-7 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 # Succeeds: presents a client cert that chains to MCP_TLS_CA_CERTS.
-# --max-time 3 disconnects after headers are received; a GET /mcp opens a
-# persistent SSE stream so curl would otherwise hang indefinitely.
-curl --max-time 3 --cacert ca-cert.pem \
+# Wait for the handshake and response to complete. A sessionless GET returns HTTP 400
+# in stateful mode or 405 in stateless mode; either confirms TLS negotiation.
+curl --cacert ca-cert.pem \
   --cert client-cert.pem --key client-key.pem \
   -H "Accept: application/json, text/event-stream" \
   -s -o /dev/null -w "%{http_code}\n" \
@@ -260,25 +277,29 @@ handshake**, so `CERT_REQUIRED` is never triggered — no client cert is needed.
 
 **If you override the healthcheck with an application-level probe, that probe
 must itself present a client certificate**, or the server will reject it and the
-container will be marked unhealthy while the server is fine. An HTTP GET to `/mcp`
-also opens a persistent SSE stream, so a bare `curl https://.../mcp` under mTLS
-would be killed by Docker (exit 137 = unhealthy) even with a valid client cert.
-Use a TLS handshake probe that presents the client cert without issuing any HTTP
-request. In non-dev deployments replace `'127.0.0.1'` with the DNS name your server cert was issued for (e.g. `'mcp.example.com'`):
+container will be marked unhealthy while the server is fine. A sessionless GET to
+`/mcp` does not demonstrate a successful MCP operation (it answers 400 or 405), so
+use a TLS handshake probe that presents the client cert without issuing any HTTP
+request. The handshake probe must present a trusted client certificate. In non-dev deployments replace `'127.0.0.1'` with the DNS name your server cert was issued for (e.g. `'mcp.example.com'`):
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-8 mode=non-executable reason=deployment-or-client-interaction -->
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD python3 -c "\
 import ssl, socket; \
 ctx = ssl.create_default_context(cafile='/certs/ca-cert.pem'); \
 ctx.load_cert_chain('/certs/client-cert.pem', '/certs/client-key.pem'); \
-s = ctx.wrap_socket(socket.create_connection(('127.0.0.1', 3000), timeout=5), \
+s = ctx.wrap_socket(socket.create_connection(('127.0.0.1', 3000)), \
     server_hostname='127.0.0.1'); \
 s.close()" || exit 1
 ```
 
 This confirms the mTLS handshake succeeds (server cert trusted, client cert
-accepted) without opening an HTTP stream.
+accepted) without making an HTTP request.
+
+[Docker controls the healthcheck runtime](https://docs.docker.com/reference/dockerfile/#healthcheck);
+the probe itself adds no socket deadline.
 
 As with HTTPS, the default `Dockerfile` is left on the TCP probe and is not
 changed by enabling `mtls`. Either keep the TCP probe (no client cert needed), or
@@ -293,6 +314,8 @@ Once in-server HTTPS is active, the client URL must change from `http://` to `ht
 
 `streamable-http` transport:
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-9 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
   "mcpServers": {
@@ -306,6 +329,8 @@ Once in-server HTTPS is active, the client URL must change from `http://` to `ht
 
 `sse` transport (`FASTMCP_TRANSPORT=sse`):
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-10 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
   "mcpServers": {
@@ -348,11 +373,13 @@ supply a client certificate. In practice this means:
 If your MCP client does support custom TLS configuration (e.g. a programmatic client), it
 must supply both the client certificate/key and trust the server certificate:
 
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- install-case: docs-tls-11 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # curl equivalent of what a properly configured client would do
-# --max-time 3 disconnects after receiving headers; a GET /mcp opens a
-# persistent SSE stream so curl would otherwise hang indefinitely.
-curl --max-time 3 --cacert ca-cert.pem \
+# Wait for the handshake and response to complete. A sessionless GET returns HTTP 400
+# in stateful mode or 405 in stateless mode; either confirms TLS negotiation.
+curl --cacert ca-cert.pem \
   --cert client-cert.pem --key client-key.pem \
   -H "Accept: application/json, text/event-stream" \
   -s -o /dev/null -w "%{http_code}\n" \

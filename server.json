@@ -1,0 +1,97 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.swkstudios/unifi-fabric-mcp-server",
+  "description": "MCP server for UniFi Fabric: Network, Protect, Site Manager, InnerSpace, Carrier Fabric, Mobility.",
+  "version": "0.7.0",
+  "repository": {
+    "url": "https://github.com/swkstudios/unifi-fabric-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "unifi-fabric-mcp-server",
+      "version": "0.7.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "UNIFI_API_KEY",
+          "description": "UniFi Site Manager API key (unifi.ui.com > API Keys).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "UNIFI_TOOL_MODE",
+          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways).",
+          "default": "discovery",
+          "choices": [
+            "discovery",
+            "full"
+          ],
+          "isRequired": false
+        }
+      ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:3000/mcp",
+        "headers": [
+          {
+            "name": "Authorization",
+            "description": "The MCP_BEARER_TOKEN the server was started with.",
+            "value": "Bearer {MCP_BEARER_TOKEN}",
+            "isRequired": true,
+            "isSecret": true,
+            "variables": {
+              "MCP_BEARER_TOKEN": {
+                "description": "The shared bearer token configured on the server.",
+                "isRequired": true,
+                "isSecret": true
+              }
+            }
+          }
+        ]
+      },
+      "environmentVariables": [
+        {
+          "name": "UNIFI_API_KEY",
+          "description": "UniFi Site Manager API key (unifi.ui.com > API Keys).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "MCP_AUTH_MODE",
+          "description": "Transport authentication: bearer requires MCP_BEARER_TOKEN on every request.",
+          "isRequired": true,
+          "default": "bearer",
+          "choices": [
+            "bearer",
+            "oauth",
+            "none"
+          ]
+        },
+        {
+          "name": "MCP_BEARER_TOKEN",
+          "description": "Shared bearer token; generate it with: openssl rand -hex 32",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "UNIFI_TOOL_MODE",
+          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways).",
+          "default": "discovery",
+          "choices": [
+            "discovery",
+            "full"
+          ],
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

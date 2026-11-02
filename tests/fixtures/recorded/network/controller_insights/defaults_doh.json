@@ -1,0 +1,21 @@
+{
+  "args": [
+    "doh",
+    "Default"
+  ],
+  "body": {
+    "server_names": [
+      "server-names-0001",
+      "server-names-0002"
+    ],
+    "state": "off"
+  },
+  "kwargs": {},
+  "recorded_by_tool": "get_network_config_defaults",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/settings/doh/defaults",
+    "query": {}
+  },
+  "status": 200
+}

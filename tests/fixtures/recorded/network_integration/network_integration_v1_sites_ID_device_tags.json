@@ -1,0 +1,20 @@
+{
+ "recorded_by_tool": "list_device_tags",
+ "request": {
+  "method": "GET",
+  "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/device-tags",
+  "query": {
+   "offset": "0",
+   "limit": "200"
+  }
+ },
+ "status": 200,
+ "content_type": "application/json",
+ "body": {
+  "offset": 0,
+  "limit": 200,
+  "count": 0,
+  "totalCount": 0,
+  "data": []
+ }
+}
