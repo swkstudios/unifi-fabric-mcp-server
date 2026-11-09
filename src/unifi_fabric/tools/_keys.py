@@ -31,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Hashable, Iterable
 from typing import Any
 
-from ..client import UniFiClient, gather_or_cancel
+from ..client import UniFiClient, gather_or_cancel, upstream_error_text
 from ..config import APIKeyConfig
 from ..matching import id_key
 
@@ -142,8 +142,13 @@ def page_mode_scope(
 
 
 def key_error(label: str | None, reason: object) -> str:
-    """One failed key's entry under ``errors``: ``"<label>: <reason>"``."""
-    return f"{label}: {reason}"
+    """One failed key's entry under ``errors``: ``"<label>: <reason>"``.
+
+    An exception reason is rendered with :func:`upstream_error_text`, so a response
+    body it carries has its credential fields masked under ``UNIFI_REDACT_SECRETS``.
+    """
+    text = upstream_error_text(reason) if isinstance(reason, BaseException) else reason
+    return f"{label}: {text}"
 
 
 def report_keys(

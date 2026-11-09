@@ -2,7 +2,7 @@
 
 Every tool is called through the MCP surface against a mocked ``api.ui.com`` (respx):
 its console-proxy route and method, the body and query it sends, the upstream body
-returned verbatim, the dry-run preview of every write, ``UNIFI_READ_ONLY``, and argument
+returned verbatim, the dry-run preview of every write, ``UNIFI_WRITE_POLICY``, and argument
 validation that refuses before any request (host resolution included). All ids, titles
 and values are synthetic (``tests/fixtures/innerspace_internal/synthetic.json``).
 """
@@ -48,7 +48,9 @@ def serve(monkeypatch):
     """Install a real client and registry on the server; ``serve(dry_run=True)`` for dry-run."""
 
     def _install(*, dry_run: bool = False) -> None:
-        settings = Settings(api_key="sk-innerspace-internal", dry_run=dry_run)
+        if dry_run:
+            monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+        settings = Settings(api_key="sk-innerspace-internal")
         client = UniFiClient(settings)
         monkeypatch.setattr(server, "_settings", settings)
         monkeypatch.setattr(server, "_client", client)
@@ -269,7 +271,7 @@ async def test_read_upstream_error_is_raised_in_full(serve, tool, route, body):
 
 
 async def test_read_runs_under_read_only(serve, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     with respx.mock(assert_all_called=True) as router:
         _hosts(router)
         router.get(f"{IS}/api/stats").mock(return_value=httpx.Response(200, json=FIXTURE["stats"]))
@@ -327,9 +329,9 @@ async def test_write_dry_run_returns_preview_with_body_and_query(
 
 @pytest.mark.parametrize("tool", sorted(set(VALID_ARGS) - {r[0] for r in READS}))
 async def test_write_under_read_only_makes_zero_requests(serve, monkeypatch, tool):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     with respx.mock(assert_all_called=False) as router:
-        with pytest.raises(ToolError, match="(?i)read.only"):
+        with pytest.raises(ToolError, match="write_denied.*UNIFI_WRITE_POLICY"):
             await _call(tool, {"host": H, **copy.deepcopy(VALID_ARGS[tool])})
         assert router.calls.call_count == 0
 

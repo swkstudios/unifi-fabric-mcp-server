@@ -1,0 +1,133 @@
+[
+ {
+  "claim_id": "readme-relay-audit",
+  "doc": "docs/TOOL-USAGE.md",
+  "find": "Audit is best-effort and off by default: with",
+  "claim": "Relay mutation audit: best-effort, off by default; unset UNIFI_AUDIT_LOG writes no record (was: every mutation attempt is written to an audit line)",
+  "kind": "manual",
+  "source": "src/unifi_fabric/tools/connector.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "when the audit\n    log is off"
+ },
+ {
+  "claim_id": "readme-audit-log-section",
+  "doc": "docs/CONFIGURATION.md",
+  "find": "Audit logging is best-effort and fails open",
+  "claim": "Optional audit log: best-effort; unset (the default) writes no audit file",
+  "kind": "default",
+  "source": "src/unifi_fabric/audit.py",
+  "disposition": "verified",
+  "reviewer": "maintainer",
+  "source_find": "def build_audit_stream"
+ },
+ {
+  "claim_id": "readme-audit-fields",
+  "doc": "docs/CONFIGURATION.md",
+  "find": "timestamp (UTC), HTTP method, resolved path, outcome and upstream status",
+  "claim": "Audit record fields: timestamp, method, resolved path, outcome, upstream status, tool, resolvedHost, resolvedSite, duration_ms",
+  "kind": "manual",
+  "source": "src/unifi_fabric/audit.py",
+  "disposition": "manual-accepted",
+  "reviewer": "maintainer",
+  "source_find": "duration_ms"
+ },
+ {
+  "claim_id": "auth-tls-bearer-mode",
+  "doc": "docs/AUTH-TLS.md",
+  "find": "The token alone enables bearer authentication only when",
+  "claim": "Auth mode is derived from the bearer token only when MCP_AUTH_MODE is unset; an explicit MCP_AUTH_MODE=none wins",
+  "kind": "default",
+  "source": "src/unifi_fabric/config.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "if self.auth_mode is None:"
+ },
+ {
+  "claim_id": "auth-tls-short-token",
+  "doc": "docs/AUTH-TLS.md",
+  "find": "In bearer mode on an HTTP transport, a token shorter than 32 characters",
+  "claim": "Short-token warning: threshold 32, HTTP transports only, bearer mode only",
+  "kind": "count",
+  "source": "src/unifi_fabric/transport_security.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "len(s.bearer_token) < MIN_BEARER_TOKEN_LENGTH"
+ },
+ {
+  "claim_id": "auth-tls-warning-table",
+  "doc": "docs/AUTH-TLS.md",
+  "find": "| `MCP_AUTH_MODE=bearer` on an HTTP transport with `MCP_BEARER_TOKEN` shorter than 32",
+  "claim": "Startup-warning table row for the short bearer token carries both conditions",
+  "kind": "manual",
+  "source": "src/unifi_fabric/transport_security.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "if transport not in HTTP_TRANSPORTS:"
+ },
+ {
+  "claim_id": "docker-stateless",
+  "doc": "docs/DOCKER.md",
+  "find": "The container is stateless except the opt-in audit file",
+  "claim": "Container is stateless except the opt-in audit file (was: no data loss risk from container updates or replacements)",
+  "kind": "manual",
+  "source": "src/unifi_fabric/audit.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "def build_audit_stream"
+ },
+ {
+  "claim_id": "changelog-ptz-presets",
+  "doc": "CHANGELOG.md",
+  "find": "`list_ptz_presets` returns the console's HTTP 500",
+  "claim": "list_ptz_presets implies an HTTP 500 error; it returns the upstream status 500 and body unchanged. Released 0.7.0 section stays byte-identical; corrected by a changelog.d fragment",
+  "kind": "manual",
+  "source": "src/unifi_fabric/tools/protect_private.py",
+  "disposition": "historical",
+  "reviewer": "maintainer",
+  "source_find": "the upstream\n        status and body are returned unchanged"
+ },
+ {
+  "claim_id": "migrating-change-027",
+  "doc": "docs/MIGRATING-0.7.md",
+  "find": "returns the body as received, but the shape depends on the route",
+  "claim": "change-027 shapes: six tools return {data, httpStatusCode, traceId}; get_innerspace_project returns data-wrapped (integration route) or the bare project (legacy route)",
+  "kind": "manual",
+  "source": "src/unifi_fabric/tools/innerspace.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "the legacy path returns the project itself"
+ },
+ {
+  "claim_id": "tool-usage-list-paging",
+  "doc": "docs/TOOL-USAGE.md",
+  "find": "every list tool that pages upstream drains every page by default",
+  "claim": "Every list tool that pages upstream drains every page by default; locally answered lists return their full set",
+  "kind": "manual",
+  "source": "src/unifi_fabric/tools/aggregation.py",
+  "disposition": "corrected",
+  "reviewer": "maintainer",
+  "source_find": "list_configured_api_keys"
+ },
+ {
+  "claim_id": "tool-usage-description-limit",
+  "doc": "docs/TOOL-USAGE.md",
+  "find": "stay within 2,048 characters",
+  "claim": "Instructions and every tool description are within 2,048 characters",
+  "kind": "count",
+  "source": "tests/test_client_surface_limits.py",
+  "disposition": "verified",
+  "reviewer": "maintainer",
+  "source_find": "<= 2048"
+ },
+ {
+  "claim_id": "tool-usage-client-limits",
+  "doc": "docs/TOOL-USAGE.md",
+  "find": "cut at 4,096 characters, and at 16,384 for tools loaded through tool search",
+  "claim": "External citation: current Claude Code limits of 4,096 and 16,384 characters (vendor page not machine-checkable from here)",
+  "kind": "manual",
+  "source": "manual",
+  "disposition": "manual-accepted",
+  "reviewer": "maintainer"
+ }
+]

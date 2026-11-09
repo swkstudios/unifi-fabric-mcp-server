@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-blank-exclude",
+  "description": "UNIFI_EXCLUDE present and blank (whitespace only) fails startup naming the setting.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "  "
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_EXCLUDE",
+    "upstream_calls": 0
+  }
+}

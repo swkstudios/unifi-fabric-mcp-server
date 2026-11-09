@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-lowercase-setting-name",
+  "description": "The settings loader matches names in any letter case, so a lower-case spelling of a policy setting fails closed instead of being ignored.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "unifi_write_policy": "deny"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_WRITE_POLICY",
+    "upstream_calls": 0
+  }
+}

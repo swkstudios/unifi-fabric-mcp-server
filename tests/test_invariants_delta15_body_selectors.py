@@ -184,7 +184,11 @@ async def test_invalid_body_precedes_semantic_unknown_host_resolution(monkeypatc
     }
     upstream = uh.FakeUpstream()
     args = {**_args(name), "host": "unknown-but-syntactically-valid", arg: bodies[kind]}
-    with pytest.raises(ToolError, match="No fields provided"):
+    # The unspecced firewall create deliberately forwards a literal empty object
+    # to the controller. An unknown host still stops it before the target write.
+    firewall_empty = name == "create_firewall_rule" and arg == "rule" and kind == "empty"
+    expected = "unknown host" if firewall_empty else "No fields provided"
+    with pytest.raises(ToolError, match=expected):
         await cti._call(
             monkeypatch,
             name,
@@ -192,4 +196,8 @@ async def test_invalid_body_precedes_semantic_unknown_host_resolution(monkeypatc
             args,
             env={"UNIFI_REDACT_SECRETS": "true"} if kind == "masked_only" else None,
         )
-    assert upstream.served == []
+    if firewall_empty:
+        assert upstream.served and all(request.resolution for request in upstream.served)
+        assert not upstream.writes()
+    else:
+        assert upstream.served == []

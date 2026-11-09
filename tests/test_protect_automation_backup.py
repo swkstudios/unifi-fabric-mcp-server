@@ -181,7 +181,8 @@ async def test_every_write_returns_standard_dry_run_preview(name, args, method, 
 
 @pytest.mark.parametrize("name,args,method,route", WRITES, ids=WRITE_IDS)
 @pytest.mark.parametrize(
-    "switch,value", [("UNIFI_READ_ONLY", "1"), ("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")]
+    "switch,value",
+    [("UNIFI_WRITE_POLICY", "deny"), ("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")],
 )
 async def test_every_write_obeys_operator_opt_out_before_any_request(
     monkeypatch, name, args, method, route, switch, value
@@ -192,8 +193,11 @@ async def test_every_write_obeys_operator_opt_out_before_any_request(
     client = client_for({})
     refusal = (
         (ReadOnlyModeError, rf"^{method} refused: the server is in read-only mode")
-        if switch == "UNIFI_READ_ONLY"
-        else (ValueError, r"^Protect mutations are opted out at the deployment level")
+        if switch == "UNIFI_WRITE_POLICY"
+        else (
+            ValueError,
+            r"^Protect writes are denied: UNIFI_WRITE_EXCEPTIONS contains family:protect=deny\.",
+        )
     )
     with pytest.raises(refusal[0], match=refusal[1]):
         await impl(name)(client, Registry(), "console", *args)
@@ -201,11 +205,11 @@ async def test_every_write_obeys_operator_opt_out_before_any_request(
 
 
 async def test_dry_run_is_honoured_end_to_end(monkeypatch):
-    """A real client in UNIFI_DRY_RUN previews the restore and sends nothing."""
+    """A real client in dry-run policy previews the restore and sends nothing."""
     from unifi_fabric.client import UniFiClient
     from unifi_fabric.config import Settings
 
-    monkeypatch.setenv("UNIFI_DRY_RUN", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     client = UniFiClient(Settings(api_key="synthetic-test-key"))
     try:
         with respx.mock(base_url="https://api.ui.com", assert_all_called=False) as mock:
@@ -430,15 +434,15 @@ def test_cloud_archive_code_argument_is_a_registered_secret():
     assert entry.tool_arguments["connect_cloud_archive_provider"] == ("code",)
 
 
-# --------------------------------------------------------------- Protect 7.3.70 backup routes
-# Observed live on Protect 7.3.70 (2026-10-28): the per-backup routes are registered as
+# --------------------------------------------------------------- Protect 7.3.74 backup routes
+# Observed live on Protect 7.3.74 (2026-10-28): the per-backup routes are registered as
 # /backup{s}/:id and only the singular form reaches the handler. DELETE /backups/{id}
 # answers 404 with an empty body for every backup; DELETE /backup/{id} answers 200
 # {"success": true} and the backup is gone from GET /backups.
 
-LIVE_BACKUP_ID = "6ae20da603169b03e401139d"
+LIVE_BACKUP_ID = "000000000000000000000b02"
 LIVE_BACKUPS = [
-    {"type": "auto", "id": "6ae1815003759b03e400145f", "isAutoBackup": True},
+    {"type": "auto", "id": "000000000000000000000b01", "isAutoBackup": True},
     {"type": "manual", "id": LIVE_BACKUP_ID, "isAutoBackup": False},
 ]
 
@@ -480,7 +484,7 @@ async def test_delete_backup_uses_the_singular_route_protect_7_3_serves():
         "message": f"Backup {LIVE_BACKUP_ID} deleted.",
         "response": {"success": True},
     }
-    assert [row["id"] for row in state["listed"]] == ["6ae1815003759b03e400145f"]
+    assert [row["id"] for row in state["listed"]] == ["000000000000000000000b01"]
 
 
 async def test_delete_backup_still_listed_after_the_delete_reports_not_deleted():

@@ -4,13 +4,17 @@
 upgrade in change-079 reads the v0.6.2 lock first and ``requirements.lock`` second, every
 other list names the ``requirements.lock`` version, and the lists name every pin that
 changed. The v0.6.2 lock is frozen in
-``tests/fixtures/v0_6_2_lock_pins.json`` (package -> version, taken from the tag).
-change-075, change-080, the matching CHANGELOG lines and every other public page that puts
-a locked package next to a version name what ``requirements.lock`` and ``pyproject.toml`` pin.
+``tests/fixtures/v0_6_2_lock_pins.json`` (package -> version, taken from the tag), and the
+lock the 0.7.0 notes describe is frozen in ``tests/fixtures/v0_7_0_lock_pins.json``, so a
+later dependency refresh (scripts/refresh_dependencies.py) never rewrites released text.
+change-075, change-079 and the matching 0.7.0 CHANGELOG lines name the frozen 0.7.0 pins;
+change-080 and every other public page that puts a locked package next to a version name
+what ``requirements.lock`` and ``pyproject.toml`` pin now.
 """
 
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import json
 import re
@@ -23,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / "requirements.lock"
 RUNTIME_LOCK = ROOT / "requirements-runtime.lock"
 OLD_LOCK = ROOT / "tests" / "fixtures" / "v0_6_2_lock_pins.json"
+RELEASED_LOCK = ROOT / "tests" / "fixtures" / "v0_7_0_lock_pins.json"
 MIGRATING = ROOT / "docs" / "MIGRATING-0.7.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text())
@@ -48,7 +53,76 @@ def _norm(name: str) -> str:
 HEAD = {_norm(n): v for n, v in _PIN.findall(LOCK.read_text())}
 RUNTIME = {_norm(n): v for n, v in _PIN.findall(RUNTIME_LOCK.read_text())}
 OLD = json.loads(OLD_LOCK.read_text())["pins"]
-CHANGED = {n: (OLD[n], HEAD[n]) for n in OLD.keys() & HEAD.keys() if OLD[n] != HEAD[n]}
+_RELEASED = json.loads(RELEASED_LOCK.read_text())
+RELEASED = _RELEASED["pins"]
+RELEASED_RUNTIME = _RELEASED["runtime_pins"]
+CHANGED = {n: (OLD[n], RELEASED[n]) for n in OLD.keys() & RELEASED.keys() if OLD[n] != RELEASED[n]}
+
+
+# The frozen 0.7.0 lock fixture and the released [0.7.0] CHANGELOG section, byte for byte.
+# The fixture holds the pins of requirements.lock and requirements-runtime.lock at the v0.7.0
+# tag (72972915); the section is the text the v0.7.0 tag published. A dependency refresh or
+# upgrade after 0.7.0 records itself in the current release section and leaves both alone:
+# a mismatch here means released history was rewritten, so restore the file or section from
+# the v0.7.0 tag instead of updating the digest.
+RELEASED_LOCK_SHA256 = "f6261fe6ad6e860002bf200313f50259cb025b49acf03a714855eed47fe61b73"
+RELEASED_CHANGELOG_SHA256 = "9c949cf2b8e732642d7bec67a75ef0825ec433eca705c5ee48d623015a731c32"
+
+
+def _release_section(version: str) -> str:
+    text = CHANGELOG.read_text()
+    section = text[text.index(f"## [{version}]") :]
+    return section[: section.find("\n## [", 1)]
+
+
+def test_released_0_7_0_lock_fixture_is_frozen():
+    digest = hashlib.sha256(RELEASED_LOCK.read_bytes()).hexdigest()
+    assert digest == RELEASED_LOCK_SHA256, (
+        f"{RELEASED_LOCK.name} changed; it is the v0.7.0 tag lock and must not be edited"
+    )
+    # 0.7.0 shipped FastMCP 4.1.4 (the v0.7.0 tag lock); 4.1.6 arrived in 0.7.1.
+    for pins in (RELEASED, RELEASED_RUNTIME):
+        assert pins["fastmcp"] == pins["fastmcp-slim"] == "4.1.4"
+    assert "72972915" in _RELEASED["source"]
+
+
+def test_released_0_7_0_changelog_section_is_verbatim():
+    section = _release_section("0.7.0")
+    # Built at runtime so the private org never appears as a literal: the transform's
+    # sed must not rewrite this detection string, and the public leak scan must not
+    # find it in the shipped test corpus.
+    private_org = "".join(("Tekno", "Central"))
+    if f"github.com/{private_org}/" not in section:
+        # The public-release transform rewrites the private org to the public one inside
+        # this section's migration links, so the shipped text cannot match a digest taken
+        # from the private tree. The guard stays live where the section is actually
+        # edited - the private tree - and is skipped in the generated public tree.
+        # Do NOT "fix" this by normalising the org: the section carries 38 deliberate
+        # public-org links of its own, so a blanket rewrite corrupts them.
+        import pytest
+
+        pytest.skip("public tree: the org in this section is rewritten by the transform")
+    digest = hashlib.sha256(section.encode()).hexdigest()
+    assert digest == RELEASED_CHANGELOG_SHA256, (
+        "the released [0.7.0] CHANGELOG section differs from the v0.7.0 tag text"
+    )
+
+
+def test_current_release_records_the_fastmcp_upgrade_since_0_7_0():
+    old, new = RELEASED["fastmcp"], HEAD["fastmcp"]
+    assert HEAD["fastmcp-slim"] == new and RUNTIME["fastmcp"] == new
+    if old == new:
+        return
+    lines = [
+        line
+        for line in _release_section(VERSION).splitlines()
+        if line.startswith(f"- FastMCP {new} (from {old};")
+    ]
+    assert len(lines) == 1, f"[{VERSION}] does not record FastMCP {old} to {new}"
+    # The enum/const JSON-equality comparison came with the 4.1.6 upgrade, so the current
+    # release notes carry it and the 0.7.0 migration entry does not.
+    assert "JSON equality" in lines[0]
+    assert "JSON equality" not in _entry("change-075")
 
 
 def _major(old: str, new: str) -> bool:
@@ -80,7 +154,7 @@ def _items(entry: str, label: str) -> list[str]:
 
 def _changelog_line(change: str) -> str:
     text = CHANGELOG.read_text()
-    section = text[text.index(f"## [{VERSION}]") :]
+    section = text[text.index("## [0.7.0]") :]
     section = section[: section.find("\n## [", 1)]
     lines = [line for line in section.splitlines() if line.endswith(f"#{change}).")]
     assert len(lines) == 1, (change, lines)
@@ -116,18 +190,30 @@ def test_change_079_pairs_read_the_v0_6_2_lock_then_requirements_lock():
 def test_change_079_lists_every_added_and_dropped_pin():
     entry = _entry("change-079")
     runtime = _singles(_items(entry, "New"))
-    assert runtime == {n: RUNTIME[n] for n in RUNTIME.keys() - OLD.keys()}
+    assert runtime == {n: RELEASED_RUNTIME[n] for n in RELEASED_RUNTIME.keys() - OLD.keys()}
     dev_specs = PYPROJECT["project"]["optional-dependencies"]["dev"]
     dev_extra = {_norm(re.split(r"[<>=!~\[ ]", spec)[0]) for spec in dev_specs}
     assert not dev_extra & RUNTIME.keys(), "the runtime lock carries a dev-extra tool"
+    assert not dev_extra & RELEASED_RUNTIME.keys(), "the 0.7.0 runtime lock carries a dev tool"
     assert not dev_extra & runtime.keys(), "change-079 lists a dev-extra tool as shipped"
-    assert sorted(_items(entry, "Dropped")) == sorted(OLD.keys() - RUNTIME.keys())
+    assert sorted(_items(entry, "Dropped")) == sorted(OLD.keys() - RELEASED_RUNTIME.keys())
+
+
+# The range the v0.7.0 tag declared; the frozen 0.7.0 text states it. 0.7.1 raised the floor.
+RELEASED_FASTMCP_RANGE = ">=4.0,<5.0"
+
+
+def test_fastmcp_floor_has_the_jwks_refresh_lock():
+    # StrictJWTVerifier needs JWTVerifier._shared_jwks_refresh_lock, added in fastmcp 4.1.1.
+    spec = _declared("fastmcp")
+    assert ">=4.1.1" in spec and "<5.0" in spec, spec
+    assert Version(HEAD["fastmcp"]) >= Version("4.1.1")
 
 
 def test_change_075_names_the_locked_fastmcp_and_mcp():
     expected = (
-        f"FastMCP {HEAD['fastmcp']} (MCP SDK {HEAD['mcp']}; "
-        f"`fastmcp` range `{_declared('fastmcp')}`"
+        f"FastMCP {RELEASED['fastmcp']} (MCP SDK {RELEASED['mcp']}; "
+        f"`fastmcp` range `{RELEASED_FASTMCP_RANGE}`"
     )
     assert _entry("change-075").startswith(f"- {expected}")
     assert _changelog_line("change-075").startswith(f"- {expected}")
@@ -138,9 +224,9 @@ def test_changelog_dependency_line_names_the_locked_versions():
     found = []
     for names, ver in re.findall(rf"([a-z][a-z0-9-]*(?:/[a-z][a-z0-9-]*)*) ({_VER})", line):
         for name in names.split("/"):
-            if _norm(name) in HEAD:
+            if _norm(name) in RELEASED:
                 found.append(name)
-                assert HEAD[_norm(name)] == ver, (name, ver, HEAD[_norm(name)])
+                assert RELEASED[_norm(name)] == ver, (name, ver, RELEASED[_norm(name)])
     assert len(found) >= 5, found
 
 

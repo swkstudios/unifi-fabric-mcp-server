@@ -39,7 +39,7 @@ from typing import Any
 import pytest
 from _pytest.outcomes import Failed, Skipped, XFailed
 
-from tests import _tool_catalog
+from tests import _selection_cache, _tool_catalog
 from tests._tool_catalog import LazyIds, lazy_parametrize
 
 # A batch (one collected item) carries at most this many tools, bounding the state
@@ -69,7 +69,7 @@ def module_index() -> dict[str, str]:
     for mod in fam._REGISTER_MODULES:
         tree = ast.parse((pkg / "tools" / f"{mod}.py").read_text())
         for reg in ast.walk(tree):
-            if isinstance(reg, ast.FunctionDef) and reg.name == "register":
+            if isinstance(reg, ast.FunctionDef) and fam._REGISTER_FUNCTION_RE.fullmatch(reg.name):
                 for sub in ast.walk(reg):
                     if isinstance(sub, ast.AsyncFunctionDef | ast.FunctionDef) and any(
                         fam._is_tool_decorator(d) for d in sub.decorator_list
@@ -99,9 +99,7 @@ def runtime_module_index() -> dict[str, str]:
 def area(name: str) -> str:
     from unifi_fabric import families as fam
 
-    if name in fam.firewall_route_tools():
-        return fam.FIREWALL  # firewall is assigned by route
-    return fam.MODULE_FAMILY.get(runtime_module_index().get(name, ""), "unclassified")
+    return fam.build_family_index().get(name, "unclassified")
 
 
 def rw(name: str) -> str:
@@ -286,10 +284,21 @@ def _argnames(argnames: str | tuple[str, ...] | list[str]) -> tuple[str, ...]:
 def _select_entries(entries, member=None, eligible=None, argnames=("name",), axes=None):
     if member is None and eligible is None:
         return list(entries)
+    entries = list(entries)
+    # Collection-time selections are cached per code fingerprint (tests/_selection_cache).
+    cache_key = (
+        _selection_cache.key(entries, member, eligible, argnames, axes)
+        if _tool_catalog.GENERATING
+        else None
+    )
+    if cache_key is not None:
+        hit = _selection_cache.get(cache_key, len(entries))
+        if hit is not None:
+            return [entries[i] for i in hit]
 
     async def select():
         selected = []
-        for entry in entries:
+        for i, entry in enumerate(entries):
             state = _reset_server_state()
             mp = pytest.MonkeyPatch()
             try:
@@ -313,7 +322,7 @@ def _select_entries(entries, member=None, eligible=None, argnames=("name",), axe
                         ok = await ok
                     if not ok:
                         continue
-                selected.append(entry)
+                selected.append(i)
             except (Exception, Failed, Skipped, XFailed) as exc:
                 raise AssertionError(
                     f"{tool_of(entry)}: applicability baseline failed: {_summary(exc)}"
@@ -326,12 +335,16 @@ def _select_entries(entries, member=None, eligible=None, argnames=("name",), axe
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(select())
-    # Tests also exercise the selector while an event loop is already running.
-    from concurrent.futures import ThreadPoolExecutor
+        result = asyncio.run(select())
+    else:
+        # Tests also exercise the selector while an event loop is already running.
+        from concurrent.futures import ThreadPoolExecutor
 
-    with ThreadPoolExecutor(1) as pool:
-        return pool.submit(asyncio.run, select()).result()
+        with ThreadPoolExecutor(1) as pool:
+            result = pool.submit(asyncio.run, select()).result()
+    if cache_key is not None:
+        _selection_cache.put(cache_key, len(entries), result)
+    return [entries[i] for i in result]
 
 
 def _run_each(

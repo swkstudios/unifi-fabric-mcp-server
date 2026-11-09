@@ -16,9 +16,9 @@ go both ways as base64 plus a content type: uploads take ``file_content_base64``
 a multipart file part; binary responses come back as base64 with the upstream
 Content-Type, never decoded as text.
 
-Every write is bound by ``UNIFI_READ_ONLY`` and the Protect write opt-out
-(``UNIFI_PROTECT_MUTATIONS_ENABLED=0``) before any request, and returns the client's
-``UNIFI_DRY_RUN`` preview ``{status, dryRun, sent: false, message, preview}`` (method, path, query,
+Every write is bound by ``UNIFI_WRITE_POLICY=deny`` and the Protect write opt-out
+(``family:protect=deny``) before any request, and returns the client's
+``dry-run policy`` preview ``{status, dryRun, sent: false, message, preview}`` (method, path, query,
 body; nothing sent) when dry-run is on. Writes are sent once (no automatic retry).
 """
 
@@ -40,6 +40,7 @@ from ..client import (
     decode_body,
     describe_shape,
     is_dry_run_preview,
+    upstream_error_value,
     validate_id,
     validate_selector,
 )
@@ -88,7 +89,7 @@ METADATA_ROUTES: dict[str, str] = {
     "progress": "/detection-search/progress",
 }
 
-#: The multipart field name the published Protect upload uses (protect-7.3.70
+#: The multipart field name the published Protect upload uses (protect-7.3.74
 #: ``POST /v1/files/{fileType}``); the private routes' field name is not in the inventory.
 DEFAULT_FORM_FIELD = "file"
 
@@ -198,10 +199,17 @@ async def _find_group(
     for group in groups:
         if isinstance(group, dict) and same_id(group_id, group.get("id")):
             return group
-    ids = [g.get("id") for g in groups if isinstance(g, dict) and isinstance(g.get("id"), str)]
+    ids = [
+        upstream_error_value(g.get("id"))
+        for g in groups
+        if isinstance(g, dict) and isinstance(g.get("id"), str)
+    ]
     partial = ""
     if context_value(listed, "incomplete"):
-        partial = f" The group list was incomplete ({context_value(listed, 'incompleteReason')})."
+        partial = (
+            " The group list was incomplete "
+            f"({upstream_error_value(context_value(listed, 'incompleteReason'))})."
+        )
     raise ValueError(
         f"Recognition group {group_id!r} not found among the {type} groups of {host!r}; "
         f"valid: {ids}.{partial} No write was sent."
@@ -641,15 +649,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST protect/api/recognition/{type}/groups (private Protect API) with group sent
         verbatim; the upstream response is returned unchanged. The frontend builds this
         body dynamically, so no key is required here; the upstream judges it. An empty
-        object is refused before any request. Under UNIFI_DRY_RUN it returns a dry-run
-        preview. Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        object is refused before any request. Under dry-run policy it returns a dry-run
+        preview. Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             group: Native group object, e.g. {"name": "Delivery van"}. Free-form object.
         """
         client, registry = deps_fn()
@@ -667,16 +675,16 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         protect/api/recognition/{type}/groups/{group_id}. The upstream response is
         returned unchanged plus _before, _after and _verified (each requested leaf re-read,
         type strict; _readAfterError when the re-read failed). An empty changes object is
-        refused before any request. Under UNIFI_DRY_RUN it returns a dry-run preview.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        refused before any request. Under dry-run policy it returns a dry-run preview.
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Returns the upstream response plus _before, _after, _verified and
         _readAfterError (a non-object response sits under response); {status: "noop",
-        reason, resource} when nothing changes; under UNIFI_DRY_RUN the preview {status:
+        reason, resource} when nothing changes; under dry-run policy the preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             group_id: Group id from list_recognition_groups, e.g. "face_90".
             changes: Fields to change as on the group record, e.g. {"name": "Visitors"}.
                 Free-form object.
@@ -690,9 +698,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Drains list_recognition_groups to confirm group_id (an unknown id fails listing the valid
         ids, before any write), then sends DELETE protect/api/recognition/{type}/groups/{group_id}.
-        Under UNIFI_DRY_RUN it returns {status: "dry_run", deleted: false, message, response} where
-        response is the dry-run preview. Honours UNIFI_READ_ONLY and
-        UNIFI_PROTECT_MUTATIONS_ENABLED=0. Consequence: the enrolled face or vehicle and its name
+        Under dry-run policy it returns {status: "dry_run", deleted: false, message, response} where
+        response is the dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
+        family:protect=deny. Consequence: the enrolled face or vehicle and its name
         are removed from the console; there is no undo. Returns {deleted, message, response}:
         deleted is true, message summarizes the delete, and response is the upstream body verbatim
         (decoded JSON, raw text, or null when the body is empty). The dry-run preview under response
@@ -700,7 +708,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             group_id: Group id from list_recognition_groups, e.g. "face_90".
         """
         client, registry = deps_fn()
@@ -719,19 +727,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST protect/api/recognition/{type}/assign-group with the body the Protect web app
         sends, {"objectIds": detection_ids, "groupId": group_id}; the upstream response is
         returned unchanged. An empty or non-list detection_ids, or an empty group_id, is
-        refused before any request. Under UNIFI_DRY_RUN it returns a dry-run preview.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        refused before any request. Under dry-run policy it returns a dry-run preview.
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: the detections move out of the group that held them and are
         re-labelled as the target group on the console.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             detection_ids: Shape: string[]. Ids of the detections to move, from
-                list_recognition_detections, e.g. ["66f1a2b3c4d5e6f7a8b9c0d5"].
+                list_recognition_detections, e.g. ["000000000000000000000116"].
             group_id: Id of the group that receives them, from list_recognition_groups,
                 e.g. "face_90".
             assignment: Legacy native body sent verbatim when supplied instead of the typed
@@ -759,19 +767,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST protect/api/recognition/face/detections/{detection_id}/image/enhance with no
         body. A JSON or text response is returned unchanged; an image response is returned
         as {image_base64, content_type, size_bytes} with the upstream Content-Type. Under
-        UNIFI_DRY_RUN it returns a dry-run preview. Honours UNIFI_READ_ONLY and
-        UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
+        family:protect=deny.
         Consequence: the console processes the detection image and stores the enhanced
         image for that detection.
         Returns the upstream response unchanged (an object, an array or null), a binary
-        answer as {image_base64, content_type, size_bytes}; under UNIFI_DRY_RUN the
+        answer as {image_base64, content_type, size_bytes}; under dry-run policy the
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             detection_id: Detection id from list_recognition_detections,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d5".
+                e.g. "000000000000000000000116".
         """
         client, registry = deps_fn()
         return await _enhance_face_detection_image(client, registry, host, detection_id)
@@ -789,7 +797,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             query_params: Free-form query parameters, e.g. {"groupId": "face_90"}. Omit for none.
         """
         client, registry = deps_fn()
@@ -813,17 +821,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the valid ids, before any write), then sends the decoded image as a multipart file
         part with POST protect/api/recognition/{type}/groups/{group_id}/image. The upstream
         response is returned unchanged. Invalid base64 is refused before any request. Under
-        UNIFI_DRY_RUN it returns a dry-run preview (part name, filename, type and size).
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        dry-run policy it returns a dry-run preview (part name, filename, type and size).
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: the group's reference image on the console is replaced.
         Returns the upstream response unchanged (an object, an array or null), a binary
-        answer as {image_base64, content_type, size_bytes}; under UNIFI_DRY_RUN the
+        answer as {image_base64, content_type, size_bytes}; under dry-run policy the
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face" or "vehicle".
+            type: Use "face" or "vehicle" (singular; plural forms return HTTP 400 upstream).
             group_id: Group id from list_recognition_groups, e.g. "face_90".
             filename: File name sent with the part, e.g. "reference.jpg".
             file_content_base64: The image bytes, base64-encoded, e.g. "iVBORw0KGgo=".
@@ -859,17 +867,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         sends, {"fromGroupIds": from_group_ids, "toGroupId": to_group_id}; the upstream
         response is returned unchanged. An empty or non-list from_group_ids, an empty
         to_group_id, or a from_group_ids list that names to_group_id is refused before any
-        request. Under UNIFI_DRY_RUN it returns a dry-run preview.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        request. Under dry-run policy it returns a dry-run preview.
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: the groups in from_group_ids are folded into to_group_id with their
         detections; there is no unmerge.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            type: Recognition type, singular, e.g. "face".
+            type: Recognition type, singular; plural forms return HTTP 400 upstream, e.g. "face".
             to_group_id: Id of the group that is kept, from list_recognition_groups,
                 e.g. "face_90".
             from_group_ids: Shape: string[]. Ids of the groups merged into it, e.g. ["face_91"].
@@ -904,12 +912,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends the decoded image as a multipart file part with POST
         protect/api/recognition/recognize-image; the upstream response (what Protect
         recognised) is returned unchanged. This is a POST, so it is classed as a write.
-        Invalid base64 is refused before any request. Under UNIFI_DRY_RUN it returns a
+        Invalid base64 is refused before any request. Under dry-run policy it returns a
         dry-run preview (part name, filename, type and size).
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: the image is uploaded to and processed by the console.
         Returns the upstream response unchanged (an object, an array or null), a binary
-        answer as {image_base64, content_type, size_bytes}; under UNIFI_DRY_RUN the
+        answer as {image_base64, content_type, size_bytes}; under dry-run policy the
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -941,11 +949,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         in) as a multipart file part with POST
         protect/api/recognition/vehicle/groups/batch-upload; the upstream response is
         returned unchanged. Invalid base64 is refused before any request. Under
-        UNIFI_DRY_RUN it returns a dry-run preview (part name, filename, type and size).
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        dry-run policy it returns a dry-run preview (part name, filename, type and size).
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: every vehicle row in the file is created as a recognition group.
         Returns the upstream response unchanged (an object, an array or null), a binary
-        answer as {image_base64, content_type, size_bytes}; under UNIFI_DRY_RUN the
+        answer as {image_base64, content_type, size_bytes}; under dry-run policy the
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -1013,7 +1021,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             search_text: What to look for, e.g. "white van in the driveway".
             start: Window start, epoch seconds, e.g. 1718000000.
             end: Window end, epoch seconds, e.g. 1718003600.
-            cameras: Camera ids or names, e.g. ["66f1a2b3c4d5e6f7a8b9c0d3"].
+            cameras: Camera ids or names, e.g. ["000000000000000000000114"].
                 Shape: string[]
             min_similarity: minSimilarity threshold sent as given, e.g. 0.25.
             order_by: orderBy value sent as given, e.g. "similarity".
@@ -1093,19 +1101,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST protect/api/report/ai-false-positive with {"eventId": event_id,
         "reportedThumbnails": reported_thumbnails} (the keys the frontend sends); the
-        upstream response is returned unchanged. Under UNIFI_DRY_RUN it returns a dry-run
-        preview. Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        upstream response is returned unchanged. Under dry-run policy it returns a dry-run
+        preview. Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
         Consequence: the report and the named thumbnails are submitted from the console.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
-            event_id: Event id from list_protect_events, e.g. "66f1a2b3c4d5e6f7a8b9c0d6".
+            event_id: Event id from list_protect_events, e.g. "000000000000000000000117".
             reported_thumbnails: Non-empty list of thumbnails of the event being reported, sent
                 as given (an empty list fails before any request), for example
-                ["e-66f1a2b3c4d5e6f7a8b9c0d6"].
+                ["e-000000000000000000000117"].
                 Shape: (string|object)[]; keys the server reads: none, each entry is sent as given
         """
         client, registry = deps_fn()
@@ -1121,18 +1129,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (private Protect API) with the body {"hide": hide}. The upstream response is
         returned unchanged. hide is required (no default); pass hide=false to show the
         enhanced image again. Under
-        UNIFI_DRY_RUN it returns a dry-run preview. Honours UNIFI_READ_ONLY and
-        UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
+        family:protect=deny.
         Consequence: the console stops (or resumes) displaying the enhanced image of that
         detection in the Protect app; the detection itself is kept.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             detection_id: Face detection id from list_recognition_detections,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d5".
+                e.g. "000000000000000000000116".
             hide: Required. true to hide the enhanced image, false to show it again,
                 e.g. true.
         """
@@ -1152,12 +1160,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body left with no field to send (empty, or only empty objects) is refused
         before any request with "No fields provided" (the message
         reads "apply 'settings'"). Nothing else is added, removed or rewritten. Under
-        UNIFI_DRY_RUN it returns a dry-run preview. Honours UNIFI_READ_ONLY and
-        UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
+        family:protect=deny.
         Consequence: the console stores the recognition outcome of the uploaded image
         (for example adding it to a recognition group).
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
@@ -1176,19 +1184,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST protect/api/recognition/objects/groups (private Protect API) with the body
         {"objectIds": object_ids}. The upstream response (the new group) is returned
-        unchanged. An empty list is refused before any request. Under UNIFI_DRY_RUN it
-        returns a dry-run preview. Honours UNIFI_READ_ONLY and
-        UNIFI_PROTECT_MUTATIONS_ENABLED=0.
+        unchanged. An empty list is refused before any request. Under dry-run policy it
+        returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
+        family:protect=deny.
         Consequence: the console creates a new object recognition group holding those
         recognized objects.
         Returns the upstream response unchanged (an object, an array or null); under
-        UNIFI_DRY_RUN the preview {status: "dry_run", dryRun, sent: false, message, preview:
+        dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             object_ids: Ids of the recognized objects to group, as the console reports
-                them, e.g. ["66f1a2b3c4d5e6f7a8b9c0d5", "66f1a2b3c4d5e6f7a8b9c0d6"].
+                them, e.g. ["000000000000000000000116", "000000000000000000000117"].
         """
         client, registry = deps_fn()
         return await _create_recognition_object_group(client, registry, host, object_ids)

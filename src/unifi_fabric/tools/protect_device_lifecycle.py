@@ -2,7 +2,7 @@
 
 Route choice (the official published API when it can do the job, else the private API the
 Protect web app calls). The official Protect Integration API pinned in
-``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.70) serves device
+``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.74) serves device
 settings PATCH for bridges, cameras, chimes, lights, link stations, sensors, speakers and
 viewers (``PATCH /v1/{family}/{id}``), so ``update_protect_device_settings`` uses it for
 those types. It has no route for re-adoption, firmware updates, locate, AI Port pairing,
@@ -123,7 +123,7 @@ _DOOR_LOCK_ACTION = TypeAdapter(DoorLockAction)
 _STRICT_BOOL = TypeAdapter(StrictBool)
 
 #: Device type -> official Integration API family (``PATCH /v1/{family}/{id}``) for the
-#: types the pinned protect 7.3.70 spec serves; the others use the private route.
+#: types the pinned protect 7.3.74 spec serves; the others use the private route.
 OFFICIAL_SETTINGS_FAMILY: dict[ProtectDeviceType, str] = {
     ProtectDeviceType.BRIDGE: "bridges",
     ProtectDeviceType.CAMERA: "cameras",
@@ -641,7 +641,8 @@ async def set_nvr_stack_membership(
     """Add a console to (or remove it from) the NVR stack (``/nvr-stacks/adopt|unadopt``)."""
     member = _STRICT_BOOL.validate_python(member)
     body: dict[str, Any] = {"mac": mac}
-    body.update(_given(reset=reset))
+    if not member:
+        body.update(_given(reset=reset))
     route = "/nvr-stacks/adopt" if member else "/nvr-stacks/unadopt"
     status = "adopt_requested" if member else "unadopt_requested"
     return await _console_post(client, registry, host, route, status, body)
@@ -705,7 +706,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /{collection}/{device_id}/readopt on the private Protect API (no official
         route), with ?reset= only when reset is given. Sent once, never auto-retried.
         Returns {status: "readopt_requested", response} with the upstream body verbatim.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", response: PREVIEW} and sends no
+        With dry-run policy, returns {status: "dry_run", response: PREVIEW} and sends no
         write. Dry-run response previews include body and params.
 
         Required arguments: host, device_type, device_id (see each parameter's description).
@@ -716,7 +717,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             device_type: Protect device type: aiport, aiprocessor, camera, chime, doorlock,
                 light, linkstation, sensor, speaker or viewer; for example "camera".
             device_id: Protect device id (24-hex) from the device's list tool or
-                get_protect_bootstrap; for example "66d025b301ebc903e80003ea".
+                get_protect_bootstrap; for example "00000000000000000000010b".
             reset: Also reset the device to defaults, sent as ?reset=; for example false.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -738,7 +739,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /{collection}/{device_id}/update on the private Protect API (no official
         route). Run check_protect_firmware_updates first to refresh what is available.
         Sent once, never auto-retried. Returns {status: "upgrade_requested", response}
-        with the upstream body verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        with the upstream body verbatim. With dry-run policy, returns {status: "dry_run",
         response: PREVIEW} and sends no write. Dry-run response previews include body
         and params.
 
@@ -749,7 +750,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 case-insensitive, or the long data[].id); for example "my-console".
             device_type: aiport, aiprocessor, camera, chime, light, linkstation, sensor,
                 speaker or viewer; for example "camera".
-            device_id: Protect device id (24-hex); for example "66d025b301ebc903e80003ea".
+            device_id: Protect device id (24-hex); for example "00000000000000000000010b".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -768,7 +769,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /{collection}/{device_id}/locate on the private Protect API (no
         official route); no body. Sent once, never auto-retried. Returns {status:
-        "locating", response} with the upstream body verbatim. With UNIFI_DRY_RUN, returns
+        "locating", response} with the upstream body verbatim. With dry-run policy, returns
         {status: "dry_run", response: PREVIEW} and sends no write. Dry-run response
         previews include body and params.
 
@@ -778,7 +779,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             device_type: aiport, doorlock, light, linkstation or sensor; for example "light".
-            device_id: Protect device id (24-hex); for example "66d025b301ebc903e80003ea".
+            device_id: Protect device id (24-hex); for example "00000000000000000000010b".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -795,7 +796,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Update settings of any Protect device type with read-back verification.
 
         Types bridge, camera, chime, light, linkstation, sensor, speaker and viewer use the
-        official PATCH /v1/{family}/{id} (spec Protect 7.3.70; read from GET
+        official PATCH /v1/{family}/{id} (spec Protect 7.3.74; read from GET
         /v1/{family}/{id}); aiport, aiprocessor, doorlock and nvr have no official PATCH
         and use the private PATCH /{collection}/{id} (nvr: PATCH /nvr, no device_id),
         read from GET /doorlocks/{id} or the bootstrap. settings is sent as given (partial
@@ -804,7 +805,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         otherwise {status: "updated", verified, before, after, response, _route}: verified
         is true when the read-after carries every sent leaf (type-strict), null with
         readAfterError when it cannot be read. An empty settings object fails before any
-        request. With UNIFI_DRY_RUN, returns {status: "dry_run", before, response:
+        request. With dry-run policy, returns {status: "dry_run", before, response:
         PREVIEW}. Dry-run response previews include body and params.
 
         Required arguments: host, device_type, settings (see each parameter's description).
@@ -817,7 +818,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             settings: Fields to change (free-form object, sent as given); for example
                 {"name": "Hallway chime"}.
             device_id: Protect device id (24-hex), required for every type but nvr; for
-                example "66d025b301ebc903e80003ea".
+                example "00000000000000000000010b".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -840,7 +841,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends {cameraIds} to POST /aiports/{aiport_id}/pair or /unpair on the private
         Protect API (no official route). Sent once. Returns {status: "paired" or
-        "unpaired", response} with the upstream body verbatim. With UNIFI_DRY_RUN, returns
+        "unpaired", response} with the upstream body verbatim. With dry-run policy, returns
         {status: "dry_run", response: PREVIEW} and sends no write. Dry-run response
         previews include body and params.
 
@@ -850,9 +851,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             aiport_id: AI Port id (24-hex) from get_protect_bootstrap aiports; for example
-                "66d025b301ebc903e80003eb".
+                "00000000000000000000010c".
             camera_ids: Non-empty list of camera ids sent as cameraIds (an empty list fails
-                before any request); for example ["66d025b301ebc903e80003ea"].
+                before any request); for example ["00000000000000000000010b"].
             paired: true pairs, false unpairs; for example true.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -876,7 +877,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         is sent as given (free-form object) and nothing is sent when it is omitted. Sent
         once. Returns {status, response} with the upstream body verbatim; status names the
         action: status: "start_requested", status: "pause_requested", status:
-        "resume_requested" or status: "cancel_requested". With UNIFI_DRY_RUN, returns
+        "resume_requested" or status: "cancel_requested". With dry-run policy, returns
         {status: "dry_run", response: PREVIEW}.
         Dry-run response previews include body and params.
 
@@ -913,7 +914,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         on the private Protect API (no official route); only the arguments you pass are
         sent. timestamp is epoch SECONDS and is sent as milliseconds. A POST, so it counts
         as a write (read-only mode refuses it). Returns {status: "sent", response} with the
-        analysis verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response:
+        analysis verbatim. With dry-run policy, returns {status: "dry_run", response:
         PREVIEW}. Dry-run response previews include body and params.
 
         Required arguments: host, camera_id (see each parameter's description).
@@ -922,10 +923,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             camera_id: Camera id (24-hex) from list_cameras; for example
-                "66d025b301ebc903e80003ea".
+                "00000000000000000000010b".
             timestamp: Moment to analyze, epoch SECONDS (sent as ms); for example 1760227200.
             channel: Camera channel index (0 is the highest quality); for example 0.
-            event_id: Event id from list_protect_events; for example "6acc281301811e03e42beafc".
+            event_id: Event id from list_protect_events; for example "000000000000000000000e01".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -949,7 +950,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /devices/checkUpdates on the private Protect API (no official route).
         Read the result afterwards from get_protect_bootstrap (each device's
         latestFirmwareVersion). A POST, so it counts as a write. Returns {status:
-        "check_requested", response} with the upstream body verbatim. With UNIFI_DRY_RUN,
+        "check_requested", response} with the upstream body verbatim. With dry-run policy,
         returns {status: "dry_run", response: PREVIEW}. Dry-run response previews
         include body and params.
 
@@ -973,7 +974,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /devices/updateAll on the private Protect API (no official route). Sent
         once, never auto-retried. Returns {status: "upgrade_requested", response} with the
-        upstream body verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response:
+        upstream body verbatim. With dry-run policy, returns {status: "dry_run", response:
         PREVIEW} and sends no write. Dry-run response previews include body and params.
 
         Required arguments: host (see each parameter's description).
@@ -1007,7 +1008,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             device_id: Protect device id (24-hex) of any device type; for example
-                "66d025b301ebc903e80003ea".
+                "00000000000000000000010b".
             predefined_time_range: Window to read, sent as predefinedTimeRange: "1day"
                 (30-minute buckets), "1week" (2-hour) or "1month" (daily); for example
                 "1week".
@@ -1030,7 +1031,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends {assignedBridge: bridge_id} to POST /sensors/{sensor_id}/assign-bridge on the
         private Protect API (no official route). Sent once. Returns {status: "assigned",
-        response} with the upstream body verbatim. With UNIFI_DRY_RUN, returns {status:
+        response} with the upstream body verbatim. With dry-run policy, returns {status:
         "dry_run", response: PREVIEW}. Dry-run response previews include body and params.
 
         Required arguments: host, sensor_id, bridge_id (see each parameter's description).
@@ -1039,9 +1040,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             sensor_id: Sensor id (24-hex) from list_sensors; for example
-                "66d025b301ebc903e80003ec".
+                "00000000000000000000010d".
             bridge_id: Bridge id (24-hex) from list_bridges, sent as assignedBridge; for
-                example "66d025b301ebc903e80003ed".
+                example "00000000000000000000010e".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1065,7 +1066,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             sensor_id: Sensor id (24-hex) from list_sensors; for example
-                "66d025b301ebc903e80003ec".
+                "00000000000000000000010d".
             start: Window start, epoch SECONDS; for example 1760140800.
             end: Window end, epoch SECONDS; for example 1760227200.
         """
@@ -1083,7 +1084,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /speakers/{speaker_id}/stop-stream on the private Protect API (no
         official route); no body. Sent once. Returns {status: "stopped", response} with the
-        upstream body verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response:
+        upstream body verbatim. With dry-run policy, returns {status: "dry_run", response:
         PREVIEW}. Dry-run response previews include body and params.
 
         Required arguments: host, speaker_id (see each parameter's description).
@@ -1092,7 +1093,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             speaker_id: Speaker id (24-hex) from list_speakers; for example
-                "66d025b301ebc903e80003ee".
+                "00000000000000000000010f".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1114,7 +1115,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body (the web UI builds it at run time, so it is free-form and sent as given, for
         example ringtone and volume); output "buzzer" sends POST /chimes/{chime_id}/
         play-buzzer. Private Protect API (no official route). Sent once. Returns {status:
-        "played", response} with the upstream body verbatim. With UNIFI_DRY_RUN, returns
+        "played", response} with the upstream body verbatim. With dry-run policy, returns
         {status: "dry_run", response: PREVIEW}. Dry-run response previews include body
         and params.
 
@@ -1124,7 +1125,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             chime_id: Chime id (24-hex) from list_chimes; for example
-                "66d025b301ebc903e80003ef".
+                "000000000000000000000110".
             output: "speaker" or "buzzer"; for example "speaker".
             options: Speaker body sent as given (free-form object); for example
                 {"volume": 60}.
@@ -1167,7 +1168,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /doorlocks/{doorlock_id}/autoClose on the private Protect API (no
         official route). The web UI builds the body at run time, so options is sent as
         given (free-form object) and nothing is sent when omitted. Sent once. Returns
-        {status: "sent", response} with the upstream body verbatim. With UNIFI_DRY_RUN,
+        {status: "sent", response} with the upstream body verbatim. With dry-run policy,
         returns {status: "dry_run", response: PREVIEW}. Dry-run response previews include
         body and params.
 
@@ -1177,7 +1178,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             doorlock_id: Door lock id (24-hex) from list_door_locks; for example
-                "66d025b301ebc903e80003f0".
+                "000000000000000000000111".
             options: Request body sent as given (free-form object); for example
                 {"autoCloseTimeMs": 15000}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -1201,7 +1202,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         official route). The web UI builds the body at run time, so options is sent as
         given (free-form object) and nothing is sent when omitted. Sent once, never
         auto-retried. Returns {status: "calibrating", response} with the upstream body
-        verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response: PREVIEW}.
+        verbatim. With dry-run policy, returns {status: "dry_run", response: PREVIEW}.
         Dry-run response previews include body and params.
 
         Required arguments: host, doorlock_id (see each parameter's description).
@@ -1210,7 +1211,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             doorlock_id: Door lock id (24-hex) from list_door_locks; for example
-                "66d025b301ebc903e80003f0".
+                "000000000000000000000111".
             options: Request body sent as given (free-form object); for example
                 {"step": "start"}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -1230,7 +1231,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /doorlocks/{doorlock_id}/open or /close on the private Protect API (no
         official route); no body. Sent once, never auto-retried. Returns {status: "opened"
         or "closed", response} with the upstream body verbatim; read lockStatus back with
-        list_door_locks. With UNIFI_DRY_RUN, returns {status: "dry_run", response:
+        list_door_locks. With dry-run policy, returns {status: "dry_run", response:
         PREVIEW}. Dry-run response previews include body and params.
 
         Required arguments: host, doorlock_id, action (see each parameter's description).
@@ -1239,7 +1240,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts (reportedState.hostname or name,
                 case-insensitive, or the long data[].id); for example "my-console".
             doorlock_id: Door lock id (24-hex) from list_door_locks; for example
-                "66d025b301ebc903e80003f0".
+                "000000000000000000000111".
             action: "open" (unlock) or "close" (lock); for example "close".
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -1261,7 +1262,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         password is a registered credential: it is masked in previews, results and error
         text only when UNIFI_REDACT_SECRETS is on, and always scrubbed from logs. Sent once.
         Returns {status: "adopt_requested", response} with the upstream body verbatim.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", response: PREVIEW}. Dry-run
+        With dry-run policy, returns {status: "dry_run", response: PREVIEW}. Dry-run
         response previews include body and params.
 
         Required arguments: host, camera (see each parameter's description).
@@ -1294,7 +1295,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         reset?} to POST /nvr-stacks/unadopt (private Protect API, no official route).
         reset is sent only when given. Sent once, never auto-retried. Returns {status:
         "adopt_requested" or "unadopt_requested", response} with the upstream body
-        verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response: PREVIEW}.
+        verbatim. With dry-run policy, returns {status: "dry_run", response: PREVIEW}.
         Dry-run response previews include body and params.
 
         Required arguments: host, mac, member (see each parameter's description).
@@ -1320,7 +1321,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         cameras, lights, sensors, doorlocks, chimes, viewers, bridges, speakers, aiports,
         users, groups, liveviews and the other collections the console sends (a bare array
         would be returned as {result, _count}). It is large
-        on a big estate. Camera share links and tokens in it are registered credentials:
+        on a large deployment. Camera share links and tokens in it are registered credentials:
         masked only when UNIFI_REDACT_SECRETS is on, otherwise verbatim.
 
         Required arguments: host (see each parameter's description).

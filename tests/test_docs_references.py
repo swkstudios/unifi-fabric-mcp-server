@@ -30,8 +30,9 @@ from pathlib import Path
 
 import pytest
 
+from tests.retired_names import migration_table_names
 from tests.test_api_keys_and_env_contract import _ENV_NAME, SRC, _is_read, _source_text
-from tests.test_docs_currency import HISTORICAL, IMAGE_RE, PACKAGE, VERSION
+from tests.test_docs_currency import HISTORICAL, IMAGE_RE, PACKAGE, PUBLISHED_VERSION, VERSION
 from unifi_fabric.redaction import CREDENTIAL_FIELDS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,7 +67,7 @@ _WALK_SKIP_DIRS = frozenset(
     }
 )
 _WALK_SKIP_DIR_SUFFIXES = (".egg-info",)
-_WALK_SKIP_PATHS = frozenset({"scripts/demo/out"})  # scripts/demo/.gitignore
+_WALK_SKIP_PATHS = frozenset()
 _WALK_SKIP_FILES = ("*.py[cod]", "*.egg", ".env*", ".coverage", ".coverage.*", "coverage.xml")
 
 
@@ -276,7 +277,6 @@ def test_tree_walk_skips_environment_and_build_output(tmp_path):
         "htmlcov/status.json",
         "node_modules/pkg/package.json",
         "plugins/.env.json",
-        "scripts/demo/out/frame.json",
         "src/pkg/__pycache__/cache.json",
         "src/pkg/notes.txt",
         "src/unifi_fabric.egg-info/README.md",
@@ -325,7 +325,8 @@ def test_every_documented_env_var_is_read_by_the_code():
     unread = sorted(
         f"{f.relative_to(ROOT)}: {name}"
         for f in FILES
-        for name in set(_ENV_NAME.findall(f.read_text(encoding="utf-8")))
+        for text in [f.read_text(encoding="utf-8")]
+        for name in set(_ENV_NAME.findall(text)) - migration_table_names(f, text)
         if not _is_read(name, src, tests)
     )
     assert unread == [], unread
@@ -335,7 +336,11 @@ def stale_image_tags(text: str) -> list[str]:
     bad = []
     for number, line in enumerate(text.splitlines(), 1):
         for m in IMAGE_RE.finditer(line):
-            if m["name"] != PACKAGE or m["sep"] != ":" or m["ref"] in {VERSION, "latest"}:
+            if (
+                m["name"] != PACKAGE
+                or m["sep"] != ":"
+                or m["ref"] in {VERSION, PUBLISHED_VERSION, "latest"}
+            ):
                 continue
             if not HISTORICAL.search(line):
                 bad.append(f"{number}: {m.group(0)}")

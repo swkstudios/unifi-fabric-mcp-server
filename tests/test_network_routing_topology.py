@@ -442,8 +442,9 @@ async def test_registered_tools_call_through_the_typed_wrappers() -> None:
     }
     assert set(calls) == TOOL_NAMES
     for name, args in calls.items():
+        before = len(client.calls)
         await mcp.call_tool(name, {"host": HOST, "site": SITE, **args})
-    assert len(client.calls) >= len(TOOL_NAMES)
+        assert len(client.calls) > before, name
 
 
 async def test_all_tools_are_registered_on_the_real_server() -> None:

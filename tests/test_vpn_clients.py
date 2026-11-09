@@ -164,7 +164,9 @@ async def test_an_unknown_vpn_client_sends_no_write(monkeypatch, name) -> None:
 )
 async def test_dry_run_previews_without_writing(monkeypatch, name, extra) -> None:
     up = uh.FakeUpstream()
-    result = await _call(monkeypatch, name, up, {**BASE, **extra}, env={"UNIFI_DRY_RUN": "true"})
+    result = await _call(
+        monkeypatch, name, up, {**BASE, **extra}, env={"UNIFI_WRITE_POLICY": "dry-run"}
+    )
     assert _writes(up) == []
     assert "dry_run" in _text(result)
 

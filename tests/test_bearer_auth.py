@@ -16,7 +16,7 @@ def _reload_server(monkeypatch, *, token: str = ""):
 
     Bearer auth applies to HTTP transports only (fail-closed),
     so whenever a token is set the transport is pinned to streamable-http to
-    mirror the Docker default and keep the config valid.
+    match the Docker default and keep the config valid.
     """
     if token:
         monkeypatch.setenv("MCP_BEARER_TOKEN", token)
@@ -83,25 +83,19 @@ class TestBearerTokenServerWiring:
 
 
 class TestStaticTokenVerifier:
-    async def test_correct_token_accepted(self):
-        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
-
-        verifier = StaticTokenVerifier(tokens={TOKEN: {"client_id": "mcp", "scopes": []}})
+    async def test_correct_token_accepted(self, monkeypatch):
+        verifier = _reload_server(monkeypatch, token=TOKEN).mcp.auth
         result = await verifier.verify_token(TOKEN)
         assert result is not None
         assert result.client_id == "mcp"
 
-    async def test_wrong_token_rejected(self):
-        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
-
-        verifier = StaticTokenVerifier(tokens={TOKEN: {"client_id": "mcp", "scopes": []}})
+    async def test_wrong_token_rejected(self, monkeypatch):
+        verifier = _reload_server(monkeypatch, token=TOKEN).mcp.auth
         result = await verifier.verify_token("wrong-token")
         assert result is None
 
-    async def test_empty_token_rejected(self):
-        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
-
-        verifier = StaticTokenVerifier(tokens={TOKEN: {"client_id": "mcp", "scopes": []}})
+    async def test_empty_token_rejected(self, monkeypatch):
+        verifier = _reload_server(monkeypatch, token=TOKEN).mcp.auth
         result = await verifier.verify_token("")
         assert result is None
 

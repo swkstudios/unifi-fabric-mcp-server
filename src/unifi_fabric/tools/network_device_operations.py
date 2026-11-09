@@ -24,7 +24,8 @@ Rules every tool here follows:
   as given; no required key is invented.
 * **Physical actions are sent once.** Writes are never auto-retried (the client's one
   retry rule retries only GETs).
-* ``UNIFI_DRY_RUN`` returns the client's preview ``{status: "dry_run", dryRun, sent: false, message,
+* ``dry-run policy`` returns the client's preview ``{status: "dry_run", dryRun, sent: false,
+message,
   preview: {method, path, params, body}}`` and sends nothing; resolution GETs still run.
 
 ``get_rolling_upgrade_plan`` with ``time_estimate=True`` reads through a POST. A
@@ -54,6 +55,7 @@ from ..client import (
     is_dry_run_preview,
     path_segment,
     upstream_error_text,
+    upstream_error_value,
     validate_selector,
 )
 from ..config import APIKeyConfig
@@ -69,8 +71,8 @@ from ._classic_cmd import (
     classic_command_body,
     classic_rc_failure,
 )
+from ._classic_objects import _object_rows, v2_site
 from ._classic_objects import resolve_site_slug as _resolve_site_slug
-from ._classic_objects import v2_site
 
 _CONSOLE = "/v1/connector/consoles/{host_id}/proxy/network"
 
@@ -293,8 +295,10 @@ def _classic_ok(client: UniFiClient, resp: httpx.Response, method: str, path: st
 
 def _device_label(record: dict[str, Any]) -> str:
     return (
-        f"{record.get('name')!r} (mac={record.get('mac')}, _id={record.get('_id')}, "
-        f"model={record.get('model')})"
+        f"{upstream_error_value(record.get('name'))!r} "
+        f"(mac={upstream_error_value(record.get('mac'))}, "
+        f"_id={upstream_error_value(record.get('_id'))}, "
+        f"model={upstream_error_value(record.get('model'))})"
     )
 
 
@@ -310,7 +314,7 @@ async def _site_devices(
             f"Unexpected response shape from GET {path}: expected an object with a 'data' "
             f"array, got {describe_shape(body)}"
         )
-    return [r for r in data if isinstance(r, dict)]
+    return _object_rows(data, path)
 
 
 async def _find_device(
@@ -915,10 +919,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         at run time and its keys were not recovered from the 11.0.81 bundle, so params is free-form
         and sent as given beside cmd (no key is added). Returns the Classic envelope {meta, data}
         verbatim; success requires meta.rc "ok", otherwise the error carries the full upstream body.
-        With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing. Consequence: build opens a shell
-        channel to the device; close ends it.
+        channel to the device; close ends it. Other action names execute arbitrary devmgr commands
+        with the consequences of that command; the SSH aliases do not restrict the command set.
 
         Required arguments: host, site (see each parameter's description).
 
@@ -948,7 +953,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Without port_idx sends Classic cmd/devmgr clear-switch-counters {mac}; with port_idx sends
         clear-switch-port-counters {mac, port_idx, unit_id}. The device is looked up in the site
         device list first (unknown or ambiguous values fail listing every device). Returns {meta,
-        data} verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run
+        data} verbatim; success requires meta.rc "ok". With dry-run policy, returns the dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}} and sends nothing. Consequence: the cleared counters are lost and cannot be restored.
 
@@ -979,7 +984,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends Classic cmd/devmgr clone-config {mac: target MAC, origin: source MAC, dry_run};
         dry_run (clone_dry_run) is the controller's own check of the clone and is sent only when
         given. Both devices are looked up in the site device list first. Returns {meta, data}
-        verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview
+        verbatim; success requires meta.rc "ok". With dry-run policy, returns the dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing. Consequence: the target device's configuration is overwritten by the source's
         and it reprovisions.
@@ -1015,7 +1020,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         delay_time_to_off}. The web app sends [{index}]; outlet_fields adds further keys of that
         entry as given (for example relay_state or cycle_enabled, as in the device's
         outlet_overrides). delay_time_to_off is sent only when given. Returns {meta, data} verbatim;
-        success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview {status:
+        success requires meta.rc "ok". With dry-run policy, returns the dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
         Consequence: the outlet's power changes or cycles at once, cutting power to whatever is
@@ -1030,7 +1035,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             outlet_index: outlet_table[].index of the outlet; for example 1.
             outlet_fields: Further outlet entry keys; for example {"relay_state": false}.
                 Free-form object.
-            delay_time_to_off: Delay before power off, sent as given; for example 0.
+            delay_time_to_off: Delay before power off in seconds, sent as given; for example 0.
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1053,7 +1058,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends Classic cmd/devmgr port-recovery {mac, port_idx, unit_id}, or with rps true
         rps-port-recovery {mac, port_idx} for a redundant-power-system port (the web app sends no
         unit_id there; one given is sent as given). Returns {meta, data} verbatim; success requires
-        meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun,
+        meta.rc "ok". With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun,
         sent: false, message, preview: {method, path, params, body}} and sends nothing. Consequence:
         a successful recovery may re-enable the port and resume traffic or power. The Network
         web app offers recovery only for a port blocked by loop detection or BPDU guard (rps:
@@ -1079,7 +1084,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Start a device self-test (the web app's UPS self-test).
 
         Sends Classic cmd/devmgr self-test {mac}. Returns {meta, data} verbatim; success requires
-        meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun,
+        meta.rc "ok". With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun,
         sent: false, message, preview: {method, path, params, body}} and sends nothing. Consequence:
         a UPS switches to battery for the test; a failing battery can drop power to connected
         equipment.
@@ -1102,7 +1107,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Turn a point-to-point bridge's antenna alignment mode on or off.
 
         Sends Classic cmd/devmgr set-alignment {mac} (enabled true) or unset-alignment {mac}.
-        Returns {meta, data} verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN, returns
+        Returns {meta, data} verbatim; success requires meta.rc "ok". With dry-run policy, returns
         the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
         path, params, body}} and sends nothing. Consequence: alignment mode changes the link's radio
         behaviour and can interrupt the bridge link.
@@ -1133,7 +1138,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         With enabled true it sends Classic cmd/devmgr set-priority-uplink with mac plus prefer1 and
         prefer2 (each only when given, as given); with enabled false it sends unset-priority-uplink
-        with mac. Returns {meta, data} verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN,
+        with mac. Returns {meta, data} verbatim; success requires meta.rc "ok". With dry-run policy,
         returns the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}} and sends nothing. Consequence: the device may switch its
         uplink, briefly interrupting its clients.
@@ -1160,7 +1165,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends Classic cmd/devmgr set-rearrange {mac} (enabled true) or unset-rearrange {mac}, as the
         web app's stacking page does. Returns {meta, data} verbatim; success requires meta.rc "ok".
-        With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing. Consequence: rearranging can
         renumber stack members and interrupt forwarding while the stack re-forms.
@@ -1186,7 +1191,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends Classic cmd/devmgr terminate-remote-user-vpn with params beside cmd. The web app
         builds this body at run time and its keys were not recovered from the 11.0.81 bundle, so
         params is free-form and sent as given (no key is added). Returns {meta, data} verbatim;
-        success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview {status:
+        success requires meta.rc "ok". With dry-run policy, returns the dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
         Consequence: the user's VPN tunnel drops at once; they can reconnect.
@@ -1197,7 +1202,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or composite id from list_hosts; for example "Home UDM".
             site: Network site name or id from list_local_sites; for example "Default".
             params: Body keys identifying the session, sent as given; for example
-                {"user_id": "65f1c0ffee0123456789abcd"}. Free-form object.
+                {"user_id": "000000000000000000000107"}. Free-form object.
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1217,7 +1222,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends Classic POST cmd/devmgr/port-locate {cmd: set-port-locate (enabled true) or
         unset-port-locate, mac, port_idx_list: [port_idx], unit_id}. Returns {meta, data} verbatim;
-        success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview {status:
+        success requires meta.rc "ok". With dry-run policy, returns the dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
         Consequence: only the port LEDs change; traffic is unaffected.
@@ -1244,7 +1249,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Unpair a UniFi Building Bridge (UBB) from its peer.
 
         Sends Classic POST cmd/devmgr/ubb-unpair {cmd: ubb-unpair, mac}. Returns {meta, data}
-        verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN, returns the dry-run preview
+        verbatim; success requires meta.rc "ok". With dry-run policy, returns the dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing. Consequence: the bridge link goes down and stays down until the pair is
         paired again; sites behind it lose connectivity.
@@ -1277,7 +1282,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         ports as the JSON array body, as the web app's "Clear last seen" port action does (it
         offers it for ports that are down, not trusted, and still show a last connection).
         A non-list, empty list or item without an integer port_idx is refused before any
-        request. Returns the upstream body verbatim. With UNIFI_DRY_RUN, returns the dry-run
+        request. Returns the upstream body verbatim. With dry-run policy, returns the dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}} and sends nothing.
         Consequence: the ports' last-seen client or uplink record is cleared; the port
@@ -1358,8 +1363,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         By default GET /v2/api/site/{site}/device/upgrade/rollupgrade/eligible-devices.
         time_estimate true: POST .../rollupgrade/time-estimate with estimate_body as given
         (free-form). Returns the upstream body verbatim in both modes. The estimate is a read sent
-        as a POST. The whole tool, including the GET mode, is hidden under UNIFI_READ_ONLY.
-        With UNIFI_DRY_RUN the POST returns the dry-run
+        as a POST. The whole tool, including the GET mode, is hidden under UNIFI_WRITE_POLICY=deny.
+        With dry-run policy the POST returns the dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}} and sends nothing. Consequence: none on devices; nothing is upgraded.
 
@@ -1410,7 +1415,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The device is looked up in the site device list; then POST /v2/api/site/{site}/
         device/{_id}/replace?replacementDeviceMac=replacement_mac (cancel true: DELETE .../replace,
         with the same query when replacement_mac is given). replacement_mac and body are sent as
-        given (free-form body). Returns the upstream body verbatim. With UNIFI_DRY_RUN, returns the
+        given (free-form body). Returns the upstream body verbatim. With dry-run policy, returns the
         dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}} and sends nothing. Consequence: the replacement takes over the old device's
         configuration and the old device is retired; cancel removes the pending replacement.
@@ -1445,7 +1450,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         The device is looked up in the site device list; then POST /v2/api/site/{site}/
         device/{mac}/battery/action {macs: battery_ids, action}. Returns the upstream body verbatim.
-        With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing. Consequence: reboot restarts the
         battery packs (backup power is unavailable while they restart); set-locate/unset-locate only
@@ -1481,7 +1486,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The device is looked up in the site device list; then POST /v2/api/site/{site}/
         device/{mac}/battery/update {macs: battery_ids, action: "upgrade", url}. url "" (the web
         app's value) uses the released firmware; a URL installs custom firmware. Returns the
-        upstream body verbatim. With UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run",
+        upstream body verbatim. With dry-run policy, returns the dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
         Consequence: the packs install firmware and restart; backup power is unavailable until they
         return.
@@ -1512,7 +1517,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         device_tag_additions and device_tag_removals arrays of tag _ids. list_device_tags returns
         the tag ids and member_device_macs showing current membership. The body is passed through
         without rewriting. Returns the upstream body verbatim. With
-        UNIFI_DRY_RUN, returns the dry-run preview {status: "dry_run", dryRun, sent: false, message,
+        dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
+        message,
         preview: {method, path, params, body}} and sends nothing. Consequence: tag membership
         changes, which can change tag-based policies.
 
@@ -1523,7 +1529,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             site: Network site name or id from list_local_sites; for example "Default".
             assignment_id: The managed device MAC; for example "02:00:5e:00:53:01".
             body: Request body sent as given; for example {"device_tag_additions":
-                ["65f1c0ffee0123456789abcd"], "device_tag_removals": []}. Arrays contain tag
+                ["000000000000000000000107"], "device_tag_removals": []}. Arrays contain tag
                 _ids; the object remains free-form.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -1544,7 +1550,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         uses: device (an array of device objects, each with _id and the fields to set), user and
         networkconf ({data: {fields}, id: [ids]}), setting ({objects: [...]}). Returns {meta, data}
         verbatim; success requires meta.rc "ok", otherwise the error carries the full upstream body.
-        Not read back (the body is free-form). With UNIFI_DRY_RUN, returns the dry-run preview
+        Not read back (the body is free-form). With dry-run policy, returns the dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing. Consequence: every listed object changes at once; devices may reprovision.
 

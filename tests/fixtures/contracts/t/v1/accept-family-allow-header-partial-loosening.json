@@ -1,0 +1,34 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "accept-family-allow-header-partial-loosening",
+  "description": "UNIFI_FAMILY_ALLOW=protect with X-UniFi-Family-Allow: protect,network exposes protect only and lists network as ignored loosening",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_FAMILY_ALLOW": "protect",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Family-Allow",
+        "protect,network"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "exclusions": [],
+      "exposed_families": [
+        "protect"
+      ],
+      "write_exceptions": [],
+      "write_policy": "allow"
+    },
+    "ignored_loosening": [
+      "x-unifi-family-allow=network"
+    ]
+  }
+}

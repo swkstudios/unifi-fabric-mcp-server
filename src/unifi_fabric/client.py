@@ -20,19 +20,23 @@ from fastmcp.exceptions import ToolError
 
 from . import route_secrets
 from ._paging_identity import PageHistory, page_is_repeat, page_stop, unique_page_rows
-from .audit import AuditSink, build_audit_sink
+from .audit import AuditStream, build_audit_stream
 from .config import APIKeyConfig, Settings
+from .header_credentials import CredentialCache, header_mode_enabled, request_key_configs
+from .policy import note_upstream_call
 from .read_only import (
     AreaOptOutError,
     ReadOnlyModeError,
     decoded_path,
     guard_area_write,
     guard_request,
+    guard_tool_write,
     is_write_request,
     state_changing_get_route,
 )
 from .redaction import (
     drop_and_note_masked_fields,
+    mask_error_text,
     redact_credentials,
     write_redaction_enabled,
     write_redaction_scope,
@@ -55,7 +59,7 @@ from .secret_scrub import (
     track_settings_holder,
 )
 from .selector_args import unknown_key_label_problem
-from .switches import READ_ONLY_ENV
+from .switches import READ_ONLY_ENV, dry_run_active
 from .write_body import require_unmasked_fields
 
 #: Gateway statuses after which a sent write may or may not have been applied.
@@ -90,6 +94,8 @@ def unknown_outcome_hint(path: str) -> str:
     it acts on, never by sending the action GET again.
     """
     verify = "the get_/list_ tool for the affected resource"
+    if re.fullmatch(r"/ea/sites/[^/]+/rest/firewallrule", path):
+        verify = "list_firewall_rules for the same host and site"
     for prefix, tools in _VERIFY_TOOLS:
         if path.startswith(prefix):
             verify = tools
@@ -552,7 +558,7 @@ DRY_RUN_MESSAGE = "DRY RUN - no upstream write was performed"
 
 
 def is_dry_run_preview(body: Any) -> bool:
-    """True when a decoded write response is the client's ``UNIFI_DRY_RUN`` preview.
+    """True when a decoded write response is the client's ``dry-run policy`` preview.
 
     A tool that verifies its write (read-before / write / read-after) must return the
     preview instead of verifying: no write was sent, so a read-after can only show the
@@ -624,17 +630,24 @@ def error_body_text(text: str, *, redact_secrets: bool) -> str:
     try:
         parsed = json.loads(text)
     except ValueError:
-        return text
+        # Not one JSON document (text around a body, a repr, k=v pairs): every
+        # credential field in it is masked where it stands.
+        return mask_error_text(text)
     # ensure_ascii=False: upstream text (a non-ASCII name or message) stays verbatim
     # instead of becoming \uXXXX escapes; only the credential fields are masked.
     return json.dumps(redact_credentials(parsed), separators=(",", ":"), ensure_ascii=False)
 
 
-def upstream_error_text(body: Any, client: Any = None) -> str:
-    """Format upstream evidence for errors without changing evidence used for comparisons."""
+def _error_redaction(client: Any) -> bool:
+    """``client``'s ``UNIFI_REDACT_SECRETS`` setting, else the enclosing tool call's."""
     settings = getattr(client, "_settings", None)
     enabled = getattr(settings, "redact_secrets", None)
-    redact = write_redaction_enabled() if enabled is None else bool(enabled)
+    return write_redaction_enabled() if enabled is None else bool(enabled)
+
+
+def upstream_error_text(body: Any, client: Any = None) -> str:
+    """Format upstream evidence for errors without changing evidence used for comparisons."""
+    redact = _error_redaction(client)
     if isinstance(body, BaseException):
         # Exceptions can surround a JSON body with method/status context and retry
         # guidance. Redact those structured bodies without losing the surrounding
@@ -642,20 +655,7 @@ def upstream_error_text(body: Any, client: Any = None) -> str:
         raw = str(body)
         if not redact:
             return raw
-        decoder = json.JSONDecoder()
-        pieces: list[str] = []
-        cursor = 0
-        for match in re.finditer(r"[\[{]", raw):
-            start = match.start()
-            if start < cursor:
-                continue
-            try:
-                _value, end = decoder.raw_decode(raw, start)
-            except ValueError:
-                continue
-            pieces.extend((raw[cursor:start], error_body_text(raw[start:end], redact_secrets=True)))
-            cursor = end
-        return "".join((*pieces, raw[cursor:]))
+        return mask_error_text(raw)
     raw = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False, default=str)
     return error_body_text(raw, redact_secrets=redact)
 
@@ -669,8 +669,12 @@ def upstream_error_value(value: Any, client: Any = None) -> Any:
         try:
             parsed = json.loads(value)
         except ValueError:
-            return value
-        return upstream_error_text(value, client) if isinstance(parsed, dict | list) else value
+            parsed = None
+        if isinstance(parsed, dict | list):
+            return upstream_error_text(value, client)
+        # A plain string stays as is unless it carries a credential pair ("a / {...}",
+        # k=v, a JSON-encoded object): that value alone is masked.
+        return mask_error_text(value) if _error_redaction(client) else value
     if value is None or isinstance(value, bool | int | float):
         return value
     return upstream_error_text(value, client)
@@ -724,7 +728,8 @@ def validate_id(value: str, name: str) -> None:
         raise ValueError(f"{name!r} must not be empty")
     if not _ID_SAFE_RE.match(value):
         raise ValueError(
-            f"Invalid {name!r} {value!r}: expected alphanumeric, hyphens, and underscores only"
+            f"Invalid {name!r} {upstream_error_value(value)!r}: expected alphanumeric, "
+            "hyphens, and underscores only"
         )
 
 
@@ -796,7 +801,7 @@ def path_segment(value: Any, name: str, *, max_length: int | None = None) -> str
     return encoded.replace(".", "%2E") if ".." in encoded else encoded
 
 
-def validate_host_id(value: str, name: str) -> None:
+def validate_host_id(value: str, name: str, *, client: Any = None) -> None:
     """Validate a host ID string is safe for use in an API URL path segment.
 
     Extends validate_id to also allow colons, which appear in UniFi composite
@@ -811,10 +816,13 @@ def validate_host_id(value: str, name: str) -> None:
     if not value:
         raise ValueError(f"{name!r} must not be empty")
     if _UNSAFE_PATH_RE.search(value):
-        raise ValueError(f"Invalid {name!r} {value!r}: contains unsafe characters")
+        raise ValueError(
+            f"Invalid {name!r} {upstream_error_value(value, client)!r}: contains unsafe characters"
+        )
     if not _HOST_ID_SAFE_RE.match(value):
         raise ValueError(
-            f"Invalid {name!r} {value!r}: expected alphanumeric, hyphens, underscores, and colons"
+            f"Invalid {name!r} {upstream_error_value(value, client)!r}: expected alphanumeric, "
+            "hyphens, underscores, and colons"
         )
 
 
@@ -838,11 +846,14 @@ def validate_spec_id(
     ``ValueError`` naming the argument and the rule; makes no request.
     """
     if not isinstance(value, str) or not value:
-        raise ValueError(f"{name!r} must be a non-empty string (got {value!r})")
+        raise ValueError(
+            f"{name!r} must be a non-empty string (got {upstream_error_value(value)!r})"
+        )
     validate_selector(value, name)
     if uuid and not _SPEC_UUID_RE.match(value):
         raise ValueError(
-            f"Invalid {name!r} {value!r}: the spec requires a UUID (format: uuid), e.g. "
+            f"Invalid {name!r} {upstream_error_value(value)!r}: the spec requires a UUID "
+            "(format: uuid), e.g. "
             "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         )
     if max_length is not None and len(value) > max_length:
@@ -983,15 +994,19 @@ class UniFiClient:
         # Keyed by (label, key fingerprint), never by label alone: two configs that share
         # a label must not share a connection pool that carries the first key's header.
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
+        # Header mode (UNIFI_KEY_MODE=header): per-request keys live in a bounded
+        # identity cache (label + full key digest, at most 256 identities, pinned while
+        # a call runs, LRU close-once eviction); environment keys keep _clients.
+        self._credential_cache = CredentialCache()
         self._semaphore = asyncio.Semaphore(settings.max_concurrency)
         # Fan-out tasks (``gather``) are bounded by their OWN semaphore. Sharing the
         # request semaphore deadlocked as soon as the number of fan-out tasks reached
         # max_concurrency: every slot was held by an outer task waiting on an inner
         # request that needed a slot.
         self._fanout_semaphore = asyncio.Semaphore(settings.max_concurrency)
-        # Opt-in dry-run + audit; both default off -> byte-identical path.
-        self._dry_run: bool = bool(settings.dry_run)
-        self._audit_sink: AuditSink | None = build_audit_sink(settings)
+        # Opt-in audit, default off -> byte-identical path. Dry-run is the write policy,
+        # read per request (switches.dry_run_active).
+        self._audit_sink: AuditStream | None = build_audit_stream(settings)
         # Log records (httpcore traces quote an illegal header value) are scrubbed of
         # this client's keys while it is alive.
         track_settings_holder(self)
@@ -1000,30 +1015,38 @@ class UniFiClient:
         install_log_scrubber()
 
     async def _get_client(self, key_config: APIKeyConfig) -> httpx.AsyncClient:
+        if header_mode_enabled():
+            client: httpx.AsyncClient = self._credential_cache.client(
+                key_config, "site_manager", self._new_http_client
+            )
+            return client
         cache_key = (key_config.label, _key_fingerprint(key_config.key))
         if cache_key not in self._clients:
-            try:
-                headers = httpx.Headers({"X-API-KEY": key_config.key, "Accept": "application/json"})
-            except UnicodeEncodeError:
-                # Settings validation rejects a non-ASCII key at startup; a key built in
-                # code can still reach here. The codec message quotes the offending
-                # character, so it is dropped and the key is named by label only.
-                raise ValueError(
-                    f"API key {key_config.label!r} contains a non-ASCII character, which "
-                    "an HTTP header cannot carry. Set its value in UNIFI_API_KEYS (or "
-                    "UNIFI_API_KEY for the single 'default' key) to the exact key with "
-                    "nothing added; the value is not shown here"
-                ) from None
-            self._clients[cache_key] = httpx.AsyncClient(
-                base_url=self._settings.api_base_url,
-                headers=headers,
-                timeout=None,  # noqa: S113 -- await completion or lifecycle cancellation
-                # Never follow a redirect: a 3xx is raised (see request), so a write is
-                # never re-sent to another location and the API key never leaves the
-                # configured origin.
-                follow_redirects=False,
-            )
+            self._clients[cache_key] = self._new_http_client(key_config)
         return self._clients[cache_key]
+
+    def _new_http_client(self, key_config: APIKeyConfig) -> httpx.AsyncClient:
+        try:
+            headers = httpx.Headers({"X-API-KEY": key_config.key, "Accept": "application/json"})
+        except UnicodeEncodeError:
+            # Settings validation rejects a non-ASCII key at startup; a key built in
+            # code can still reach here. The codec message quotes the offending
+            # character, so it is dropped and the key is named by label only.
+            raise ValueError(
+                f"API key {key_config.label!r} contains a non-ASCII character, which "
+                "an HTTP header cannot carry. Set its value in UNIFI_API_KEYS (or "
+                "UNIFI_API_KEY for the single 'default' key) to the exact key with "
+                "nothing added; the value is not shown here"
+            ) from None
+        return httpx.AsyncClient(
+            base_url=self._settings.api_base_url,
+            headers=headers,
+            timeout=None,  # noqa: S113 -- await completion or lifecycle cancellation
+            # Never follow a redirect: a 3xx is raised (see request), so a write is
+            # never re-sent to another location and the API key never leaves the
+            # configured origin.
+            follow_redirects=False,
+        )
 
     @property
     def paginate_max_pages(self) -> int | None:
@@ -1188,9 +1211,15 @@ class UniFiClient:
             extensions=resp.extensions,
         )
 
+    def _key_configs(self) -> list[APIKeyConfig]:
+        """The keys a call may use: the request's keys in header mode (none outside a
+        request, so no header means no upstream call), else the configured keys."""
+        request = request_key_configs()
+        return self._settings.get_key_configs() if request is None else request
+
     def get_key_by_label(self, label: str) -> APIKeyConfig:
         """Look up an API key config by its label."""
-        for cfg in self._settings.get_key_configs():
+        for cfg in self._key_configs():
             if cfg.label == label:
                 return cfg
         problem = unknown_key_label_problem(label, self.list_key_labels())
@@ -1198,11 +1227,16 @@ class UniFiClient:
 
     def list_key_labels(self) -> list[str]:
         """Return the labels of all configured API keys."""
-        return [cfg.label for cfg in self._settings.get_key_configs()]
+        return [cfg.label for cfg in self._key_configs()]
 
     def _default_key(self) -> APIKeyConfig:
-        configs = self._settings.get_key_configs()
+        configs = self._key_configs()
         if not configs:
+            if header_mode_enabled():
+                raise ValueError(
+                    "No API key on this request: header mode takes keys only from the "
+                    "X-UniFi-Api-Key header of the call."
+                )
             raise ValueError("No API key configured. Set UNIFI_API_KEY or UNIFI_API_KEYS.")
         return configs[0]
 
@@ -1282,9 +1316,9 @@ class UniFiClient:
             json: JSON request body
             files: Form files for multipart uploads
             accept: Per-request response media types; None keeps the JSON default.
-            max_retries: Override of the retry rule above (``None``, the default: 5 for a
-                read via GET, 0 for writes and every other method). Only a read via GET
-                should pass a value.
+            max_retries: Retries for a read via GET (``None``, the default: 5). Every other
+                request (writes, state-changing GETs and every other method) is sent once
+                whatever value is passed.
             raise_on_error: When True (default) a non-429 4xx/5xx response is raised as
                 UniFiConnectionError (the behaviour every typed tool relies on). When
                 False the response is returned regardless of status so the caller can
@@ -1334,9 +1368,13 @@ class UniFiClient:
         if reason is not None:
             message = f"Unsafe API path {path!r}: {reason}"
             if is_write:
-                self._audit_write(method, path, "refused", None, reason=message)
+                # The audited reason never quotes the path (a query or fragment, raw or
+                # percent-encoded, can carry credentials): the record's ``path`` field
+                # holds the cut path, and the raised message is the caller's own input.
+                audited = f"Unsafe API path: {reason}"
+                self._audit_write(method, path, "refused", None, reason=audited, body=json)
             raise ValueError(message)
-        # Global read-only switch (UNIFI_READ_ONLY, opt-in/default-off): refuse every
+        # Global read-only switch (UNIFI_WRITE_POLICY=deny, opt-in/default-off): refuse every
         # mutating upstream call before it is sent. This is the single central
         # chokepoint — every write tool routes its POST/PUT/PATCH/DELETE through here,
         # so the guard covers them all. The allowlisted read-POST routes
@@ -1353,25 +1391,31 @@ class UniFiClient:
         try:
             guard_request(method, path, always_write=is_write, body=json)
         except ReadOnlyModeError:
-            self._audit_write(method, path, "refused", None, reason=READ_ONLY_ENV)
+            self._audit_write(method, path, "refused", None, reason=READ_ONLY_ENV, body=json)
             raise
-        # Per-area write opt-outs (UNIFI_ENABLE_NETWORK_WRITE, UNIFI_PROTECT_MUTATIONS_ENABLED,
-        # UNIFI_ENABLE_MOBILITY_WRITE, UNIFI_ENABLE_CARRIER_FABRIC_WRITE,
-        # UNIFI_ENABLE_INNERSPACE_WRITE; all default on)
+        # Per-area write opt-outs (family:network=deny, family:protect=deny,
+        # family:mobility=deny, family:carrier=deny,
+        # family:innerspace=deny; all default on)
         # bind every write request to the area's routes here, the same chokepoint, so no
         # typed tool, shared helper or relay path can send one. Same precedence as
         # read-only mode: the opt-out wins over dry-run (no preview for a refused area).
         # The tool middleware refuses the area's write tools earlier, before any request.
         try:
             guard_area_write(method, path, always_write=is_write, body=json)
+            # The calling tool's own write mode (family:<id>=deny for every family, and
+            # tool:<name>=deny), so no deny exception is weaker at the chokepoint.
+            guard_tool_write(method, path, always_write=is_write, body=json)
         except AreaOptOutError as exc:
-            self._audit_write(method, path, "refused", None, reason=exc.env)
+            self._audit_write(method, path, "refused", None, reason=exc.env, body=json)
             raise
         # The method as every message names it (``get`` and ``GET`` read the same).
         verb = method.strip().upper()
-        if max_retries is None:
-            # Only reads via GET may retry: action GET routes can repeat physical effects.
-            max_retries = 5 if verb == "GET" and not is_write else 0
+        if verb != "GET" or is_write:
+            # Only reads via GET may retry, whatever the caller passes: a write, an action
+            # GET route or a read-POST is sent once (a 429 does not prove it was not applied).
+            max_retries = 0
+        elif max_retries is None:
+            max_retries = 5
         if is_write and strip_additive and json is not None:
             json = strip_additive_keys(json)
         if is_write and json is not None:
@@ -1382,14 +1426,16 @@ class UniFiClient:
             try:
                 require_unmasked_fields(json, f"{verb} body")
             except ValueError as exc:
-                self._audit_write(method, path, "refused", None, reason=str(exc))
+                self._audit_write(method, path, "refused", None, reason=str(exc), body=json)
                 raise
             json = drop_and_note_masked_fields(json)
-        if is_write and self._dry_run:
+        from .request_policy import request_dry_run_active
+
+        if is_write and (dry_run_active(path=decoded_path(path)) or request_dry_run_active()):
             # Opt-in dry-run: no upstream write is sent; return a labeled preview. It names
             # the key the write would use when one is configured; a preview needs no key.
-            self._audit_write(method, path, "dry_run", None)
-            configs = self._settings.get_key_configs()
+            self._audit_write(method, path, "dry_run", None, body=json)
+            configs = self._key_configs()
             preview_key = key or (configs[0] if configs else None)
             return self._dry_run_response(method, path, json, params, files, key=preview_key)
         key = key or self._default_key()
@@ -1398,6 +1444,7 @@ class UniFiClient:
         for attempt in range(max_retries + 1):
             try:
                 async with self._semaphore:
+                    note_upstream_call()  # counted for the policy.refusal record
                     resp = await client.request(
                         method,
                         path,
@@ -1415,12 +1462,12 @@ class UniFiClient:
             except httpx.HTTPError as exc:
                 # Every transport failure (timeout, connect/TLS/DNS, protocol, read/write,
                 # proxy, ...) is wrapped with method, path and the cause, and every write
-                # attempt is audited. ``from None`` drops only the chained httpx request
-                # object (which carries the API key header).
+                # attempt is audited. ``from None`` keeps the chained httpx exception (whose
+                # request carries the API key header) out of every rendered traceback.
                 # The cause text is scrubbed: httpx quotes an illegal header value (an API
                 # key with a newline, NUL or trailing space) in its message.
                 if is_write:
-                    self._audit_write(method, path, "error", None)
+                    self._audit_write(method, path, "error", None, body=json)
                 # A failure before the request left (connect, pool, local protocol) never
                 # reached the controller; anything later may have (never auto-retried).
                 request_sent = not isinstance(exc, _NOT_SENT_ERRORS)
@@ -1471,6 +1518,7 @@ class UniFiClient:
                         if classic_error is not None
                         else _outcome_label(resp.status_code),
                         resp.status_code,
+                        body=json,
                     )
                 if 300 <= resp.status_code < 400 and raise_on_error:
                     # A 3xx is never success and is never followed (a write must not be
@@ -1536,7 +1584,7 @@ class UniFiClient:
 
             if attempt == max_retries:
                 if is_write:
-                    self._audit_write(method, path, "rate_limited", 429)
+                    self._audit_write(method, path, "rate_limited", 429, body=json)
                 body = error_body_text(
                     resp.text, redact_secrets=bool(self._settings.redact_secrets)
                 )
@@ -1558,11 +1606,14 @@ class UniFiClient:
         """Append key-specific advice without rewriting an upstream response body."""
         if status not in (401, 403):
             return ""
-        source = (
-            f"UNIFI_API_KEYS key label {key.label!r}"
-            if self._settings.api_keys
-            else "UNIFI_API_KEY"
-        )
+        if header_mode_enabled():
+            source = f"X-UniFi-Api-Key label {key.label!r}"
+        else:
+            source = (
+                f"UNIFI_API_KEYS key label {key.label!r}"
+                if self._settings.api_keys
+                else "UNIFI_API_KEY"
+            )
         action = (
             "check that the key is valid and has not expired or been revoked"
             if status == 401
@@ -1571,7 +1622,7 @@ class UniFiClient:
         return (
             f"\nHint: {source}: {action}. Create or check keys at "
             "https://unifi.ui.com (Site Manager > API Keys); "
-            "see README#get-your-api-key."
+            "see README#1-join-your-fabric-and-create-an-api-key."
         )
 
     def _audit_write(
@@ -1582,11 +1633,13 @@ class UniFiClient:
         status: int | None,
         *,
         reason: str | None = None,
+        body: Any = None,
     ) -> None:
-        """Record a write attempt to the opt-in audit sink (no-op when unconfigured).
+        """Record a write attempt to the opt-in audit stream (no-op when unconfigured).
 
-        Never records a request body or credential — only method, resolved path,
-        outcome and status (and, for a refused attempt, the gate as ``reason``).
+        Records method, resolved path, outcome and status (and, for a refused attempt,
+        the gate as ``reason``). The request ``body`` is written only at
+        ``UNIFI_AUDIT_LEVEL=debug``, credential fields masked and secrets scrubbed.
         """
         if self._audit_sink is not None:
             self._audit_sink.record(
@@ -1595,6 +1648,7 @@ class UniFiClient:
                 outcome=outcome,
                 status=status,
                 reason=self._scrub(reason) if reason is not None else None,
+                body=body,
             )
 
     def audit_refusal(
@@ -1607,7 +1661,7 @@ class UniFiClient:
     ) -> None:
         """Audit a write attempt refused before any upstream call (``outcome=refused``).
 
-        ``reason`` names the gate (``UNIFI_READ_ONLY``, an area opt-out variable,
+        ``reason`` names the gate (``UNIFI_WRITE_POLICY=deny``, an area opt-out variable,
         ``empty_update`` ...). A refusal made before the tool body runs passes the
         ``tool`` name and no ``method`` / ``path``. No-op when the audit log is off.
         """
@@ -1623,19 +1677,29 @@ class UniFiClient:
 
     @property
     def audit_enabled(self) -> bool:
-        """True when the opt-in audit log (``UNIFI_AUDIT_LOG``) is on."""
-        return self._audit_sink is not None
+        """True when the opt-in audit stream writes records (a sink, level not off)."""
+        return self._audit_sink is not None and self._audit_sink.enabled
+
+    @property
+    def audit_stream(self) -> AuditStream | None:
+        """The configured audit stream (``None`` when no sink is configured)."""
+        return self._audit_sink
 
     @property
     def dry_run(self) -> bool:
-        """True when opt-in ``UNIFI_DRY_RUN`` is on: writes return a preview, never sent.
+        """True when the write policy previews this call's writes (``UNIFI_WRITE_POLICY=
+        dry-run`` or a ``dry-run`` exception for the calling tool), or the call being served
+        runs under a request ``dry-run`` write mode (:mod:`unifi_fabric.request_policy`):
+        writes return a preview, never sent.
 
         A verifying write tool consults it so its no-op short-circuit never stands in for
         the preview: under dry-run the write is always "sent" (to the preview), so the
         result is ``status: "dry_run"`` with the preview whether or not the change was
         already applied.
         """
-        return self._dry_run
+        from .request_policy import request_dry_run_active
+
+        return dry_run_active() or request_dry_run_active()
 
     def _dry_run_response(
         self,
@@ -2031,8 +2095,8 @@ class UniFiClient:
                     raise PaginationAbortedError(
                         path,
                         page_count,
-                        f"upstream reported totalCount {total_count} but returned no more "
-                        f"items after {len(all_items)}"
+                        f"upstream reported totalCount {upstream_error_value(total_count)} but "
+                        f"returned no more items after {len(all_items)}"
                         + (f" (starting at offset {start})" if start else ""),
                         items=all_items,
                         envelope=envelope,
@@ -2199,3 +2263,4 @@ class UniFiClient:
         for client in self._clients.values():
             await client.aclose()
         self._clients.clear()
+        await self._credential_cache.aclose()

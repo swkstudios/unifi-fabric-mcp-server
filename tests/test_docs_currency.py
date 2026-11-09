@@ -9,6 +9,12 @@ package / entry-point names equal pyproject's.
 Historical mentions are allowed only when the line says so (an upgrade note, a
 recorded live sweep, or an explicit ``docs-currency: historical`` marker). The
 CHANGELOG is history and is never scanned.
+
+Pin policy: version fields (pyproject, server.json, plugin/extension/manifest/formula
+metadata) equal pyproject's version, the in-development release. User-facing install
+pins (README/docs, plugin install args, client manifests, image tags) stay on the
+latest PUBLISHED release in ``scripts/published-version.txt`` until the new version is
+published; the release chain flips them at publication.
 """
 
 from __future__ import annotations
@@ -23,11 +29,13 @@ from pathlib import Path
 
 import pytest
 
+from scripts.gen_catalog_figures import PUBLISHED_VERSION
 from unifi_fabric import server
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text())
 VERSION = PYPROJECT["project"]["version"]
+
 PACKAGE = PYPROJECT["project"]["name"]
 ENTRY_POINTS = set(PYPROJECT["project"]["scripts"])
 
@@ -38,6 +46,7 @@ DOC_FILES = [
     README,
     *sorted((ROOT / "docs").glob("*.md")),
     ROOT / "CONTRIBUTING.md",
+    ROOT / "AGENTS.md",
     ROOT / "PRIVACY.md",
     PLUGIN_DIR / "README.md",
     ROOT / "plugins" / "codex" / "README.md",
@@ -100,6 +109,12 @@ def _lines(path: Path):
     yield from enumerate(path.read_text().splitlines(), 1)
 
 
+def _upgrade_guide(path: Path) -> bool:
+    """A ``MIGRATING-*`` guide records version transitions; scripts/prepare_release.py
+    never renders it, so its version strings are history, not install pins."""
+    return path.name.startswith("MIGRATING-")
+
+
 def _rel(path: Path) -> str:
     return str(path.relative_to(ROOT))
 
@@ -121,10 +136,21 @@ def test_project_versions_in_docs_equal_pyproject():
     bad = []
     for path in SNIPPET_FILES:
         for no, line in _lines(path):
-            if path.name == "MIGRATING-0.7.md" or HISTORICAL.search(line) or "clientInfo" in line:
+            if (
+                _upgrade_guide(path)
+                or HISTORICAL.search(line)
+                or "clientInfo" in line
+                or (path.name == "Dockerfile" and "apt-get download" in line)
+            ):
                 continue
             for m in version_re.finditer(line):
-                if m.group(0) != VERSION:
+                if m.group(0) != (
+                    VERSION
+                    if path == ROOT / "server.json"
+                    or '"version":' in line
+                    or "Tool counts at" in line
+                    else PUBLISHED_VERSION
+                ):
                     bad.append(f"{_rel(path)}:{no}: {m.group(0)} != {VERSION}")
     assert not bad, "stale version strings:\n" + "\n".join(bad)
 
@@ -152,7 +178,12 @@ def test_image_references_use_published_path_and_current_version():
                 where = f"{_rel(path)}:{no}"
                 if path.name != "server.json":  # the registry manifest names the public org
                     orgs.add(m["org"])
-                if m["sep"] == ":" and m["ref"] not in {VERSION, "latest"}:
+                if _upgrade_guide(path):
+                    continue
+                if m["sep"] == ":" and m["ref"] not in {
+                    VERSION if path.name == "server.json" else PUBLISHED_VERSION,
+                    "latest",
+                }:
                     if not HISTORICAL.search(line):
                         bad.append(f"{where}: image tag {m['ref']} != {VERSION}")
     assert seen >= 5, "expected image references in the docs"
@@ -168,11 +199,11 @@ def test_pinned_tag_mentions_equal_pyproject():
     bad = []
     for path in SNIPPET_FILES:
         for no, line in _lines(path):
-            if HISTORICAL.search(line):
+            if _upgrade_guide(path) or HISTORICAL.search(line):
                 continue
             for m in tag_re.finditer(line):
                 found = m.group(1) or m.group(2)
-                if found != VERSION:
+                if found != PUBLISHED_VERSION:
                     bad.append(f"{_rel(path)}:{no}: {found} != {VERSION}")
     assert not bad, "\n".join(bad)
 
@@ -195,6 +226,11 @@ def test_prose_tool_counts_equal_registry():
         for no, line in _lines(path):
             for m in count_re.finditer(line):
                 n = int(m.group(1) or m.group(2))
+                # "N tools remain and M are excluded" is the official-only subset
+                # (UNIFI_EXCLUDE=unofficial,source:relay, also under UNIFI_WRITE_POLICY=deny),
+                # rendered and checked against the running server by gen_catalog_figures.py.
+                if re.match(r"\s+remain\s+and\s+\d+\s+are\s+excluded", line[m.end() :]):
+                    continue
                 # "this release's N tools" names the current catalog even on a line that
                 # also cites a historical sweep, so the historical marker never exempts it.
                 current = line[max(0, m.start() - 15) : m.start()].endswith("this release's ")
@@ -207,13 +243,24 @@ def test_prose_tool_counts_equal_registry():
     assert not bad, "stale tool counts:\n" + "\n".join(bad)
 
 
-def test_readme_domain_table_sums_to_registry():
+def test_readme_family_table_sums_to_registry():
+    """The README family table plus the families it leaves out make up the registry."""
     text = README.read_text()
-    start = text.index("| Domain | Domain tools available | Purpose |")
-    block = text[start : text.index("\n\n", start)]
-    counts = [int(m) for m in re.findall(r"^\| \*\*[^|]+\*\* \| (\d+) \|", block, re.M)]
-    assert counts, "domain table not found"
-    assert sum(counts) == _lz_TOOL_COUNT(), (sum(counts), _lz_TOOL_COUNT())
+    start = text.index("<!-- BEGIN GENERATED: tool-families -->")
+    block = text[start : text.index("<!-- END GENERATED -->", start)]
+    counts = [int(n) for n in re.findall(r"\| [A-Za-z][^|]* \| (\d+) ", block)]
+    assert counts, "family table not found"
+    flat = " ".join(block.split())
+    listed = int(re.search(r"\*\*(\d+)\*\* are in the product families", flat)[1])
+    remaining = int(re.search(r"The remaining (\d+) cover", flat)[1])
+    registered = int(re.search(r"\*\*(\d+) registered tools\*\*", flat)[1])
+    assert sum(counts) == listed, (sum(counts), listed)
+    assert listed + remaining == registered == _lz_TOOL_COUNT(), (
+        listed,
+        remaining,
+        registered,
+        _lz_TOOL_COUNT(),
+    )
 
 
 def shape_totals() -> tuple[int, int, int]:
@@ -239,11 +286,13 @@ SHAPE_CLAIM_RE = re.compile(
 )
 
 
-def test_readme_body_shape_size_is_exact():
-    text = " ".join(README.read_text().split())
+def test_catalog_body_shape_size_is_exact():
+    """The catalog-size note (docs/CATALOG.md, and the README if it states one) is exact."""
+    text = " ".join((ROOT / "docs" / "CATALOG.md").read_text().split())
+    assert SHAPE_CLAIM_RE.findall(text), "docs/CATALOG.md states no body-shape size (vacuous)"
+    text += " " + " ".join(README.read_text().split())
     shaped, _free, size = shape_totals()
     found = SHAPE_CLAIM_RE.findall(text)
-    assert found, "README states no body-shape size (vacuous)"
     for count, size_text in found:
         assert (int(count), int(size_text.replace(",", ""))) == (shaped, size)
     # Not every tool carries an example call; the catalog-size prose must not say so.
@@ -309,7 +358,7 @@ def test_documented_package_and_entry_point_names():
                     pkg, _, pin = m["pkg"].partition("==")
                     if pkg != PACKAGE:
                         bad.append(f"{_rel(path)}:{no}: package {pkg} != {PACKAGE}")
-                    if pin and pin != VERSION:
+                    if pin and pin != PUBLISHED_VERSION and not _upgrade_guide(path):
                         bad.append(f"{_rel(path)}:{no}: pin {pin} != {VERSION}")
                     if m["ep"] not in ENTRY_POINTS:
                         bad.append(f"{_rel(path)}:{no}: entry point {m['ep']}")
@@ -340,12 +389,12 @@ def test_claude_plugin_manifest_pins_current_release():
     assert list(servers) == ["unifi-fabric"], list(servers)
     server_cfg = servers["unifi-fabric"]
     assert server_cfg["command"] == "uvx"
-    assert server_cfg["args"] == ["--from", f"{PACKAGE}=={VERSION}", "unifi-fabric-mcp"]
+    assert server_cfg["args"] == ["--from", f"{PACKAGE}=={PUBLISHED_VERSION}", "unifi-fabric-mcp"]
     # The key comes only from the plugin's sensitive userConfig, never the user's env.
     assert server_cfg["env"]["UNIFI_API_KEY"] == "${user_config.unifi_api_key}"
     assert data["userConfig"]["unifi_api_key"]["sensitive"] is True
-    assert server_cfg["env"]["UNIFI_READ_ONLY"] == "${user_config.read_only}"
-    assert data["userConfig"]["read_only"]["default"] is False
+    assert server_cfg["env"]["UNIFI_WRITE_POLICY"] == "${user_config.write_policy}"
+    assert data["userConfig"]["write_policy"]["default"] == "allow"
 
 
 def test_claude_plugin_folder_is_self_contained():
@@ -372,9 +421,11 @@ def test_claude_plugin_folder_is_self_contained():
 def _pinned_uvx(server_cfg: dict) -> None:
     """A stdio entry launches exactly ``uvx --from <package>==<version> <entry point>``."""
     assert server_cfg["command"] == "uvx", server_cfg
-    assert server_cfg["args"] == ["--from", f"{PACKAGE}=={VERSION}", "unifi-fabric-mcp"], (
-        server_cfg["args"]
-    )
+    assert server_cfg["args"] == [
+        "--from",
+        f"{PACKAGE}=={PUBLISHED_VERSION}",
+        "unifi-fabric-mcp",
+    ], server_cfg["args"]
 
 
 def test_client_integrations_pin_current_release():
@@ -417,7 +468,7 @@ def test_client_integrations_store_no_key():
     """
     codex = json.loads(CODEX_MCP.read_text())["mcpServers"]["unifi-fabric"]
     assert "env" not in codex
-    assert codex["env_vars"] == ["UNIFI_API_KEY", "UNIFI_READ_ONLY", "UNIFI_TOOL_MODE"]
+    assert codex["env_vars"] == ["UNIFI_API_KEY", "UNIFI_WRITE_POLICY", "UNIFI_TOOL_MODE"]
 
     antigravity = json.loads(ANTIGRAVITY_MCP.read_text())["mcpServers"]["unifi-fabric"]
     assert "env" not in antigravity
@@ -430,9 +481,9 @@ def test_client_integrations_store_no_key():
     mcpb = json.loads(MCPB_MANIFEST.read_text())
     env = mcpb["server"]["mcp_config"]["env"]
     assert env["UNIFI_API_KEY"] == "${user_config.unifi_api_key}"
-    assert env["UNIFI_READ_ONLY"] == "${user_config.read_only}"
+    assert env["UNIFI_WRITE_POLICY"] == "${user_config.write_policy}"
     assert mcpb["user_config"]["unifi_api_key"]["sensitive"] is True
-    assert mcpb["user_config"]["read_only"]["default"] is False
+    assert mcpb["user_config"]["write_policy"]["default"] == "allow"
 
 
 def test_client_integrations_default_to_discovery_with_full_opt_out():
@@ -480,7 +531,7 @@ def test_client_integrations_default_to_discovery_with_full_opt_out():
     assert variables, "server.json declares no UNIFI_TOOL_MODE"
     for variable in variables:
         assert variable["default"] == "discovery"
-        assert variable["choices"] == ["discovery", "full"]
+        assert variable["choices"] == ["discovery", "full", "codemode"]
         assert variable["isRequired"] is False
 
 
@@ -507,6 +558,49 @@ def test_migration_guide_is_in_the_documentation_corpus():
     assert "# Migrating to 0.7.0" in guide.read_text()
 
 
+def _migrator():
+    import importlib.util
+    import sys
+
+    script = ROOT / "tools" / "migrate-0.7.1-env.py"
+    spec = importlib.util.spec_from_file_location("migrate_071_env", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module  # dataclasses resolve string annotations through sys.modules
+    spec.loader.exec_module(module)
+    return module
+
+
+def _mapping_table(text: str) -> list[tuple[str, ...]]:
+    """The rows of the first table under ``## Mapping``, code spans unwrapped."""
+    section = text.split("\n## Mapping\n", 1)[1].split("\n## ", 1)[0]
+    rows = [line for line in section.splitlines() if line.startswith("|")]
+    assert len(rows) > 2, "the Mapping section has no table"
+    return [
+        tuple(cell.strip().replace("`", "") for cell in row.strip().strip("|").split("|"))
+        for row in rows[2:]
+    ]
+
+
+def test_upgrade_guide_table_equals_the_migrator_mapping():
+    """docs/MIGRATING-0.7.1.md and tools/migrate-0.7.1-env.py hold one mapping."""
+    guide = ROOT / "docs" / "MIGRATING-0.7.1.md"
+    assert guide in DOC_FILES
+    assert _mapping_table(guide.read_text()) == list(_migrator().MAPPING_ROWS)
+
+
+def test_startup_refusal_points_at_the_guide_and_migrator_in_this_tree():
+    from unifi_fabric import policy
+
+    migrator = _migrator()
+    assert policy.MIGRATION_URL == migrator.GUIDE
+    assert policy.MIGRATION_URL.endswith("/blob/v0.7.1/docs/MIGRATING-0.7.1.md")
+    assert (ROOT / "docs" / "MIGRATING-0.7.1.md").is_file()
+    assert migrator.SCRIPT_URL in policy.MIGRATION_COMMAND
+    assert (ROOT / migrator.SCRIPT_URL.split("/v0.7.1/", 1)[1]).is_file()
+    assert "MIGRATING-0.7.1.md" in (ROOT / "docs" / "MIGRATING-0.7.md").read_text()
+
+
 def test_release_count_phrases_are_generated_from_the_registry():
     """gen_tools_doc owns every "this release's N tools" phrase (docs/COVERAGE.md)."""
     import importlib.util
@@ -519,3 +613,22 @@ def test_release_count_phrases_are_generated_from_the_registry():
     stale = gen.release_count_drift(_lz_TOOL_COUNT())
     assert stale == [], f"run python3 scripts/gen_tools_doc.py: {stale}"
     assert any("this release's" in p.read_text() for p in gen.RELEASE_COUNT_FILES)
+
+
+def test_install_pins_equal_published_version_and_version_fields_equal_pyproject():
+    """Install pins == published-version.txt; version fields == pyproject version."""
+    published = (ROOT / "scripts" / "published-version.txt").read_text().strip()
+    assert published == PUBLISHED_VERSION
+
+    pin = re.compile(re.escape(PACKAGE) + r"==(\d+\.\d+\.\d+)")
+    for path in (PLUGIN_MANIFEST, CODEX_MCP, ANTIGRAVITY_MCP, GEMINI_EXTENSION, MCPB_MANIFEST):
+        found = pin.findall(path.read_text())
+        assert found, f"{path.name}: no install pin"
+        assert set(found) == {published}, (path.name, found, published)
+
+    for path in (PLUGIN_MANIFEST, CODEX_MANIFEST, GEMINI_EXTENSION, MCPB_MANIFEST):
+        assert json.loads(path.read_text())["version"] == VERSION, path.name
+    registry = json.loads((ROOT / "server.json").read_text())
+    assert registry["version"] == VERSION
+    for package in registry["packages"]:
+        assert package.get("version", package["identifier"].rpartition(":")[2]) == VERSION

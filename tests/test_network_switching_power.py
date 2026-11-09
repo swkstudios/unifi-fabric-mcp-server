@@ -458,6 +458,36 @@ async def test_mac_tables_query_is_sent_as_the_json_array_the_route_deserializes
 
 
 @pytest.mark.parametrize(
+    "arguments,body",
+    [
+        # The documented legacy object: the route answers HTTP 400 to an object, so the
+        # tool sends it as the one-item array the web app posts.
+        (
+            {"query": {"mac": "02:00:5e:00:53:01", "ports": [1, 2]}},
+            [{"mac": "02:00:5e:00:53:01", "ports": [1, 2]}],
+        ),
+        (
+            {"queries": [{"mac": "02:00:5e:00:53:01", "ports": [1]}]},
+            [{"mac": "02:00:5e:00:53:01", "ports": [1]}],
+        ),
+        # Any other legacy value is forwarded unchanged (the controller judges it).
+        ({"query": {"future": {"nested": [None, 7]}}}, {"future": {"nested": [None, 7]}}),
+    ],
+)
+async def test_mac_tables_tool_sends_the_documented_legacy_object_as_an_array(arguments, body):
+    client, registry = Client(), Registry()
+    mcp = FastMCP("mac-tables")
+    power.register(mcp, lambda: (client, registry))
+    tool = next(t for t in await mcp.list_tools() if t.name == "query_switch_mac_tables")
+    await tool.run({"host": HOST, "site": SITE, **arguments})
+    posts = [c for c in client.calls if c[0] == "POST"]
+    assert len(posts) == 1
+    method, path, sent, _ = posts[0]
+    assert path.removeprefix(V2) == "/ports/mac-tables"
+    assert sent == body
+
+
+@pytest.mark.parametrize(
     "query,match",
     [
         ({"macs": ["02:00:5e:00:53:01"]}, "must be a JSON array of"),

@@ -16,6 +16,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -23,7 +24,7 @@ import pytest
 import respx
 
 import unifi_fabric
-from unifi_fabric.audit import _AUDIT_START, AuditSink, build_audit_sink
+from unifi_fabric.audit import _AUDIT_START, AuditStream, build_audit_sink
 from unifi_fabric.client import UniFiClient, is_write_request
 from unifi_fabric.config import Settings
 from unifi_fabric.families import (
@@ -37,7 +38,28 @@ from unifi_fabric.secret_scrub import secret_scope
 BASE = "https://api.ui.com"
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def _client(**kw) -> UniFiClient:
+    kw = _modes(kw)
     return UniFiClient(Settings(api_key="k", api_base_url=BASE, **kw))
 
 
@@ -68,13 +90,13 @@ def test_every_tool_module_is_mapped_to_a_family() -> None:
     """Every module that defines a registered tool names its family (class: module missing).
 
     A tool whose module is absent from MODULE_FAMILY is unclassified, and the allowlist
-    never removes an unclassified tool, so UNIFI_TOOL_FAMILIES=protect would still list
+    never removes an unclassified tool, so UNIFI_FAMILY_ALLOW=protect would still list
     it (and the area write opt-outs, keyed by family, would skip it).
     """
     import asyncio
 
     import unifi_fabric.server as server
-    from unifi_fabric.families import MODULE_FAMILY, firewall_route_tools
+    from unifi_fabric.families import FAMILY_OVERRIDES, MODULE_FAMILY, firewall_route_tools
 
     index = build_family_index()
     firewall = firewall_route_tools()
@@ -87,10 +109,12 @@ def test_every_tool_module_is_mapped_to_a_family() -> None:
         if module == "server":
             continue  # inline wrappers are classified by the module they delegate to
         assert module in MODULE_FAMILY, f"tools module {module} has no family"
-        # Every tool is in its module's family, except that a tool calling a firewall
-        # route is in ``firewall`` (assigned by route, whatever module defines it).
+        # Split CRUD families override the module/route default, as in the catalog.
+        # Every remaining firewall-route tool belongs to the firewall family.
         assert all(
-            index.get(n) == ("firewall" if n in firewall else MODULE_FAMILY[module]) for n in names
+            index.get(n)
+            == FAMILY_OVERRIDES.get(n, "firewall" if n in firewall else MODULE_FAMILY[module])
+            for n in names
         ), module
     assert {t.name for t in tools} - set(index) == set()
 
@@ -122,7 +146,7 @@ async def test_single_family_selection_leaves_only_that_family() -> None:
     for family in ALL_FAMILIES:
         tools = {name: SimpleNamespace(name=name) for name in index}
         mcp = SimpleNamespace(
-            list_tools=AsyncMock(side_effect=lambda tools=tools: list(tools.values())),
+            list_tools=AsyncMock(side_effect=lambda tools=tools, **_kw: list(tools.values())),
             local_provider=SimpleNamespace(remove_tool=tools.pop),
         )
         removed = await apply_tool_family_filter(mcp, family)
@@ -313,8 +337,8 @@ def test_audit_sink_off_by_default() -> None:
 
 def test_audit_sink_text_and_json(tmp_path) -> None:
     t = tmp_path / "a.log"
-    sink = build_audit_sink(Settings(audit_log=str(t)))
-    assert isinstance(sink, AuditSink) and sink.fmt == "text"
+    sink = build_audit_sink(Settings(audit_log=str(t), audit_log_format="text"))
+    assert isinstance(sink, AuditStream) and sink.fmt == "text"
     sink.record(method="POST", path="/x", outcome="success", status=200)
     assert "method=POST path=/x outcome=success status=200" in t.read_text()
 
@@ -322,7 +346,7 @@ def test_audit_sink_text_and_json(tmp_path) -> None:
     sink = build_audit_sink(Settings(audit_log=str(j), audit_log_format="json"))
     sink.record(method="DELETE", path="/y/1", outcome="success", status=200)
     rec = json.loads(j.read_text().strip())
-    assert rec["method"] == "DELETE" and rec["path"] == "/y/1" and "timestamp" in rec
+    assert rec["method"] == "DELETE" and rec["path"] == "/y/1" and "timestamp_utc" in rec
 
 
 def test_audit_json_record_stays_valid_when_a_numeric_secret_matches_a_number(
@@ -360,7 +384,7 @@ async def test_audit_off_writes_nothing(tmp_path) -> None:
 async def test_audit_records_real_write(tmp_path) -> None:
     respx.post(f"{BASE}/v1/x/networks").mock(return_value=httpx.Response(200, json={"ok": 1}))
     f = tmp_path / "audit.log"
-    client = _client(audit_log=str(f))
+    client = _client(audit_log=str(f), audit_log_format="text")
     await client.request("POST", "/v1/x/networks", json={"name": "n"})
     assert "method=POST" in f.read_text() and "outcome=success" in f.read_text()
 
@@ -553,5 +577,5 @@ async def test_disabled_families_are_applied_after_allowlist() -> None:
     assert "network" in {index[name] for name in await _registered_names(mcp)}
 
     mcp = FastMCP("families")
-    with pytest.raises(ValueError, match="UNIFI_DISABLED_TOOL_FAMILIES names unknown"):
+    with pytest.raises(ValueError, match="family exclusion list names unknown"):
         await apply_tool_family_filter(mcp, None, "not-a-family")

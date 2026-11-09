@@ -13,7 +13,7 @@ from fastmcp import Client, FastMCP
 from fastmcp.server.auth import AccessToken
 
 from unifi_fabric import route_secrets as rs
-from unifi_fabric import server
+from unifi_fabric import server, switches
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
 from unifi_fabric.discovery import apply_tool_mode
@@ -56,10 +56,11 @@ def test_registered_path_credential_binding_and_exact_span_masking(prefix):
 
 @pytest.mark.parametrize("redact", [False, True])
 @pytest.mark.parametrize("surface", ["typed", "relay"])
-async def test_shared_project_dry_run_masks_all_emitted_path_metadata(registry, redact, surface):
-    client = UniFiClient(
-        Settings(api_key="synthetic-path-key", dry_run=True, redact_secrets=redact)
-    )
+async def test_shared_project_dry_run_masks_all_emitted_path_metadata(
+    registry, redact, surface, monkeypatch
+):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings(api_key="synthetic-path-key", redact_secrets=redact))
     with respx.mock(assert_all_called=False) as router:
         if surface == "typed":
             result = await innerspace_internal.import_innerspace_shared_project(
@@ -114,11 +115,16 @@ async def test_shared_project_client_exception_scrubs_path_token(redact):
 
 @pytest.mark.parametrize("action", ACTIONS)
 @pytest.mark.parametrize(
-    "gate", ["UNIFI_READ_ONLY", "UNIFI_ENABLE_CONNECTOR_WRITE", "UNIFI_PROTECT_MUTATIONS_ENABLED"]
+    "gate", ["UNIFI_WRITE_POLICY", "family:connector=deny", "family:protect=deny"]
 )
 async def test_action_get_refused_before_host_resolution(monkeypatch, registry, action, gate):
-    monkeypatch.setenv(gate, "1" if gate == "UNIFI_READ_ONLY" else "0")
-    client = UniFiClient(Settings(api_key="synthetic-action-key", dry_run=True))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    (
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+        if gate == "UNIFI_WRITE_POLICY"
+        else monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", gate)
+    )
+    client = UniFiClient(Settings(api_key="synthetic-action-key"))
     with pytest.raises((ValueError, RuntimeError), match=gate):
         await connector.connector_get(client, registry, HOST, f"protect/api/cameras/fake/{action}")
     registry.resolve_key_for_host.assert_not_awaited()
@@ -126,11 +132,12 @@ async def test_action_get_refused_before_host_resolution(monkeypatch, registry, 
 
 
 @pytest.mark.parametrize("action", ACTIONS)
-async def test_action_get_dry_run_is_audited_without_upstream(registry, action, tmp_path):
+async def test_action_get_dry_run_is_audited_without_upstream(
+    registry, action, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     audit = tmp_path / "writes.log"
-    client = UniFiClient(
-        Settings(api_key="synthetic-action-key", dry_run=True, audit_log=str(audit))
-    )
+    client = UniFiClient(Settings(api_key="synthetic-action-key", audit_log=str(audit)))
     with respx.mock(assert_all_called=False) as router:
         result = await connector.connector_get(
             client, registry, HOST, f"protect/api/cameras/fake/{action}"
@@ -172,10 +179,10 @@ async def test_action_get_429_is_sent_once(registry, action, surface, monkeypatc
 
 
 async def test_ordinary_get_keeps_retries_and_ignores_write_opt_outs(registry, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
-    client = UniFiClient(Settings(api_key="synthetic-action-key", dry_run=True))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny;family:protect=deny")
+    client = UniFiClient(Settings(api_key="synthetic-action-key"))
     path = "protect/api/cameras/fake"
     monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", AsyncMock())
     with respx.mock as router:
@@ -198,7 +205,7 @@ async def _relay_app(monkeypatch, registry, client, scopes):
     app.add_tool(await server.mcp.get_tool("fabric_connector_get"))
     app.add_middleware(ReadOnlyToolMiddleware(app))
     app.add_middleware(WriteScopeMiddleware(app, lambda: "unifi.write"))
-    app.add_middleware(AreaOptOutMiddleware(app, lambda: client._settings.enable_connector_write))
+    app.add_middleware(AreaOptOutMiddleware(app, switches.connector_writes_enabled))
     return app
 
 
@@ -206,14 +213,19 @@ async def _relay_app(monkeypatch, registry, client, scopes):
 @pytest.mark.parametrize("surface", ["direct", "discovery"])
 @pytest.mark.parametrize(
     "gate",
-    ["oauth", "UNIFI_READ_ONLY", "UNIFI_ENABLE_CONNECTOR_WRITE", "UNIFI_PROTECT_MUTATIONS_ENABLED"],
+    ["oauth", "UNIFI_WRITE_POLICY", "family:connector=deny", "family:protect=deny"],
 )
 async def test_registered_action_get_authorization_and_discovery(
     monkeypatch, registry, action, surface, gate
 ):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     if gate != "oauth":
-        monkeypatch.setenv(gate, "1" if gate == "UNIFI_READ_ONLY" else "0")
-    client = UniFiClient(Settings(api_key="synthetic-action-key", dry_run=True))
+        (
+            monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+            if gate == "UNIFI_WRITE_POLICY"
+            else monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", gate)
+        )
+    client = UniFiClient(Settings(api_key="synthetic-action-key"))
     scopes = ["unifi.read"] if gate == "oauth" else ["unifi.read", "unifi.write"]
     app = await _relay_app(monkeypatch, registry, client, scopes)
     if surface == "discovery":
@@ -235,7 +247,8 @@ async def test_registered_action_get_authorization_and_discovery(
 async def test_discovery_action_get_requires_write_dispatch_and_scope(
     monkeypatch, registry, action
 ):
-    client = UniFiClient(Settings(api_key="synthetic-action-key", dry_run=True))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings(api_key="synthetic-action-key"))
     app = await _relay_app(monkeypatch, registry, client, ["unifi.read", "unifi.write"])
     await apply_tool_mode(app, "discovery")
     arguments = {

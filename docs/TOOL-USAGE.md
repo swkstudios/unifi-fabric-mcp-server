@@ -1,6 +1,6 @@
 # Tool usage details
 
-The advertised instructions and each tool description stay under 2,048 characters, the Claude
+The advertised instructions and each tool description stay within 2,048 characters, the Claude
 Code limit before v2.1.296 (current releases
 [cut at 4,096 characters, and at 16,384 for tools loaded through tool search](https://code.claude.com/docs/en/mcp)).
 Parameter schemas carry the request shapes. This reference preserves the detailed workflows and examples.
@@ -22,35 +22,40 @@ it reads local state.
   DELETE; `openWorldHint` is false for local-state tools (`list_configured_api_keys`,
   `search_tools`, `describe_tool`, `list_tool_families`) and true for tools that reach UniFi.
 
-`UNIFI_READ_ONLY` is opt-in and off by default. At startup it hides every tool that
+`UNIFI_WRITE_POLICY=deny` is opt-in (the default policy is `allow`). At startup it hides every tool that
 is not annotated `readOnlyHint: true` (except `fabric_connector_get`) from `tools/list`, discovery search, descriptions
-and family counts, after the tool-family selection and API-source disable list. The
+and family counts, after the family allowlist and the exclusions (`UNIFI_EXCLUDE`). The
 read discovery meta-tools stay available; `call_write_tool` is hidden. A hidden write
 called by name is still refused and audited before any upstream call. The mixed
 `fabric_connector_get` relay (annotated as a write because it can relay a state-changing GET)
 stays listed, but a call to a known state-changing GET
 route (Protect camera `enable-control` / `disable-control`) is refused at call time.
 
-The per-area write opt-outs are on by default:
+Writes are enabled by default; each area has its own write opt-out:
 
 <!-- BEGIN GENERATED: write-switches -->
-- `UNIFI_ENABLE_NETWORK_WRITE` (default on): the write tools of `network`, `firewall`, `clients`, `devices`, `vpn`, `hotspot`, `statistics`
-- `UNIFI_PROTECT_MUTATIONS_ENABLED` (default on): the write tools of `protect`
-- `UNIFI_ENABLE_MOBILITY_WRITE` (default on): the write tools of `mobility`
-- `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` (default on): the write tools of `carrier`
-- `UNIFI_ENABLE_INNERSPACE_WRITE` (default on): the write tools of `innerspace`
-- `UNIFI_ENABLE_CONNECTOR_WRITE` (default on): the connector relay's write tools and the typed tools it also governs
+- `family:network=deny`: the write tools of `network`, `firewall`, `clients`, `devices`, `vpn`, `hotspot`, `statistics` and every write request to its console routes, the connector relay included
+- `family:protect=deny`: the write tools of `protect` and every write request to its console routes, the connector relay included
+- `family:mobility=deny`: the write tools of `mobility` and every write request to its console routes, the connector relay included
+- `family:carrier=deny`: the write tools of `carrier` and every write request to its console routes, the connector relay included
+- `family:innerspace=deny`: the write tools of `innerspace` and every write request to its console routes, the connector relay included
+- `family:connector=deny`: the connector relay's write tools and the typed tools it also governs
+Each is one entry of `UNIFI_WRITE_EXCEPTIONS` (unset by default: every write allowed); `dry-run` in place of `deny` previews the same writes instead of refusing them.
 <!-- END GENERATED -->
 
-Set to `0`, a switch hides its
+A `deny` entry hides its
 area's write tools the same way, so `tools/list` and discovery offer only tools that
-can run; a hidden write called by name is refused with the switch's reason and
-audited. With `UNIFI_ENABLE_CONNECTOR_WRITE=0` the server also hides the typed write tools
+can run; a hidden write called by name is refused with the entry as its reason and
+audited. With `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` the server also hides the typed write tools
 that relay through the connector (for example `update_device_radio`, `start_spectrum_scan`,
 `reboot_nvr`), not only the four relay writes.
 
 <!-- BEGIN GENERATED: tool-mode-defaults -->
-Defaults: `UNIFI_TOOL_MODE=discovery` (modes `full`, `discovery`), `UNIFI_TOOL_FAMILIES` unset (every family), `UNIFI_DISABLED_TOOL_FAMILIES` unset, `UNIFI_READ_ONLY` off. Discovery mode advertises 5 meta-tools (`call_read_tool`, `call_write_tool`, `describe_tool`, `list_tool_families`, `search_tools`), or 4 with `UNIFI_READ_ONLY=1`.
+Defaults: `UNIFI_TOOL_MODE=discovery` (modes `full`, `discovery`, `codemode`), `UNIFI_FAMILY_ALLOW` unset (every family), `UNIFI_EXCLUDE` unset, `UNIFI_WRITE_POLICY` unset (`allow`). Discovery mode advertises 5 meta-tools (`call_read_tool`, `call_write_tool`, `describe_tool`, `list_tool_families`, `search_tools`), or 4 with `UNIFI_WRITE_POLICY=deny`.
+<!-- END GENERATED -->
+
+<!-- BEGIN GENERATED: tool-mode-choices -->
+Empty or whitespace-only `UNIFI_TOOL_MODE` uses the default; any value other than `full`, `discovery`, `codemode` fails startup with an error naming `UNIFI_TOOL_MODE` and the valid choices.
 <!-- END GENERATED -->
 
 ## Server workflows
@@ -58,9 +63,8 @@ Defaults: `UNIFI_TOOL_MODE=discovery` (modes `full`, `discovery`), `UNIFI_TOOL_F
 UniFi Fabric MCP Server — manages UniFi network infrastructure via the Ubiquiti
 Site Manager (Fabric) API.
 
-By default (`UNIFI_TOOL_MODE=discovery`) the server advertises five tools (four under
-`UNIFI_READ_ONLY`): `search_tools`, `describe_tool`, `call_read_tool`, `call_write_tool` and
-`list_tool_families`. Find a tool with `search_tools`, inspect it with `describe_tool`, and run it
+By default (`UNIFI_TOOL_MODE=discovery`) the server advertises the discovery meta-tools listed
+in the defaults above. Find a tool with `search_tools`, inspect it with `describe_tool`, and run it
 with `call_read_tool` or `call_write_tool` (`name` plus the `arguments` shown in the examples
 here). Set `UNIFI_TOOL_MODE=full` to advertise every tool for direct calls.
 
@@ -104,9 +108,9 @@ user specifically asks for ACL rules or classic rules.
 The 13 families are `carrier`, `clients`, `connector`, `devices`, `firewall`, `hotspot`, `innerspace`, `mobility`, `network`, `protect`, `site_manager`, `statistics`, `vpn`.
 <!-- END GENERATED -->
 
-- A deployment may set `UNIFI_TOOL_FAMILIES` (an allowlist) or
-  `UNIFI_DISABLED_TOOL_FAMILIES` (an opt-out list) to select among the families above; unset
-  (default) advertises every family. `firewall` is assigned by route.
+- A deployment may set `UNIFI_FAMILY_ALLOW` (an allowlist) or `family:<id>` entries of
+  `UNIFI_EXCLUDE` to select among the families above; unset (default) advertises every
+  family. `firewall` is assigned by route.
 - **Network**: application info, local sites, networks/VLANs, WiFi broadcasts, WAN interfaces
 - **Switching**: LAGs, MC-LAG domains, switch stacks
 - **Port Forwarding**: `list_port_forwards`, `create_port_forward`,
@@ -155,7 +159,7 @@ The 13 families are `carrier`, `clients`, `connector`, `devices`, `firewall`, `h
   `list_protect_users`, `get_protect_user`; ULP (UniFi account) users —
   `list_ulp_users`, `get_ulp_user`; application metadata —
   `get_protect_application_info`; POS overlay ingestion — `pos_ingest_transaction`.
-  Write/action tools honor UNIFI_PROTECT_MUTATIONS_ENABLED (default on); the confirm
+  Write/action tools honor the UNIFI_WRITE_EXCEPTIONS entry family:protect=deny (writes on by default); the confirm
   argument is accepted and ignored. Live-stream
   collectors — `collect_protect_events`, `collect_protect_device_changes` —
   bounded-window REST polls that return new events / device add-remove-modify
@@ -184,17 +188,17 @@ The 13 families are `carrier`, `clients`, `connector`, `devices`, `firewall`, `h
   `attach_carrier_subscriber_host`, `detach_carrier_subscriber_host`,
   `assign_carrier_subscriber_plan`, `suspend_carrier_subscriber`,
   `resume_carrier_subscriber`. Identity: org-scoped via API key (no host/site). Writes
-  are enabled by default; set `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` to `0`/`false` for a
+  are enabled by default; add `family:carrier=deny` to `UNIFI_WRITE_EXCEPTIONS` for a
   read-only Carrier Fabric deployment. A `confirm` argument is ignored.
   Spec-conformance tested only (not against a live Carrier Fabric).
 - **InnerSpace writes** (`clean_innerspace_storage`, `create_innerspace_plan`, ...): enabled by
-  default; set `UNIFI_ENABLE_INNERSPACE_WRITE` to `0`/`false` to refuse every InnerSpace write,
+  default; add `family:innerspace=deny` to `UNIFI_WRITE_EXCEPTIONS` to refuse every InnerSpace write,
   the connector relay included. Reads are unaffected.
 - **Fabric connector relay** (host-scoped, site optional): `fabric_connector_get`
   (ordinary GET reads always available; a known state-changing GET route, the Protect
-  camera `enable-control` / `disable-control`, is a write and follows the write switches
-  below), `fabric_connector_post/put/patch/delete` (read and write enabled by
-  default; set the `UNIFI_ENABLE_CONNECTOR_WRITE` capability flag to `0`/`false` for a
+  camera `enable-control` / `disable-control`, is a write and follows the write policy and
+  exceptions below), `fabric_connector_post/put/patch/delete` (read and write enabled by
+  default; add `family:connector=deny` to `UNIFI_WRITE_EXCEPTIONS` for a
   read-only deployment; the `confirm` argument is accepted and ignored). Relays requests to a console's
   `/proxy/{path}` surface via the official Network Cloud Connector. Identity: `host`
   resolves to the owning API key + host id; `site` name/UUID substituted from Registry
@@ -203,8 +207,8 @@ The 13 families are `carrier`, `clients`, `connector`, `devices`, `firewall`, `h
   `list_mobility_admins`, `list_mobility_devices`, `get_mobility_device`,
   `list_mobility_clients`, `update_mobility_device_name`,
   `update_mobility_device_network`, `update_mobility_device_wireless`. Identity:
-  `workspace_id` (not host/site). Writes are enabled by default; set
-  `UNIFI_ENABLE_MOBILITY_WRITE` to `0`/`false` for a read-only Mobility deployment. The
+  `workspace_id` (not host/site). Writes are enabled by default; add
+  `family:mobility=deny` to `UNIFI_WRITE_EXCEPTIONS` for a read-only Mobility deployment. The
   `confirm` argument is accepted and ignored.
 
 ## Parameter Scope Quick Reference
@@ -300,9 +304,14 @@ Examples by scope; the `required` list in each tool schema is authoritative.
 3. `get_thumbnail` → fetch that detection's crop (base64 image with its upstream content_type).
 
 ## Important Notes
-- **Read-only tools** are safe to call freely. Write tools (create/update/delete) modify
-  live infrastructure.
-- **Read-only mode**: if the deployment sets `UNIFI_READ_ONLY` (opt-in, default off), every
+- **Read-only tools** change nothing, but by default they return credential fields verbatim:
+  `get_protect_device_password`, `get_openvpn_client_config` and the WLAN, RADIUS, Dynamic
+  DNS and VPN configuration reads can bring passwords, passphrases and keys into the model
+  context. Set
+  `UNIFI_REDACT_SECRETS` to mask the documented credential fields (see
+  [Credential redaction](CONFIGURATION.md#credential-redaction)). Write tools
+  (create/update/delete) modify live infrastructure.
+- **Read-only mode**: if the deployment sets `UNIFI_WRITE_POLICY=deny` (opt-in, default `allow`), every
   write/action tool is refused with an actionable error and only read tools work — a
   deployment switch, not a per-call option.
 - **Destructive / physical-effect operations** — irreversible real-world effects; use
@@ -314,7 +323,8 @@ Examples by scope; the `required` list in each tool schema is authoritative.
   - `disable_camera_mic_permanently`: hardware-level mic disable, cannot be re-enabled
   - `trigger_alarm_webhook`: triggers physical alarm hardware; real-world consequences
   - `delete_*` tools in general: no undo, no recycle bin
-- **List paging**: every list tool drains every page by default and returns the complete set
+- **List paging**: every list tool that pages upstream drains every page by default and returns the complete set
+  (a list answered from local state, such as `list_configured_api_keys`, returns its full set in one call)
   (a drain stopped by `UNIFI_PAGINATE_MAX_PAGES`, unset by default, or by a stalled cursor returns
   incomplete=true with incompleteReason). To page manually, use the tool's own paging
   arguments. A count argument (`page_size`, `limit`) requests a total gathered across native
@@ -340,10 +350,12 @@ Examples by scope; the `required` list in each tool schema is authoritative.
     `get_sites_overview` and `get_system_log`.
   With several API keys a manual page of an org-scoped or Site Manager list needs `key_label`
   (a cursor or token belongs to one key).
-- A blank string or an empty list is never refused before the request: a filter or search
-  the server applies itself (`query`, `status_filter`, `client_type`, `client_ids`) is then
-  not applied, and a value forwarded upstream (`types`, `categories`, `smart_detect_types`,
-  `attrs`, `host_ids`, `sites`) is sent as given for the upstream to judge.
+- A blank string or an empty list for one of the parameters named here is not refused before
+  the request: a filter or search the server applies itself (`query`, `status_filter`,
+  `client_type`, `client_ids`) is then not applied, and a value forwarded upstream (`types`,
+  `categories`, `smart_detect_types`, `attrs`, `host_ids`, `sites`) is sent as given for
+  the upstream to judge. An argument limited to a fixed set of values is still checked first,
+  so a blank one is refused (for example `session_type` of `list_client_sessions`).
 - **Time parameters are NOT uniform across tools — check each tool before passing one:**
   - Epoch SECONDS as integers (e.g. 1690000000): `list_protect_events` (start/end),
     `collect_protect_events` (since), `list_client_sessions` (start/end),
@@ -379,7 +391,7 @@ networks; an id with no match renders as `{id, name: null, vlan: null}`. Write t
 `_resolved_networks` and `_resolvedNetworksError` before sending. A failed network-name lookup
 is reported under `_resolvedNetworksError` on each returned profile instead of failing the
 call; on writes it also appears as `readAfterError` and the write result stands. Under
-`UNIFI_DRY_RUN` a port-profile write returns the bare preview with none of these keys.
+`UNIFI_WRITE_POLICY=dry-run` a port-profile write returns the bare preview with none of these keys.
 `update_port_profile` maps each native, voice and excluded network value to its Classic `_id`
 (an Integration id from `list_networks` or a unique network name converts); an unknown value
 fails listing every network and sends no PUT.
@@ -418,7 +430,7 @@ call `allow_network_on_port_profile` for each named profile, then verify
 guest-to-gateway reachability.
 
 The tool sections that follow are mostly write tools. They are hidden and refused when
-`UNIFI_READ_ONLY=1` or `UNIFI_ENABLE_NETWORK_WRITE=false` (the opt-out wins over `UNIFI_DRY_RUN`).
+`UNIFI_WRITE_POLICY=deny` or the `UNIFI_WRITE_EXCEPTIONS` entry `family:network=deny` (a `deny` wins over `UNIFI_WRITE_POLICY=dry-run`).
 In the default discovery mode call them through `call_write_tool` with the arguments shown in
 each example; set `UNIFI_TOOL_MODE=full` for direct calls.
 
@@ -427,7 +439,7 @@ each example; set `UNIFI_TOOL_MODE=full` for direct calls.
 Create a new network/VLAN on a site.
 
 Returns the upstream response body verbatim: the created network object the API answers with
-(under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params (query parameters), body}} instead).
 
 Validated locally before the request (a missing field raises ValueError naming it):
@@ -453,7 +465,7 @@ When that happens this response carries an additive ``_warnings`` entry (code
 networkconf ``_id`` (profiles store that ``_id``, not this response's ``id``); run
 ``allow_network_on_port_profile`` on each to restore tagging (it accepts either id).
 
-Request body (Network 10.6.106, POST /v1/sites/{siteId}/networks (createNetwork); schema "Create
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/networks (createNetwork); schema "Create
 or update Network") is passed in `network_config`. Required keys — enabled, management, name,
 vlanId.
 - dhcpGuarding: object (Network DHCP Guarding)
@@ -502,7 +514,7 @@ Args:
 Create a new WiFi broadcast SSID on a site.
 
 Returns the upstream response body verbatim: the created WiFi broadcast object the API answers
-with (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params (query parameters), body}} instead).
 
 Validated locally before the request (a missing field raises ValueError naming it):
@@ -515,7 +527,7 @@ values (for example the basic data rates) are also checked locally before any re
   send securityConfiguration {"type": "OPEN"} together with ``network``.
   Field names must be camelCase to match the UniFi Integration API.
 
-Request body (Network 10.6.106, POST /v1/sites/{siteId}/wifi/broadcasts (createWifiBroadcast);
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/wifi/broadcasts (createWifiBroadcast);
 schema "Wifi broadcast create or update") is passed in `broadcast`. Required keys —
 channel2gLockedTo6, clientIsolationEnabled, dtimPeriod2gLockedTo3, enabled, hideName,
 multicastToUnicastConversionEnabled, name, securityConfiguration, type, uapsdEnabled.
@@ -582,13 +594,13 @@ Args:
 Update an existing WiFi broadcast SSID.
 
 Returns the upstream response body verbatim: the updated WiFi broadcast object the API answers
-with (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params (query parameters), body}} instead).
 
 For an OPEN broadcast retain the explicit ``network`` reference in the replacement object: the
 live controller requires it.
 
-Request body (Network 10.6.106, PUT /v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}
 (updateWifiBroadcast); schema "Wifi broadcast create or update") is passed in `broadcast`.
 Required keys — channel2gLockedTo6, clientIsolationEnabled, dtimPeriod2gLockedTo3, enabled,
 hideName, multicastToUnicastConversionEnabled, name, securityConfiguration, type, uapsdEnabled.
@@ -658,7 +670,7 @@ Args:
 Create a new firewall policy on a site.
 
 Returns the upstream response body verbatim: the created firewall policy object the API answers
-with (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params (query parameters), body}} instead).
 
 The seven required keys of `policy` (name, enabled, loggingEnabled, action, source,
@@ -690,7 +702,7 @@ silently matches nothing. A destination-port rule MUST use destination.trafficFi
 with type PORT, never a source portFilter. (create/update_firewall_policy log a
 runtime warning when a source PORT filter is combined with an any-destination ALLOW.)
 
-Request body (Network 10.6.106, POST /v1/sites/{siteId}/firewall/policies
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/firewall/policies
 (createFirewallPolicy); schema "Create or update firewall policy") is passed in `policy`.
 Required keys — action, destination, enabled, ipProtocolScope, loggingEnabled, name, source.
 - name: string (minLength 1)
@@ -772,7 +784,7 @@ Args:
 Full-replace a firewall policy by ID.
 
 Returns the upstream response body verbatim: the replaced firewall policy object the API answers
-with (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params (query parameters), body}} instead).
 
 An optional trafficFilter (on source and/or destination) narrows the match
@@ -797,7 +809,7 @@ silently matches nothing. A destination-port rule MUST use destination.trafficFi
 with type PORT, never a source portFilter. (create/update_firewall_policy log a
 runtime warning when a source PORT filter is combined with an any-destination ALLOW.)
 
-Request body (Network 10.6.106, PUT /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}
 (updateFirewallPolicy); schema "Create or update firewall policy") is passed in `policy`.
 Required keys — action, destination, enabled, ipProtocolScope, loggingEnabled, name, source.
 - name: string (minLength 1)
@@ -887,11 +899,11 @@ Set the ordering of firewall policies within one source/destination zone pair.
 Returns: the controller's response, verbatim — the resulting order in the same
 {"orderedFirewallPolicyIds": {"beforeSystemDefined": […], "afterSystemDefined": […]}} shape
 (published response schema IntegrationFirewallPolicyOrderingDto).
-Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
 "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters),
 body}} in place of the upstream body.
 
-Request body (Network 10.6.106, PUT /v1/sites/{siteId}/firewall/policies/ordering
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/firewall/policies/ordering
 (updateFirewallPolicyOrdering) — "Reorder User-Defined Firewall Policies"; schema
 "IntegrationFirewallPolicyOrderingDto") is passed in `ordering` (sent verbatim as the body).
 Required keys — orderedFirewallPolicyIds.
@@ -972,11 +984,11 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is false when a sent leaf is missing or differs, and null, with readAfterError, when the
 read-after fails or returns no object. Protect writes are enabled by default;
-UNIFI_PROTECT_MUTATIONS_ENABLED=0 or UNIFI_READ_ONLY=1 refuses the call before any request.
-Under UNIFI_DRY_RUN nothing is sent: {status: "dry_run", before (the body read first), response
+family:protect=deny or UNIFI_WRITE_POLICY=deny refuses the call before any request.
+Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
 (the preview)}; there is no read-after.
 
-Request body (Protect 7.3.70, PATCH /v1/cameras/{id}; schema "inline requestBody schema") is
+Request body (Protect 7.3.74, PATCH /v1/cameras/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
 - name: string
 - osdSettings: object {isNameEnabled: boolean, isDateEnabled: boolean, isLogoEnabled:
@@ -1008,7 +1020,7 @@ Args:
         (MAC:numericId composite). One console serves both Network and Protect.
     camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
         Network device UUID.
-    settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH
+    settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
         /v1/cameras/{id} body. Keys: name, osdSettings, ledSettings, lcdMessage, micVolume
         (number 1-100), videoMode, hdrType, smartDetectSettings (nested keys above).
 
@@ -1035,8 +1047,8 @@ integration path to answer this.
 
 REQUIRED: host, start, and end. `start`/`end` are epoch SECONDS as INTEGERS (e.g.
 1690000000 for 2023-07-22T04:26:40Z), NOT milliseconds and NOT an ISO 8601 string:
-a negative or millisecond-magnitude value (>= 1e11) is sent as given with a `_warnings`
-entry saying so, and a string fails schema
+a negative or millisecond-magnitude value (>= 1e11) is not refused: it is converted to
+milliseconds like any time, with a `_warnings` entry, and a string fails schema
 validation. This differs on purpose from query_isp_metrics, whose start_time/end_time
 are ISO 8601 STRINGS — do not carry a format across the two tools.
 
@@ -1056,10 +1068,12 @@ Args:
         reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
         (MAC:numericId composite). One console serves both Network and Protect.
     start: REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally.
-        Ranges are inclusive on both ends. History depth is bounded by the NVR's retention.
+        Bounds are exact millisecond instants; end excludes the remainder of its second.
+        History depth is bounded by the NVR's retention.
         (Contrast query_isp_metrics, which wants ISO 8601 strings.)
     end: REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally. Ranges
-        are inclusive on both ends. History depth is bounded by the NVR's retention. (Contrast
+        are exact millisecond instants; end excludes the remainder of its second.
+        History depth is bounded by the NVR's retention. (Contrast
         query_isp_metrics, which wants ISO 8601 strings.)
     types: Filter by event TYPE; single value or a list. Verified-present values: motion,
         smartDetectZone, smartAudioDetect, sensorOpened, sensorClosed, access. Smart-detect
@@ -1258,6 +1272,41 @@ Args:
         reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
         (MAC:numericId composite). One console serves both Network and Protect.
 
+## Generic Fabric Connector Relay (guarded)
+
+Ubiquiti's official Network Cloud Connector (and the Site Manager v1.0.0 OpenAPI) document a generic method relay family — `GET | POST | PUT | PATCH | DELETE /v1/connector/consoles/{id}/*path` — that forwards a request through Fabric to a console's `/proxy/<path>` surface. The typed console tools (Network, Protect, InnerSpace) ride that connector. The Site Manager reads of hosts, sites, devices, ISP metrics and SD-WAN configs, and the Mobility and Carrier Fabric tools, call their `api.ui.com` cloud routes directly (`/v1/hosts`, `/v1/sites`, `/v1/devices`, `/v1/isp-metrics/...`, `/v1/sd-wan-configs`, `/v1/mobility/...`, `/v1/carrier/...`) without the connector. The `fabric_connector_*` family exposes the relay **directly**, as a guarded escape hatch for a controller-supported route that has no typed wrapper yet (a per-device Classic REST config route, a legacy InnerSpace save route, etc.). Verb references: [Connector PUT](https://developer.ui.com/network/v11.0.97/connectorput), [Connector PATCH](https://developer.ui.com/network/v11.0.97/connectorpatch) (documented against Network app **v11.0.97**), and the Site Manager **v1.0.0** OpenAPI.
+
+| Tool | Availability |
+|------|--------------|
+| `fabric_connector_get` | Read; available by default and under every write opt-out. A known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write: it follows the same opt-outs, read-only mode and dry-run as the mutation tools (no `confirm`) |
+| `fabric_connector_post` | Mutation — writes **enabled by default**; opt out with `UNIFI_WRITE_EXCEPTIONS=family:connector=deny`. `confirm` is accepted and ignored |
+| `fabric_connector_put` | Mutation — writes **enabled by default**; opt out with `UNIFI_WRITE_EXCEPTIONS=family:connector=deny`. `confirm` is accepted and ignored |
+| `fabric_connector_patch` | Mutation — writes **enabled by default**; opt out with `UNIFI_WRITE_EXCEPTIONS=family:connector=deny`. `confirm` is accepted and ignored |
+| `fabric_connector_delete` | Mutation — writes **enabled by default**; opt out with `UNIFI_WRITE_EXCEPTIONS=family:connector=deny`. `confirm` is accepted and ignored |
+
+**`path`** is the relay-relative application path *after* `/proxy/` — e.g. `network/integration/v1/sites`, `network/api/s/{site}/rest/device/{id}`, or `innerspace/api/shapes/{id}`. Use the `{site}` (slug) or `{site_id}` (UUID) placeholder for the site segment; the server resolves the site through the Registry and substitutes its slug or UUID, and the result reports the path as sent, substituted site included, under `resolvedPath`. Like `path`, `resolvedPath` is relative to the console's `/proxy/`: the console id (resolved from `host`) and the API key are never part of either.
+
+Guards (all enforced, none optional):
+
+- **Registry-only identity** — `host` (name/id) resolves to the owning API key + host id; `{site}`/`{site_id}` are substituted from the Registry.
+- **Route classes** (a route-to-area map, not a capability cap): Network `integration/v1`, Network Classic `api/s/{site}/rest|cmd|stat` (and every other Classic route), Network `v2/api`, Protect `integration/v1` and `api`, InnerSpace `integration/v1` and `api`, Access `integration/v1` and `api` each map to a `routeClass`, so a per-area write opt-out binds the relay as it binds that area's typed tools. Any other valid path (for example `talk/...`, `connect/...`, `drive/...`) relays with `routeClass: "unclassified"`: a GET always, and a mutation unless a per-area deny entry of `UNIFI_WRITE_EXCEPTIONS` (`family:network=deny`, `family:protect=deny`, `family:mobility=deny`, `family:carrier=deny` or `family:innerspace=deny`) is set. Its area cannot be proven, so while one is set the mutation is refused, naming the active entries.
+- **Positive-charset path validation** — `..`, `%`-encoding, backslash, whitespace, control characters, `//` empty segments, and a URL scheme (`://`) are rejected before any network call.
+- **Mutation gating (read + write on by default)** — an ordinary GET read is always available. A known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write: `family:connector=deny`, `family:protect=deny` and `UNIFI_WRITE_POLICY` (`deny` or `dry-run`) apply to it as to a mutation, and it is sent once. Connector writes are **enabled by default**; a deployment opts out by setting `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` (see [Enabling / disabling connector writes](CONFIGURATION.md#enabling--disabling-connector-writes)). When opted out, a mutation is refused before the console is touched. The `confirm` argument is accepted for compatibility but is ignored.
+- **Area opt-outs apply to the relay** — a relayed mutation on a `network/` route is refused before the console is touched when `family:network=deny` opts Network out, one on a `protect/` route when `family:protect=deny` opts Protect out, and one on an `innerspace/` route when `family:innerspace=deny` opts InnerSpace out, exactly as the typed write tools of those areas are; the Mobility and Carrier Fabric opt-outs are honoured the same way for any relay route of their area (both live on Site Manager cloud routes the console relay does not reach). The refusal names the entry.
+- **No 429 auto-retry on a write** — a relayed POST/PUT/PATCH/DELETE is sent once and an HTTP 429 is raised with the upstream body (the server-wide retry rule: only a read via GET is retried; a relayed GET of a state-changing route, the Protect camera enable-control or disable-control, is sent once too), because the relay cannot tell a physical action (a siren, a relay output, a Classic `cmd`) from a settings write and a retry can repeat it. The read-before / read-after GETs keep the GET retry.
+- **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write (`readBefore` / `readAfter`), and the no-op verdict compares only what the write requests (`_no_op_verdict` in `src/unifi_fabric/tools/connector.py`). A PUT/PATCH with a JSON object body is `noOp: true` when the write and both reads answered 2xx and every leaf the body names holds the same value (type-strict) before and after; unrequested siblings never count, so an unchanged requested `enabled` beside a changed `updatedAt` is still `noOp: true`. A requested leaf that differs, appears or disappears is `noOp: false`; a requested leaf absent from both reads, or a read that is not one JSON object, is `noOp: null` with `noOpReason`. A body-less write, a non-object body, or an empty object (`{}`) falls back to comparing the two whole reads, so a change only to `updatedAt` makes an empty-object PATCH `noOp: false`. A Classic `rest/device/<_id>` write reads the site's `stat/device` list narrowed to that device and compares only the fields the body writes (`noOpBasis`). A DELETE is `noOp: false`, `changed: true` only when the read-after answers 404; one still readable afterwards is `noOp: null` ("deletion not confirmed"). `noOp` is null when it cannot be told (a rejected write, a failed or non-2xx read: `readAfterError`), and `changed` is present only beside a non-null `noOp`.
+- **Classic `meta.rc` errors** — a Classic route (`network/api/...`) reports its outcome in the body: HTTP 200 with `meta.rc` other than `"ok"` (e.g. `{"meta": {"rc": "error", "msg": "api.err.Invalid"}, "data": []}`) is a rejected request. The relay reports it the way it reports any upstream error status, without raising: `status` and `body` stay verbatim and the result gains `_classicRcError` (the reason, `meta.msg` included); the write then has no `noOp` / `changed` verdict. A `readBefore` / `readAfter` answered that way carries the same marker and never counts as a successful read.
+- **Scope guard** — an optional `scope` (`device` / `site` / `global`) is cross-checked against the path so a site-global setting route (e.g. `global_switch.stp_version`) cannot be driven by a device-scoped request.
+- **Verbatim bodies + audit** — the relayed upstream body is returned unchanged, except that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` if the body echoes them (credential fields are masked only when the operator opts in with [`UNIFI_REDACT_SECRETS`](CONFIGURATION.md#credential-redaction), which covers this relay like every tool); every relayed body carries the upstream `contentType`. JSON is returned decoded and any other text exactly as received (decoded in its declared charset, such as latin-1), under `body`. A **binary** body (a non-text Content-Type such as `image/jpeg` or `application/octet-stream`, or bytes that do not decode in the declared charset, UTF-8 when none) is returned the way the typed binary tools return bytes: complete, with no size cap, base64-encoded under `bodyBase64` with `sizeBytes`, and `body` null. The same applies to the write responses and to `readBefore` / `readAfter`. A 3xx is never followed: its response headers (`Location` included; credentials and cookies excluded) come back under `headers`, on the write and on `readBefore` / `readAfter`. Bodies are never logged. Audit is best-effort and off by default: with [`UNIFI_AUDIT_LOG`](CONFIGURATION.md#audit-log) unset (the default) a relayed mutation writes no audit record, and with it set every relayed mutation attempt is recorded in that file (fields under that heading). Separately, each attempt emits a best-effort INFO log line, `connector-relay-audit` (host, site, method, path, confirm, outcome, status). Neither contains the API key.
+- **Dry-run** — under `UNIFI_WRITE_POLICY=dry-run` (or a matching `dry-run` exception) a relayed mutation is not sent: the result's `status` is `"dry_run"` (never an HTTP status) and `body` is the preview, and the audit line says `outcome=dry_run` with no status.
+
+A 4xx/5xx from the relay is returned as `status` (not raised), so an invalid-ID probe surfaces its own reachability status. Undocumented legacy routes remain **experimental** until persistence and rollback are proven against a live console.
+
+**Live decision-closing probe procedures** (documented; each is deferred to a maintenance window and is covered only by hermetic tests in this repo, never run live here):
+
+1. *InnerSpace save route.* `PATCH innerspace/api/shapes/00000000-0000-0000-0000-000000000000` with an empty/invalid body. Expect a 4xx (`400/404/405/422` = route/method reachability evidence). **A 200/204 is an immediate stop condition** — do not use a real shape ID and do not issue a collection create/delete. Only after the route + schema are confirmed: one low-stakes reversible shape update, read back, restore the exact original shape, verify persistence on a fresh read. A 401/403 on the legacy namespace is auth/namespace gating, not a write path.
+2. *Per-device STP/PoE config.* Read the target switch via `network/api/s/{site}/rest/device/{id}` (scope `device`), probe with the exact current value first (a same-value write → `noOp: true`), then change only that switch's STP priority (or a harmless empty-port field), read back via `/stat/device` (the controller has no GET on `/rest/device`; the relay's own read-before/read-after use `stat/device` for this route), then restore the original value and verify. Global `global_switch.stp_version` is site-wide — the scope guard refuses it for a `device`-scoped request; keep it to a separately named site-wide path.
+
 ## fabric_connector_post
 
 HTTP 401/403 retains the complete upstream body and status and adds _hint naming
@@ -1266,18 +1315,20 @@ the API key variable or multi-key label, with setup or permission guidance.
 Relay a POST (create/command) through the Fabric connector. Writes to the controller.
 
 Connector writes are enabled by default; the connector flag refuses this only when
-UNIFI_ENABLE_CONNECTOR_WRITE is explicitly set falsey (0/false/no/off/f/n) for a read-only
+UNIFI_WRITE_EXCEPTIONS contains family:connector=deny for a read-only
 deployment (checked before any network call). The confirm argument is accepted and
 ignored. POST targets a collection
 or command route (e.g. ``network/api/s/{site}/cmd/...``); it has no GET twin, so no
 read-before/after is performed. The upstream status/body (verbatim) and routeClass are
-returned; a 4xx/5xx is reported, not raised.
+returned; a 4xx/5xx other than 429 is reported, not raised (a 429 is raised, see below).
 
 See fabric_connector_get for host/path/site/scope semantics. body: the JSON request body.
-Every attempt is written to the structured audit log (never the API key value).
+Every attempt is logged as a `connector-relay-audit` INFO line on stderr and, only when the
+opt-in audit stream is configured (`UNIFI_AUDIT_LOG` or `UNIFI_AUDIT_SINK`), recorded in it
+(never the API key value).
 
 Request body: free-form. Generic relay: the body is forwarded verbatim; its shape is whatever
-the target route's own spec defines (Network 10.6.106 / Protect 7.3.70 for integration routes;
+the target route's own spec defines (Network 11.0.97 / Protect 7.3.74 for integration routes;
 classic network/api and network/v2 routes have no published spec). POST has no GET twin; no
 read-before/after. Note: a PUT to an Integration ordering route needs its query params:
 pass them in params (the typed tool is set_firewall_policy_ordering).
@@ -1287,17 +1338,17 @@ of a non-JSON body, or null when empty). A binary body comes back complete as bo
 (base64) plus sizeBytes, with body null (text in its declared charset, such as
 latin-1, is decoded with it); contentType is the upstream Content-Type.
 A 3xx (never followed) also returns its response headers (Location included; credentials
-and cookies excluded) under headers. Under UNIFI_DRY_RUN nothing is sent: status is
+and cookies excluded) under headers. Under dry-run policy nothing is sent: status is
 "dry_run" (never an HTTP status) and body is the preview.
-Refused when — UNIFI_ENABLE_CONNECTOR_WRITE is set falsey, UNIFI_READ_ONLY is on, the
-path is a protect/ route while UNIFI_PROTECT_MUTATIONS_ENABLED is set falsey (every area
+Refused when — family:connector=deny is set, UNIFI_WRITE_POLICY=deny is set, the
+path is a protect/ route while family:protect=deny is set (every area
 write opt-out applies to the relay too), or the route is unclassified while any area write
 opt-out is active. A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an
 upstream error: status and body stay verbatim and _classicRcError gives the reason. The write
 is sent once: an HTTP 429 is raised with the upstream body, never auto-retried (a retry can
 repeat a physical action).
 
-Note — Typed equivalent: create_firewall_zone_proxy (Network 10.6.106 "Create or update firewall
+Note — Typed equivalent: create_firewall_zone_proxy (Network 11.0.97 "Create or update firewall
 zone").
 
 Example call (fabric_connector_post):
@@ -1317,7 +1368,7 @@ Args:
         An ordinary GET relays even while an area write opt-out is active. A GET of a
         state-changing route (protect/api/cameras/{id}/enable-control or
         protect/api/cameras/{id}/disable-control) is a write: it follows the area write
-        opt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent
+        opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
         once. Mutations on
         unclassified routes are refused only while an area write opt-out is active, with
         the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
@@ -1326,11 +1377,11 @@ Args:
     site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
         (UUID); the server substitutes it.
     body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
-        Network 10.6.106 for network/integration/v1). Use the typed tool when one exists.
+        Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
         Free-form JSON value: object, array, string, number, boolean or null. The caller-chosen
         route determines its shape.
     confirm: Ignored; accepted for backward compatibility. The call executes immediately when
-        made unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and
+        made unless the operator opted in to dry-run policy (then nothing is sent upstream and
         a preview of the request is returned).
     scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
         global-setting routes; 'site'/'global' reject /rest|/stat/device.
@@ -1348,7 +1399,7 @@ and read-after GET failures carry the same additive hint.
 Relay a PUT (full replace) through the Fabric connector. Writes to the controller.
 
 Connector writes are enabled by default; the connector flag refuses this only when
-UNIFI_ENABLE_CONNECTOR_WRITE is explicitly set falsey (0/false/no/off/f/n). The confirm
+UNIFI_WRITE_EXCEPTIONS contains family:connector=deny. The confirm
 argument is accepted and ignored. PUT has a GET
 twin at the same resource path, so the resource is read BEFORE and AFTER the write and
 the result carries readBefore / readAfter / noOp (diff-based: a same-value write is
@@ -1365,7 +1416,7 @@ and rollback are proven live.
 See fabric_connector_get for host/path/site/scope semantics. body: the JSON request body.
 
 Request body: free-form. Generic relay: the body is forwarded verbatim; its shape is whatever
-the target route's own spec defines (Network 10.6.106 / Protect 7.3.70 for integration routes;
+the target route's own spec defines (Network 11.0.97 / Protect 7.3.74 for integration routes;
 classic network/api and network/v2 routes have no published spec). PUT/PATCH/DELETE read the
 same path before and after (Classic rest/device/{id}: stat/device, see fabric_connector_put)
 and return readBefore/readAfter/noOp. Note: a PUT to an Integration
@@ -1388,14 +1439,14 @@ changed: true; a read-after that still returns the resource is noOp: null with n
 "deletion not confirmed". noOp is null when it cannot be told (noOpReason or
 readAfterError says why).
 changed (= not noOp) is present only when noOp is non-null; when noOp is null the key is
-absent. Under UNIFI_DRY_RUN nothing is sent: status is "dry_run" (never an HTTP status),
+absent. Under dry-run policy nothing is sent: status is "dry_run" (never an HTTP status),
 body is the preview, readAfter / noOp are null and changed is absent.
 The dry-run body is the {method, path, params, body} preview. If post-write processing fails,
 the write status and raw body are still returned with postWriteError. For rest/device,
 readBefore/readAfter.body holds the full stat/device list, comparisonRecords holds the matched
 record, `twin` names the GET twin and twinError says why a device could not be compared.
-Refused when — UNIFI_ENABLE_CONNECTOR_WRITE is set falsey, UNIFI_READ_ONLY is on, the
-path is a protect/ route while UNIFI_PROTECT_MUTATIONS_ENABLED is set falsey (every area
+Refused when — family:connector=deny is set, UNIFI_WRITE_POLICY=deny is set, the
+path is a protect/ route while family:protect=deny is set (every area
 write opt-out applies to the relay too), or the route is unclassified while any area write
 opt-out is active. A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an
 upstream error: status and body stay verbatim and _classicRcError gives the reason. The write
@@ -1422,7 +1473,7 @@ Args:
         An ordinary GET relays even while an area write opt-out is active. A GET of a
         state-changing route (protect/api/cameras/{id}/enable-control or
         protect/api/cameras/{id}/disable-control) is a write: it follows the area write
-        opt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent
+        opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
         once. Mutations on
         unclassified routes are refused only while an area write opt-out is active, with
         the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
@@ -1431,11 +1482,11 @@ Args:
     site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
         (UUID); the server substitutes it.
     body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
-        Network 10.6.106 for network/integration/v1). Use the typed tool when one exists.
+        Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
         Free-form JSON value: object, array, string, number, boolean or null. The caller-chosen
         route determines its shape.
     confirm: Ignored; accepted for backward compatibility. The call executes immediately when
-        made unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and
+        made unless the operator opted in to dry-run policy (then nothing is sent upstream and
         a preview of the request is returned).
     scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
         global-setting routes; 'site'/'global' reject /rest|/stat/device.
@@ -1453,7 +1504,7 @@ and read-after GET failures carry the same additive hint.
 Relay a PATCH (partial update) through the Fabric connector. Writes to the controller.
 
 Connector writes are enabled by default; the connector flag refuses this only when
-UNIFI_ENABLE_CONNECTOR_WRITE is explicitly set falsey (0/false/no/off/f/n). The confirm
+UNIFI_WRITE_EXCEPTIONS contains family:connector=deny. The confirm
 argument is accepted and ignored. PATCH has a
 GET twin, so read-before/write/read-after with noOp detection applies (see
 fabric_connector_put). The candidate legacy InnerSpace save route
@@ -1464,7 +1515,7 @@ is a stop condition, not a success. EXPERIMENTAL until persistence/rollback are 
 See fabric_connector_get for host/path/site/scope semantics. body: the JSON request body.
 
 Request body: free-form. Generic relay: the body is forwarded verbatim; its shape is whatever
-the target route's own spec defines (Network 10.6.106 / Protect 7.3.70 for integration routes;
+the target route's own spec defines (Network 11.0.97 / Protect 7.3.74 for integration routes;
 classic network/api and network/v2 routes have no published spec). PUT/PATCH/DELETE read the
 same path before and after (Classic rest/device/{id}: stat/device, see fabric_connector_put)
 and return readBefore/readAfter/noOp. Note: a PUT to an Integration
@@ -1487,22 +1538,22 @@ changed: true; a read-after that still returns the resource is noOp: null with n
 "deletion not confirmed". noOp is null when it cannot be told (noOpReason or
 readAfterError says why).
 changed (= not noOp) is present only when noOp is non-null; when noOp is null the key is
-absent. Under UNIFI_DRY_RUN nothing is sent: status is "dry_run" (never an HTTP status),
+absent. Under dry-run policy nothing is sent: status is "dry_run" (never an HTTP status),
 body is the preview, readAfter / noOp are null and changed is absent.
 The dry-run body is the {method, path, params, body} preview. If post-write processing fails,
 the write status and raw body are still returned with postWriteError. For rest/device,
 readBefore/readAfter.body holds the full stat/device list, comparisonRecords holds the matched
 record, `twin` names the GET twin and twinError says why a device could not be compared.
-Refused when — UNIFI_ENABLE_CONNECTOR_WRITE is set falsey, UNIFI_READ_ONLY is on, the
-path is a protect/ route while UNIFI_PROTECT_MUTATIONS_ENABLED is set falsey (every area
+Refused when — family:connector=deny is set, UNIFI_WRITE_POLICY=deny is set, the
+path is a protect/ route while family:protect=deny is set (every area
 write opt-out applies to the relay too), or the route is unclassified while any area write
 opt-out is active. A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an
 upstream error: status and body stay verbatim and _classicRcError gives the reason. The write
 is sent once: an HTTP 429 is raised with the upstream body, never auto-retried (a retry can
 repeat a physical action).
 
-Note — Typed equivalent: patch_firewall_policy. Network 10.6.106 "Patch firewall policy" only
-defines loggingEnabled.
+Note — Typed equivalent: patch_firewall_policy. Network 11.0.97 "Patch firewall policy" only
+defines loggingEnabled and reportFlowEnabled.
 
 Example call (fabric_connector_patch):
     {
@@ -1523,7 +1574,7 @@ Args:
         An ordinary GET relays even while an area write opt-out is active. A GET of a
         state-changing route (protect/api/cameras/{id}/enable-control or
         protect/api/cameras/{id}/disable-control) is a write: it follows the area write
-        opt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent
+        opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
         once. Mutations on
         unclassified routes are refused only while an area write opt-out is active, with
         the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
@@ -1532,11 +1583,11 @@ Args:
     site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
         (UUID); the server substitutes it.
     body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
-        Network 10.6.106 for network/integration/v1). Use the typed tool when one exists.
+        Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
         Free-form JSON value: object, array, string, number, boolean or null. The caller-chosen
         route determines its shape.
     confirm: Ignored; accepted for backward compatibility. The call executes immediately when
-        made unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and
+        made unless the operator opted in to dry-run policy (then nothing is sent upstream and
         a preview of the request is returned).
     scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
         global-setting routes; 'site'/'global' reject /rest|/stat/device.
@@ -1554,7 +1605,7 @@ and read-after GET failures carry the same additive hint.
 Relay a DELETE through the Fabric connector. Irreversible write to the controller.
 
 Connector writes are enabled by default; the connector flag refuses this only when
-UNIFI_ENABLE_CONNECTOR_WRITE is explicitly set falsey (0/false/no/off/f/n). The confirm
+UNIFI_WRITE_EXCEPTIONS contains family:connector=deny. The confirm
 argument is accepted and ignored. DELETE has a
 GET twin, so the resource is read before and after; a delete is confirmed only by a 404
 read-after following a 2xx read-before (noOp false, changed true). There is no undo: confirm the
@@ -1563,7 +1614,7 @@ exact resource path before calling.
 See fabric_connector_get for host/path/site/scope semantics. body: optional JSON body.
 
 Request body: free-form. Generic relay: the body is forwarded verbatim; its shape is whatever
-the target route's own spec defines (Network 10.6.106 / Protect 7.3.70 for integration routes;
+the target route's own spec defines (Network 11.0.97 / Protect 7.3.74 for integration routes;
 classic network/api and network/v2 routes have no published spec). PUT/PATCH/DELETE read the
 same path before and after (a DELETE always reads its own path)
 and return readBefore/readAfter/noOp. Note: a PUT to an Integration
@@ -1586,14 +1637,14 @@ changed: true; a read-after that still returns the resource is noOp: null with n
 "deletion not confirmed". noOp is null when it cannot be told (noOpReason or
 readAfterError says why).
 changed (= not noOp) is present only when noOp is non-null; when noOp is null the key is
-absent. Under UNIFI_DRY_RUN nothing is sent: status is "dry_run" (never an HTTP status),
+absent. Under dry-run policy nothing is sent: status is "dry_run" (never an HTTP status),
 body is the preview, readAfter / noOp are null and changed is absent.
 The dry-run body is the {method, path, params, body} preview. If post-write processing fails,
 the write status and raw body are still returned with postWriteError. For rest/device,
 readBefore/readAfter.body holds the full stat/device list, comparisonRecords holds the matched
 record, `twin` names the GET twin and twinError says why a device could not be compared.
-Refused when — UNIFI_ENABLE_CONNECTOR_WRITE is set falsey, UNIFI_READ_ONLY is on, the
-path is a protect/ route while UNIFI_PROTECT_MUTATIONS_ENABLED is set falsey (every area
+Refused when — family:connector=deny is set, UNIFI_WRITE_POLICY=deny is set, the
+path is a protect/ route while family:protect=deny is set (every area
 write opt-out applies to the relay too), or the route is unclassified while any area write
 opt-out is active. A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an
 upstream error: status and body stay verbatim and _classicRcError gives the reason. The write
@@ -1619,7 +1670,7 @@ Args:
         An ordinary GET relays even while an area write opt-out is active. A GET of a
         state-changing route (protect/api/cameras/{id}/enable-control or
         protect/api/cameras/{id}/disable-control) is a write: it follows the area write
-        opt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent
+        opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
         once. Mutations on
         unclassified routes are refused only while an area write opt-out is active, with
         the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
@@ -1628,10 +1679,10 @@ Args:
     site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
         (UUID); the server substitutes it.
     body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
-        Network 10.6.106 for network/integration/v1). Optional for DELETE. Omit to send no body; an explicit null is sent as the JSON body null.
+        Network 11.0.97 for network/integration/v1). Optional for DELETE. Omit to send no body; an explicit null is sent as the JSON body null.
         Free-form JSON object; the caller-chosen route determines its shape.
     confirm: Ignored; accepted for backward compatibility. The call executes immediately when
-        made unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and
+        made unless the operator opted in to dry-run policy (then nothing is sent upstream and
         a preview of the request is returned).
     scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
         global-setting routes; 'site'/'global' reject /rest|/stat/device.
@@ -1650,18 +1701,18 @@ the whole map is null on read-after failure, with readAfterError), device
 (the read-after device-detail GET body verbatim, {data, httpStatusCode,
 traceId}), response (the PUT body verbatim; null for the documented 204)}, or {status:
 "no_op", reason, device (the GET body read first)}.
-Under UNIFI_DRY_RUN nothing is sent: {status: "dry_run", device (the body read first), response
+Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response
 (the preview)}; verified is absent (there is no read-after).
 
 DOCUMENTED partial update: only provided fields are applied (WAN/IPv6/InternetSource are
 not configurable here). At least one field is required. The Mobility docs differ on PUT
 semantics (full replacement vs this endpoint's documented partial merge); if the console
-applies full replacement, unsent LAN/DHCP fields can be reset. Set
-UNIFI_ENABLE_MOBILITY_WRITE=0 for a read-only deployment. dhcp_mode is 'dhcp' (enabled) or
+applies full replacement, unsent LAN/DHCP fields can be reset. Add
+family:mobility=deny to UNIFI_WRITE_EXCEPTIONS for a read-only deployment. dhcp_mode is 'dhcp' (enabled) or
 'none' (disabled); IPs must be dotted-quad IPv4 (spec format: ipv4; a leading-zero octet
 such as 192.168.01.1 is refused before any request); dhcp_lease_time is seconds
 (0 = infinite). Guarded, in order: the Mobility write opt-out
-(UNIFI_ENABLE_MOBILITY_WRITE=0 refuses first), read-before, no-op detection on the
+(family:mobility=deny refuses first), read-before, no-op detection on the
 observable host_address, write, read-after.
 
 Request body (Mobility 1.0.0, PUT
@@ -1707,7 +1758,8 @@ the path as sent. `params` are optional query-string parameters. `scope` (`devic
 `global`) is an optional guard cross-checked against the path. Mapped routes carry their
 `routeClass`; unmapped ones relay as `unclassified`. `..`, %-encoding and control characters in
 `path` are rejected. Returns {method, routeClass, scope, path, resolvedPath, status, contentType,
-body}; a 4xx/5xx is returned, not raised, so a probe of an unknown route shows reachability.
+body}; a 4xx/5xx other than 429 is returned, not raised, so a probe of an unknown route shows
+reachability (a 429 that persists through the read retries is raised as `RateLimitError`).
 `body` is the upstream body verbatim (decoded JSON, the exact text of a non-JSON body, or null
 when empty; masked only under UNIFI_REDACT_SECRETS). A binary body comes back complete as
 bodyBase64 plus sizeBytes with body null, and a 3xx (never followed) adds its response headers.
@@ -1717,7 +1769,7 @@ variable or multi-key label. A Classic route (network/api/...) answered 2xx with
 
 Ordinary GETs relay even while an area write opt-out is active. The GET of a state-changing
 route (Protect camera `enable-control` / `disable-control`) is a write: it follows
-UNIFI_ENABLE_CONNECTOR_WRITE, the area opt-outs, `UNIFI_READ_ONLY` and `UNIFI_DRY_RUN` (an
+family:connector=deny, the area opt-outs and `UNIFI_WRITE_POLICY` (`deny`, or `dry-run`: an
 action GET sends nothing and returns status "dry_run"), is sent once, and in discovery mode
 goes through `call_write_tool`.
 
@@ -1730,23 +1782,28 @@ Example call (fabric_connector_get):
 
 ## API-source selection
 
-`UNIFI_DISABLE_API_SOURCES` is an optional comma-separated list of selectors. Unset or
-blank enables every source. Select an app (`network`), a source (`network/private.classic`,
+The `source:<selector>` entries of `UNIFI_EXCLUDE` select tools by API source. Unset
+enables every source; a blank `UNIFI_EXCLUDE` fails startup. Select an app (`network`), a source (`network/private.classic`,
 `protect/private`), a private group (`network/private`), or an access level
 (`network/private/write`, `protect/write`, `*/write`). `*/private` disables all private
 surfaces; `*/generic` selects generic relays and `*/local` selects tools with no upstream
-request. Unknown or repeated selectors fail at startup and list valid choices.
+request. Selectors are case-sensitive; unknown or repeated selectors fail at startup naming
+the setting.
 
 The `fabric_connector_*` tools are `relay/generic` and can reach any route, including
-private APIs. `*/private` does not disable them. Use `relay` or `*/generic` to disable
-those tools explicitly; `*/read` and `relay/read` also remove `fabric_connector_get` (class `relay/generic/read`, the only GET relay), and `*/write` keeps it. A write selector (`*/write`, `protect/write`) therefore leaves the Protect camera `enable-control` and `disable-control` GET routes reachable through `fabric_connector_get`; to block them, use `UNIFI_READ_ONLY`, `UNIFI_ENABLE_CONNECTOR_WRITE=0` or the `relay` selector. This selector does not
-filter the routes an enabled relay may reach. `UNIFI_READ_ONLY` is an independent setting.
+private APIs. `*/private` does not disable them. Use `source:relay` or `source:*/generic` to disable
+those tools explicitly; `*/read` and `relay/read` also remove `fabric_connector_get` (class `relay/generic/read`, the only GET relay), and `*/write` keeps it. A write selector (`*/write`, `protect/write`) therefore leaves the Protect camera `enable-control` and `disable-control` GET routes reachable through `fabric_connector_get`; to block them, use `UNIFI_WRITE_POLICY=deny`, `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` or `source:relay`. This selector does not
+filter the routes an enabled relay may reach. `UNIFI_WRITE_POLICY` is an independent setting.
 
 ## Discovery mode
 
 In the default UNIFI_TOOL_MODE=discovery, begin with search_tools using a clear intent such as camera recordings; use describe_tool on a returned name before calling it through call_read_tool or call_write_tool. Empty search browses enabled tools. A stopword-only or unmatched query is rejected with an error that tells you to broaden the intent or use an empty query to browse the catalog. Set UNIFI_TOOL_MODE=full when a client needs direct domain-tool calls.
 
-`search_tools` returns ten matches by default; `limit` takes any positive integer or null for every match, `family` narrows to one slug from `list_tool_families`, and `writes` selects mutations (true) or reads (false). `describe_tool` returns the same schema the tool has in full mode. `call_read_tool` refuses a write, including the state-changing GET relay routes, and names `call_write_tool` instead (with `UNIFI_READ_ONLY` on, it returns the read-only refusal, since `call_write_tool` is not listed); the target's own validation, area opt-outs, `UNIFI_READ_ONLY`, dry-run and audit apply to both. With `UNIFI_READ_ONLY` on, `call_write_tool` is not offered.
+<!-- BEGIN GENERATED: search-tools-limit -->
+`search_tools` returns 10 matches by default; `limit` takes any positive integer, or null for every match.
+<!-- END GENERATED -->
+
+`family` narrows to one slug from `list_tool_families`, and `writes` selects mutations (true) or reads (false). `describe_tool` returns the same schema the tool has in full mode. `call_read_tool` refuses a write, including the state-changing GET relay routes, and names `call_write_tool` instead (with `UNIFI_WRITE_POLICY=deny`, it returns the read-only refusal, since `call_write_tool` is not listed); the target's own validation, the write policy and its exceptions, dry-run and audit apply to both. With `UNIFI_WRITE_POLICY=deny`, `call_write_tool` is not offered.
 
 ## provision_device
 
@@ -1995,7 +2052,9 @@ and `_unprojected_how_to_obtain` names the verbatim `get_innerspace_*` / `list_*
 tool for each key. Site Manager
 device wrappers are flattened so each switch, AP and gateway is its own node; a
 record with a MAC but no id gets a `source_id` of `smdev-` plus the first 24 hex characters of
-SHA-256 over its kind and MAC (stable across snapshots and redaction settings); a device Protect
+SHA-256 over its kind and MAC (stable across snapshots; the hash is unkeyed and would reveal
+the MAC, so with `UNIFI_REDACT_SECRETS` on such a record is left out and counted under
+`_withheld` as `topology.record` / `hardware_address`); a device Protect
 and Site Manager both list appears once; a source list that stopped short (an opt-in page cap, or
 a repeated or cycling cursor) sets `incomplete: true` and `incompleteReason`.
 Placed devices carry InnerSpace `rotation` as `pov` / `base` objects with numeric
@@ -2027,3 +2086,5 @@ Fields, by top-level key (a key with no value is omitted):
 
 Before relying on the snapshot, `unifi-fabric-mcp placement-snapshot-preflight --host <console>`
 checks that the four read sources answer.
+
+For official-only deployments, use `list_all_clients` and select records by `_siteId` for per-site client inventory; `list_clients` also supports a private v2 route.

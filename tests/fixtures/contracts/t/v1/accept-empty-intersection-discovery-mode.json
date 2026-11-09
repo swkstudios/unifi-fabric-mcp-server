@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "accept-empty-intersection-discovery-mode",
+  "description": "UNIFI_FAMILY_ALLOW=protect with X-UniFi-Family-Allow: network under UNIFI_TOOL_MODE=discovery leaves an empty intersection: tools/list shows only the meta tools discovery mode serves, no domain tool, and network is ignored loosening",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_FAMILY_ALLOW": "protect",
+      "UNIFI_TOOL_MODE": "discovery"
+    },
+    "headers": [
+      [
+        "X-UniFi-Family-Allow",
+        "network"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "listed_tools": [
+      "call_read_tool",
+      "call_write_tool",
+      "describe_tool",
+      "list_tool_families",
+      "search_tools"
+    ],
+    "ignored_loosening": [
+      "x-unifi-family-allow=network"
+    ]
+  }
+}

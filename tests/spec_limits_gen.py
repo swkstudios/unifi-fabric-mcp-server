@@ -60,6 +60,7 @@ LOGICAL_PAGINATION_COUNT_ARGS = frozenset(
         "list_firewall_policies",
         "list_firewall_zones_proxy",
         "list_hotspot_vouchers",
+        "list_integration_device_tags",
         "list_lags",
         "list_local_sites",
         "list_mc_lag_domains",
@@ -547,7 +548,7 @@ def _request_body(req: sc.Request) -> Any:
 def _is_target_request(tool: str, request: sc.Request) -> bool:
     """Distinguish a tool's collection from shared host/site resolution reads."""
     # This Network collection is also the site's resolution route. Its own tool
-    # must retain the limits from network-10.6.106.json:10295 (GET /v1/sites).
+    # must retain the limits from network-11.0.97.json:10300 (GET /v1/sites).
     return not request.resolution or (
         tool == "list_local_sites"
         and request.method == "GET"

@@ -42,6 +42,9 @@ class Handler(BaseHTTPRequestHandler):
         response = conn.getresponse()
         self.send_response(response.status)
         for key, value in response.getheaders():
+            # CR/LF in upstream values could split the forwarded response.
+            if "\r" in value or "\n" in value:
+                continue
             if key.lower() not in {"connection", "transfer-encoding", "content-length"}:
                 self.send_header(key, value)
         data = response.read()
@@ -55,6 +58,7 @@ def start_server(port, tls=False):
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)  # noqa: S104 - isolated container network
     if tls:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(FIXTURE / "cert.pem", FIXTURE / "key.pem")
         server.socket = context.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()

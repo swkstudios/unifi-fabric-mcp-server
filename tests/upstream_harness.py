@@ -13,6 +13,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -42,6 +43,7 @@ ARG_SLOT = 1
 VPN_SERVER_EXTERNAL_ID = "00000000-0000-4000-9000-000000000038"
 SITE = "Default"
 NOW = int(time.time())
+_PROBE_KEY = os.urandom(32)
 
 # Upstream envelope/framing keys: transport metadata around the records, not record data.
 FRAMING = frozenset(
@@ -795,9 +797,10 @@ class FakeUpstream:
     def _system_log(self, req: httpx.Request) -> Any:
         """The Network v2 system-log read-POST (``.../system-log/{class}``): one page
         ``{data, page_number, total_element_count, total_page_count}`` for the JSON body's
-        ``pageNumber`` (page protocol in the body, not the query). Normal mode replays the
-        recorded real page (or array) for the route; paged mode serves three pages (every
-        page answering page 0 under ``repeat_pages``); big mode one page of ``big_items``."""
+        ``pageNumber`` (page protocol in the body, not the query). A recorded system-log page
+        is replayed by ``_serve`` before this point, so this serves generated pages only:
+        one single-record page in normal mode, three pages in paged mode (every page
+        answering page 0 under ``repeat_pages``) and one page of ``big_items`` in big mode."""
         path = req.url.path
         try:
             sent = json.loads(req.content or b"{}")
@@ -808,18 +811,6 @@ class FakeUpstream:
         if self.bare_pages:
             # the bare-page mode: one page of records as a bare JSON array, no envelope
             return self._items(path, self.page_items)
-        if self.mode == "normal":
-            entry = self.recorded_routes.get(("POST", path))
-            if entry is not None and 200 <= entry["status"] < 300:
-                body = copy.deepcopy(entry["body"])
-                extra = self._rec(0, path)
-                if isinstance(body, list):
-                    return [*body, extra]
-                body["data"] = [*body.get("data", []), extra]
-                body["page_number"] = number
-                body["total_element_count"] = len(body["data"])
-                body["total_page_count"] = 1
-                return self._probe_envelope(body)
         pages = 3 if self.mode == "paged" else 1
         per = self.big_items if self.mode == "big" else (self.page_items if pages > 1 else 1)
         served = 0 if self.repeat_pages else number
@@ -959,8 +950,8 @@ class FakeUpstream:
         if req.method == "GET" and self._last_synthetic:
             response = self._without_deleted_routing(req, response)
             response = self._without_deleted_batches(req, response)
-        if req.method == "GET" and req.url.path.endswith(_PROTECT_BACKUP_LIST):
-            return self._without_deleted_backups(response)
+            if req.url.path.endswith(_PROTECT_BACKUP_LIST):
+                response = self._without_deleted_backups(response)
         return response
 
     def _without_deleted_batches(
@@ -1058,8 +1049,11 @@ class FakeUpstream:
         return httpx.Response(response.status_code, json=filtered)
 
     def _without_deleted_backups(self, response: httpx.Response) -> httpx.Response:
-        """A Protect backup deleted with ``DELETE /backup/{id}`` (the route Protect 7.3.70
-        serves; observed live 2026-10-28) is no longer listed by ``GET /backups``."""
+        """A Protect backup deleted with ``DELETE /backup/{id}`` (the route Protect 7.3.74
+        serves; observed live 2026-10-28) is no longer listed by a synthetic ``GET /backups``.
+
+        Captured responses are never altered; the served record holds the filtered body.
+        """
         gone = {
             s.path.rsplit("/", 1)[1]
             for s in self.served
@@ -1078,6 +1072,7 @@ class FakeUpstream:
             body = {k: keep(v) for k, v in body.items()}
         else:
             body = keep(body)
+        self.served[-1].body = body
         return httpx.Response(response.status_code, json=body)
 
     def _serve(self, req: httpx.Request) -> httpx.Response:
@@ -1401,8 +1396,8 @@ class FakeUpstream:
 
 
 def key_probe_tag(key: str) -> str:
-    """Non-secret per-key identity; the harness must not echo configured credentials."""
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
+    """Return a per-run keyed fingerprint without exposing configured credentials."""
+    return hashlib.blake2b(key.encode(), key=_PROBE_KEY).hexdigest()[:16]
 
 
 def _tag_probes(node: Any, key: str) -> None:
@@ -1425,22 +1420,32 @@ def install(
     keys: list[APIKeyConfig] | None = None,
     **settings: Any,
 ) -> UniFiClient:
-    """Install a real client/registry behind every tool, on the fake transport."""
+    """Install a real client/registry behind every tool, on the fake transport.
+
+    dry_run=True / read_only=True set UNIFI_WRITE_POLICY (dry-run / deny) for
+    the test, the write policy being read from the environment at call time.
+    """
+    if settings.pop("dry_run", False):
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    if settings.pop("read_only", False):
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     s = Settings(api_keys=keys) if keys else Settings(api_key="k-test", **settings)
     if keys and settings:
         s = Settings(api_keys=keys, **settings)
     client = UniFiClient(s)
 
-    async def _get_client(self: UniFiClient, key_config: APIKeyConfig) -> httpx.AsyncClient:
-        if key_config.label not in self._clients:
-            self._clients[key_config.label] = httpx.AsyncClient(
-                base_url=s.api_base_url,
-                headers={"X-API-KEY": key_config.key, "Accept": "application/json"},
-                transport=httpx.MockTransport(_yielding(upstream)),
-            )
-        return self._clients[key_config.label]
+    def _new_http_client(self: UniFiClient, key_config: APIKeyConfig) -> httpx.AsyncClient:
+        # Only the transport is faked: the real ``_get_client`` still picks the client, so
+        # environment keys are cached per (label, key fingerprint) and header mode
+        # (UNIFI_KEY_MODE=header) goes through the real per-caller CredentialCache.
+        return httpx.AsyncClient(
+            base_url=self._settings.api_base_url,
+            headers={"X-API-KEY": key_config.key, "Accept": "application/json"},
+            transport=httpx.MockTransport(_yielding(upstream)),
+            follow_redirects=False,
+        )
 
-    monkeypatch.setattr(UniFiClient, "_get_client", _get_client)
+    monkeypatch.setattr(UniFiClient, "_new_http_client", _new_http_client)
     monkeypatch.setattr(server, "_harness_upstream", upstream, raising=False)
     # Repeated installs (a module that installs at import) must not nest wrappers.
     real_call_tool = getattr(server.mcp.call_tool, "_harness_real", server.mcp.call_tool)

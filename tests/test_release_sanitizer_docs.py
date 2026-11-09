@@ -140,7 +140,14 @@ def test_boolean_credential_configuration_flag_is_not_material():
 
 @pytest.mark.parametrize(
     "placeholder",
-    ["<your-key>", "YOUR_API_KEY", "your-api-key-here", "example-token", "$(openssl rand -hex 32)"],
+    [
+        "<your-key>",
+        "YOUR_API_KEY",
+        "your-api-key-here",
+        "example-token",
+        "$(openssl rand -hex 32)",
+        "${input:unifi_api_key}",
+    ],
 )
 @pytest.mark.parametrize("fmt", ["json", "env", "yaml", "toml", "markdown"])
 def test_documentation_placeholders_across_formats(placeholder, fmt):
@@ -159,7 +166,14 @@ def test_documentation_placeholders_across_formats(placeholder, fmt):
 
 @pytest.mark.parametrize(
     "placeholder",
-    ["<your-key>", "YOUR_API_KEY", "your-api-key-here", "example-token", "$(openssl rand -hex 32)"],
+    [
+        "<your-key>",
+        "YOUR_API_KEY",
+        "your-api-key-here",
+        "example-token",
+        "$(openssl rand -hex 32)",
+        "${input:unifi_api_key}",
+    ],
 )
 def test_placeholder_does_not_hide_other_material(placeholder):
     material = "-".join(["synthetic", "sensitive", "value"])

@@ -114,7 +114,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the controller executes the action at its scheduled time; upgrades can
         interrupt devices and clients.
 
-        Returns the upstream body verbatim. UNIFI_DRY_RUN sends no write; returns {status:
+        Returns the upstream body verbatim. Under dry-run policy nothing is sent; returns {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
         Example: docs/TOOL-USAGE.md#create_scheduled_task.
@@ -145,7 +145,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: schedule or target changes affect future device actions; upgrades can interrupt
         devices and clients.
 
-        Returns the upstream body verbatim. UNIFI_DRY_RUN sends no write; returns {status:
+        Returns the upstream body verbatim. Under dry-run policy nothing is sent; returns {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
         Example: docs/TOOL-USAGE.md#update_scheduled_task.
@@ -171,9 +171,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). UNIFI_DRY_RUN sends no write; returns {status: "dry_run", deleted: false, message,
-        response}, where response is the dry-run preview {status, dryRun, sent: false, message,
-        preview: {method, path, params, body}}.
+        empty). Under dry-run policy nothing is sent; returns {status: "dry_run", deleted: false,
+        message, response}, where response is the dry-run preview {status, dryRun, sent: false,
+        message, preview: {method, path, params, body}}.
 
         Example: docs/TOOL-USAGE.md#delete_scheduled_task.
 

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, cast
+
+from fastmcp import FastMCP
 
 from ..client import (
     UniFiClient,
@@ -18,6 +21,7 @@ from ..config import APIKeyConfig
 from ..matching import find_by_id, name_matches, same_id
 from ..redaction import drop_and_note_masked_fields
 from ..registry import Registry, _assert_uuid
+from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import identity_fields, require_update_fields
 from ._classic_objects import (
     addressed_body,
@@ -32,18 +36,22 @@ from ._payload import (
     missing_fields_hint,
     require_fields,
     strip_empty_list_values,
+    upstream_hint,
     with_upstream_hint,
 )
 from ._results import (
     MISSING,
     UNVERIFIED_FIELDS_KEY,
     VERIFIED_KEY,
+    deletion_result,
     leaf_equal,
     read_after_verdict,
+    requested_leaves_verdict,
     safe_read_after,
     short_circuit_no_op,
     with_read_after_error,
 )
+from ._shared import _validate_optional_site
 from .network import _proxy
 
 
@@ -631,6 +639,21 @@ async def list_traffic_rules(client: UniFiClient, registry: Registry, host: str,
     return await client.get(_v2_api(host_id, site_slug, "/trafficrules"), key=key)
 
 
+#: The error a Network 11.0.89 and 11.0.97 console answers (HTTP 501) to POST v2
+#: trafficrules while it still answers GET on the same route (live 2026-11-08).
+_TRAFFIC_RULE_NOT_IMPLEMENTED = "api.err.NotImplemented"
+_TRAFFIC_RULE_NOT_IMPLEMENTED_HINT = (
+    "this console's Network application does not implement creating traffic rules on the v2 "
+    "trafficrules route (it may still list them with list_traffic_rules), so no change to "
+    "the payload will help. No Network version that creates traffic rules here is recorded "
+    "by this server's sources: the pinned Network 11.0.97 Integration spec has no traffic-rule "
+    "route and the Network 11.0.81 web UI only reads this one. Build the rule with a supported "
+    "family instead: create_firewall_policy (block or allow; match IPs or domains with a list "
+    "from create_traffic_matching_list), create_qos_rule (rate limit or queue) or "
+    "create_traffic_route (send matching traffic through a chosen WAN or VPN)."
+)
+
+
 async def create_traffic_rule(
     client: UniFiClient, registry: Registry, host: str, site: str, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -641,6 +664,9 @@ async def create_traffic_rule(
     applies to — is required by the API but was previously undocumented, while
     ``description`` and ``enabled`` are *not* API-required (the controller defaults
     ``enabled``); both are accepted as optional fields.
+
+    A console that does not implement this route answers HTTP 501 api.err.NotImplemented;
+    the error keeps the upstream body and gets a hint naming the supported alternatives.
     """
     hint = missing_fields_hint(
         "create_traffic_rule",
@@ -651,16 +677,23 @@ async def create_traffic_rule(
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_slug = await registry.resolve_site_slug(site, host_id, key=key)
-    return await with_upstream_hint(
-        client.post(_v2_api(host_id, site_slug, "/trafficrules"), key=key, json=payload), hint
-    )
+    try:
+        return await client.post(
+            _v2_api(host_id, site_slug, "/trafficrules"), key=key, json=payload
+        )
+    except UniFiConnectionError as exc:
+        # A route the console does not implement: a missing-field hint would mislead.
+        if exc.status == 501 or _TRAFFIC_RULE_NOT_IMPLEMENTED in str(exc):
+            hint = _TRAFFIC_RULE_NOT_IMPLEMENTED_HINT
+        upstream_hint(exc, hint)
+        raise
 
 
-async def _require_traffic_rule(
+async def _listed_traffic_rule(
     client: UniFiClient, host_id: str, site_slug: str, rule_id: str, key: APIKeyConfig | None
-) -> str:
-    """The upstream ``_id`` of traffic rule ``rule_id`` (resolved in its list)."""
-    record = await require_listed_record(
+) -> dict[str, Any]:
+    """The listed record of traffic rule ``rule_id`` (an unknown id raises, no write)."""
+    return await require_listed_record(
         client,
         _v2_api(host_id, site_slug, "/trafficrules"),
         rule_id,
@@ -669,7 +702,31 @@ async def _require_traffic_rule(
         list_tool="list_traffic_rules",
         label_fields=("description", "name"),
     )
+
+
+async def _require_traffic_rule(
+    client: UniFiClient, host_id: str, site_slug: str, rule_id: str, key: APIKeyConfig | None
+) -> str:
+    """The upstream ``_id`` of traffic rule ``rule_id`` (resolved in its list)."""
+    record = await _listed_traffic_rule(client, host_id, site_slug, rule_id, key)
     return listed_record_id(record, "rule_id")
+
+
+def _merged_record(current: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
+    """``current`` with only the requested leaves of ``changes`` written over it.
+
+    Objects merge recursively; any other value (a list included) replaces the stored one.
+    Neither argument is mutated.
+    """
+    merged = dict(current)
+    for name, value in changes.items():
+        prior = merged.get(name)
+        merged[name] = (
+            _merged_record(prior, value)
+            if isinstance(prior, dict) and isinstance(value, dict)
+            else value
+        )
+    return merged
 
 
 async def update_traffic_rule(
@@ -679,18 +736,47 @@ async def update_traffic_rule(
     site: str,
     rule_id: str,
     payload: dict[str, Any],
-) -> dict[str, Any]:
-    """Update a traffic rule via the v2 API (the id is resolved first)."""
+) -> Any:
+    """Read-merge-write a traffic rule via the v2 API, then verify the requested leaves.
+
+    The v2 ``trafficrules/{id}/`` PUT replaces the whole rule, so ``payload`` (the fields
+    to change) is merged into the rule as ``list_traffic_rules`` lists it and the merged
+    rule is PUT: unrequested fields (``matching_target``, ``target_devices``, ``schedule``
+    and the rest) are sent back unchanged. A payload with no field to change (empty, or
+    only identity, additive ``_`` or masked keys) is refused before any request. The
+    upstream PUT body is returned plus ``_verified`` (every requested leaf read back
+    equal, type-strict) and ``_readAfterError`` when the read-back failed; a non-object
+    PUT body is kept under ``response``.
+    """
     validate_id(rule_id, "rule_id")
+    clean = require_update_fields(
+        drop_and_note_masked_fields(payload), "update_traffic_rule payload"
+    )
+    identity = identity_fields("update_traffic_rule")
+    changes = {name: value for name, value in clean.items() if name not in identity}
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
     site_slug = await registry.resolve_site_slug(site, host_id, key=key)
-    upstream_id = await _require_traffic_rule(client, host_id, site_slug, rule_id, key)
-    return await client.put(
+    record = await _listed_traffic_rule(client, host_id, site_slug, rule_id, key)
+    upstream_id = listed_record_id(record, "rule_id")
+    body = _merged_record(strip_additive_keys(record), changes)
+    response = await client.put(
         _v2_api(host_id, site_slug, f"/trafficrules/{upstream_id}/"),
         key=key,
-        json=strip_empty_list_values(addressed_body(payload, upstream_id)),
+        json=strip_empty_list_values(addressed_body(body, upstream_id)),
     )
+    if is_dry_run_preview(response):
+        # dry-run policy: nothing was written, so there is nothing to verify.
+        return response
+    after, error = await safe_read_after(
+        lambda: _listed_traffic_rule(client, host_id, site_slug, upstream_id, key)
+    )
+    verified, error = requested_leaves_verdict(strip_empty_list_values(changes), after, error)
+    result = response if isinstance(response, dict) else {"response": response}
+    additions: dict[str, Any] = {VERIFIED_KEY: verified}
+    if error is not None:
+        additions["_readAfterError"] = error
+    return with_context(result, additions)
 
 
 async def delete_traffic_rule(
@@ -944,7 +1030,7 @@ async def get_setting(
     * ``guest_access`` — ``auth`` (e.g. ``hotspot``);  ``mgmt`` — ``led_enabled`` (bool)
 
     Fields prefixed ``x_`` hold credentials/secrets (passwords, keys, tokens) and are
-    returned verbatim — handle them accordingly.
+    returned verbatim (masked when UNIFI_REDACT_SECRETS is enabled).
     """
     validate_id(setting_key, "setting_key")
     key = await registry.resolve_key_for_host(host)
@@ -1011,7 +1097,7 @@ async def update_setting(
     would report a field that was never written as "rejected" (a false silent no-op) and
     would make a get_setting result fed back in look like a change.
 
-    Under ``UNIFI_DRY_RUN`` the PUT returns the dry-run preview; it is returned as is and
+    Under ``dry-run policy`` the PUT returns the dry-run preview; it is returned as is and
     the post-write verification is skipped (nothing was written to verify).
     """
     validate_id(setting_key, "setting_key")
@@ -1038,7 +1124,7 @@ async def update_setting(
     # stripped, so the current state must be stripped the same way before
     # comparing — otherwise a genuinely-equal list field reads as "changed"
     # and skips this guard.
-    # Under UNIFI_DRY_RUN the PUT is always issued to the preview (short_circuit_no_op).
+    # Under dry-run policy the PUT is always issued to the preview (short_circuit_no_op).
     applied = all(_satisfies(pre_state.get(k, MISSING), v) for k, v in payload.items())
     if short_circuit_no_op(client, applied):
         return with_context(pre_response, {"_note": "no change needed"})
@@ -1046,7 +1132,7 @@ async def update_setting(
     # --- perform the write ---
     response = await client.put(url, key=key, json=payload)
     if is_dry_run_preview(response):
-        # UNIFI_DRY_RUN: nothing was written, so there is nothing to verify.
+        # dry-run policy: nothing was written, so there is nothing to verify.
         return response
 
     # --- post-write verification (the write is applied: a failing re-read is reported) ---
@@ -1265,7 +1351,7 @@ async def update_dynamic_dns(
 # against ``/rest/networkconf`` (the same id->name join the remediation runbook
 # uses; port-profile ``*_networkconf_id(s)`` fields reference those documents by
 # their Mongo ``_id``) so an operator can see at a glance which id IS the new
-# network, and the atomic allow_/exclude_ helpers do the whole fresh-read ->
+# network, and the allow_/exclude_ helpers do the whole fresh-read ->
 # mutate exclusion list -> PUT cycle in one call.
 
 _NETWORKCONF_LIST_ID_FIELDS = ("excluded_networkconf_ids",)
@@ -1626,7 +1712,7 @@ async def update_port_profile(
         json=strip_empty_list_values(addressed_body(body, upstream_id)),
     )
     if is_dry_run_preview(response):
-        # UNIFI_DRY_RUN: nothing was written; the bare preview, no name-resolution read.
+        # dry-run policy: nothing was written; the bare preview, no name-resolution read.
         return response
     # The write is applied at this point; a failed name lookup must not fail the call
     # (the server's one safe read-after: readAfterError says why it is missing).
@@ -1669,7 +1755,7 @@ async def _mutate_port_profile_exclusion(
     exclude: bool,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Atomically add/remove a network from a port profile's exclusion list.
+    """Add/remove a network from a port profile's exclusion list.
 
     ``network_id`` may be either id of the network: the Classic networkconf ``_id`` or the
     Network Integration id (``list_networks`` data[].id / the id ``create_network``
@@ -1677,11 +1763,12 @@ async def _mutate_port_profile_exclusion(
     validated against /rest/networkconf BEFORE the write; an unknown id fails listing every
     valid network (name, vlan, both ids).
 
-    Fresh-reads the profile, mutates ``excluded_networkconf_ids``, PUTs the whole object
+    The fresh-read and PUT cycle is not atomic against concurrent edits. Fresh-reads the
+    profile, mutates ``excluded_networkconf_ids``, PUTs the whole object
     back, and returns the controller's PUT envelope verbatim (each profile carrying the
     additive ``_resolved_networks``) plus the additive ``_tagged_networks`` (the derived
     tagged-VLAN set) and ``_network`` (the networkconf the id resolved to). Under
-    ``UNIFI_DRY_RUN`` the bare dry-run preview is returned (none of those additive keys,
+    ``dry-run policy`` the bare dry-run preview is returned (none of those additive keys,
     and no name-resolution read after the suppressed PUT).
 
     This is a live write to a SHARED port profile — the exclusion list affects
@@ -1718,7 +1805,7 @@ async def _mutate_port_profile_exclusion(
         json=strip_empty_list_values(write_payload),
     )
     if is_dry_run_preview(response):
-        # UNIFI_DRY_RUN: nothing was written, so there is no profile to derive
+        # dry-run policy: nothing was written, so there is no profile to derive
         # _tagged_networks from and no reason for the name-resolution read: the bare
         # preview, as every other write returns it.
         return response
@@ -1730,14 +1817,10 @@ async def _mutate_port_profile_exclusion(
     name_map, error = await _name_map_or_error(client, host_id, site_slug, key=key)
     resp_data = response["data"]
     updated = next(
-        (p for p in resp_data or [] if isinstance(p, dict) and same_id(upstream_id, p.get("_id"))),
+        (p for p in resp_data if isinstance(p, dict) and same_id(upstream_id, p.get("_id"))),
         None,
     )
-    result: dict[str, Any] = (
-        dict(_envelope_with_resolution(response, name_map, error))
-        if isinstance(response, dict)
-        else {"response": response}
-    )
+    result: dict[str, Any] = dict(_envelope_with_resolution(response, name_map, error))
     context: dict[str, Any] = {}
     if updated is None:
         # The controller did not return the profile: report that, never stand the
@@ -1770,7 +1853,7 @@ async def allow_network_on_port_profile(
     network_id: str,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Atomically allow (un-exclude) a network on a port profile after auto-exclusion.
+    """Allow (un-exclude) a network on a port profile after auto-exclusion.
 
     Removes the network (either id; see ``_mutate_port_profile_exclusion``) from the
     profile's ``excluded_networkconf_ids`` via a fresh-read -> PUT cycle and returns the
@@ -1793,7 +1876,7 @@ async def exclude_network_on_port_profile(
     network_id: str,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Atomically exclude (untag) a network on a port profile.
+    """Exclude (untag) a network on a port profile.
 
     Adds the network (either id; see ``_mutate_port_profile_exclusion``) to the profile's
     ``excluded_networkconf_ids`` via a fresh-read -> PUT cycle. Inverse of
@@ -2089,6 +2172,27 @@ async def list_firewall_rules(client: UniFiClient, registry: Registry, host: str
     return await client.get(_classic_rest(host_id, site_slug, "/firewallrule"), key=key)
 
 
+async def create_firewall_rule(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    rule: dict[str, Any],
+) -> Any:
+    """Create a classic L3/L4 firewall rule through the Site Manager EA route.
+
+    The private API publishes no fixed request schema. All supplied fields are forwarded
+    unchanged so the controller remains authoritative for their contents.
+    """
+    if not isinstance(rule, dict):
+        raise ValueError("create_firewall_rule requires a JSON object")
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_ea_site_id(site, host_id=host_id, key=key)
+    validate_id(site_id, "site_id")
+    return await client.post(f"/ea/sites/{site_id}/rest/firewallrule", key=key, json=rule)
+
+
 async def get_firewall_rule(
     client: UniFiClient, registry: Registry, host: str, site: str, rule_id: str
 ) -> Any:
@@ -2265,3 +2369,2731 @@ async def list_dpi_applications(
         limit=limit,
         filter=filter,
     )
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import network_services_proxy  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the network_services_proxy tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_dns_policies(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List all DNS policies for a site.
+
+        Returns {data, totalCount}: every page is drained; data holds the DNS policy records verbatim
+        and totalCount is the upstream total (null when none was reported). The first page's other
+        envelope fields are kept beside them, and incomplete / incompleteReason are added when a capped
+        drain stopped short.
+
+        DNS policies are offset-paginated (native default page size 25); by default every
+        page is drained and the complete list is returned as {data, totalCount}. Pass
+        offset alone for a single manual page. A capped drain is flagged incomplete.
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `domain.like('*example*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `type.eq('A_RECORD')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_dns_policies(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def create_dns_policy(
+        host: str,
+        site: str,
+        policy: dict[str, Any],
+    ) -> Any:
+        """Create a new DNS policy on a site.
+
+        Returns the upstream response body verbatim: the created DNS policy object the API answers with
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message, preview: {method, path, params (query parameters), body}} instead).
+
+        Validated locally before the request (a missing field raises ValueError naming it):
+        ``type`` — the discriminator the controller validates first (verified live: an empty
+        body is rejected with ``Missing $.type value``). The remaining fields are type-specific
+        and enforced by the controller.
+
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/dns/policies (createDnsPolicy); schema
+        "Create or update DNS policy") is passed in `policy`. Required keys — enabled, type.
+        - enabled: boolean
+        - type: string
+        Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
+        A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
+        enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
+        type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
+        domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
+        requires domain, enabled, text, type.
+
+        Example call (create_dns_policy):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "policy": {
+                "type": "AAAA_RECORD",
+                "domain": "example.com",
+                "enabled": true,
+                "ipv6Address": "cafe::babe",
+                "ttlSeconds": 14400
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            policy: Full object to create; spec Create or update DNS policy. Required: enabled, type.
+                'type' selects variant:
+                AAAA_RECORD|A_RECORD|CNAME_RECORD|FORWARD_DOMAIN|MX_RECORD|SRV_RECORD|TXT_RECORD.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_dns_policy(client, registry, host, site, policy)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_dns_policy(
+        host: str,
+        site: str,
+        policy_id: str,
+    ) -> Any:
+        """Get a single DNS policy by ID.
+
+        Returns: the DNS policy object, verbatim. To change it, edit it and pass it as `policy` to
+        update_dns_policy.
+
+        Example call (get_dns_policy):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            policy_id: DNS policy UUID. Get it from list_dns_policies (data[].id). Network-app UUID —
+                not a Protect id.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_dns_policy(client, registry, host, site, policy_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_dns_policy(
+        host: str,
+        site: str,
+        policy_id: str,
+        policy: dict[str, Any],
+    ) -> Any:
+        """Update a DNS policy by ID.
+
+        Returns the upstream response body verbatim: the updated DNS policy object the API answers with
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message, preview: {method, path, params (query parameters), body}} instead).
+
+        Request body (Network 11.0.97, PUT /v1/sites/{siteId}/dns/policies/{dnsPolicyId}
+        (updateDnsPolicy); schema "Create or update DNS policy") is passed in `policy`. Required keys —
+        enabled, type.
+        - enabled: boolean
+        - type: string
+        Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
+        A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
+        enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
+        type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
+        domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
+        requires domain, enabled, text, type.
+
+        Example call (update_dns_policy):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "policy": {
+                "type": "AAAA_RECORD",
+                "domain": "example.com",
+                "enabled": true,
+                "ipv6Address": "cafe::babe",
+                "ttlSeconds": 14400
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            policy_id: DNS policy UUID. Get it from list_dns_policies (data[].id). Network-app UUID —
+                not a Protect id.
+            policy: FULL replacement object (PUT; omitted fields reset); spec Create or update DNS
+                policy. Required: enabled, type.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_dns_policy(
+            client, registry, host, site, policy_id, policy
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_dns_policy(
+        host: str,
+        site: str,
+        policy_id: str,
+    ) -> dict[str, Any]:
+        """Delete a DNS policy.
+
+        Consequence: the record or forwarding rule stops being served immediately; there is no undo.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_dns_policy):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            policy_id: DNS policy UUID. Get it from list_dns_policies (data[].id). Network-app UUID —
+                not a Protect id.
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_dns_policy(
+            client, registry, host, site, policy_id
+        )
+        return deletion_result(f"DNS policy {policy_id} deleted.", response)
+
+    # --- Traffic Matching List Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_traffic_matching_lists(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List all traffic matching lists for a site.
+
+        Returns {data, totalCount} with every page drained (the API pages at 25 by default).
+        Pass offset alone to fetch a single manual page (native envelope preserved).
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `name.eq('Business Apps')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_traffic_matching_lists(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def create_traffic_matching_list(
+        host: str,
+        site: str,
+        traffic_list: dict[str, Any],
+    ) -> Any:
+        """Create a new traffic matching list on a site.
+
+        Returns the upstream response body verbatim: the created traffic matching list object the API
+        answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
+        false, message, preview: {method, path, params (query parameters), body}} instead).
+
+        Validated locally before the request (a missing field raises ValueError naming it):
+        a top-level ``type`` — the discriminator the controller validates first (verified live:
+        an empty body is rejected with ``Missing $.type value``; observed value: 'PORTS').
+
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/traffic-matching-lists
+        (createTrafficMatchingList); schema "Create or update traffic matching list") is passed in
+        `traffic_list`. Required keys — name, type.
+        - name: string
+        - type: string
+        Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
+        name, type; PORTS requires items, name, type.
+
+        Example call (create_traffic_matching_list):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "traffic_list": {
+                "type": "IPV4_ADDRESSES",
+                "items": [{"type": "IP_ADDRESS", "value": "192.0.2.5"}],
+                "name": "Allowed address list"
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            traffic_list: Full object to create; spec Create or update traffic matching list. Required:
+                name, type. 'type' selects variant: IPV4_ADDRESSES|IPV6_ADDRESSES|PORTS.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_traffic_matching_list(
+            client, registry, host, site, traffic_list
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_traffic_matching_list(
+        host: str,
+        site: str,
+        list_id: str,
+    ) -> Any:
+        """Get a single traffic matching list by ID.
+
+        Returns: the traffic matching list object, verbatim. To change it, edit it and pass it as
+        `traffic_list` to update_traffic_matching_list.
+
+        Example call (get_traffic_matching_list):
+            {"host": "my-console", "site": "Default", "list_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            list_id: Traffic matching list UUID. Get it from list_traffic_matching_lists (data[].id).
+                Network-app UUID — not a Protect id.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_traffic_matching_list(
+            client, registry, host, site, list_id
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_traffic_matching_list(
+        host: str,
+        site: str,
+        list_id: str,
+        traffic_list: dict[str, Any],
+    ) -> Any:
+        """Update a traffic matching list by ID.
+
+        Returns the upstream response body verbatim: the updated traffic matching list object the API
+        answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
+        false, message, preview: {method, path, params (query parameters), body}} instead).
+
+        Request body (Network 11.0.97, PUT
+        /v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId} (updateTrafficMatchingList);
+        schema "Create or update traffic matching list") is passed in `traffic_list`. Required keys —
+        name, type.
+        - name: string
+        - type: string
+        Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
+        name, type; PORTS requires items, name, type.
+
+        Example call (update_traffic_matching_list):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "list_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "traffic_list": {
+                "type": "IPV4_ADDRESSES",
+                "items": [{"type": "IP_ADDRESS", "value": "192.0.2.5"}],
+                "name": "Allowed address list"
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            list_id: Traffic matching list UUID. Get it from list_traffic_matching_lists (data[].id).
+                Network-app UUID — not a Protect id.
+            traffic_list: FULL replacement object (PUT; omitted fields reset); spec Create or update
+                traffic matching list. Required: name, type. 'type' selects variant:
+                IPV4_ADDRESSES|IPV6_ADDRESSES|PORTS.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_traffic_matching_list(
+            client, registry, host, site, list_id, traffic_list
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_traffic_matching_list(
+        host: str,
+        site: str,
+        list_id: str,
+    ) -> dict[str, Any]:
+        """Delete a traffic matching list.
+
+        Consequence: the list is permanently removed; there is no undo.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_traffic_matching_list):
+            {"host": "my-console", "site": "Default", "list_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            list_id: Traffic matching list UUID. Get it from list_traffic_matching_lists (data[].id).
+                Network-app UUID — not a Protect id.
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_traffic_matching_list(
+            client, registry, host, site, list_id
+        )
+        return deletion_result(f"Traffic matching list {list_id} deleted.", response)
+
+    # --- VPN Server Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_vpn_servers(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List VPN servers for a site.
+
+        Returns {data, totalCount}: every page is drained; data holds the VPN server records verbatim
+        and totalCount is the upstream total (null when none was reported). The first page's other
+        envelope fields are kept beside them, and incomplete / incompleteReason are added when a capped
+        drain stopped short.
+
+        VPN servers are offset-paginated (native default page size 25); by default every
+        page is drained and the complete list is returned as {data, totalCount}. Pass
+        offset alone for a single manual page. A capped drain is flagged incomplete.
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `metadata.origin.eq('USER_DEFINED')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_vpn_servers(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_site_to_site_tunnels(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List site-to-site VPN tunnels for a site.
+
+        Returns: {data: [tunnel…], totalCount} with every page drained, entries verbatim (pass
+        offset alone to fetch a single manual page, native envelope preserved). To change one,
+        pass the native Classic networkconf fields to change (e.g. enabled, name) as `tunnel` to
+        update_site_to_site_tunnel (tunnel_id = its data[] id).
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `metadata.origin.eq('USER_DEFINED')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_site_to_site_tunnels(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    # --- RADIUS Profile Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_radius_profiles(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List RADIUS profiles for a site.
+
+        Returns {data, totalCount}: every page is drained; data holds the RADIUS profile records
+        verbatim and totalCount is the upstream total (null when none was reported). The first page's
+        other envelope fields are kept beside them, and incomplete / incompleteReason are added when a
+        capped drain stopped short.
+
+        RADIUS profiles are offset-paginated (native default page size 25); by default
+        every page is drained and the complete list is returned as {data, totalCount}.
+        Pass offset alone for a single manual page. A capped drain is flagged incomplete.
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `metadata.origin.eq('USER_DEFINED')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_radius_profiles(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    # --- Hotspot Voucher Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_hotspot_vouchers(
+        host: str,
+        site: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List all hotspot/guest vouchers for a site (there is no `list_vouchers` — this is it).
+
+        Returns {data, totalCount}: every page is drained; data holds the voucher records verbatim and
+        totalCount is the upstream total (null when none was reported). The first page's other envelope
+        fields are kept beside them, and incomplete / incompleteReason are added when a capped drain
+        stopped short.
+
+        This is the voucher-listing tool; the family is `list_hotspot_vouchers`,
+        `create_hotspot_vouchers`, `get_hotspot_voucher`, `delete_hotspot_voucher` — all
+        prefixed `hotspot_`. There is no shorter `list_vouchers`/`get_voucher` alias.
+
+        Vouchers are offset-paginated (native page size 100) and batches routinely
+        exceed that; by default every page is drained and all records are returned as
+        {data, totalCount}. Pass offset alone for a single manual page. A capped drain
+        is flagged incomplete.
+
+        limit requests a total, gathered automatically in batches up to 1000;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 1000; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 1000, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `name.eq('Conference')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_hotspot_vouchers(
+            client, registry, host, site, offset=offset, limit=limit, filter=filter
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def create_hotspot_vouchers(
+        host: str,
+        site: str,
+        voucher_config: dict[str, Any],
+    ) -> Any:
+        """Generate hotspot vouchers for a site.
+
+        Returns the upstream response body verbatim: the voucher-creation object the API answers with
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message, preview: {method, path, params (query parameters), body}} instead).
+
+        `voucher_config`: required fields (validated locally — a missing field raises ValueError
+        naming it — and verified against the live controller): ``name`` and
+        ``timeLimitMinutes`` (voucher validity window, minutes). Optional: count, quota,
+        bandwidth limits, etc.
+
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/hotspot/vouchers (createVouchers);
+        schema "Hotspot voucher creation request") is passed in `voucher_config`. Required keys — name,
+        timeLimitMinutes.
+        - authorizedGuestLimit: integer(int64)
+        - count: integer(int32)
+        - dataUsageLimitMBytes: integer(int64)
+        - name: string
+        - rxRateLimitKbps: integer(int64)
+        - timeLimitMinutes: integer(int64)
+        - txRateLimitKbps: integer(int64)
+
+        Example call (create_hotspot_vouchers):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "voucher_config": {"name": "Conference", "timeLimitMinutes": 1440}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            voucher_config: Full object to create; spec Hotspot voucher creation request. Required:
+                name, timeLimitMinutes.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_hotspot_vouchers(
+            client, registry, host, site, voucher_config
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_hotspot_voucher(
+        host: str,
+        site: str,
+        voucher_id: str,
+    ) -> Any:
+        """Get a single hotspot voucher by ID.
+
+        Returns the upstream voucher object verbatim, exactly as the API answers it.
+
+        Example call (get_hotspot_voucher):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "voucher_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            voucher_id: Hotspot voucher UUID. Get it from list_hotspot_vouchers (data[].id). Network-app
+                UUID — not a Protect id.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_hotspot_voucher(
+            client, registry, host, site, voucher_id
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_hotspot_voucher(
+        host: str,
+        site: str,
+        voucher_id: str,
+    ) -> dict[str, Any]:
+        """Delete a single hotspot voucher.
+
+        Consequence: the voucher can no longer be redeemed; there is no undo.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_hotspot_voucher):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "voucher_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            voucher_id: Hotspot voucher UUID. Get it from list_hotspot_vouchers (data[].id). Network-app
+                UUID — not a Protect id.
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_hotspot_voucher(
+            client, registry, host, site, voucher_id
+        )
+        return deletion_result(f"Hotspot voucher {voucher_id} deleted.", response)
+
+    @mcp.tool(annotations=WRITE)
+    async def bulk_delete_hotspot_vouchers(
+        host: str,
+        site: str,
+        filter_params: dict[str, Any],
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Bulk delete hotspot vouchers matching filter criteria.
+
+        Consequence: every voucher matching the filter is permanently removed and can no longer be
+        redeemed; there is no undo.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (bulk_delete_hotspot_vouchers):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "filter_params": {"filter": "name.eq('Conference')"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            filter_params: Query parameters sent with the DELETE; must contain `filter`, which selects
+                the vouchers to delete (Network 11.0.97 DELETE /v1/sites/{siteId}/hotspot/vouchers),
+                e.g. {"filter": "name.eq('Conference')"}. Filter syntax as list_hotspot_vouchers.
+                Free-form JSON object; no fixed body shape is published.
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is
+                sent upstream and a preview of the request is returned).
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.bulk_delete_hotspot_vouchers(
+            client, registry, host, site, filter_params
+        )
+        return deletion_result("Hotspot vouchers deleted.", response)
+
+    # --- Supporting Resources Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_device_tags(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List all device tags defined in a site (the tags the Network UI shows).
+
+        Reads the v2 route the controller's own UI uses, GET
+        /proxy/network/v2/api/site/{site}/device-tags; the published Integration device-tag list
+        is a separate collection that answers empty on Network 11.0.81 while the UI has tags.
+
+        Returns: the v2 API's bare JSON array of tags, verbatim, the whole list in one response
+        (each entry {_id, name, member_device_macs, ...}). To change one, pass it as `tag` to
+        update_device_tag (tag_id = its _id): either the entry itself, edited (rename it, or set
+        member_device_macs to the desired members; the tool sends the additions and removals
+        and drops _id), or a native v2 update body {name, device_mac_additions,
+        device_mac_removals}.
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_device_tags(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_countries(
+        host: str,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List all countries with ISO codes available on a console.
+
+        Returns {data, totalCount} with every page drained (about 250 entries; the API pages at
+        25 by default). Pass offset alone to fetch a single manual page (native envelope
+        preserved).
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `code.eq('US')`."""
+        client, registry = deps_fn()
+        return await network_services_proxy.list_countries(
+            client, registry, host, offset=offset, limit=limit, filter=filter
+        )
+
+    return {
+        "list_dns_policies": list_dns_policies,
+        "create_dns_policy": create_dns_policy,
+        "get_dns_policy": get_dns_policy,
+        "update_dns_policy": update_dns_policy,
+        "delete_dns_policy": delete_dns_policy,
+        "list_traffic_matching_lists": list_traffic_matching_lists,
+        "create_traffic_matching_list": create_traffic_matching_list,
+        "get_traffic_matching_list": get_traffic_matching_list,
+        "update_traffic_matching_list": update_traffic_matching_list,
+        "delete_traffic_matching_list": delete_traffic_matching_list,
+        "list_vpn_servers": list_vpn_servers,
+        "list_site_to_site_tunnels": list_site_to_site_tunnels,
+        "list_radius_profiles": list_radius_profiles,
+        "list_hotspot_vouchers": list_hotspot_vouchers,
+        "create_hotspot_vouchers": create_hotspot_vouchers,
+        "get_hotspot_voucher": get_hotspot_voucher,
+        "delete_hotspot_voucher": delete_hotspot_voucher,
+        "bulk_delete_hotspot_vouchers": bulk_delete_hotspot_vouchers,
+        "list_device_tags": list_device_tags,
+        "list_countries": list_countries,
+    }
+
+
+def register_2(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the network_services_proxy tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_port_forwards(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List all port forwarding rules for a site.
+
+        Returns: the controller envelope {meta, data: [rule…]}, entries verbatim. To change one, edit
+        its data[] entry and pass it as `payload` to update_port_forward (forward_id = its _id).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_port_forwards(client, registry, host, site)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_port_forward(
+        host: str,
+        site: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Create a port forwarding rule via the Classic REST API.
+
+        Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
+        verbatim (meta is relayed as received, never interpreted).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        `payload`: port forward config. Pass name, dst_port, fwd and fwd_port. ``proto`` is
+        optional (the controller defaults it, typically 'tcp_udp'). The body is sent as given:
+        this Classic REST endpoint has no published schema and is observed to accept a body
+        without those fields and create a broken rule, so include them; an upstream error gets a
+        hint naming any that are missing.
+        Example: {"enabled": true, "name": "SSH", "pfwd_interface": "wan", "src": "any",
+        "dst_port": "2222", "fwd": "192.168.1.10", "fwd_port": "22", "proto": "tcp", "log": false}
+
+        Request body: no published schema exists for POST network/api/s/{site}/rest/portforward
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (create_port_forward):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "payload": {
+                "enabled": true,
+                "name": "SSH",
+                "pfwd_interface": "wan",
+                "src": "any",
+                "dst_port": "2222",
+                "fwd": "192.0.2.10",
+                "fwd_port": "22",
+                "proto": "tcp",
+                "log": false
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            payload: spec: free-form (classic REST portforward), sent as given. Pass name,
+                dst_port, fwd (target IP), fwd_port; proto optional (tcp|udp|tcp_udp).
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_port_forward(
+            client, registry, host, site, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_port_forward(
+        host: str,
+        site: str,
+        forward_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a port forwarding rule by ID.
+
+        The id is resolved in list_port_forwards first: an unknown id fails listing every valid _id, and
+        nothing is written.
+
+        Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
+        verbatim (meta is relayed as received, never interpreted).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/portforward/{id}
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (update_port_forward):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "forward_id": "000000000000000000000107",
+              "payload": {"enabled": false}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            forward_id: Port-forward rule _id (classic REST portforward). Get it from list_port_forwards
+                (_id).
+            payload: spec: free-form (classic REST portforward). Fields to change (snake_case, e.g.
+                dst_port, fwd, fwd_port, enabled). Read current via list_port_forwards.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_port_forward(
+            client, registry, host, site, forward_id, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_port_forward(
+        host: str,
+        site: str,
+        forward_id: str,
+    ) -> dict[str, Any]:
+        """Delete a port forwarding rule by ID.
+
+        Consequence: inbound connections on the forwarded port stop reaching the internal host; there is
+        no undo.
+
+        The id is resolved in list_port_forwards first (the controller answers a DELETE on an unknown id
+        with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_port_forward):
+            {"host": "my-console", "site": "Default", "forward_id": "000000000000000000000107"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            forward_id: Port-forward rule _id (classic REST portforward). Get it from list_port_forwards
+                (_id).
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_port_forward(
+            client, registry, host, site, forward_id
+        )
+        return deletion_result(f"Port forward {forward_id} deleted.", response)
+
+    # --- Traffic Rule Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_traffic_rules(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List traffic matching rules (QoS, application, IP group matching).
+
+        Requires a controller implementing the v2 trafficrules route. Consoles without it
+        return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
+
+        Returns: the v2 API's bare JSON array of rules, verbatim (the same shape as
+        list_traffic_routes). To change one, edit its entry and pass it as `payload` to
+        update_traffic_rule (rule_id = its _id).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_traffic_rules(client, registry, host, site)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_traffic_rule(
+        host: str,
+        site: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Create a traffic matching rule (QoS, block, or route by application/IP group).
+
+        Returns the upstream response body verbatim: the created traffic rule object the API answers
+        with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message,
+        preview: {method, path, params (query parameters), body}} instead).
+
+        `payload`: sent as given; the controller requires these fields (verified live; an
+        upstream error gets a hint naming any that are missing):
+          - action: 'BLOCK'|'THROTTLE_RATE'|'QUEUE'
+          - matching_target: 'INTERNET'|'LOCAL'|'ALL' or a traffic matching list id (from
+            list_traffic_matching_lists)
+          - target_devices: the devices/networks the rule applies to (required by the API;
+            previously undocumented)
+          Optional (NOT required by the API): description (str), enabled (bool, controller
+          defaults it), matching_target_type ('INTERNET'|'DOMAIN'|'IP_GROUP'|'APPLICATION_GROUP'),
+          bandwidth_limit (dict with up_limit_kbps/down_limit_kbps for THROTTLE_RATE).
+        Note: uses the Classic REST v2 API (/v2/api/site/{siteId}/trafficrules); may not exist
+        on firmware 10.2.105 and below. A console that does not implement creating here answers
+        HTTP 501 api.err.NotImplemented (GET may still list rules) and no payload change will
+        help: use create_firewall_policy (match with create_traffic_matching_list),
+        create_qos_rule or create_traffic_route, each with its own schema.
+
+        Request body: no published schema exists for POST network/v2/api/site/{site}/trafficrules
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (create_traffic_rule):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "payload": {
+                "action": "BLOCK",
+                "matching_target": "INTERNET",
+                "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
+                "description": "Block guests",
+                "enabled": true
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            payload: spec: free-form (Network v2 trafficrules), sent as given. The controller
+                requires action BLOCK|THROTTLE_RATE|QUEUE, matching_target (INTERNET|LOCAL|ALL or
+                list id) and target_devices.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_traffic_rule(
+            client, registry, host, site, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_traffic_rule(
+        host: str,
+        site: str,
+        rule_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a traffic rule by ID.
+
+        Requires a controller implementing the v2 trafficrules route. Consoles without it
+        return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
+
+        The id is resolved in list_traffic_rules first: an unknown id fails listing every valid _id, and
+        nothing is written. The v2 PUT replaces the whole rule, so the tool reads the rule from
+        list_traffic_rules, merges only the given fields into it (objects merge recursively; a list
+        replaces the stored list), PUTs the merged rule and reads it back: fields not in payload are
+        sent back unchanged. A payload with no field to change is refused before any request.
+
+        Returns the upstream PUT body plus _verified (true only when every requested leaf read back
+        equal, type-strict) and _readAfterError when the read-back failed; a non-object PUT body is
+        kept under response. Under dry-run policy nothing is sent and the tool returns the dry-run
+        preview {status: "dry_run", dryRun: true, sent: false, message,
+        preview: {method, path, params (query parameters), body}} instead.
+
+        Request body: no published schema exists for PUT network/v2/api/site/{site}/trafficrules/{id}/
+        (classic/v2 controller API). Pass only the native fields to change; the tool supplies the rest
+        from the listed rule.
+
+        Example call (update_traffic_rule):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "rule_id": "000000000000000000000107",
+              "payload": {"enabled": false}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            rule_id: Traffic rule id (Network v2 API _id). Get it from list_traffic_rules (_id).
+            payload: spec: free-form (Network v2 trafficrules). Fields to change, merged into the
+                listed rule before the PUT, e.g. {"enabled": false}.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_traffic_rule(
+            client, registry, host, site, rule_id, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_traffic_rule(
+        host: str,
+        site: str,
+        rule_id: str,
+    ) -> dict[str, Any]:
+        """Delete a traffic rule by ID.
+
+        Requires a controller implementing the v2 trafficrules route. Consoles without it
+        return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
+
+        Consequence: the rule stops applying to matching traffic immediately; there is no undo.
+
+        The id is resolved in list_traffic_rules first (the controller answers a DELETE on an unknown id
+        with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_traffic_rule):
+            {"host": "my-console", "site": "Default", "rule_id": "000000000000000000000107"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            rule_id: Traffic rule id (Network v2 API _id). Get it from list_traffic_rules (_id).
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_traffic_rule(
+            client, registry, host, site, rule_id
+        )
+        return deletion_result(f"Traffic rule {rule_id} deleted.", response)
+
+    return {
+        "list_port_forwards": list_port_forwards,
+        "create_port_forward": create_port_forward,
+        "update_port_forward": update_port_forward,
+        "delete_port_forward": delete_port_forward,
+        "list_traffic_rules": list_traffic_rules,
+        "create_traffic_rule": create_traffic_rule,
+        "update_traffic_rule": update_traffic_rule,
+        "delete_traffic_rule": delete_traffic_rule,
+    }
+
+
+def register_3(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the network_services_proxy tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_users(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List DHCP fixed-IP reservations and client aliases for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [entry…]} verbatim; data[]
+        entries carry fields such as name, note, fixed_ip, use_fixedip, network_id.
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_users(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_user(
+        host: str,
+        site: str,
+        user_id: str,
+    ) -> Any:
+        """Get a single DHCP/client-alias entry by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [client-alias/DHCP user
+        entry]} verbatim. To change it, edit data[0] and pass it as `payload` to update_user.
+
+        Example call (get_user):
+            {"host": "my-console", "site": "Default", "user_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            user_id: Network client-alias/DHCP user _id (classic REST user). Get it from list_users
+                (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_user(client, registry, host, site, user_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_user(
+        host: str,
+        site: str,
+        user_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a DHCP/client-alias entry by ID.
+
+        The id is resolved in list_users first: an unknown id fails listing every valid _id, and nothing
+        is written.
+
+        Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
+        verbatim (meta is relayed as received, never interpreted).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/user/{id} (classic/v2
+        controller API). Pass the controller's native payload; read the current object first with the
+        matching list/get tool and send back the edited object.
+
+        Example call (update_user):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "user_id": "000000000000000000000107",
+              "payload": {"name": "Printer", "note": "2nd floor"}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            user_id: Network client-alias/DHCP user _id (classic REST user). Get it from list_users
+                (_id).
+            payload: spec: free-form (classic REST user). Fields to change: name, note, fixed_ip,
+                use_fixedip, network_id (classic networkconf _id).
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_user(
+            client, registry, host, site, user_id, payload
+        )
+
+    # --- Traffic Route Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_traffic_routes(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List static/policy traffic routes for a site.
+
+        Returns the v2 API's bare JSON array of routes, verbatim (a list result: structured content
+        {result: [...]}).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_traffic_routes(client, registry, host, site)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_traffic_route(
+        host: str,
+        site: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Create a traffic route on a site (policy-based routing / WAN load-balancing).
+
+        Returns the upstream response body verbatim: the created traffic route object the API answers
+        with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message,
+        preview: {method, path, params (query parameters), body}} instead).
+
+        `payload`: sent as given; the controller requires these fields (verified live; an
+        upstream error gets a hint naming any that are missing). This v2 endpoint uses snake_case wire
+        field names (verified: 'network_id' is accepted, 'networkId' is not):
+          - network_id (str): source network UUID (from list_networks), or 'ANY'
+          - matching_target: 'INTERNET'|'ALL' or a traffic matching list id (from
+            list_traffic_matching_lists)
+          - target_devices: the devices/networks the route applies to
+          Optional: matching_target_type ('INTERNET'|'DOMAIN'|'IP_GROUP'), description (str).
+
+        Request body: no published schema exists for POST network/v2/api/site/{site}/trafficroutes
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (create_traffic_route):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "payload": {
+                "network_id": "ANY",
+                "matching_target": "INTERNET",
+                "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
+                "description": "Route via WAN2"
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            payload: spec: free-form (Network v2 trafficroutes, snake_case), sent as given. The
+                controller requires network_id (list_networks UUID or 'ANY'), matching_target,
+                target_devices.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.create_traffic_route(
+            client, registry, host, site, payload
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_traffic_route(
+        host: str,
+        site: str,
+        route_id: str,
+    ) -> Any:
+        """Get a single traffic route by ID.
+
+        Returns: the traffic route object, verbatim. To change it, edit it and pass it as `payload` to
+        update_traffic_route.
+
+        Example call (get_traffic_route):
+            {"host": "my-console", "site": "Default", "route_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            route_id: Traffic route _id (Network v2 API). Get it from list_traffic_routes (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_traffic_route(
+            client, registry, host, site, route_id
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_traffic_route(
+        host: str,
+        site: str,
+        route_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a traffic route by ID.
+
+        The id is resolved in list_traffic_routes first: an unknown id fails listing every valid _id,
+        and nothing is written.
+
+        Returns the upstream response body verbatim: the updated traffic route object the API answers
+        with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        message,
+        preview: {method, path, params (query parameters), body}} instead).
+
+        Request body: no published schema exists for PUT network/v2/api/site/{site}/trafficroutes/{id}
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (update_traffic_route):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "route_id": "000000000000000000000107",
+              "payload": {
+                "description": "IoT via WAN2",
+                "enabled": false,
+                "matching_target": "INTERNET",
+                "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}]
+              }
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            route_id: Traffic route _id (Network v2 API). Get it from list_traffic_routes (_id).
+            payload: spec: free-form (Network v2 trafficroutes, snake_case). FULL replacement object;
+                start from get_traffic_route output.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_traffic_route(
+            client, registry, host, site, route_id, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_traffic_route(
+        host: str,
+        site: str,
+        route_id: str,
+    ) -> dict[str, Any]:
+        """Delete a traffic route by ID.
+
+        Consequence: matching traffic stops following the route and uses the default routing; there is
+        no undo.
+
+        The id is resolved in list_traffic_routes first (the controller answers a DELETE on an unknown
+        id with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_traffic_route):
+            {"host": "my-console", "site": "Default", "route_id": "000000000000000000000107"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            route_id: Traffic route _id (Network v2 API). Get it from list_traffic_routes (_id).
+        """
+        client, registry = deps_fn()
+        response = await network_services_proxy.delete_traffic_route(
+            client, registry, host, site, route_id
+        )
+        return deletion_result(f"Traffic route {route_id} deleted.", response)
+
+    # --- Controller Settings Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_settings(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List all controller setting groups for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [setting group…]}
+        verbatim; data[] holds one object per key (mgmt, super_smtp, guest_access, etc.).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_settings(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_setting(
+        host: str,
+        site: str,
+        setting_key: str,
+    ) -> Any:
+        """Get a controller setting group by key.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [setting group]} verbatim.
+        To change it, edit data[0] and pass it as `payload` to update_setting.
+
+        There is no schema endpoint, so reading a group is how you discover what it accepts:
+        the returned object lists every settable field and its current (valid) value. Inspect
+        it before calling update_setting — the controller silently drops any field or enum
+        value it does not recognise, so match an existing field's shape exactly. Common keys
+        and notable enum fields (grounded in live responses): mdns (mode, enabled_for),
+        ntp (setting_preference), doh (state), ips (ips_mode), global_nat (mode),
+        ssl_inspection (state), dashboard (layout_preference), locale (timezone),
+        country (code), guest_access (auth), super_mgmt (data_retention_setting_preference).
+        Fields prefixed 'x_' hold credentials/secrets and are returned verbatim
+        (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Required arguments: host, site, setting_key (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            setting_key: setting group identifier (e.g. 'mgmt', 'super_smtp', 'guest_access').
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_setting(client, registry, host, site, setting_key)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_setting(
+        host: str,
+        site: str,
+        setting_key: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a controller setting group by key.
+
+        Discover the schema first by calling get_setting(setting_key): it returns every
+        settable field and its current (valid) value. The controller silently drops any
+        unrecognised field or enum value (HTTP 200, value unchanged), so a guessed value
+        fails invisibly; this tool reports that no-op separately from the PUT response, naming
+        every rejected field and pointing you back at get_setting. The check walks the payload
+        leaf by leaf: a nested object is compared as a partial update (only the keys you send
+        must take), and a
+        nested leaf left unchanged is named by its dotted path (e.g. radius.port) even when a sibling
+        leaf in the same object was applied; _verificationNote names the rejected and applied
+        leaves.
+
+        Returns: the controller's PUT response envelope {meta: {rc}, data: [setting group]} verbatim
+        plus the additive _verified: true only when the read-after confirms every submitted leaf
+        (type-strict: true is not 1), false with _unverifiedFields (dotted paths) when a leaf was
+        rejected or changed to a value other than the one sent (v0.6.2 raised for a rejected
+        leaf; check _verified), null with _readAfterError when the read-after failed or could not
+        be matched (the write was still sent). When every submitted field already holds the sent
+        value, no PUT is made and the current GET envelope is returned verbatim plus an additive
+        _note "no change needed".
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/setting/{setting_key}
+        (classic controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (update_setting):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "setting_key": "mgmt",
+              "payload": {"led_enabled": false}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            setting_key: Classic setting group key, e.g. 'mgmt', 'super_smtp', 'guest_access'. Get keys
+                from list_settings (data[].key). Keys a Network 11.0.81 site reports: auto_speedtest,
+                connectivity, country, dashboard, device_supervision, doh, dpi, element_adopt,
+                ether_lighting, global_nat, global_network, global_switch, guest_access,
+                igmp_snooping, ips, ips_suppression, ipsec, lcm, locale, magic_site_to_site_vpn, mdns,
+                mgmt, netflow, network_optimization, ntp, openvpn, peer_to_peer,
+                provider_capabilities, radio_ai, radius, rsyslogd, snmp, ssl_inspection,
+                super_cloudaccess, super_fabric_system_log, super_fwupdate, super_identity,
+                super_mail, super_mgmt, super_smtp, super_stats, teleport, traffic_flow, ugw, usg,
+                usg_geo (super_* groups are console-wide). Groups holding credentials in x_-prefixed
+                fields: connectivity, element_adopt, guest_access, magic_site_to_site_vpn, mgmt,
+                openvpn, radius, snmp, super_cloudaccess, super_fwupdate, super_smtp.
+            payload: spec: free-form (classic REST setting). Call get_setting(setting_key) first and
+                change only fields it returns; unknown fields/enums are reported separately in
+                verification metadata.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_setting(
+            client, registry, host, site, setting_key, payload
+        )
+
+    # --- Dynamic DNS Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_dynamic_dns(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List Dynamic DNS provider configurations for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim,
+        including x_password credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_dynamic_dns(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_dynamic_dns(
+        host: str,
+        site: str,
+        ddns_id: str,
+    ) -> Any:
+        """Get a single Dynamic DNS configuration by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [Dynamic DNS entry]}
+        verbatim. To change it, edit data[0] and pass it as `payload` to update_dynamic_dns.
+
+        Returned verbatim, including x_password credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Example call (get_dynamic_dns):
+            {"host": "my-console", "site": "Default", "ddns_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            ddns_id: Dynamic DNS entry _id (classic REST dynamicdns). Get it from list_dynamic_dns
+                (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_dynamic_dns(client, registry, host, site, ddns_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_dynamic_dns(
+        host: str,
+        site: str,
+        ddns_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a Dynamic DNS configuration by ID.
+
+        The id is resolved in list_dynamic_dns first: an unknown id fails listing every valid _id, and
+        nothing is written.
+
+        Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
+        verbatim (meta is relayed as received, never interpreted).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/dynamicdns/{id}
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (update_dynamic_dns):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "ddns_id": "000000000000000000000107",
+              "payload": {"service": "dyndns", "host_name": "home.example.com"}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            ddns_id: Dynamic DNS entry _id (classic REST dynamicdns). Get it from list_dynamic_dns
+                (_id).
+            payload: spec: free-form (classic REST dynamicdns). Native fields: service (e.g.
+                dyndns, cloudflare, custom), host_name, login, x_password, server (for custom),
+                interface (wan, wan2). Read the current object via get_dynamic_dns and send it
+                back edited.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_dynamic_dns(
+            client, registry, host, site, ddns_id, payload
+        )
+
+    # --- Port Profile Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_port_profiles(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List switch port profiles (speed, VLAN, PoE config) for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [profile…]}, each profile
+        verbatim (networkconf id fields stay bare Classic _ids). A profile that references networks
+        also carries an additive _resolved_networks key mapping excluded_networkconf_ids /
+        native_networkconf_id / voice_networkconf_id to {id, name, vlan} (id there is the Classic
+        networkconf _id); it is not a controller field and update_port_profile ignores it.
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_port_profiles(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_port_profile(
+        host: str,
+        site: str,
+        profile_id: str,
+    ) -> Any:
+        """Get a single switch port profile by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [port profile]}
+        verbatim, plus an additive _resolved_networks key on the profile mapping its networkconf ids
+        to {id, name, vlan}. To change it, edit data[0] and pass it as `payload` to
+        update_port_profile (the _resolved_networks key is dropped before the write).
+
+        Example call (get_port_profile):
+            {"host": "my-console", "site": "Default", "profile_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            profile_id: Switch port profile _id (classic REST portconf). Get it from list_port_profiles
+                (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_port_profile(
+            client, registry, host, site, profile_id
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_port_profile(
+        host: str,
+        site: str,
+        profile_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a switch port profile by ID.
+
+        The id is resolved in list_port_profiles first: an unknown id fails listing every valid _id, and
+        nothing is written.
+
+        WARNING -- SHARED PROFILE, WIDE BLAST RADIUS: this edits a shared Ethernet Port
+        Profile (Classic REST /rest/portconf), NOT one switch or one port. A single write
+        changes STP/PoE/storm-control/VLAN/etc. for EVERY port on EVERY switch that has this
+        profile assigned. It is NOT a per-device or per-port writer and must never be
+        presented or used as a per-port/per-device STP-priority or PoE-mode writer -- for
+        that, no confirmed per-port config route exists via this API. Read the profile's
+        assignments and confirm the intended blast radius before writing.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/portconf/{id}
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Returns: the controller's PUT response envelope {meta: {rc}, data: [port profile]} verbatim,
+        the profile plus the additive _resolved_networks key.
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Example call (update_port_profile):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "profile_id": "000000000000000000000107",
+              "payload": {"poe_mode": "auto"}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            profile_id: Switch port profile _id (classic REST portconf). Get it from list_port_profiles
+                (_id).
+            payload: spec: free-form (classic REST portconf). Fields to change, e.g. speed,
+                native_networkconf_id, op_mode, poe_mode. Read current via get_port_profile; its
+                additive _resolved_networks key is dropped before the write.
+                native_networkconf_id, voice_networkconf_id and excluded_networkconf_ids accept a
+                Classic networkconf _id or the Integration id from list_networks (data[].id), which
+                the tool converts to the _id before the PUT (a value the profile already holds
+                passes unchanged); an unknown value fails listing every network (name, _id, id),
+                and no PUT is sent.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_port_profile(
+            client, registry, host, site, profile_id, payload
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def allow_network_on_port_profile(
+        host: str,
+        site: str,
+        profile_id: str,
+        network_id: str,
+        confirm: bool = False,
+    ) -> Any:
+        """Allow (un-exclude) a VLAN network on a switch port profile.
+
+        A fresh read followed by one PUT is not atomic against concurrent edits.
+
+        The result carries _profileNote only when the controller PUT response data array
+        contains no profile; _tagged_networks is derived from the written payload.
+        Other response bodies are returned unchanged.
+
+        `confirm`: accepted and ignored. This is a live PUT to a SHARED port profile (its
+          exclusion list affects every switch port using it); it runs immediately either way.
+
+        This is the Network auto-exclusion remediation: it validates `network_id` against the site's
+        networks, fresh-reads the profile, removes the network from `excluded_networkconf_ids`, and
+        PUTs. Use it on every profile named in a `create_network` `D12_AUTO_EXCLUSION` _warnings
+        entry.
+
+        `network_id` accepts EITHER id of the network: the Network Integration id (list_networks
+        data[].id, the id create_network returns) or the Classic networkconf _id (the value stored in
+        excluded_networkconf_ids). An Integration id is mapped to its _id through the /rest/networkconf
+        external_id field. An unknown id fails before any write, listing every network (name, vlan,
+        _id and id).
+
+        Returns: the controller's PUT response envelope {meta: {rc}, data: [profile]} verbatim (the
+        profile plus the additive _resolved_networks key), plus additive keys: _tagged_networks (the
+        resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the network
+        acted on).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: fresh portconf with the network's _id removed from excluded_networkconf_ids (no published spec for network/api/s/{site}/rest/portconf).
+
+        Example call (allow_network_on_port_profile):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "profile_id": "000000000000000000000107",
+              "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            profile_id: Switch port profile _id (classic REST portconf). Get it from list_port_profiles
+                (_id).
+            network_id: Network (networkconf) id to (un)exclude. Get it from list_networks (data[].id)
+                or list_port_profiles (_resolved_networks).
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is
+                sent upstream and a preview of the request is returned).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.allow_network_on_port_profile(
+            client, registry, host, site, profile_id, network_id, confirm=confirm
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def exclude_network_on_port_profile(
+        host: str,
+        site: str,
+        profile_id: str,
+        network_id: str,
+        confirm: bool = False,
+    ) -> Any:
+        """Exclude (untag) a VLAN network from a switch port profile.
+
+        A fresh read followed by one PUT is not atomic against concurrent edits.
+
+        The result carries _profileNote only when the controller PUT response data array
+        contains no profile; _tagged_networks is derived from the written payload.
+        Other response bodies are returned unchanged.
+
+        `confirm`: accepted and ignored. This is a live PUT to a SHARED port profile (its
+          exclusion list affects every switch port using it); it runs immediately either way.
+
+        Inverse of `allow_network_on_port_profile`: validates `network_id` against the site's
+        networks, fresh-reads the profile, adds the network to `excluded_networkconf_ids`, and PUTs.
+
+        `network_id` accepts EITHER id of the network: the Network Integration id (list_networks
+        data[].id, the id create_network returns) or the Classic networkconf _id (the value stored in
+        excluded_networkconf_ids). An Integration id is mapped to its _id through the /rest/networkconf
+        external_id field, and the _id is what gets written. An unknown id fails before any write,
+        listing every network (name, vlan, _id and id).
+
+        Returns: the controller's PUT response envelope {meta: {rc}, data: [profile]} verbatim (the
+        profile plus the additive _resolved_networks key), plus additive keys: _tagged_networks (the
+        resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the network
+        acted on).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: none is passed by the caller. The tool fresh-reads the classic portconf record,
+        adds the network's _id to excluded_networkconf_ids, and PUTs it back (no published spec for
+        network/api/s/{site}/rest/portconf).
+
+        Example call (exclude_network_on_port_profile):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "profile_id": "000000000000000000000107",
+              "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            profile_id: Switch port profile _id (classic REST portconf). Get it from list_port_profiles
+                (_id).
+            network_id: Network (networkconf) id to (un)exclude. Get it from list_networks (data[].id)
+                or list_port_profiles (_resolved_networks).
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is
+                sent upstream and a preview of the request is returned).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.exclude_network_on_port_profile(
+            client, registry, host, site, profile_id, network_id, confirm=confirm
+        )
+
+    # --- Routing Table Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_routing_entries(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List static routing table entries for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_routing_entries(client, registry, host, site)
+
+    # --- WLAN Config Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_wlan_configs(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List per-SSID WLAN configurations (security, band steering, rate limits) for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim,
+        including x_passphrase credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_wlan_configs(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_wlan_config(
+        host: str,
+        site: str,
+        wlan_id: str,
+    ) -> Any:
+        """Get a single WLAN (SSID) configuration by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [WLAN configuration]}
+        verbatim. To change it, edit data[0] and pass it as `payload` to update_wlan_config.
+
+        Returned verbatim, including x_passphrase credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Example call (get_wlan_config):
+            {"host": "my-console", "site": "Default", "wlan_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            wlan_id: Classic WLAN config _id (wlanconf). Get it from list_wlan_configs (_id). Not a wifi
+                broadcast UUID.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_wlan_config(client, registry, host, site, wlan_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_wlan_config(
+        host: str,
+        site: str,
+        wlan_id: str,
+        payload: dict[str, Any],
+    ) -> Any:
+        """Update a WLAN (SSID) configuration by ID.
+
+        The id is resolved in list_wlan_configs first: an unknown id fails listing every valid _id, and
+        nothing is written.
+
+        Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
+        verbatim (meta is relayed as received, never interpreted).
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
+        dryRun: true, sent: false,
+        message, preview: {method, path, params, body}} in place of the upstream body.
+
+        Request body: no published schema exists for PUT network/api/s/{site}/rest/wlanconf/{id}
+        (classic/v2 controller API). Pass the controller's native payload; read the current object first
+        with the matching list/get tool and send back the edited object.
+
+        Example call (update_wlan_config):
+            {
+              "host": "my-console",
+              "site": "Default",
+              "wlan_id": "000000000000000000000107",
+              "payload": {"enabled": false}
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            wlan_id: Classic WLAN config _id (wlanconf). Get it from list_wlan_configs (_id). Not a wifi
+                broadcast UUID.
+            payload: spec: free-form (classic REST wlanconf). Fields to change, e.g. x_passphrase,
+                security, enabled. Read current via get_wlan_config.
+                Free-form JSON object; no fixed body shape is published.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.update_wlan_config(
+            client, registry, host, site, wlan_id, payload
+        )
+
+    # --- WLAN Group Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_wlan_groups(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List WLAN groups for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_wlan_groups(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_wlan_group(
+        host: str,
+        site: str,
+        group_id: str,
+    ) -> Any:
+        """Get a single WLAN group by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Reads the Classic REST /rest/wlangroup collection and returns that envelope
+        {meta: {rc}, data: [group]} with data narrowed to the group whose _id matches; an unknown id
+        fails listing the valid groups (name and _id). The controller rejects
+        GET /rest/wlangroup/{id} with HTTP 400 api.err.InvalidObject for every id, including
+        the built-in Default group, so the collection route is the supported read. The
+        matching entry is returned unchanged.
+
+        Example call (get_wlan_group):
+            {"host": "my-console", "site": "Default", "group_id": "000000000000000000000001"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            group_id: Classic WLAN group _id. Get it from list_wlan_groups (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_wlan_group(client, registry, host, site, group_id)
+
+    # --- Channel Plan Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_channel_plan(
+        host: str,
+        site: str,
+    ) -> Any:
+        """Get RF channel assignments and DFS status for a site.
+
+        Returns the controller's Classic REST envelope {meta: {rc}, data: [channel plan…]} verbatim;
+        an empty data array means the controller has no channel plan stored (for example,
+        auto-channel optimization has not run).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_channel_plan(client, registry, host, site)
+
+    # --- Rogue AP Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_rogue_aps(
+        host: str,
+        site: str,
+        rogue_only: bool = False,
+    ) -> Any:
+        """List neighboring APs detected by the site's radios.
+
+        Returns ALL neighboring APs (most will have is_rogue=false and are benign neighbors).
+        Only a small subset with is_rogue=true are confirmed rogue APs. Set rogue_only=true to
+        filter to confirmed rogues only.
+
+        Returns: the controller's Classic REST /stat/rogueap envelope {meta: {rc}, data: [ap…]}
+        verbatim (with rogue_only, data is narrowed to is_rogue=true entries); entries carry BSSID,
+        SSID, channel, signal strength, is_rogue flag, and detection time.
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            rogue_only: When true, return only confirmed rogue APs (is_rogue=true). Default false
+                returns every neighboring AP, most of them benign.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_rogue_aps(
+            client, registry, host, site, rogue_only=rogue_only
+        )
+
+    # --- Classic Firewall Rule Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_firewall_rules(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List classic L3/L4 firewall rules for a site (distinct from Integration API policies).
+
+        Legacy, read-only: classic rules predate zone-based firewalling, and the Network 11.0.81
+        web UI no longer reads this route. For the current firewall use list_firewall_policies
+        (and get_firewall_policy, create_firewall_policy, update_firewall_policy).
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_firewall_rules(client, registry, host, site)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_firewall_rule(
+        host: str,
+        site: str,
+        rule: dict[str, Any],
+        confirm: bool = False,
+    ) -> Any:
+        """Create a classic L3/L4 firewall rule for a site.
+
+        This is an immediate, destructive Network write. It can change which traffic is
+        allowed through the site's firewall. ``confirm`` is accepted for compatibility
+        and ignored; the write runs whether it is true or false.
+
+        This uses the private Early Access Site Manager route because the current official
+        Network specification publishes only zone-based firewall policies. Prefer
+        create_firewall_policy on zone-based Network releases.
+
+        Returns the controller's response verbatim, typically {meta: {rc}, data: [...]}.
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview
+        {status: "dry_run", dryRun: true, sent: false, message,
+        preview: {method, path, params, body}} instead of the upstream body.
+
+        Required arguments: host, site, rule (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts
+                (data[].reportedState.hostname or reportedState.name, case-insensitive,
+                e.g. "my-console") or the long data[].id (MAC:numericId composite).
+            site: Site Manager site name or ObjectId, scoped to host. Get names and ids from
+                list_sites (data[].meta.name or data[].siteId).
+            rule: Free-form classic firewall-rule request body, forwarded unchanged for the
+                controller to validate. Observed fields include name, action, enabled,
+                ruleset, rule_index, protocol, src_address, dst_address,
+                src_networkconf_id, dst_networkconf_id and dst_port.
+            confirm: Accepted and ignored. The write always runs. Example: false.
+        """
+        del confirm
+        client, registry = deps_fn()
+        return await network_services_proxy.create_firewall_rule(client, registry, host, site, rule)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_firewall_rule(
+        host: str,
+        site: str,
+        rule_id: str,
+    ) -> Any:
+        """Get a single classic firewall rule by ID.
+
+        Legacy, read-only: for the current zone-based firewall use get_firewall_policy (ids from
+        list_firewall_policies).
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Example call (get_firewall_rule):
+            {"host": "my-console", "site": "Default", "rule_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            rule_id: Legacy firewall rule _id (classic REST). Get it from list_firewall_rules (_id).
+                Not a firewall policy UUID.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_firewall_rule(client, registry, host, site, rule_id)
+
+    # --- Firewall Group Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_firewall_groups(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List firewall groups (IP/port sets referenced by firewall rules) for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_firewall_groups(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_firewall_group(
+        host: str,
+        site: str,
+        group_id: str,
+    ) -> Any:
+        """Get a single firewall group by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Example call (get_firewall_group):
+            {"host": "my-console", "site": "Default", "group_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            group_id: Legacy firewall group _id (classic REST). Get it from list_firewall_groups (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_firewall_group(
+            client, registry, host, site, group_id
+        )
+
+    # --- RADIUS Account Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_accounts(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List local RADIUS user accounts for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim,
+        including x_password credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_accounts(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_account(
+        host: str,
+        site: str,
+        account_id: str,
+    ) -> Any:
+        """Get a single RADIUS account by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim,
+        including x_password credential fields (masked when UNIFI_REDACT_SECRETS is enabled).
+
+        Example call (get_account):
+            {"host": "my-console", "site": "Default", "account_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            account_id: RADIUS account _id (classic REST account). Get it from list_accounts (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_account(client, registry, host, site, account_id)
+
+    # --- Hotspot Package Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_hotspot_packages(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List guest portal billing packages for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_hotspot_packages(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_hotspot_package(
+        host: str,
+        site: str,
+        package_id: str,
+    ) -> Any:
+        """Get a single hotspot billing package by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Example call (get_hotspot_package):
+            {"host": "my-console", "site": "Default", "package_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            package_id: Hotspot package _id (classic REST hotspotpackage). Get it from
+                list_hotspot_packages (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_hotspot_package(
+            client, registry, host, site, package_id
+        )
+
+    # --- Scheduled Task Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_scheduled_tasks(
+        host: str,
+        site: str,
+    ) -> Any:
+        """List scheduled tasks (firmware upgrade schedules, speed tests) for a site.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.list_scheduled_tasks(client, registry, host, site)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_scheduled_task(
+        host: str,
+        site: str,
+        task_id: str,
+    ) -> Any:
+        """Get a single scheduled task by ID.
+
+        Returns: the controller's Classic REST envelope {meta: {rc}, data: [...]} verbatim
+        (meta is relayed as received, never interpreted).
+
+        Example call (get_scheduled_task):
+            {"host": "my-console", "site": "Default", "task_id": "000000000000000000000107"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or UUID; resolved server-side. Get it from list_local_sites (name or
+                id). Names like "Default" work.
+            task_id: Scheduled task _id (classic REST scheduletask). Get it from list_scheduled_tasks
+                (_id).
+        """
+        client, registry = deps_fn()
+        return await network_services_proxy.get_scheduled_task(
+            client, registry, host, site, task_id
+        )
+
+    # --- DPI Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_dpi_categories(
+        host: str,
+        site: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List DPI (Deep Packet Inspection) app categories available for traffic rules.
+
+        Returns {data, totalCount}: every page is drained; data holds the DPI category records verbatim
+        and totalCount is the upstream total (null when none was reported). The first page's other
+        envelope fields are kept beside them, and incomplete / incompleteReason are added when a capped
+        drain stopped short.
+
+        Categories include Social Media, Streaming Video, Gaming, etc.
+        By default every page is drained and the complete catalogue is returned as
+        {data, totalCount}. Pass offset alone to fetch a single page manually. A
+        capped drain returns the categories gathered so far with incomplete=true
+        rather than truncating silently.
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Optional. DPI data is host-level, so a site does not narrow the result; when
+                given it must name a site on the console (an unknown site is rejected with the
+                valid site names).
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `name.eq('Business')`."""
+        client, registry = deps_fn()
+        await _validate_optional_site(registry, host, site)
+        return await network_services_proxy.list_dpi_categories(
+            client, registry, host, offset, limit, filter=filter
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_dpi_applications(
+        host: str,
+        site: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        filter: str | None = None,
+    ) -> dict[str, Any]:
+        """List DPI applications available for traffic rules.
+
+        Returns {data, totalCount}: every page is drained; data holds the DPI application records
+        verbatim and totalCount is the upstream total (null when none was reported). The first page's
+        other envelope fields are kept beside them, and incomplete / incompleteReason are added when a
+        capped drain stopped short.
+
+        Companion to list_dpi_categories; use application IDs in traffic rule configurations.
+        By default every page is drained and the complete catalogue is returned as
+        {data, totalCount}. Pass offset alone to fetch a single page manually. A
+        capped drain returns the applications gathered so far with incomplete=true
+        rather than truncating silently.
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Optional. DPI data is host-level, so a site does not narrow the result; when
+                given it must name a site on the console (an unknown site is rejected with the
+                valid site names).
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain all.
+                Example: `25`.
+            filter: Optional Network Integration API filter expression, forwarded unchanged as the
+                upstream `filter` query parameter for server-side filtering (e.g.
+                `name.like('*guest*')`). Omitted entirely when unset; applies when draining and
+                when paging manually.
+                Example: `name.eq('Zoom')`."""
+        client, registry = deps_fn()
+        await _validate_optional_site(registry, host, site)
+        return await network_services_proxy.list_dpi_applications(
+            client, registry, host, offset, limit, filter=filter
+        )
+
+    return {
+        "list_users": list_users,
+        "get_user": get_user,
+        "update_user": update_user,
+        "list_traffic_routes": list_traffic_routes,
+        "create_traffic_route": create_traffic_route,
+        "get_traffic_route": get_traffic_route,
+        "update_traffic_route": update_traffic_route,
+        "delete_traffic_route": delete_traffic_route,
+        "list_settings": list_settings,
+        "get_setting": get_setting,
+        "update_setting": update_setting,
+        "list_dynamic_dns": list_dynamic_dns,
+        "get_dynamic_dns": get_dynamic_dns,
+        "update_dynamic_dns": update_dynamic_dns,
+        "list_port_profiles": list_port_profiles,
+        "get_port_profile": get_port_profile,
+        "update_port_profile": update_port_profile,
+        "allow_network_on_port_profile": allow_network_on_port_profile,
+        "exclude_network_on_port_profile": exclude_network_on_port_profile,
+        "list_routing_entries": list_routing_entries,
+        "list_wlan_configs": list_wlan_configs,
+        "get_wlan_config": get_wlan_config,
+        "update_wlan_config": update_wlan_config,
+        "list_wlan_groups": list_wlan_groups,
+        "get_wlan_group": get_wlan_group,
+        "get_channel_plan": get_channel_plan,
+        "list_rogue_aps": list_rogue_aps,
+        "list_firewall_rules": list_firewall_rules,
+        "get_firewall_rule": get_firewall_rule,
+        "list_firewall_groups": list_firewall_groups,
+        "get_firewall_group": get_firewall_group,
+        "list_accounts": list_accounts,
+        "get_account": get_account,
+        "list_hotspot_packages": list_hotspot_packages,
+        "get_hotspot_package": get_hotspot_package,
+        "list_scheduled_tasks": list_scheduled_tasks,
+        "get_scheduled_task": get_scheduled_task,
+        "list_dpi_categories": list_dpi_categories,
+        "list_dpi_applications": list_dpi_applications,
+    }

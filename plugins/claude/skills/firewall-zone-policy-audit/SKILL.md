@@ -31,7 +31,7 @@ run each tool below through `call_read_tool` or `call_write_tool` with `name` an
 
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
-| `list_firewall_zones_proxy` | read | `host`, `site` (`offset`, `limit`, `filter`) | `{data, totalCount}`, all pages; `server.py::list_firewall_zones_proxy` → `tools/firewall_proxy.py::list_firewall_zones`; `readOnlyHint: true` |
-| `list_firewall_policies` | read | `host`, `site` (`offset`, `limit`, `filter`) | `{data, totalCount}`, all pages; `server.py::list_firewall_policies` → `tools/firewall_proxy.py::list_firewall_policies`; `readOnlyHint: true` |
-| `get_firewall_policy_ordering` | read | `host`, `site`, `source_zone_id`, `destination_zone_id` | `{orderedFirewallPolicyIds: {beforeSystemDefined, afterSystemDefined}}` verbatim; `server.py::get_firewall_policy_ordering` → `tools/firewall_proxy.py::get_firewall_policy_ordering`; `readOnlyHint: true` |
-| `set_firewall_policy_ordering` | write | `host`, `site`, `source_zone_id`, `destination_zone_id`, `ordering` | upstream body verbatim, or `{status, dryRun, message, preview}`; `server.py::set_firewall_policy_ordering` → `tools/firewall_proxy.py::set_firewall_policy_ordering`; `readOnlyHint: false` |
+| `list_firewall_zones_proxy` | read | `host`, `site` (`offset`, `limit`, `filter`) | `{data, totalCount}`, all pages; `tools/firewall_proxy.py::list_firewall_zones_proxy` → `tools/firewall_proxy.py::list_firewall_zones`; `readOnlyHint: true` |
+| `list_firewall_policies` | read | `host`, `site` (`offset`, `limit`, `filter`) | `{data, totalCount}`, all pages; `tools/firewall_proxy.py::list_firewall_policies` → `tools/firewall_proxy.py::list_firewall_policies`; `readOnlyHint: true` |
+| `get_firewall_policy_ordering` | read | `host`, `site`, `source_zone_id`, `destination_zone_id` | `{orderedFirewallPolicyIds: {beforeSystemDefined, afterSystemDefined}}` verbatim; `tools/firewall_proxy.py::get_firewall_policy_ordering` → `tools/firewall_proxy.py::get_firewall_policy_ordering`; `readOnlyHint: true` |
+| `set_firewall_policy_ordering` | write | `host`, `site`, `source_zone_id`, `destination_zone_id`, `ordering` | upstream body verbatim, or `{status, dryRun, message, preview}`; `tools/firewall_proxy.py::set_firewall_policy_ordering` → `tools/firewall_proxy.py::set_firewall_policy_ordering`; `readOnlyHint: false` |

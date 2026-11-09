@@ -13,7 +13,9 @@ from unifi_fabric.tools import network_controller_insights, network_vpn_dns, sys
 
 
 @pytest.mark.parametrize("tool", ["overview", "teleport", "system_log"])
-@pytest.mark.parametrize("requested,available", [(1000, 450), (10000, 215), (215, 450)])
+@pytest.mark.parametrize(
+    "requested,available", [(1000, 450), (10000, 215), (215, 450), (1000, 2000)]
+)
 async def test_v2_requested_total_is_gathered_in_effective_size_batches(tool, requested, available):
     maximum = 200
     records = [{"id": str(i)} for i in range(available)]
@@ -83,7 +85,8 @@ async def test_v2_requested_total_is_gathered_in_effective_size_batches(tool, re
         for number in range(pages)
     ]
     assert not result.get("incomplete") and not result.get("_incomplete")
-    assert result.get("_nextPage") == (pages if count < available else None)
+    # page_size alone is window 0: _nextPage counts page_size windows, not console pages.
+    assert result.get("_nextPage") == (1 if count < available else None)
 
 
 @pytest.mark.parametrize("tool", ["overview", "teleport", "system_log"])

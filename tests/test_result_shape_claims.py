@@ -8,14 +8,10 @@ case:
 
 * the claim is satisfied when it embeds in a result the tool actually produced (driven
   through the shape-faithful fake upstream with recorded and with sparse records, and,
-  for a write tool, under ``UNIFI_DRY_RUN``): every claimed key is present, in that case,
+  for a write tool, under ``dry-run policy``): every claimed key is present, in that case,
   at that nesting level, at the top level or at any depth;
-* otherwise every claimed key must be a key the tool's code writes into a result: a
-  string key of a dict display, a subscript store, a ``dict(...)`` / ``.update(...)``
-  keyword or a ``setdefault`` in the tool function and every package function it calls
-  (resolved at runtime, as ``tests/test_deletion_result_descriptions.py`` does), plus,
-  for a dry-run claim, the keys of the client's dry-run preview and of the shared result
-  helpers that wrap it.
+* otherwise the claim fails: a key appearing only in request bodies or other
+  unexercised code does not establish the documented result shape.
 
 A claim about the upstream body itself (its sentence says ``upstream`` or ``verbatim``
 before the brace, or the brace is followed by ``verbatim``) names keys only the upstream
@@ -47,6 +43,7 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fastmcp.exceptions import ToolError
 
@@ -68,7 +65,7 @@ UPSTREAM_CARRIERS = frozenset({"response"})
 #: body follows: (OpenAPI fixture, path, method).
 PASS_THROUGH_SPEC = {
     "get_network_references": (
-        "network-10.6.106.json",
+        "network-11.0.97.json",
         "/v1/sites/{siteId}/networks/{networkId}/references",
         "get",
     ),
@@ -265,7 +262,7 @@ def _code_keys(fn: Any, seen: set[Any]) -> set[str]:
 
 @functools.cache
 def code_keys(name: str) -> frozenset[str]:
-    """Every key the code behind tool ``name`` can write into a result."""
+    """Keys appearing in tool/helper code; diagnostic only, never a result witness."""
     return frozenset(_code_keys(tools_by_name()[name].fn, set()))
 
 
@@ -334,9 +331,174 @@ async def _payloads(monkeypatch, name: str) -> list[Any]:
         out.append(uh.result_payload(await cti._call(mp, name, sparse)))
     if name in cti._lz_WRITE_TOOLS():
         with monkeypatch.context() as mp:
-            dry = {"UNIFI_DRY_RUN": "1"}
+            dry = {"UNIFI_WRITE_POLICY": "dry-run"}
             out.append(uh.result_payload(await cti._call(mp, name, uh.FakeUpstream(), env=dry)))
+    if name == "list_carrier_subscribers":
+        records = [{"id": uh.ARG_ID, "name": "synthetic subscriber"}]
+        requests = []
+
+        class BareCursorPage(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                if request.method == "GET" and request.url.path.endswith("/v1/carrier/subscribers"):
+                    requests.append(request)
+                    return httpx.Response(200, json=records)
+                return super().__call__(request)
+
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args["cursor"] = "c1"
+        with monkeypatch.context() as mp:
+            result = uh.result_payload(await cti._call(mp, name, BareCursorPage(), args))
+            assert len(requests) == 1
+            assert requests[0].url.params["cursor"] == "c1"
+            assert result == {"result": records}
+            out.append(result)
+    if name in {"get_controller_stats", "get_observability_site_health", "get_protect_stream_url"}:
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args["start"] = 1700000000000
+        with monkeypatch.context() as mp:
+            result = await cti._call(mp, name, uh.FakeUpstream(get_body="list"), args)
+            out.append(uh.result_payload(result))
+    if name in {
+        "update_camera",
+        "update_chime",
+        "update_light",
+        "update_liveview",
+        "update_sensor",
+        "update_viewer",
+    }:
+
+        class MatchingRecord(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                requests.append(request)
+                if request.method == "GET" and request.url.path.endswith("/" + item_id):
+                    return httpx.Response(200, json={"id": item_id, "name": "same"})
+                return super().__call__(request)
+
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args["settings"] = {"name": "same"}
+        item_id = next(value for key, value in args.items() if key.endswith("_id"))
+        with monkeypatch.context() as mp:
+            upstream = MatchingRecord(replay_recordings=False)
+            requests = []
+            result = uh.result_payload(await cti._call(mp, name, upstream, args))
+            assert result["status"] == "noop"
+            assert requests and all(call.method == "GET" for call in requests)
+            out.append(result)
+    if name in {
+        "update_camera_shortcut",
+        "update_protect_case",
+        "update_protect_case_asset",
+        "update_ptz_patrol",
+        "update_ptz_preset",
+    }:
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        record = {"id": uh.ARG_ID, "name": "same", "note": "same", "slot": args.get("slot", 1)}
+        if name == "update_protect_case":
+            record["id"] = args["case_id"]
+            args["name"] = "same"
+        elif name == "update_protect_case_asset":
+            record["id"] = args["asset_id"]
+            args["note"] = "same"
+        elif name == "update_camera_shortcut":
+            record["id"] = args["body"]["id"]
+            args["body"] = {"id": record["id"], "name": "same"}
+        else:
+            args["fields"] = {"name": "same"}
+
+        class NoopRecords(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                requests.append(request)
+                if request.method == "GET":
+                    path = request.url.path
+                    if path.endswith("/cases"):
+                        return httpx.Response(200, json=[{**record, "id": args["case_id"]}])
+                    if path.endswith("/assets") or "/ptz/" in path:
+                        return httpx.Response(200, json=[record])
+                    if path.endswith("/" + args.get("camera_id", "")):
+                        return httpx.Response(
+                            200, json={"id": args["camera_id"], "shortcuts": [record]}
+                        )
+                return super().__call__(request)
+
+        upstream = NoopRecords(replay_recordings=False)
+        requests = []
+        with monkeypatch.context() as mp:
+            result = uh.result_payload(await cti._call(mp, name, upstream, args))
+            assert result["status"] == "noop"
+            assert requests and all(call.method == "GET" for call in requests)
+            out.append(result)
+    if name == "set_protect_event_favorite":
+
+        class EventReadback(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                if request.method == "GET" and "/events/" in request.url.path:
+                    return httpx.Response(200, json={"id": uh.ARG_ID, "isFavorite": True})
+                return super().__call__(request)
+
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args.update(event_ids=uh.ARG_ID, favorite=True)
+        with monkeypatch.context() as mp:
+            result = await cti._call(mp, name, EventReadback(), args)
+            out.append(uh.result_payload(result))
+    if name == "enhance_face_detection_image":
+
+        class ImageUpstream(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                if request.method == "POST" and request.url.path.endswith("/image/enhance"):
+                    return httpx.Response(
+                        200, content=b"synthetic image", headers={"content-type": "image/jpeg"}
+                    )
+                return super().__call__(request)
+
+        with monkeypatch.context() as mp:
+            out.append(uh.result_payload(await cti._call(mp, name, ImageUpstream())))
+    if name == "manage_mclag_group":
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args["action"] = "delete"
+        args.pop("group", None)
+        for env in ({}, {"UNIFI_WRITE_POLICY": "dry-run"}):
+            with monkeypatch.context() as mp:
+                result = await cti._call(mp, name, uh.FakeUpstream(), args, env)
+                out.append(uh.result_payload(result))
+    if name == "forget_device":
+
+        class PartialFailure(uh.FakeUpstream):
+            def __call__(self, request: httpx.Request) -> httpx.Response:
+                if request.method == "POST" and b"02:00:5e:00:00:b2" in request.content:
+                    return httpx.Response(400, json={"error": "synthetic unknown device"})
+                return super().__call__(request)
+
+        args = cti.tool_args.generated_args(tools_by_name()[name])
+        args["mac"] = ["02:00:5e:00:00:a1", "02:00:5e:00:00:b2"]
+        for env in ({}, {"UNIFI_WRITE_POLICY": "dry-run"}):
+            with monkeypatch.context() as mp:
+                result = await cti._call(mp, name, PartialFailure(), args, env)
+                out.append(uh.result_payload(result))
     return out
+
+
+@pytest.mark.parametrize(
+    ("name", "keys"),
+    [
+        ("forget_device", {"byMac", "forgotten", "errors"}),
+        ("manage_mclag_group", {"deleted", "message", "response"}),
+        ("enhance_face_detection_image", {"image_base64", "content_type", "size_bytes"}),
+        ("get_controller_stats", {"result", "_warnings"}),
+        ("list_carrier_subscribers", {"result"}),
+    ],
+)
+async def test_nondefault_result_scenarios_are_exercised(monkeypatch, name, keys):
+    payloads = await _payloads(monkeypatch, name)
+    assert any(isinstance(payload, dict) and keys <= payload.keys() for payload in payloads)
+    if name == "forget_device":
+        assert any(isinstance(payload, dict) and payload.get("errors") for payload in payloads)
+    if name == "manage_mclag_group":
+        assert any(
+            isinstance(payload, dict)
+            and payload.get("status") == "dry_run"
+            and {"deleted", "message", "response"} <= payload.keys()
+            for payload in payloads
+        )
 
 
 def _schema_body(schema: Any, spec: dict[str, Any], seen: frozenset[str] = frozenset()) -> Any:
@@ -442,10 +604,7 @@ async def test_every_result_claim_names_keys_the_code_produces(monkeypatch, name
     for lead, brace, claim in result_claims(description):
         if any(embeds_anywhere(claim, payload) for payload in payloads):
             continue
-        known = code_keys(name) | (dry_run_keys() if '"dry_run"' in brace else frozenset())
-        unknown = sorted(claimed_keys(claim) - known)
-        if unknown:
-            problems.append(f"{lead[-50:]!r} {brace}: no result carries {unknown}")
+        problems.append(f"{lead[-50:]!r} {brace}: no exercised result carries this claim")
         problems.extend(_unqualified_conditional_keys(description, brace, claim, payloads))
     assert problems == [], (name, problems)
 

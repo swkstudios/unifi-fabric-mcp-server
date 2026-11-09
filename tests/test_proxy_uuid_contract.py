@@ -1,9 +1,8 @@
 """Proxy UUID contract tests — validates UUID enforcement on proxy paths.
 
 Validates that:
-  Contract A: every proxy URL construction calls _assert_uuid(site_id)
-  Contract B: passing an ObjectId (non-UUID) raises ValueError before any HTTP call;
-      covers all 5 proxy tool modules.
+  Selected Integration API routes accept UUID site IDs and reject ObjectIds before HTTP.
+  Classic routes resolve the site slug before issuing their requests.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ from unifi_fabric.tools import (
 
 _VALID_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 _HOST_ID = "host-001"
-_OBJECT_ID = "5f4dcc3b5aa765d61d8327de"  # 24-hex ObjectId — must never reach proxy URL
+_OBJECT_ID = "000000000000000000000503"  # 24-hex ObjectId — must never reach proxy URL
 
 # A sample proxy sites response returning our test UUID
 _PROXY_SITES = {"data": [{"id": _VALID_UUID, "description": "HQ"}]}

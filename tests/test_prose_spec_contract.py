@@ -7,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/openapi"
-NETWORK = json.loads((FIXTURES / "network-10.6.106.json").read_text())
-PROTECT = json.loads((FIXTURES / "protect-7.3.70.json").read_text())
+NETWORK = json.loads((FIXTURES / "network-11.0.97.json").read_text())
+PROTECT = json.loads((FIXTURES / "protect-7.3.74.json").read_text())
 SITE = json.loads((FIXTURES / "site-manager-1.0.0.json").read_text())
 
 
@@ -21,8 +21,39 @@ def docs(path):
     }
 
 
+def wrapper_docs():
+    """Docstrings of the public tool wrappers formerly inline in server.py.
+
+    server.py keeps any remaining inline wrapper and re-exports each moved one from the
+    ``register``/``register_N`` call of its tools module
+    (``_<module>_tools = <module>.register(...)``); the moved wrapper's docstring is read
+    from the function nested in that register function.
+    """
+    out = docs("src/unifi_fabric/server.py")
+    tree = ast.parse((ROOT / "src/unifi_fabric/server.py").read_text())
+    calls = set()
+    for node in tree.body:
+        value = getattr(node, "value", None)
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and isinstance(value.func.value, ast.Name)
+            and re.fullmatch(r"register(?:_[0-9]+)?", value.func.attr)
+        ):
+            calls.add((value.func.value.id, value.func.attr))
+    for module, function in sorted(calls):
+        module_tree = ast.parse((ROOT / f"src/unifi_fabric/tools/{module}.py").read_text())
+        for node in module_tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == function:
+                for sub in node.body:
+                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        out[sub.name] = ast.get_docstring(sub) or ""
+    return out
+
+
 def test_network_prose_matches_schema():
-    server = docs("src/unifi_fabric/server.py")
+    server = wrapper_docs()
     module = docs("src/unifi_fabric/tools/network.py")
     schemas = NETWORK["components"]["schemas"]
     assert "autoScaleEnabled" in schemas["Gateway Managed IPv4 Configuration"]["required"]
@@ -45,7 +76,7 @@ def test_network_prose_matches_schema():
 
 
 def test_liveview_required_fields_and_example():
-    doc = docs("src/unifi_fabric/server.py")["create_liveview"]
+    doc = wrapper_docs()["create_liveview"]
     required = set(PROTECT["components"]["schemas"]["liveview"]["required"])
     example = json.loads(
         doc.split("Example call (create_liveview):", 1)[1].split("The dry-run preview", 1)[0]
@@ -63,8 +94,10 @@ def test_sdwan_prose_matches_published_contract():
     assert not operation.get("parameters")
     schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
     assert "nextToken" not in schema["properties"]
-    for path in ("src/unifi_fabric/server.py", "src/unifi_fabric/tools/site_manager.py"):
-        doc = docs(path)["list_sdwan_configs"]
+    for doc in (
+        wrapper_docs()["list_sdwan_configs"],
+        docs("src/unifi_fabric/tools/site_manager.py")["list_sdwan_configs"],
+    ):
         assert "declares no pagination parameters or nextToken" in doc
         assert "if the service returns one" in doc
 
@@ -73,6 +106,7 @@ def test_all_list_filter_examples_match_pinned_fields_and_operators():
     paths = {
         "list_local_sites": "/v1/sites",
         "list_networks": "/v1/sites/{siteId}/networks",
+        "list_integration_device_tags": "/v1/sites/{siteId}/device-tags",
         "list_lags": "/v1/sites/{siteId}/switching/lags",
         "list_mc_lag_domains": "/v1/sites/{siteId}/switching/mc-lag-domains",
         "list_switch_stacks": "/v1/sites/{siteId}/switching/switch-stacks",
@@ -90,7 +124,7 @@ def test_all_list_filter_examples_match_pinned_fields_and_operators():
         "list_dpi_categories": "/v1/dpi/categories",
         "list_dpi_applications": "/v1/dpi/applications",
     }
-    server = docs("src/unifi_fabric/server.py")
+    server = wrapper_docs()
     expression = re.compile(r"\b([\w.]+)\.(eq|like)\(")
     described = {
         name for name, doc in server.items() if name.startswith("list_") and expression.search(doc)

@@ -96,7 +96,11 @@ async def test_image_tools_expose_mcp_image_and_metadata(monkeypatch, name, args
         "content_type": mime,
         "size_bytes": 15,
     }
-    monkeypatch.setattr(server, "_client", AsyncMock())
+    from unifi_fabric.client import UniFiClient
+    from unifi_fabric.config import Settings
+
+    # The header-credential middleware reads the live client's synchronous settings.
+    monkeypatch.setattr(server, "_client", UniFiClient(Settings(api_key="synthetic-image-key")))
     monkeypatch.setattr(server, "_registry", AsyncMock())
     monkeypatch.setattr(getattr(server, module), name, AsyncMock(return_value=metadata))
     result = await server.mcp.call_tool(name, args)

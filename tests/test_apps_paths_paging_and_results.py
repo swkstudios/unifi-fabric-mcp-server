@@ -87,7 +87,7 @@ async def test_connector_changed_presence_is_documented_and_true(monkeypatch, na
     up = uh.FakeUpstream()
     args = {"host": uh.HOST, "path": "access/api/probe/thing"}
     payload = uh.result_payload(
-        await _call(monkeypatch, name, up, args, env={"UNIFI_DRY_RUN": "1"})
+        await _call(monkeypatch, name, up, args, env={"UNIFI_WRITE_POLICY": "dry-run"})
     )
     assert payload["noOp"] is None and "changed" not in payload, payload
 
@@ -152,6 +152,7 @@ async def test_carrier_subscribers_manual_page_is_one_verbatim_page(
         expected = {
             **reads[0].body,
             "data": records,
+            "_count": len(records),
             "meta": reads[-1].body["meta"],
             "_pageSize": {
                 "requested": 10,

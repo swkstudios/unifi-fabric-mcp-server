@@ -7,22 +7,30 @@ measures the running server and rewrites these figures in place:
 * the registered tool count wherever the README states the catalog size, and in
   the current CHANGELOG release section (Highlights and the catalog-size note);
 * the docs/CATALOG.md family table: tool count and ``tools/list`` size per listed
-  ``UNIFI_TOOL_FAMILIES`` value (UTF-8 JSON-RPC response line, 1 KB = 1000 bytes);
+  ``UNIFI_FAMILY_ALLOW`` value (UTF-8 JSON-RPC response line, 1 KB = 1000 bytes);
 * the docs/CONFIGURATION.md family-count table: tools and write tools of each family
   (``families.ALL_FAMILIES``; a missing or extra row fails the run). Covers text is editorial;
-* the README opt-out table: write tools hidden and tools listed under each per-area write
-  opt-out and ``UNIFI_READ_ONLY``, from the startup selection functions themselves;
+* the docs/CONFIGURATION.md opt-out table (and the README's, if it has one): write tools
+  hidden and tools listed under each per-area
+  ``UNIFI_WRITE_EXCEPTIONS`` deny entry and ``UNIFI_WRITE_POLICY=deny``, from the startup
+  selection functions themselves;
 * the README domain table: the tool count of each row, from the rule table ``DOMAINS``
   below (every registered tool is counted in exactly one domain; an unclassified tool, or a
   README row without a rule, fails the run). The Purpose text stays editorial;
 * the docs/CATALOG.md mode table: advertised tools, domain tools available and exact compact
   ``tools/list`` result bytes for ``UNIFI_TOOL_MODE=full`` and ``discovery``;
 * the pinned-spec body-shape figures (shaped count, free-form count, compact bytes), in the
-  README, the CHANGELOG and docs/MIGRATING-0.7.md;
+  README, docs/CATALOG.md, the CHANGELOG and docs/MIGRATING-0.7.md;
 * the README product table, first-screen counts and sizes, installation versions, and
   verification evidence from docs/COVERAGE.md;
 * the catalog and ignored-confirm parameter counts in docs/COVERAGE.md;
 * the read-only and write annotation counts in CHANGELOG and the migration guide;
+* the official-only figures, wherever README.md, AGENTS.md, llms.txt and
+  docs/CONFIGURATION.md state them: the tools that remain and are excluded in full mode
+  under the official-only recipe ``UNIFI_EXCLUDE=unofficial,source:relay``
+  (``OFFICIAL_ONLY_EXCLUDE``), the same with ``UNIFI_WRITE_POLICY=deny``, and the generic
+  relays that ``unofficial`` alone keeps. The run fails if any tool the recipe leaves
+  listed calls an API source other than an official one or ``server/local``;
 * docs/site-stats.json, the release figures the project website reads (scripts/site_stats.py:
   registered tool count, live-verified count from docs/COVERAGE.md, their difference as the
   unit-tested count, and the release tag).
@@ -33,6 +41,9 @@ and the reply is counted. The families listed in the catalog table are an editor
 choice and are kept; only their figures are regenerated. The same holds for the domain
 rows: the labels and Purpose text are editorial, the counts are measured.
 
+A CHANGELOG section whose heading carries a date has shipped: the generator leaves it
+untouched, so no restore step is needed after a run on a released tree.
+
 Usage:
     python3 scripts/gen_catalog_figures.py          # rewrite README.md and CHANGELOG.md
     python3 scripts/gen_catalog_figures.py --check  # exit 1 if any figure is stale (CI)
@@ -41,6 +52,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -53,17 +65,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Installation examples track the published release until the next release ships.
+PUBLISHED_VERSION = (ROOT / "scripts" / "published-version.txt").read_text().strip()
 README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 MIGRATING = ROOT / "docs" / "MIGRATING-0.7.md"
 COVERAGE = ROOT / "docs" / "COVERAGE.md"
 CONFIGURATION = ROOT / "docs" / "CONFIGURATION.md"
+AGENTS = ROOT / "AGENTS.md"
+LLMS = ROOT / "llms.txt"
 CATALOG = ROOT / "docs" / "CATALOG.md"
 DOCKER = ROOT / "docs" / "DOCKER.md"
 BUNDLE_README = ROOT / "plugins" / "claude-desktop" / "README.md"
 SITE_STATS = ROOT / "docs" / "site-stats.json"
 
-FAMILY_TABLE_HEADER = "| `UNIFI_TOOL_FAMILIES` | Tools | `tools/list` size |"
+FAMILY_TABLE_HEADER = "| `UNIFI_FAMILY_ALLOW` | Tools | `tools/list` size |"
 MODE_TABLE_HEADER = (
     "| `UNIFI_TOOL_MODE` | Advertised tools | Domain tools available | "
     "`tools/list` bytes | Size (1 KB = 1000 bytes) |"
@@ -71,7 +87,9 @@ MODE_TABLE_HEADER = (
 FAMILY_COUNT_HEADER = "| Family | Tools | Write tools | Covers |"
 _FAMILY_COUNT_ROW_RE = re.compile(r"^\| `([a-z_]+)` \| \d+ \| \d+ \| (.*) \|$", re.M)
 SWITCH_TABLE_HEADER = "| Setting | Write tools hidden | Tools listed |"
-_SWITCH_ROW_RE = re.compile(r"^\| (none \(default\)|`([A-Z_]+)=[01]`) \| \d+ \| \d+ \|$", re.M)
+_SWITCH_ROW_RE = re.compile(
+    r"^\| (none \(default\)|`(UNIFI_[A-Z_]+=[a-z:=_-]+)`) \| \d+ \| \d+ \|$", re.M
+)
 _FAMILY_ROW_RE = re.compile(
     r"^\| (unset \(all families\)|`([a-z_,]+)`) \| (\d+) \| ~(\d+) KB \|$", re.M
 )
@@ -81,10 +99,26 @@ _MODE_ROW_RE = re.compile(
 DOMAIN_TABLE_HEADER = "| Domain | Domain tools available | Purpose |"
 _DOMAIN_ROW_RE = re.compile(r"^\| \*\*([^|]+)\*\* \| (\d+) \|", re.M)
 _RELEASE_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\]", re.M)
+#: A released (shipped) CHANGELOG heading: ``## [X.Y.Z] - YYYY-MM-DD``.
+_DATED_RE = re.compile(r"^## \[\d+\.\d+\.\d+\] - \d{4}-\d{2}-\d{2}", re.M)
+#: The documented official-only recipe. ``unofficial`` alone keeps the generic relays
+#: (``relay/generic``, API status ``local``), which can reach private routes.
+OFFICIAL_ONLY_EXCLUDE = "unofficial,source:relay"
+#: The official-only figures (README.md, AGENTS.md, llms.txt, docs/CONFIGURATION.md): full
+#: mode, and (``OFFICIAL_ONLY_DENY_RE``) the same under ``UNIFI_WRITE_POLICY=deny``.
+_DENY_SUFFIX = r"(\s+)under(\s+)`UNIFI_WRITE_POLICY=deny`"
+OFFICIAL_ONLY_RE = (
+    r"(\s)\d+(\s+)tools(\s+)remain(\s+)and(\s+)\d+(\s+)are(\s+)excluded"
+    rf"(?!{_DENY_SUFFIX})"
+)
+OFFICIAL_ONLY_DENY_RE = (
+    r"(\s)\d+(\s+)tools(\s+)remain(\s+)and(\s+)\d+(\s+)are(\s+)excluded" + _DENY_SUFFIX
+)
+RELAYS_RE = r"the(\s+)\d+(\s+)generic(\s+)relays"
 # The figures render_changelog maintains in the release section. lane_gate masks them, so
 # regenerating them is not a hand edit of CHANGELOG.md.
 CHANGELOG_FIGURE_PATTERNS = (
-    r"Highlights: \d+ tools",
+    r"Highlights: \d+ tools(?: \(\d+ added, \d+ removed\))?",
     r"\(\d+(\s+)tools,(\s+)about(\s+)\d+(\s+)KB(\s+)of(\s+)`tools/list`\)",
     r"Tool annotations: the \d+ read-only tools",
     r"the \d+ write tools advertise",
@@ -109,14 +143,38 @@ def mask_changelog_figures(text: str) -> str:
 
 
 def _measure(
-    families: str | None, mode: str = "full", *, compact_result: bool = False
+    families: str | None,
+    mode: str = "full",
+    *,
+    compact_result: bool = False,
+    exclude: str | None = None,
+    write_policy: str | None = None,
 ) -> tuple[int, int]:
     """(tool count, bytes) of ``tools/list`` from the stdio entry point."""
+    result, size = _tools_list(
+        families, mode, compact_result=compact_result, exclude=exclude, write_policy=write_policy
+    )
+    return len(result["tools"]), size
+
+
+def _tools_list(
+    families: str | None,
+    mode: str = "full",
+    *,
+    compact_result: bool = False,
+    exclude: str | None = None,
+    write_policy: str | None = None,
+) -> tuple[dict, int]:
+    """(``tools/list`` result, bytes) from the stdio entry point."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("UNIFI_", "MCP_", "FASTMCP_"))}
     env["UNIFI_API_KEY"] = "catalog-figures-placeholder-key"
     env["UNIFI_TOOL_MODE"] = mode
     if families is not None:
-        env["UNIFI_TOOL_FAMILIES"] = families
+        env["UNIFI_FAMILY_ALLOW"] = families
+    if exclude is not None:
+        env["UNIFI_EXCLUDE"] = exclude
+    if write_policy is not None:
+        env["UNIFI_WRITE_POLICY"] = write_policy
     proc = subprocess.Popen(  # noqa: S603 - this interpreter running the package's entry point
         [sys.executable, "-c", "from unifi_fabric.entrypoint import main; main()"],
         stdin=subprocess.PIPE,
@@ -163,7 +221,27 @@ def _measure(
     size = len(line)
     if compact_result:
         size = len(json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-    return len(result["tools"]), size
+    return result, size
+
+
+def official_only_leaks(names: list[str]) -> list[str]:
+    """``name: pair`` for each listed tool that calls an API source other than an official
+    one or ``server/local`` (an unclassified tool counts too), sorted."""
+    sys.path.insert(0, str(ROOT / "src"))
+    from unifi_fabric import api_sources
+
+    table = api_sources.table()
+    leaks = []
+    for name in names:
+        pairs = tuple(table.get(name, ()))
+        if not pairs:
+            leaks.append(f"{name}: unclassified")
+        leaks.extend(
+            f"{name}: {pair}"
+            for pair in pairs
+            if pair != "server/local" and pair.split("/", 1)[-1] != "official"
+        )
+    return sorted(leaks)
 
 
 def shape_totals() -> tuple[int, int, int]:
@@ -337,6 +415,7 @@ DOMAINS: tuple[Domain, ...] = (
         delegates=("firewall_proxy",),
         names=(
             "list_firewall_rules",
+            "create_firewall_rule",
             "get_firewall_rule",
             "list_firewall_groups",
             "get_firewall_group",
@@ -475,11 +554,17 @@ def domain_counts(
     for name, module, delegate in inventory:
         label = by_name.get(name)
         if label is None:
+            # A wrapper defined in server.py, or moved into the tools module it delegates
+            # to (and that module has no modules= rule of its own), is classified by that
+            # delegated module.
+            delegated = module == "server" or (
+                module == delegate and not any(module in d.modules for d in domains)
+            )
             label = next(
                 (
                     d.label
                     for d in domains
-                    if module in d.modules or (module == "server" and delegate in d.delegates)
+                    if module in d.modules or (delegated and delegate in d.delegates)
                 ),
                 None,
             )
@@ -500,9 +585,9 @@ def domain_counts(
 
 def selection_counts() -> tuple[dict[str, tuple[int, int]], dict[str | None, int]]:
     """Per family (tools, write tools); per opt-out the write tools its startup selection
-    hides (``None``: the default, 0). Measured with the selection functions the server runs
-    at startup, on a copy of the registered catalog, with every ``UNIFI_*`` switch unset but
-    the one measured."""
+    hides (``None``: the default, 0), keyed by the README row (``SETTING=value``). Measured
+    with the selection functions the server runs at startup, on a copy of the registered
+    catalog, with every ``UNIFI_*`` setting unset but the one measured."""
     import asyncio
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -538,14 +623,18 @@ def selection_counts() -> tuple[dict[str, tuple[int, int]], dict[str | None, int
         hidden: dict[str | None, int] = {None: 0}
         saved = dict(os.environ)
         try:
-            for env in [s.env for s in switches.AREA_WRITE_SWITCHES] + [CONNECTOR_WRITE_ENV]:
+            for token in [s.env for s in switches.AREA_WRITE_SWITCHES] + [CONNECTOR_WRITE_ENV]:
                 for name in [k for k in os.environ if k.startswith("UNIFI_")]:
                     del os.environ[name]
-                os.environ[env] = "0"
-                hidden[env] = len(
-                    await apply_area_opt_out_tool_filter(copy(), env != CONNECTOR_WRITE_ENV)
+                os.environ[switches.WRITE_EXCEPTIONS_ENV] = token
+                hidden[f"{switches.WRITE_EXCEPTIONS_ENV}={token}"] = len(
+                    await apply_area_opt_out_tool_filter(copy(), token != CONNECTOR_WRITE_ENV)
                 )
-            hidden[switches.READ_ONLY_ENV] = len(await apply_read_only_tool_filter(copy(), True))
+            for name in [k for k in os.environ if k.startswith("UNIFI_")]:
+                del os.environ[name]
+            hidden[f"{switches.WRITE_POLICY_ENV}=deny"] = len(
+                await apply_read_only_tool_filter(copy(), True)
+            )
         finally:
             os.environ.clear()
             os.environ.update(saved)
@@ -569,6 +658,12 @@ class Figures:
     read_only: int
     writes: int
     confirm: int = 0
+    #: Tools listed in full mode under OFFICIAL_ONLY_EXCLUDE (also with
+    #: UNIFI_WRITE_POLICY=deny), and the generic relays UNIFI_EXCLUDE=unofficial alone keeps.
+    official_only: int = 0
+    official_only_deny: int = 0
+    official_relays: int = 0
+    catalog_delta: tuple[int, int] | None = None
 
 
 def _kb(size: int) -> int:
@@ -589,6 +684,16 @@ def listed_families(readme: str) -> list[str | None]:
     return rows
 
 
+def catalog_delta() -> tuple[int, int]:
+    """Compare the current tool names with the previous release's schema snapshot."""
+    headings = list(_RELEASE_RE.finditer(CHANGELOG.read_text()))
+    previous = headings[1][1].replace(".", "_")
+    snapshot = ROOT / "tests" / "fixtures" / f"tool_input_schemas_v{previous}.json"
+    old = set(json.loads(snapshot.read_text())["schemas"])
+    new = {name for name, _module, _delegate in tool_inventory()}
+    return len(new - old), len(old - new)
+
+
 def measure(readme: str) -> Figures:
     families = listed_families(readme)
     jobs: dict[tuple[str, str | None], Callable[[], tuple[int, int]]] = {
@@ -596,6 +701,18 @@ def measure(readme: str) -> Figures:
     }
     for mode in ("full", "discovery"):
         jobs[("mode", mode)] = lambda mode=mode: _measure(None, mode, compact_result=True)
+    jobs[("exclude", "unofficial")] = lambda: _measure(None, exclude="unofficial")
+    jobs[("exclude", "deny")] = lambda: _measure(
+        None, exclude=OFFICIAL_ONLY_EXCLUDE, write_policy="deny"
+    )
+    official_listing = _tools_list(None, exclude=OFFICIAL_ONLY_EXCLUDE)[0]
+    official_names = [tool["name"] for tool in official_listing["tools"]]
+    leaks = official_only_leaks(official_names)
+    if leaks:
+        raise RuntimeError(
+            f"UNIFI_EXCLUDE={OFFICIAL_ONLY_EXCLUDE} is documented as official-only but lists "
+            "tools that call other API sources:\n" + "\n".join(leaks)
+        )
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {key: pool.submit(job) for key, job in jobs.items()}
         results = {key: future.result() for key, future in futures.items()}
@@ -614,6 +731,15 @@ def measure(readme: str) -> Figures:
     read_only, writes = annotation_counts()
     if read_only + writes != tools:
         raise RuntimeError("annotation counts do not cover the registered catalog")
+    official_only = len(official_names)
+    official_only_deny = results[("exclude", "deny")][0]
+    official_relays = results[("exclude", "unofficial")][0] - official_only
+    if not 0 < official_only_deny < official_only < tools or official_relays < 1:
+        raise RuntimeError(
+            f"UNIFI_EXCLUDE={OFFICIAL_ONLY_EXCLUDE} lists {official_only} of {tools} tools "
+            f"({official_only_deny} under deny) and unofficial alone {official_relays} more; "
+            "the official-only measurement is wrong"
+        )
     return Figures(
         tools,
         _kb(full_bytes),
@@ -628,22 +754,105 @@ def measure(readme: str) -> Figures:
         read_only,
         writes,
         confirm_parameter_count(),
+        official_only,
+        official_only_deny,
+        official_relays,
+        catalog_delta(),
     )
 
 
-def _sub(text: str, pattern: str, repl: Callable[[re.Match[str]], str], where: str) -> str:
+def _sub(
+    text: str,
+    pattern: str,
+    repl: Callable[[re.Match[str]], str],
+    where: str,
+    *,
+    required: bool = True,
+) -> str:
     new, count = re.subn(pattern, repl, text)
-    if count == 0:
+    if count == 0 and required:
         raise RuntimeError(f"{where}: no figure matched {pattern!r}; update the generator")
     return new
 
 
+def render_official_only(
+    text: str, fig: Figures, where: str, *, relays: bool = False, deny: bool = False
+) -> str:
+    """Rewrite the official-only figures (and, where stated, the deny figures and the
+    generic relay count)."""
+    excluded = fig.tools - fig.official_only
+    text = _sub(
+        text,
+        OFFICIAL_ONLY_RE,
+        lambda m: (
+            f"{m[1]}{fig.official_only}{m[2]}tools{m[3]}remain{m[4]}and{m[5]}{excluded}"
+            f"{m[6]}are{m[7]}excluded"
+        ),
+        where,
+    )
+    excluded_deny = fig.tools - fig.official_only_deny
+    text = _sub(
+        text,
+        OFFICIAL_ONLY_DENY_RE,
+        lambda m: (
+            f"{m[1]}{fig.official_only_deny}{m[2]}tools{m[3]}remain{m[4]}and{m[5]}"
+            f"{excluded_deny}{m[6]}are{m[7]}excluded{m[8]}under{m[9]}`UNIFI_WRITE_POLICY=deny`"
+        ),
+        where,
+        required=deny,
+    )
+    if relays:
+        text = _sub(
+            text,
+            RELAYS_RE,
+            lambda m: f"the{m[1]}{fig.official_relays}{m[2]}generic{m[3]}relays",
+            where,
+        )
+    return text
+
+
+CURSOR_DEEPLINK_RE = re.compile(
+    r"(cursor\.com/en/install-mcp\?[^\"\s]*?config=)([A-Za-z0-9_+/-]+=*)"
+)
+# A pin is X.Y.Z plus any suffix (rc1, .post1, .1, -dev.1). The whole token is replaced, so a
+# hand-edited suffixed pin is re-rendered and fails --check instead of surviving it.
+PIN_TAIL = r"(?:[.+_-]?[0-9A-Za-z]+)*"
+CURSOR_PIN_RE = re.compile(r"(unifi-fabric-mcp-server==)\d+\.\d+\.\d+" + PIN_TAIL)
+
+
+def _repin_cursor_config(m: re.Match[str], version: str) -> str:
+    """Re-pin the package inside a Cursor deeplink's base64 config, keeping its alphabet and
+    padding. A payload that does not decode, or holds no pin, is left untouched."""
+    payload = m[2]
+    urlsafe = "-" in payload or "_" in payload
+    bare = payload.rstrip("=")
+    padded = bare + "=" * (-len(bare) % 4)
+    decode = base64.urlsafe_b64decode if urlsafe else base64.b64decode
+    encode = base64.urlsafe_b64encode if urlsafe else base64.b64encode
+    try:
+        config = decode(padded).decode()
+    except ValueError:
+        return m[0]
+    pinned = CURSOR_PIN_RE.sub(lambda p: p[1] + version, config)
+    if pinned == config:
+        return m[0]
+    encoded = encode(pinned.encode()).decode()
+    if len(bare) == len(payload):
+        encoded = encoded.rstrip("=")
+    return m[1] + encoded
+
+
 def render_install_versions(text: str, version: str) -> str:
-    """Refresh package pins, image tags and release bundle links from project metadata."""
+    """Refresh package pins, image tags and release bundle links from project metadata.
+
+    The install badges carry the pin twice more in encoded form: URL-encoded in the VS Code
+    deeplink and base64 in the Cursor deeplink; both are rewritten too."""
+    text = CURSOR_DEEPLINK_RE.sub(lambda m: _repin_cursor_config(m, version), text)
     patterns = (
-        r"(unifi-fabric-mcp-server==)\d+\.\d+\.\d+",
-        r"(ghcr\.io/[^/\s]+/unifi-fabric-mcp-server:)\d+\.\d+\.\d+",
-        r"(releases/download/v)\d+\.\d+\.\d+",
+        r"(unifi-fabric-mcp-server==)\d+\.\d+\.\d+" + PIN_TAIL,
+        r"(?i)(unifi-fabric-mcp-server%3D%3D)\d+\.\d+\.\d+" + PIN_TAIL,
+        r"(ghcr\.io/[^/\s]+/unifi-fabric-mcp-server:)\d+\.\d+\.\d+" + PIN_TAIL,
+        r"(releases/download/v)\d+\.\d+\.\d+" + PIN_TAIL,
         r"(/unifi-fabric-)\d+\.\d+\.\d+(?=\.mcpb)",
     )
     for pattern in patterns:
@@ -651,22 +860,90 @@ def render_install_versions(text: str, version: str) -> str:
     return text
 
 
+def render_catalog_size_prose(text: str, fig: Figures, where: str, *, required: bool) -> str:
+    """The "Catalog size" paragraph: full-mode tool count and size, body-shape figures."""
+    text = _sub(
+        text,
+        r"full mode advertises \d+ tools and its",
+        lambda m: f"full mode advertises {fig.tools} tools and its",
+        where,
+        required=required,
+    )
+    text = _sub(
+        text,
+        r"`tools/list` response is roughly \d+ KB of JSON",
+        lambda m: f"`tools/list` response is roughly {fig.full_kb} KB of JSON",
+        where,
+        required=required,
+    )
+    return _sub(
+        text,
+        r"the \d+(\s+)pinned-spec(\s+)request(\s+)bodies([^(]*)"
+        r"\([\d,]+(\s+)bytes(\s+)of(\s+)compact(\s+)JSON",
+        lambda m: (
+            f"the {fig.shaped}{m[1]}pinned-spec{m[2]}request{m[3]}bodies{m[4]}"
+            f"({fig.shape_bytes:,}{m[5]}bytes{m[6]}of{m[7]}compact{m[8]}JSON"
+        ),
+        where,
+        required=required,
+    )
+
+
+def render_switch_table(text: str, fig: Figures, where: str) -> str:
+    """The opt-out table: write tools hidden and tools listed under each switch."""
+    start, end = _table_block(text, SWITCH_TABLE_HEADER)
+    switch_rows = [m.group(2) for m in _SWITCH_ROW_RE.finditer(text[start:end])]
+    if switch_rows != list(fig.hidden):
+        raise RuntimeError(
+            f"{where} opt-out table rows must be {list(fig.hidden)}, in order; got {switch_rows}"
+        )
+
+    def switch_row(m: re.Match[str]) -> str:
+        count = fig.hidden[m.group(2)]
+        return f"| {m.group(1)} | {count} | {fig.tools - count} |"
+
+    block = _SWITCH_ROW_RE.sub(switch_row, text[start:end])
+    return text[:start] + block + text[end:]
+
+
 def render_readme(text: str, fig: Figures) -> str:
     t = str(fig.tools)
-    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-    text = render_install_versions(text, version)
+    text = render_install_versions(text, PUBLISHED_VERSION)
+    if re.search(OFFICIAL_ONLY_RE, text):
+        text = render_official_only(text, fig, "README", deny=False)
+    text = _sub(
+        text,
+        r"\*\*\d+ tools, loaded on demand\.\*\*",
+        lambda m: f"**{t} tools, loaded on demand.**",
+        "README",
+        required=False,
+    )
+    text = _sub(
+        text,
+        r"loading the entire \d+-tool catalog",
+        lambda m: f"loading the entire {t}-tool catalog",
+        "README",
+    )
     text = _sub(
         text,
         r"\*\* \d+ tools across Site Manager",
         lambda m: f"** {t} tools across Site Manager",
         "README",
+        required=False,
     )
-    text = _sub(text, r"(?m)^- \d+ tools across", lambda m: f"- {t} tools across", "README")
+    text = _sub(
+        text,
+        r"(?m)^- \d+ tools across",
+        lambda m: f"- {t} tools across",
+        "README",
+        required=False,
+    )
     text = _sub(
         text,
         r"By default the client sees \d+ discovery meta-tools",
         lambda m: f"By default the client sees {fig.modes['discovery'][0]} discovery meta-tools",
         "README",
+        required=False,
     )
     text = _sub(
         text,
@@ -678,50 +955,27 @@ def render_readme(text: str, fig: Figures) -> str:
             f"while reaching the full catalog; full mode uses about {_kb(fig.modes['full'][1])} KB."
         ),
         "README",
+        required=False,
     )
 
     text = _sub(
-        text, r"\*\*\d+ tools\*\* organized", lambda m: f"**{t} tools** organized", "README"
-    )
-    text = _sub(
-        text, r"including all \d+ tool names", lambda m: f"including all {t} tool names", "README"
+        text,
+        r"\*\*\d+ tools\*\* organized",
+        lambda m: f"**{t} tools** organized",
+        "README",
+        required=False,
     )
     text = _sub(
         text,
-        r"full mode advertises \d+ tools and its",
-        lambda m: f"full mode advertises {t} tools and its",
+        r"including all \d+ tool names",
+        lambda m: f"including all {t} tool names",
         "README",
+        required=False,
     )
-    text = _sub(
-        text,
-        r"`tools/list` response is roughly \d+ KB of JSON",
-        lambda m: f"`tools/list` response is roughly {fig.full_kb} KB of JSON",
-        "README",
-    )
-    text = _sub(
-        text,
-        r"the \d+(\s+)pinned-spec(\s+)request(\s+)bodies([^(]*)"
-        r"\([\d,]+(\s+)bytes(\s+)of(\s+)compact(\s+)JSON",
-        lambda m: (
-            f"the {fig.shaped}{m[1]}pinned-spec{m[2]}request{m[3]}bodies{m[4]}"
-            f"({fig.shape_bytes:,}{m[5]}bytes{m[6]}of{m[7]}compact{m[8]}JSON"
-        ),
-        "README",
-    )
+    text = render_catalog_size_prose(text, fig, "README", required=False)
 
-    start, end = _table_block(text, SWITCH_TABLE_HEADER)
-    switch_rows = [m.group(2) for m in _SWITCH_ROW_RE.finditer(text[start:end])]
-    if switch_rows != list(fig.hidden):
-        raise RuntimeError(
-            f"README opt-out table rows must be {list(fig.hidden)}, in order; got {switch_rows}"
-        )
-
-    def switch_row(m: re.Match[str]) -> str:
-        count = fig.hidden[m.group(2)]
-        return f"| {m.group(1)} | {count} | {fig.tools - count} |"
-
-    block = _SWITCH_ROW_RE.sub(switch_row, text[start:end])
-    text = text[:start] + block + text[end:]
+    if SWITCH_TABLE_HEADER in text:
+        text = render_switch_table(text, fig, "README")
 
     groups = {
         "Site Manager and fleet": ("Fleet & Aggregation", "Site Manager"),
@@ -782,19 +1036,20 @@ def render_readme(text: str, fig: Figures) -> str:
         flags=re.S,
     )
 
-    start, end = _table_block(text, DOMAIN_TABLE_HEADER)
-    labels = [label.strip() for label, _ in _DOMAIN_ROW_RE.findall(text[start:end])]
-    if labels != list(fig.domains):
-        raise RuntimeError(
-            "README domain table rows differ from DOMAINS (labels and order must match): "
-            f"README {labels}, DOMAINS {list(fig.domains)}"
-        )
+    if DOMAIN_TABLE_HEADER in text:
+        start, end = _table_block(text, DOMAIN_TABLE_HEADER)
+        labels = [label.strip() for label, _ in _DOMAIN_ROW_RE.findall(text[start:end])]
+        if labels != list(fig.domains):
+            raise RuntimeError(
+                "README domain table rows differ from DOMAINS (labels and order must match): "
+                f"README {labels}, DOMAINS {list(fig.domains)}"
+            )
 
-    def domain_row(m: re.Match[str]) -> str:
-        return f"| **{m.group(1)}** | {fig.domains[m.group(1).strip()]} |"
+        def domain_row(m: re.Match[str]) -> str:
+            return f"| **{m.group(1)}** | {fig.domains[m.group(1).strip()]} |"
 
-    block = _DOMAIN_ROW_RE.sub(domain_row, text[start:end])
-    text = text[:start] + block + text[end:]
+        block = _DOMAIN_ROW_RE.sub(domain_row, text[start:end])
+        text = text[:start] + block + text[end:]
 
     return text
 
@@ -820,38 +1075,59 @@ def render_catalog(text: str, fig: Figures) -> str:
     block, count = _MODE_ROW_RE.subn(mode_row, text[start:end])
     if count != 2:
         raise RuntimeError(f"README mode table: expected 2 rows, matched {count}")
-    return text[:start] + block + text[end:]
+    text = text[:start] + block + text[end:]
+    return render_catalog_size_prose(text, fig, "CATALOG", required=True)
 
 
-def render_annotations(text: str, fig: Figures, where: str) -> str:
+def render_annotations(text: str, fig: Figures, where: str, *, required: bool = True) -> str:
     text = _sub(
         text,
         CHANGELOG_FIGURE_PATTERNS[2],
         lambda m: f"Tool annotations: the {fig.read_only} read-only tools",
         where,
+        required=required,
     )
     return _sub(
         text,
         CHANGELOG_FIGURE_PATTERNS[3],
         lambda m: f"the {fig.writes} write tools advertise",
         where,
+        required=required,
     )
 
 
 def render_changelog(text: str, fig: Figures) -> str:
     """Rewrite figures in the current (first numbered) release section only.
 
-    The body-shape figures live in docs/MIGRATING-0.7.md (render_migrating).
+    Every release opens with ``Highlights: N tools (A added, R removed)``, so that count
+    is required (tests/test_front_page_docs.py recomputes A and R against the previous
+    release). The size and annotation figures belong to the entries that change them; a
+    release that changes neither need not restate them, so they are rewritten only where
+    the section carries them. The body-shape figures live in docs/MIGRATING-0.7.md
+    (render_migrating).
     """
     headings = list(_RELEASE_RE.finditer(text))
     if not headings:
         raise RuntimeError("CHANGELOG has no numbered release section")
+    if _DATED_RE.match(text, headings[0].start()):
+        return text  # the first numbered section has shipped; its figures stay verbatim
     start = headings[0].start()
     end = headings[1].start() if len(headings) > 1 else len(text)
     section = text[start:end]
     t = str(fig.tools)
+    highlights = f"Highlights: {t} tools"
+    if fig.catalog_delta is not None:
+        added, removed = fig.catalog_delta
+        highlights += f" ({added} added, {removed} removed)"
     section = _sub(
-        section, CHANGELOG_FIGURE_PATTERNS[0], lambda m: f"Highlights: {t} tools", "CHANGELOG"
+        section,
+        CHANGELOG_FIGURE_PATTERNS[0],
+        lambda m: (
+            highlights
+            if fig.catalog_delta is not None
+            else re.sub(r"^Highlights: \d+ tools", highlights, m[0])
+        ),
+        "CHANGELOG",
     )
     section = _sub(
         section,
@@ -860,8 +1136,9 @@ def render_changelog(text: str, fig: Figures) -> str:
             f"({t}{m[1]}tools,{m[2]}about{m[3]}{fig.full_kb}{m[4]}KB{m[5]}of{m[6]}`tools/list`)"
         ),
         "CHANGELOG",
+        required=False,
     )
-    section = render_annotations(section, fig, "CHANGELOG")
+    section = render_annotations(section, fig, "CHANGELOG", required=False)
     return text[:start] + section + text[end:]
 
 
@@ -907,8 +1184,9 @@ def render_configuration(text: str, fig: Figures) -> str:
 
     block = _FAMILY_COUNT_ROW_RE.sub(family_count_row, text[start:end])
     text = text[:start] + block + text[end:]
+    text = render_switch_table(text, fig, "CONFIGURATION")
 
-    return text
+    return render_official_only(text, fig, "CONFIGURATION", relays=True, deny=True)
 
 
 def render_coverage(text: str, fig: Figures) -> str:
@@ -955,12 +1233,20 @@ def main() -> int:
     outputs = {
         README: render_readme(readme, fig),
         CATALOG: render_catalog(CATALOG.read_text(), fig),
-        DOCKER: render_install_versions(DOCKER.read_text(), version),
-        BUNDLE_README: render_install_versions(BUNDLE_README.read_text(), version),
-        CHANGELOG: render_changelog(changelog, fig),
+        DOCKER: render_install_versions(DOCKER.read_text(), PUBLISHED_VERSION),
+        BUNDLE_README: render_install_versions(BUNDLE_README.read_text(), PUBLISHED_VERSION),
+        # Pending fragments belong to the next fold; keep the folded release unchanged.
+        CHANGELOG: changelog
+        if any(
+            any((ROOT / "changelog.d").glob(f"*.{category}.md"))
+            for category in ("added", "changed", "removed", "fixed", "security")
+        )
+        else render_changelog(changelog, fig),
         MIGRATING: render_migrating(MIGRATING.read_text(), fig),
         COVERAGE: render_coverage(COVERAGE.read_text(), fig),
         CONFIGURATION: render_configuration(CONFIGURATION.read_text(), fig),
+        AGENTS: render_official_only(AGENTS.read_text(), fig, "AGENTS"),
+        LLMS: render_official_only(LLMS.read_text(), fig, "llms.txt"),
         SITE_STATS: render_site_stats(version, fig.tools, COVERAGE.read_text()),
     }
     summary = (

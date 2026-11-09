@@ -1,4 +1,4 @@
-"""The image build is reproducible, needs no emulation, and the runtime has no installer.
+"""The image build needs no emulation, and the runtime has no installer.
 
 Security review F8: ``pip install --no-deps .`` fetched ``hatchling`` unpinned and
 unhashed through build isolation, and the runtime image kept the base image's pip (with
@@ -41,9 +41,11 @@ def _requirements(text: str) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     current = None
     for line in text.splitlines():
-        match = re.match(r"^([A-Za-z0-9_.-]+==[^ ]+) \\$", line)
+        # A pin with extras (``pydantic[email]==...``) is keyed without them, so it is
+        # never skipped and its hashes never attach to the pin above it.
+        match = re.match(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?(==[^ ]+) \\$", line)
         if match:
-            current = match.group(1)
+            current = match.group(1) + match.group(2)
             out[current] = []
         elif current and (h := re.search(r"--hash=sha256:([0-9a-f]{64})", line)):
             out[current].append(h.group(1))
@@ -125,7 +127,16 @@ def test_runtime_filesystem_has_no_pip():
 
 def test_runtime_stays_non_root_with_tini():
     builder, final = _stages()["builder"], _stages()["final"]
-    assert 'apt-get download "tini:$TARGETARCH"' in builder
+    assert 'apt-get download "tini:$TARGETARCH=0.19.0-1+b3"' in builder
+    assert (
+        "amd64) tini_sha=7d1947665fa40e55f218fefad773dc6de66458d0b39eaa292cdcadfc7c996632"
+        in builder
+    )
+    assert (
+        "arm64) tini_sha=335dee1e36c0bf61f11c9fe9740012966a3183bd50405b73ed19477293c28f7f"
+        in builder
+    )
+    assert "sha256sum -c -" in builder
     assert "mcp:x:10001:10001::/nonexistent:/sbin/nologin" in builder
     assert re.search(r"^USER mcp$", final, re.M)
     assert 'ENTRYPOINT ["/usr/bin/tini", "--", "unifi-fabric-mcp"]' in final
@@ -149,3 +160,14 @@ def test_healthcheck_uses_configured_fastmcp_port(monkeypatch):
     )
     exec(compile(ast.parse(command), "<healthcheck>", "exec"), {})  # noqa: S102
     assert targets == [("localhost", 4567)]
+
+
+def test_requirements_parser_keeps_pins_with_extras():
+    # requirements.lock writes some pins with extras (pydantic[email]==, pyjwt[crypto]==);
+    # each is keyed by name==version and keeps its own hashes.
+    lock = (ROOT / "requirements.lock").read_text()
+    parsed = _requirements(lock)
+    for name in ("pydantic", "pyjwt"):
+        (key,) = [k for k in parsed if k.startswith(f"{name}==")]
+        assert parsed[key], key
+    assert len(parsed) == len(re.findall(r"(?m)^[A-Za-z0-9_.-]+(?:\[[^\]]*\])?==\S+ \\$", lock))

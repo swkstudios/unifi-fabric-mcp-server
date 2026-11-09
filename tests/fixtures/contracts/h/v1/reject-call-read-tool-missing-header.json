@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-call-read-tool-missing-header",
+  "description": "Header mode refuses a discovery call_read_tool without X-UniFi-Api-Key",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "route": "call_read_tool",
+    "arguments": {
+      "name": "list_hosts",
+      "arguments": {}
+    }
+  },
+  "expected": {
+    "code": "missing_api_key_header",
+    "upstream_calls": 0
+  }
+}

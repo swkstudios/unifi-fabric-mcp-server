@@ -86,8 +86,8 @@ def test_literal_route_targets_in_code_and_tests_have_fourfold_margin():
                     inventory.append((str(path.relative_to(root)), node.lineno, node.value))
     assert inventory
     oversized = [
-        (path, line, len(target.encode("utf-8")))
+        (path, line, len(target.encode("utf-8", "surrogatepass")))
         for path, line, target in inventory
-        if len(target.encode("utf-8")) >= B_TARGET // 4
+        if len(target.encode("utf-8", "surrogatepass")) >= B_TARGET // 4
     ]
     assert not oversized, oversized

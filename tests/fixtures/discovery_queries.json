@@ -70,6 +70,7 @@
     "create_dynamic_dns",
     "create_energy_saving_policy",
     "create_firewall_policy",
+    "create_firewall_rule",
     "create_firewall_zone_proxy",
     "create_hotspot_operator",
     "create_hotspot_package",
@@ -406,6 +407,7 @@
     "link_ubiquiti_sso_account",
     "list_accounts",
     "list_acl_rules",
+    "list_active_clients",
     "list_active_clients_stats",
     "list_alarm_hubs",
     "list_all_clients",
@@ -426,6 +428,7 @@
     "list_configured_api_keys",
     "list_content_filter_categories",
     "list_content_filters",
+    "list_controller_stat_schemas",
     "list_countries",
     "list_device_firmware",
     "list_device_models",
@@ -463,6 +466,7 @@
     "list_innerspace_inventory",
     "list_innerspace_switches",
     "list_installed_applications",
+    "list_integration_device_tags",
     "list_ips_categories",
     "list_ips_events",
     "list_known_clients",
@@ -518,6 +522,7 @@
     "list_site_warnings",
     "list_sites",
     "list_speakers",
+    "list_speedtest_results",
     "list_ssl_inspection_catalog",
     "list_ssl_inspection_certificates",
     "list_ssl_inspection_profiles",
@@ -584,6 +589,7 @@
     "readopt_protect_device",
     "reboot_nvr",
     "reboot_protect_device",
+    "reboot_unifi_os_console",
     "recognize_image",
     "reconnect_client",
     "recover_loop_blocked_ports",
@@ -880,12 +886,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to atomically allow (un-exclude) a VLAN network on a switch port profile",
+      "query": "I need to allow (un-exclude) a VLAN network on a switch port profile",
       "expected": "allow_network_on_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me atomically allow (un-exclude) a VLAN network on a switch port profile",
+      "query": "Help me allow (un-exclude) a VLAN network on a switch port profile",
       "expected": "allow_network_on_port_profile",
       "kind": "operation"
     },
@@ -1360,12 +1366,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a controller backup and return the controller's answer. Backups may contain",
+      "query": "I need to generate a one-off controller backup file and return its console download path; no",
       "expected": "create_backup",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a controller backup and return the controller's answer. Backups may contain",
+      "query": "Help me generate a one-off controller backup file and return its console download path; no",
       "expected": "create_backup",
       "kind": "operation"
     },
@@ -1477,6 +1483,16 @@
     {
       "query": "Help me create a new firewall policy on a site",
       "expected": "create_firewall_policy",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to create a classic L3/L4 firewall rule for a site",
+      "expected": "create_firewall_rule",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me create a classic L3/L4 firewall rule for a site",
+      "expected": "create_firewall_rule",
       "kind": "operation"
     },
     {
@@ -2730,12 +2746,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to atomically exclude (untag) a VLAN network from a switch port profile",
+      "query": "I need to exclude (untag) a VLAN network from a switch port profile",
       "expected": "exclude_network_on_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me atomically exclude (untag) a VLAN network from a switch port profile",
+      "query": "Help me exclude (untag) a VLAN network from a switch port profile",
       "expected": "exclude_network_on_port_profile",
       "kind": "operation"
     },
@@ -2850,12 +2866,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to relay a GET through the official Fabric connector to a console's /proxy/{path}",
+      "query": "I need to relay a GET through the Fabric connector to any console /proxy/{path} route",
       "expected": "fabric_connector_get",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a GET through the official Fabric connector to a console's /proxy/{path}",
+      "query": "Help me relay a GET through the Fabric connector to any console /proxy/{path} route",
       "expected": "fabric_connector_get",
       "kind": "operation"
     },
@@ -4450,12 +4466,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to read the Network application's system log (events and alerts) for one class",
+      "query": "I need to read Network system-log events and alerts",
       "expected": "get_system_log",
       "kind": "purpose"
     },
     {
-      "query": "Help me read the Network application's system log (events and alerts) for one class",
+      "query": "Help me read Network system-log events and alerts",
       "expected": "get_system_log",
       "kind": "operation"
     },
@@ -4840,6 +4856,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to retrieve the private v2 active-client roster and optional Matter/Thread rows",
+      "expected": "list_active_clients",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me retrieve the private v2 active-client roster and optional Matter/Thread rows",
+      "expected": "list_active_clients",
+      "kind": "operation"
+    },
+    {
       "query": "I need to list detailed per-client statistics: traffic, signal strength, and experience score",
       "expected": "list_active_clients_stats",
       "kind": "purpose"
@@ -5037,6 +5063,16 @@
     {
       "query": "Help me list a site's content-filtering profiles (Network v2 route)",
       "expected": "list_content_filters",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to list schemas supported by a controller's Network 11.x statistics engine",
+      "expected": "list_controller_stat_schemas",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list schemas supported by a controller's Network 11.x statistics engine",
+      "expected": "list_controller_stat_schemas",
       "kind": "operation"
     },
     {
@@ -5410,6 +5446,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to list the Network Integration device-tag collection for a site",
+      "expected": "list_integration_device_tags",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list the Network Integration device-tag collection for a site",
+      "expected": "list_integration_device_tags",
+      "kind": "operation"
+    },
+    {
       "query": "I need to list the IPS threat categories available on the site",
       "expected": "list_ips_categories",
       "kind": "purpose"
@@ -5580,12 +5626,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list the site's network events (device, client, admin, security, update and other",
+      "query": "I need to list site network events from the system log, draining every page in controller order",
       "expected": "list_network_events",
       "kind": "purpose"
     },
     {
-      "query": "Help me list the site's network events (device, client, admin, security, update and other",
+      "query": "Help me list site network events from the system log, draining every page in controller order",
       "expected": "list_network_events",
       "kind": "operation"
     },
@@ -5770,12 +5816,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this task, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras may",
+      "query": "I need to this task, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras",
       "expected": "list_ptz_presets",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras may",
+      "query": "Help me this task, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras",
       "expected": "list_ptz_presets",
       "kind": "operation"
     },
@@ -5957,6 +6003,16 @@
     {
       "query": "Help me this task on a Protect console (GET /v1/speakers via Fabric proxy)",
       "expected": "list_speakers",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to list archived WAN speed-test results for a site and time window",
+      "expected": "list_speedtest_results",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list archived WAN speed-test results for a site and time window",
+      "expected": "list_speedtest_results",
       "kind": "operation"
     },
     {
@@ -6617,6 +6673,16 @@
     {
       "query": "Help me reboot a Protect device once. Camera recording and live view are interrupted while it",
       "expected": "reboot_protect_device",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to reboot a UniFi OS console (POST /api/system/reboot)",
+      "expected": "reboot_unifi_os_console",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me reboot a UniFi OS console (POST /api/system/reboot)",
+      "expected": "reboot_unifi_os_console",
       "kind": "operation"
     },
     {
@@ -7700,12 +7766,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update settings for a Protect chime (volume, ringtone, etc.)",
+      "query": "I need to update a Protect chime: name, paired cameraIds or per-camera ringSettings (volume, ringtone)",
       "expected": "update_chime",
       "kind": "purpose"
     },
     {
-      "query": "Help me update settings for a Protect chime (volume, ringtone, etc.)",
+      "query": "Help me update a Protect chime: name, paired cameraIds or per-camera ringSettings (volume, ringtone)",
       "expected": "update_chime",
       "kind": "operation"
     },
@@ -8040,12 +8106,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "I need to update a network member group (v2 PUT /network-members-group/{id})",
       "expected": "update_network_members_group",
       "kind": "purpose"
     },
     {
-      "query": "Help me read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "Help me update a network member group (v2 PUT /network-members-group/{id})",
       "expected": "update_network_members_group",
       "kind": "operation"
     },
@@ -8070,12 +8136,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "I need to update a policy-engine rule (Network v2 PUT /object-oriented-network-config/{id})",
       "expected": "update_policy_engine_rule",
       "kind": "purpose"
     },
     {
-      "query": "Help me read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "Help me update a policy-engine rule (Network v2 PUT /object-oriented-network-config/{id})",
       "expected": "update_policy_engine_rule",
       "kind": "operation"
     },
@@ -8120,12 +8186,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "I need to update a predefined firewall policy (PUT /v1/sites/{siteId}/firewall/policies/{id})",
       "expected": "update_predefined_firewall_policy",
       "kind": "purpose"
     },
     {
-      "query": "Help me read-merge-write and type-strict requested-leaf verification. Returns the upstream",
+      "query": "Help me update a predefined firewall policy (PUT /v1/sites/{siteId}/firewall/policies/{id})",
       "expected": "update_predefined_firewall_policy",
       "kind": "operation"
     },
@@ -8782,6 +8848,16 @@
     {
       "query": "Rename a mobility device",
       "expected": "update_mobility_device_name",
+      "kind": "confusable"
+    },
+    {
+      "query": "list firewall zones",
+      "expected": "list_firewall_zones_proxy",
+      "kind": "confusable"
+    },
+    {
+      "query": "firewall zone ids",
+      "expected": "list_firewall_zones_proxy",
       "kind": "confusable"
     },
     {

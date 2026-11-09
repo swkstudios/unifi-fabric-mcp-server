@@ -155,14 +155,16 @@ async def test_write_verbatim_and_one_request(method, tool, args, expected, body
     ],
 )
 @pytest.mark.parametrize("redact", [False, True])
-async def test_dry_run_preview_no_write(tool, args, redact):
+async def test_dry_run_preview_no_write(tool, args, redact, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+
     def handler(req):
         if tool is matter.commission_matter_node:
             pytest.fail("dry-run must send no write")
         assert req.method == "GET"
         return httpx.Response(200, json=[{"id": NODE, "name": "Desk lamp"}])
 
-    c = client(handler, dry_run=True, redact_secrets=redact)
+    c = client(handler, redact_secrets=redact)
     try:
         result = await tool(c, registry(), HOST, SITE, *args)
         if tool is matter.remove_matter_node:
@@ -180,7 +182,7 @@ async def test_dry_run_preview_no_write(tool, args, redact):
         await c.close()
 
 
-@pytest.mark.parametrize("env", ["UNIFI_READ_ONLY", "UNIFI_ENABLE_NETWORK_WRITE"])
+@pytest.mark.parametrize("env", ["UNIFI_WRITE_POLICY", "family:network=deny"])
 @pytest.mark.parametrize(
     "tool,args",
     [
@@ -190,7 +192,11 @@ async def test_dry_run_preview_no_write(tool, args, redact):
     ],
 )
 async def test_write_optout_before_resolution(monkeypatch, env, tool, args):
-    monkeypatch.setenv(env, "1" if env == "UNIFI_READ_ONLY" else "0")
+    (
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+        if env == "UNIFI_WRITE_POLICY"
+        else monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env)
+    )
     r = registry()
     with pytest.raises(Exception, match=env):
         await tool(AsyncMock(), r, HOST, SITE, *args)
@@ -265,9 +271,8 @@ async def test_commission_audit_never_records_setup_code(tmp_path):
 def test_network_write_opt_out_defaults_on(monkeypatch):
     from unifi_fabric import switches
 
-    monkeypatch.delenv("UNIFI_ENABLE_NETWORK_WRITE", raising=False)
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
     assert switches.NETWORK_WRITES.enabled()
-    assert Settings(api_key="synthetic-key").enable_network_write is True
 
 
 @pytest.mark.parametrize("area", ["protect", "mobility", "carrier"])
@@ -275,9 +280,58 @@ def test_network_opt_out_does_not_cover_other_area_switches(monkeypatch, area):
     from unifi_fabric import switches
     from unifi_fabric.tools.connector import area_write_refusal
 
-    for switch in switches.AREA_WRITE_SWITCHES:
-        monkeypatch.delenv(switch.env, raising=False)
-    monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
     assert area_write_refusal("network") is not None
     assert area_write_refusal(area) is None
     assert not switches.NETWORK_WRITES.governs(area)
+
+
+@pytest.mark.parametrize("redact", [False, True])
+@pytest.mark.parametrize("operation", ["rename", "remove"])
+async def test_selected_alias_invalid_json_native_id_redaction(redact, operation):
+    seen = []
+    native_id = json.dumps({"password": "synthetic-sensitive-value"})
+
+    def handler(req):
+        seen.append(req.method)
+        return httpx.Response(200, json=[{"id": native_id, "_id": "alias"}])
+
+    c = client(handler, redact_secrets=redact)
+    try:
+        with pytest.raises(ValueError) as caught:
+            if operation == "rename":
+                await matter.rename_matter_node(c, registry(), HOST, SITE, "alias", "new-name")
+            else:
+                await matter.remove_matter_node(c, registry(), HOST, SITE, "alias")
+        message = str(caught.value)
+        assert ("synthetic-sensitive-value" in message) is not redact
+        if redact:
+            assert REDACTION_MASK in message
+        assert seen == ["GET"]
+    finally:
+        await c.close()
+
+
+@pytest.mark.parametrize("operation", [matter.rename_matter_node, matter.remove_matter_node])
+@pytest.mark.parametrize("redact", [True, False])
+async def test_invalid_native_id_with_apostrophe_obeys_redaction(operation, redact):
+    password = "SYNTHETIC_O\x27BRIEN_PASSWORD"
+    native_id = json.dumps({"password": password})
+    c = AsyncMock()
+    c._settings.redact_secrets = redact
+    c.get.return_value = [{"id": native_id, "_id": NODE}]
+    args = ("new name",) if operation is matter.rename_matter_node else ()
+
+    with pytest.raises(ValueError) as error:
+        await operation(c, registry(), HOST, SITE, NODE, *args)
+
+    message = str(error.value)
+    assert "No write was sent" in message
+    if redact:
+        assert "SYNTHETIC_O" not in message
+        assert "BRIEN_PASSWORD" not in message
+        assert REDACTION_MASK in message
+    else:
+        assert repr(native_id) in message
+    c.put.assert_not_awaited()
+    c.delete.assert_not_awaited()

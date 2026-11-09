@@ -43,7 +43,13 @@ from ..registry import Registry
 from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import require_update_fields
 from . import firewall_proxy as _fw
-from ._classic_objects import _object_rows, resolve_site_slug, select_classic_record, v2_site
+from ._classic_objects import (
+    _object_rows,
+    listed_record_id,
+    resolve_site_slug,
+    select_classic_record,
+    v2_site,
+)
 from ._keys import with_context
 from ._payload import integration_update_body, upstream_hint
 from ._results import deletion_readback_ids, deletion_result, safe_read_after, with_read_after_error
@@ -196,7 +202,7 @@ async def _verified_put(
 async def reset_dpi_counters(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
     """Erase DPI history and counters using v2 DELETE /dpi. This cannot be undone.
 
-    Returns the upstream body unchanged; under UNIFI_DRY_RUN returns a dry-run preview.
+    Returns the upstream body unchanged; under dry-run policy returns a dry-run preview.
 
     Args:
         host: Console name or id from list_hosts, for example 'my-console'.
@@ -228,7 +234,7 @@ async def create_policy_engine_rule(
 
     Body is free-form (no published request schema). Captured client fields include
     name, enabled, targets, target_type, secure, qos and route. Nested objects depend
-    on the selected policy. Under UNIFI_DRY_RUN returns a dry-run preview.
+    on the selected policy. Under dry-run policy returns a dry-run preview.
 
     Args:
         host: Console name or id from list_hosts, for example 'my-console'.
@@ -251,7 +257,7 @@ async def update_policy_engine_rule(
 ) -> Any:
     """PUT a policy-engine object using its native id, preserving private fields.
 
-    Returns the upstream body unchanged; under UNIFI_DRY_RUN returns a dry-run preview.
+    Returns the upstream body unchanged; under dry-run policy returns a dry-run preview.
     Reads the complete collection, merges partial fields, then verifies requested leaves.
     Object responses add _verified; a failed read-back adds _readAfterError.
 
@@ -287,7 +293,7 @@ async def delete_policy_engine_rule(
     """Delete one policy-engine object. Returns {deleted: true, message, response}.
 
     The upstream body is under response, verbatim. The id is resolved in the collection
-    list first; an unknown id lists the valid ids and sends no write. Under UNIFI_DRY_RUN
+    list first; an unknown id lists the valid ids and sends no write. Under dry-run policy
     returns {status: "dry_run", deleted: false, message, response} with the dry-run preview
     as response.
 
@@ -317,7 +323,7 @@ async def preview_policy_engine_rule(
     """Preview an object-oriented policy using the Network 11.1.11 private endpoint.
 
     Returns the upstream body unchanged. This POST is classified as a write until an
-    independently approved read-POST allowlist entry exists. Under UNIFI_DRY_RUN
+    independently approved read-POST allowlist entry exists. Under dry-run policy
     returns a dry-run preview.
 
     Args:
@@ -361,7 +367,7 @@ async def create_network_members_group(
 ) -> Any:
     """Create a network member group. Returns the upstream body unchanged.
 
-    Under UNIFI_DRY_RUN returns a dry-run preview. Private request has no published
+    Under dry-run policy returns a dry-run preview. Private request has no published
     schema; source-client fields are name, members (strings) and type (string).
 
     Args:
@@ -386,7 +392,7 @@ async def update_network_members_group(
 ) -> Any:
     """PUT a network member group. Returns the upstream body unchanged.
 
-    Under UNIFI_DRY_RUN returns the merged-body preview without a read-back.
+    Under dry-run policy returns the merged-body preview without a read-back.
     Reads the complete collection, merges partial fields, then verifies requested leaves.
     Object responses add _verified; a failed read-back adds _readAfterError.
 
@@ -421,7 +427,7 @@ async def delete_network_members_group(
     """Delete one network member group. Returns {deleted: true, message, response}.
 
     The upstream body is under response, verbatim. The id is resolved in the collection
-    list first; an unknown id lists the valid ids and sends no write. Under UNIFI_DRY_RUN
+    list first; an unknown id lists the valid ids and sends no write. Under dry-run policy
     returns {status: "dry_run", deleted: false, message, response} with the dry-run preview
     as response.
 
@@ -463,7 +469,7 @@ async def set_firewall_app_blocks(
 ) -> Any:
     """Replace the complete application-block list by POST. Returns the upstream body unchanged.
 
-    Under UNIFI_DRY_RUN returns a dry-run preview. Private body has no published schema;
+    Under dry-run policy returns a dry-run preview. Private body has no published schema;
     read list_firewall_app_blocks first and preserve every returned private field.
 
     Args:
@@ -487,7 +493,7 @@ async def preview_firewall_group(
     """Preview a firewall group URL. Returns the upstream body unchanged.
 
     This POST is classified as a write until separately allowlisted. Under
-    UNIFI_DRY_RUN returns a dry-run preview. Captured FE body uses url and group_type.
+    dry-run policy returns a dry-run preview. Captured FE body uses url and group_type.
 
     Args:
         host: Console name or id from list_hosts, for example 'my-console'.
@@ -506,8 +512,9 @@ async def preview_firewall_group(
 _SYSTEM_DEFINED_POLICY_REFUSAL = "system-defined-firewall-policy-update-forbidden"
 _SYSTEM_DEFINED_POLICY_HINT = (
     "this PUT replaces a whole policy and the controller refuses it for a SYSTEM_DEFINED "
-    "policy (metadata.origin). The published Integration API patches only loggingEnabled "
-    "on such a policy: use patch_firewall_policy with {loggingEnabled: true|false}. A "
+    "policy (metadata.origin). The published Integration API patches only loggingEnabled and "
+    "reportFlowEnabled on such a policy: use patch_firewall_policy with "
+    "{loggingEnabled|reportFlowEnabled: true|false}. A "
     "USER_DEFINED policy takes this full update."
 )
 
@@ -525,10 +532,10 @@ async def update_predefined_firewall_policy(
     GET /firewall/policies/{id}, merge the caller's partial fields, then PUT the full
     writable object and GET again to verify requested leaves type-strictly. Returns
     the write body unchanged, adding _verified and, on read failure, _readAfterError.
-    Under UNIFI_DRY_RUN returns the merged-body preview without a read-back. A policy with
+    Under dry-run policy returns the merged-body preview without a read-back. A policy with
     metadata.origin SYSTEM_DEFINED cannot be replaced (Network 11.0.89 answers HTTP 400
     system-defined-firewall-policy-update-forbidden, kept whole with a hint to
-    patch_firewall_policy, which patches loggingEnabled).
+    patch_firewall_policy, which patches loggingEnabled or reportFlowEnabled).
 
     Args:
         host: Console name or id from list_hosts, for example 'my-console'.
@@ -536,7 +543,7 @@ async def update_predefined_firewall_policy(
         policy_id: Official UUID from list_firewall_policies or get_firewall_policy,
             for example 'bbbbbbbb-0000-4000-8000-000000000001'; not a private v2 _id.
         policy: Nonempty partial official policy object, for example {'enabled': False}.
-            Fields use the published Network 10.6.106 shape; see its properties.
+            Fields use the published Network 11.0.97 shape; see its properties.
             Read-only id, index and metadata are not sent; all unrequested
             writable fields are preserved.
     """
@@ -603,20 +610,23 @@ async def _batch_delete(
     resolved against the v2 list before the write (an unknown id fails with the valid ids and
     sends nothing); the array of ``_id`` values is POSTed once and the upstream body is
     returned verbatim under ``response``. ``deleted`` is true only when the read-back list no
-    longer has any of them. An empty batch is posted as given without readback. Under
-    ``UNIFI_DRY_RUN`` nothing is sent or read back.
+    longer has any of them. An empty batch returns deleted=false without any request. Under
+    ``dry-run policy`` nothing is sent or read back.
     """
     _batch_ids(ids, label)
     validate_selector(host, "host")
     validate_selector(site, "site")
-    key, url = await _context(registry, host, site, f"/{collection}")
     if not ids:
-        response = await client.post(f"{url}/batch-delete", key=key, json=[])
-        return deletion_result(
-            f"Empty {label} batch accepted; no records were addressed.", response
-        )
+        return {
+            "deleted": False,
+            "message": f"Empty {label} batch; no write was sent.",
+            "response": None,
+        }
+    key, url = await _context(registry, host, site, f"/{collection}")
     rows = await _v2_rows(client, key, url)
-    targets = [select_classic_record(rows, item, label, list_tool)["_id"] for item in ids]
+    targets = [
+        listed_record_id(select_classic_record(rows, item, label, list_tool), "ids") for item in ids
+    ]
     response = await client.post(f"{url}/batch-delete", key=key, json=cast(Any, targets))
     if is_dry_run_preview(response):
         return deletion_result("", response)
@@ -686,7 +696,7 @@ async def _batch_delete_firewall_policies(
     true only when every read answers not found. A failing DELETE raises, naming the ids already
     deleted and those not attempted. ``response`` is the upstream body when every DELETE
     answered the same body (an empty one), else the bodies in id order.
-    Under ``UNIFI_DRY_RUN`` nothing is sent or read back.
+    Under ``dry-run policy`` nothing is sent or read back.
     """
     _batch_ids(ids, "firewall policy")
     validate_selector(host, "host")
@@ -832,7 +842,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def reset_dpi_counters(host: str, site: str) -> Any:
         """Erase DPI history and counters using v2 DELETE /dpi. Consequence: permanently erases
         DPI history and counters. Returns the upstream body unchanged (nonobjects use result).
-        Under UNIFI_DRY_RUN sends no mutation and returns {status: "dry_run", dryRun: true, sent:
+        Under dry-run policy sends no mutation and returns {status: "dry_run", dryRun: true, sent:
         false, message, preview: {method, path, params, body}}.
 
         Args:
@@ -862,7 +872,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def create_policy_engine_rule(host: str, site: str, rule: dict[str, Any]) -> Any:
         """Create a private policy-engine object. Returns the upstream body unchanged; masked
         fields are reported in _redactedFieldsNotSent (nonobjects use result). Under
-        UNIFI_DRY_RUN sends no mutation and returns {status: "dry_run", dryRun: true, sent: false,
+        dry-run policy sends no mutation and returns {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params, body}}.
 
@@ -881,9 +891,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def update_policy_engine_rule(
         host: str, site: str, rule_id: str, rule: dict[str, Any]
     ) -> Any:
-        """Read-merge-write and type-strict requested-leaf verification. Returns the upstream
+        """Update a policy-engine rule (Network v2 PUT /object-oriented-network-config/{id}).
+
+        Read-merge-write and type-strict requested-leaf verification. Returns the upstream
         write body with _verified and possible _readAfterError; nonobjects use result. Masked
-        fields are omitted and reported in _redactedFieldsNotSent. Under UNIFI_DRY_RUN sends no
+        fields are omitted and reported in _redactedFieldsNotSent. Under dry-run policy sends no
         mutation and returns {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params, body}}; no read-back or verification.
 
@@ -905,7 +917,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         enforcement. The id is resolved in the collection list first; an unknown id lists the valid
         ids and sends no write. Returns {deleted, message, response}: deleted is true, message
         summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
-        or null when the body is empty). Under UNIFI_DRY_RUN sends no mutation and returns {status:
+        or null when the body is empty). Under dry-run policy sends no mutation and returns {status:
         "dry_run", deleted: false, message, response}, where response is the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
@@ -927,7 +939,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Network 11.0.89 returned HTTP 405; the 11.1.11 frontend references POST
         /object-oriented-network-config/preview, but that newer endpoint is not live-verified.
         Returns upstream body and _redactedFieldsNotSent when masked fields are omitted
-        (nonobjects use result). Under UNIFI_DRY_RUN sends no mutation and returns {status:
+        (nonobjects use result). Under dry-run policy sends no mutation and returns {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
@@ -958,7 +970,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     )
     async def create_network_members_group(host: str, site: str, group: dict[str, Any]) -> Any:
         """Create a network member group. Returns upstream body and _redactedFieldsNotSent when
-        masked fields are omitted (nonobjects use result). Under UNIFI_DRY_RUN sends no mutation
+        masked fields are omitted (nonobjects use result). Under dry-run policy sends no mutation
         and returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -978,9 +990,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def update_network_members_group(
         host: str, site: str, group_id: str, group: dict[str, Any]
     ) -> Any:
-        """Read-merge-write and type-strict requested-leaf verification. Returns the upstream
+        """Update a network member group (v2 PUT /network-members-group/{id}).
+
+        Read-merge-write and type-strict requested-leaf verification. Returns the upstream
         write body with _verified and possible _readAfterError; nonobjects use result. Masked
-        fields are omitted and reported in _redactedFieldsNotSent. Under UNIFI_DRY_RUN sends no
+        fields are omitted and reported in _redactedFieldsNotSent. Under dry-run policy sends no
         mutation and returns {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params, body}}; no read-back or verification.
 
@@ -1005,7 +1019,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         referencing it may be affected. The id is resolved in the collection list first; an unknown
         id lists the valid ids and sends no write. Returns {deleted, message, response}: deleted is
         true, message summarizes the delete, and response is the upstream body verbatim (decoded
-        JSON, raw text, or null when the body is empty). Under UNIFI_DRY_RUN sends no mutation and
+        JSON, raw text, or null when the body is empty). Under dry-run policy sends no mutation and
         returns {status: "dry_run", deleted: false, message, response}, where response is the
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}.
@@ -1039,7 +1053,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Replace application blocks with the complete returned array. Consequence: replaces
         the configured app blocks, removing omitted entries. Returns upstream body and
         _redactedFieldsNotSent when masked fields are omitted (nonobjects use result). Under
-        UNIFI_DRY_RUN sends no mutation and returns {status: "dry_run", dryRun: true, sent: false,
+        dry-run policy sends no mutation and returns {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params, body}}.
 
@@ -1060,7 +1074,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def preview_firewall_group(host: str, site: str, group: dict[str, Any]) -> Any:
         """Preview a firewall group URL. Consequence: submits the URL to the controller preview
         action, classified as a write. Returns upstream body and _redactedFieldsNotSent when
-        masked fields are omitted (nonobjects use result). Under UNIFI_DRY_RUN sends no mutation
+        masked fields are omitted (nonobjects use result). Under dry-run policy sends no mutation
         and returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -1079,16 +1093,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def update_predefined_firewall_policy(
         host: str, site: str, policy_id: str, policy: dict[str, Any]
     ) -> Any:
-        """Read-merge-write and type-strict requested-leaf verification. Returns the upstream
+        """Update a predefined firewall policy (PUT /v1/sites/{siteId}/firewall/policies/{id}).
+
+        Read-merge-write and type-strict requested-leaf verification. Returns the upstream
         write body with _verified and possible _readAfterError; nonobjects use result. Masked
-        fields are omitted and reported in _redactedFieldsNotSent. Under UNIFI_DRY_RUN sends no
+        fields are omitted and reported in _redactedFieldsNotSent. Under dry-run policy sends no
         mutation and returns {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params, body}}; no read-back or verification.
 
         This is the full PUT of the Integration API. A policy whose metadata.origin is
         SYSTEM_DEFINED is refused by the controller (Network 11.0.89: HTTP 400
         system-defined-firewall-policy-update-forbidden, returned whole with a hint); change
-        only its loggingEnabled with patch_firewall_policy instead.
+        only its loggingEnabled or reportFlowEnabled with patch_firewall_policy instead.
 
         Args:
             host: Console name or id from list_hosts, for example 'my-console'.
@@ -1096,7 +1112,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             policy_id: Official UUID from list_firewall_policies or get_firewall_policy,
                 for example 'bbbbbbbb-0000-4000-8000-000000000001'; not a private v2 _id.
             policy: Nonempty partial official policy object, for example {'enabled': False}.
-                Fields use the published Network 10.6.106 shape; see its properties.
+                Fields use the published Network 11.0.97 shape; see its properties.
                 Read-only id, index and metadata are not sent; all unrequested
                 writable fields are preserved.
         """
@@ -1128,7 +1144,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         true, message summarizes the delete, and response is the upstream body verbatim (decoded
         JSON, raw text, or null when the body is empty); deleted is false and message names the
         ids still listed when the read-back still has any, or says the removal is unverified
-        when the read-back failed. Under UNIFI_DRY_RUN sends nothing and returns {status:
+        when the read-back failed. Under dry-run policy sends nothing and returns {status:
         "dry_run", deleted: false, message, response}, where response is {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}.
 
@@ -1155,7 +1171,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         raw text, or null when the body is empty). With several differing bodies response is the
         list of them in id order. When a read-back still finds an id, deleted is false and
         message names it; when the read-back failed, readAfterError says why. A failing DELETE
-        raises, naming the ids already deleted. Under UNIFI_DRY_RUN sends nothing and returns
+        raises, naming the ids already deleted. Under dry-run policy sends nothing and returns
         {status: "dry_run", deleted: false, message, response}, where response is {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} (a list
         of them for several ids).
@@ -1181,7 +1197,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         true, message summarizes the delete, and response is the upstream body verbatim (decoded
         JSON, raw text, or null when the body is empty); deleted is false and message names the
         ids still listed when the read-back still has any, or says the removal is unverified
-        when the read-back failed. Under UNIFI_DRY_RUN sends nothing and returns {status:
+        when the read-back failed. Under dry-run policy sends nothing and returns {status:
         "dry_run", deleted: false, message, response}, where response is {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}.
 

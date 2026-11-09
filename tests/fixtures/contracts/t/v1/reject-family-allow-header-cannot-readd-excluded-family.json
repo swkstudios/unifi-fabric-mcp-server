@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-family-allow-header-cannot-readd-excluded-family",
+  "description": "X-UniFi-Family-Allow: protect cannot re-expose a family removed by UNIFI_EXCLUDE=family:protect: list_cameras refuses with tool_not_exposed",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:protect",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Family-Allow",
+        "protect"
+      ]
+    ],
+    "route": "list_cameras",
+    "arguments": {
+      "host": "host-a1"
+    }
+  },
+  "expected": {
+    "code": "tool_not_exposed",
+    "upstream_calls": 0
+  }
+}

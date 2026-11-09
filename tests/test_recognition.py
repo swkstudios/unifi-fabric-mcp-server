@@ -124,7 +124,7 @@ class TestListRecognitionGroups:
     async def test_explicit_page_last_page_has_no_next(self, client, registry):
         client.get.return_value = {"groups": [{"id": "face_4"}], "links": {"next": None}}
         result = await list_recognition_groups(client, registry, "h", "face", page=9)
-        assert "nextPage" not in result
+        assert "_nextPage" not in result
 
     async def test_capped_drain_marked_incomplete(self, client, registry):
         client.paginate_max_pages = 2

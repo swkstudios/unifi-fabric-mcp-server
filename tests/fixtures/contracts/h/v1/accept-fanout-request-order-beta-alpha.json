@@ -1,0 +1,47 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-fanout-request-order-beta-alpha",
+  "description": "A header object ordered beta, alpha fans out in that request order",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"beta\":\"synthetic-key-b\",\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {},
+    "upstream": {
+      "alpha": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ-A"
+          }
+        ]
+      },
+      "beta": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-b1",
+            "name": "HQ-B"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "selected_labels": [
+      "beta",
+      "alpha"
+    ]
+  }
+}

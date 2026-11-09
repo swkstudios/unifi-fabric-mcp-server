@@ -6,10 +6,10 @@ not covered by other integration test files.
 Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
 Host-scoped tests additionally require UNIFI_TEST_HOST and UNIFI_TEST_SITE.
 
-Run:
-    UNIFI_API_KEY=<key> pytest tests/test_console_integration.py -v
-    UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
-        pytest tests/test_console_integration.py -v
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    pytest tests/test_console_integration.py -v
+    UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> pytest tests/test_console_integration.py -v
 """
 
 from __future__ import annotations
@@ -35,8 +35,9 @@ from unifi_fabric.tools.site_manager import list_hosts, list_sites
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated
-# at collection time, not import time.  Run with a real key to execute them:
-#   UNIFI_API_KEY=<key> pytest tests/test_console_integration.py -v
+# at collection time, not import time.  Run them with a real key in the environment
+# (loaded from a secret store, never typed on the command line):
+#   pytest tests/test_console_integration.py -v
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
@@ -250,7 +251,7 @@ class TestKeyConsistencyIntegration:
 
 
 # ---------------------------------------------------------------------------
-# InnerSpace — read-only; skips cleanly when the feature is not licensed
+# InnerSpace — read-only; needs a host where the feature is licensed
 # ---------------------------------------------------------------------------
 
 
@@ -258,12 +259,13 @@ class TestKeyConsistencyIntegration:
 class TestInnerSpaceIntegration:
     """InnerSpace is a licensed add-on. On an estate without it the API returns 403.
 
-    That is an environment limitation, not a defect: the tool surfaces the error and the
-    test must SKIP with a clear reason rather than fail. If InnerSpace IS licensed, the
-    summary must come back as a dict.
+    Run this class against a host where InnerSpace is licensed: the summary must come
+    back as a dict. On an unlicensed host the test FAILS with a "not licensed (403)"
+    reason (the suite has no skips), so the environment limitation is reported, never
+    passed over.
     """
 
-    async def test_summary_or_skip_when_unlicensed(self, client, registry):
+    async def test_summary_on_a_licensed_host(self, client, registry):
         if not _TEST_HOST:
             pytest.fail("UNIFI_TEST_HOST must be set for InnerSpace test")
         try:

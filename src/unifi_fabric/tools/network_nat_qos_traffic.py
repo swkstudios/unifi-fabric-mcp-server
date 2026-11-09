@@ -245,13 +245,20 @@ async def _nc_listed(
     wanted: str,
     label: str,
     list_tool: str,
+    *,
+    read_after: bool = False,
 ) -> dict[str, Any]:
     """The record of collection ``path`` whose ``_id`` or ``id`` is ``wanted``, or raise
     listing every valid id."""
     rows = _nc_rows(await client.get(path, key=key), path)
     row = _nc_match(rows, wanted)
     if row is None:
-        raise ValueError(_nc_unknown(label, wanted, rows, list_tool))
+        message = _nc_unknown(label, wanted, rows, list_tool)
+        if read_after:
+            message = message.replace(
+                "No write was sent.", "The write was sent; read-back could not find the record."
+            )
+        raise ValueError(message)
     return row
 
 
@@ -331,10 +338,10 @@ async def _nc_update(
     current, resolved = await _nc_target(client, path, key, identifier, label, list_tool)
     response = await client.put(f"{path}/{resolved}", key=key, json=_nc_merge(current, changes))
     if is_dry_run_preview(response):
-        # UNIFI_DRY_RUN: nothing was written, so there is nothing to verify.
+        # dry-run policy: nothing was written, so there is nothing to verify.
         return response
     after, error = await safe_read_after(
-        lambda: _nc_listed(client, path, key, resolved, label, list_tool)
+        lambda: _nc_listed(client, path, key, resolved, label, list_tool, read_after=True)
     )
     verified, error = requested_leaves_verdict(changes, after, error)
     result = response if isinstance(response, dict) else {"response": response}
@@ -638,7 +645,7 @@ async def get_latest_traffic_flow_stats(
     # DAY is the web app's default. The value is sent as given.
     if period is not None:
         if not isinstance(period, str):
-            raise ValueError(f'period must be a string, e.g. "day"; got {period!r}')
+            raise ValueError(f'period must be a string, e.g. "DAY"; got {period!r}')
         query["period"] = period
     if top is not None:
         query["top"] = _nc_integer(top, "top")
@@ -1157,7 +1164,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         published, so copy the shape list_nat_rules returns. Never auto-retried.
 
         Returns the upstream body verbatim (a JSON object or array, as sent).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, rule.
@@ -1184,7 +1191,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns the upstream PUT body plus _verified (true only when every requested leaf
         read back equal, type-strict) and _readAfterError when the read-back failed; a
         non-object PUT body is kept under response.
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, rule_id, rule.
@@ -1193,7 +1200,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             rule_id: Required NAT rule _id from list_nat_rules,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             rule: Required free-form fields to change, e.g. {"enabled": false}.
         """
         return await _SELF.update_nat_rule(*deps(), host, site, rule_id, rule)
@@ -1208,7 +1215,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         upstream response verbatim. Never auto-retried.
 
         Returns deleted, message and response (the upstream body verbatim).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -1218,7 +1225,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             rule_id: Required NAT rule _id from list_nat_rules,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
         """
         return await _SELF.delete_nat_rule(*deps(), host, site, rule_id)
 
@@ -1250,7 +1257,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         is published, so copy the shape list_qos_rules returns. Never auto-retried.
 
         Returns the upstream body verbatim (a JSON object or array, as sent).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, rule.
@@ -1277,7 +1284,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns the upstream PUT body plus _verified (true only when every requested leaf
         read back equal, type-strict) and _readAfterError when the read-back failed; a
         non-object PUT body is kept under response.
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, rule_id, rule.
@@ -1286,7 +1293,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             rule_id: Required QoS rule _id from list_qos_rules,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             rule: Required free-form fields to change, e.g. {"enabled": false}.
         """
         return await _SELF.update_qos_rule(*deps(), host, site, rule_id, rule)
@@ -1306,7 +1313,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Never auto-retried.
 
         Returns deleted, message and response (the upstream body verbatim).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -1316,7 +1323,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             body: Required free-form batch-delete body (an empty list fails before any
-                request), e.g. ["65f1c0ffee0123456789abcd"].
+                request), e.g. ["000000000000000000000107"].
         """
         return await _SELF.delete_qos_rule(*deps(), host, site, body)
 
@@ -1333,7 +1340,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         auto-retried.
 
         Returns the upstream body verbatim (a JSON object or array, as sent).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, body.
@@ -1342,7 +1349,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             body: Required free-form reorder body (an empty list fails before any request),
-                e.g. ["65f1c0ffee0123456789abce", "65f1c0ffee0123456789abcd"].
+                e.g. ["000000000000000000000108", "000000000000000000000107"].
         """
         return await _SELF.reorder_qos_rules(*deps(), host, site, body)
 
@@ -1375,7 +1382,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         list_content_filter_categories. Never auto-retried.
 
         Returns the upstream body verbatim (a JSON object or array, as sent).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, content_filter.
@@ -1404,7 +1411,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns the upstream PUT body plus _verified (true only when every requested leaf
         read back equal, type-strict) and _readAfterError when the read-back failed; a
         non-object PUT body is kept under response.
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, filter_id, content_filter.
@@ -1413,7 +1420,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             filter_id: Required profile _id from list_content_filters,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             content_filter: Required free-form fields to change, e.g. {"enabled": false}.
         """
         return await _SELF.update_content_filter(*deps(), host, site, filter_id, content_filter)
@@ -1429,7 +1436,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         message and the upstream response verbatim. Never auto-retried.
 
         Returns deleted, message and response (the upstream body verbatim).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -1439,7 +1446,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name or UUID from list_local_sites, e.g. "Default".
             filter_id: Required profile _id from list_content_filters,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
         """
         return await _SELF.delete_content_filter(*deps(), host, site, filter_id)
 
@@ -1519,7 +1526,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Query traffic flows: a Network v2 read-POST, available in read-only and dry-run modes.
 
         POST /proxy/network/v2/api/site/{site}/traffic-flows. Allowlisted by live read
-        evidence (2026-10-26, 50+ calls, configuration digests unchanged); UNIFI_DRY_RUN
+        evidence (2026-10-26, 50+ calls, configuration digests unchanged); dry-run policy
         sends it normally. Body keys override typed selectors. Window becomes epoch-ms
         timestampFrom/timestampTo; direction, action and risk become lists.
 
@@ -1536,10 +1543,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _pageSize {requested, sent, effective, returned} reports each physical request
         size in sent, the observed console size in effective, and the returned count.
 
-        Returns one page without pageSize verbatim, or the last page's envelope with
-        gathered data and _pages. Repeated/empty pages claiming more return gathered
-        data with incomplete and incompleteReason; a later failure also names its
-        zero-based page, status and full upstream error.
+        Returns a single-page result verbatim, or for several pages (with or without
+        pageSize) the last page's envelope with gathered data and _pages. Repeated/empty
+        pages claiming more return gathered data with incomplete and incompleteReason; a
+        later failure also names its zero-based page, status and full upstream error.
 
         Required arguments: host, site.
 
@@ -1549,13 +1556,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             body: Optional free-form query body; its keys take precedence over selectors.
                 Explicit timestamps use epoch ms, e.g. {"timestampFrom": 1710000000000}.
             window: Duration converted to epoch-millisecond bounds, e.g. "5m".
-            direction: Shape: a string or an array of strings; sent as an array.
+            direction: Shape: string|string[]; sent as an array.
                 Observed values local, outgoing, incoming (2026-10-26).
                 Any value is forwarded for the console to validate, e.g. "outgoing".
-            action: Shape: a string or an array of strings; sent as an array.
+            action: Shape: string|string[]; sent as an array.
                 Observed values allowed, blocked (2026-10-26).
                 Any value is forwarded for the console to validate, e.g. "blocked".
-            risk: Shape: a string or an array of strings; sent as an array.
+            risk: Shape: string|string[]; sent as an array.
                 Observed values low, medium, high (2026-10-26).
                 Any value is forwarded for the console to validate, e.g. "high".
         """
@@ -1588,7 +1595,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         page's envelope with data holding the requested records, plus _pages, and incomplete with
         incompleteReason when the drain stopped short.
         A non-JSON export returns contentType, sizeBytes and body (text) or bodyBase64.
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site.
@@ -1618,7 +1625,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         upstream body is returned verbatim.
 
         Returns the upstream body verbatim (a JSON object or array, as sent).
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site.

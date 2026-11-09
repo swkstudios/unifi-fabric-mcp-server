@@ -21,7 +21,11 @@ def test_numeric_secret_never_corrupts_status_or_duration(tmp_path: Path, secret
     sink = AuditSink(path=str(log), fmt="json", secrets=(secret,))
     for status in (200, 502, None):
         sink.record(method="PATCH", path="/proxy/x", outcome="refused", status=status)
-    records = [json.loads(line) for line in log.read_text().splitlines()]
+    records = [
+        r
+        for r in (json.loads(line) for line in log.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
     assert [r["status"] for r in records] == [200, 502, None]
     assert all(isinstance(r["status"], (int, type(None))) for r in records)
     assert [r["method"] for r in records] == ["PATCH"] * 3

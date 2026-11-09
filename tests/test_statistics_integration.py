@@ -22,8 +22,9 @@ wireless clients. The assertions below stay tolerant to value drift (they check 
 field was extracted, not a specific magnitude) so they validate the projection without
 pinning to one estate snapshot.
 
-Run:
-    UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
         pytest tests/test_statistics_integration.py -v
 """
 

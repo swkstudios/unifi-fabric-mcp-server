@@ -36,6 +36,7 @@ def client():
     result.post = AsyncMock(return_value={"upstream": "post"})
     result.put = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": []})
     result.audit_refusal = Mock()
+    result._audit_write = Mock()
     result.dry_run = False
     return result
 
@@ -132,7 +133,7 @@ async def test_epoch_reads_preserve_body_and_add_unit_warning(client, registry):
 
 @pytest.mark.parametrize("name", ["start_spectrum_scan", "control_wifi_doctor_optimization"])
 async def test_read_only_refuses_write_before_resolution(monkeypatch, client, registry, name):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     call = getattr(radio, name)
     args = (
         (client, registry, HOST, SITE, MAC)
@@ -243,7 +244,7 @@ async def test_non_epoch_read_tools_return_upstream_body_verbatim(client, regist
 async def test_every_write_honors_connector_opt_out_before_resolution(
     monkeypatch, client, registry, call
 ):
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny")
     with pytest.raises(PermissionError):
         await call(client, registry)
     client.get.assert_not_called()
@@ -470,7 +471,7 @@ async def test_configure_wifi_wan_returns_put_envelope_verbatim(client, registry
 async def test_read_only_refuses_configure_wifi_wan_before_any_request(
     monkeypatch, client, registry
 ):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     with pytest.raises(ReadOnlyModeError):
         await radio.configure_wifi_wan(
             client, registry, HOST, SITE, True, True, 9, "ssid", "OPEN", "RADIO_NA"
@@ -523,6 +524,11 @@ async def test_preview_calculation_id_is_a_body_value_not_a_path_segment(client,
 @pytest.mark.parametrize(
     "call",
     [
+        lambda c, r: radio.preview_radio_ai_optimization(
+            c, r, HOST, SITE, "calc", [{"mac": MAC}], "balanced"
+        ),
+        lambda c, r: radio.apply_radio_ai_optimization(c, r, HOST, SITE, [{"mac": MAC}]),
+        lambda c, r: radio.control_wifi_doctor_optimization(c, r, HOST, SITE, "start"),
         lambda c, r: radio.start_spectrum_scan(c, r, HOST, SITE, MAC),
         lambda c, r: radio.start_wifi_quick_scan(c, r, HOST, SITE, "na"),
         lambda c, r: radio.configure_wifi_wan(
@@ -530,8 +536,8 @@ async def test_preview_calculation_id_is_a_body_value_not_a_path_segment(client,
         ),
     ],
 )
-async def test_unifi_dry_run_env_previews_without_writing(monkeypatch, client, registry, call):
-    """UNIFI_DRY_RUN (client.dry_run) previews locally: no write, no verification."""
+async def test_dry_run_policy_previews_without_writing(monkeypatch, client, registry, call):
+    """dry-run policy (client.dry_run) previews locally: no write, no verification."""
     client.dry_run = True
     monkeypatch.setattr(
         radio,
@@ -544,3 +550,7 @@ async def test_unifi_dry_run_env_previews_without_writing(monkeypatch, client, r
     assert "_verified" not in result
     client.post.assert_not_awaited()
     client.put.assert_not_awaited()
+    preview = result["preview"]
+    client._audit_write.assert_called_once_with(
+        preview["method"], preview["path"], "dry_run", None, body=preview["body"]
+    )

@@ -18,7 +18,13 @@ from typing import Any
 from fastmcp import FastMCP
 
 from .._read_only_audit import write_verbs_for
-from ..client import UniFiClient, is_dry_run_preview, path_segment, validate_id
+from ..client import (
+    UniFiClient,
+    is_dry_run_preview,
+    path_segment,
+    upstream_error_value,
+    validate_id,
+)
 from ..matching import same_id, with_upstream_id
 from ..read_only import guard_action
 from ..registry import Registry
@@ -127,7 +133,7 @@ def _find(records: list[Any], item_id: str, kind: str) -> dict[str, Any]:
     candidates = [r for r in records if isinstance(r, dict) and isinstance(r.get("id"), str)]
     found = next((r for r in candidates if same_id(item_id, r["id"])), None)
     if found is None:
-        choices = sorted(str(r["id"]) for r in candidates)
+        choices = sorted(str(upstream_error_value(r["id"])) for r in candidates)
         raise ValueError(f"Unknown {kind} {item_id!r}; valid choices: {choices}")
     return found
 
@@ -329,7 +335,15 @@ async def set_protect_notifications_muted(
         lambda: _bootstrap_record(client, key, host_id, "users", user["id"])
     )
     after = after_user.get("notificationSnoozeSettings") if after_user is not None else None
-    if muted:
+    if muted and valid_until is None:
+        result = _result(
+            response,
+            before=before,
+            after=after,
+            verified=isinstance(after, dict) if error is None else None,
+            readAfterError=error,
+        )
+    elif muted:
         result = _verified_result(response, body, before, after, error)
     else:
         result = _result(
@@ -490,7 +504,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST protect/api/device-tags with tag sent as given. Returns: the upstream response
         unchanged.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -498,7 +512,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console selector from list_hosts, for example "Home NVR".
             tag: Device-tag JSON body, for example {"name": "Loading"}. Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.create_protect_device_tag(*deps_fn(), host, tag)
 
@@ -514,17 +528,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _readAfterError (null unless the re-read failed); when every requested leaf already matches,
         nothing is sent and the current record is returned with _status "noop" and _verified true.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            tag_id: Required device-tag id from list_protect_device_tags, for example "65d4f1e2a1b2c3d4e5f60718".
+            tag_id: Required device-tag id from list_protect_device_tags, for example "000000000000000000000103".
             changes: Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}.
                 Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.update_protect_device_tag(*deps_fn(), host, tag_id, changes)
 
@@ -537,15 +551,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
         or null when the body is empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview
         {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            tag_id: Required device-tag id from list_protect_device_tags, for example "65d4f1e2a1b2c3d4e5f60718".
+            tag_id: Required device-tag id from list_protect_device_tags, for example "000000000000000000000103".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.delete_protect_device_tag(*deps_fn(), host, tag_id)
 
@@ -558,7 +572,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST protect/api/groups with group sent as given. Returns: the upstream response
         unchanged.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -566,7 +580,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console selector from list_hosts, for example "Home NVR".
             group: User-group JSON body, for example {"name": "Operators"}. Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.create_protect_user_group(client, registry, host, group)
@@ -583,17 +597,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _readAfterError (null unless the re-read failed); when every requested leaf already matches,
         nothing is sent and the current record is returned with _status "noop" and _verified true.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            group_id: Required user-group id, for example "65d4f1e2a1b2c3d4e5f60718".
+            group_id: Required user-group id, for example "000000000000000000000103".
             changes: Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}.
                 Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.update_protect_user_group(client, registry, host, group_id, changes)
@@ -607,15 +621,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
         or null when the body is empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview
         {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            group_id: Required user-group id, for example "65d4f1e2a1b2c3d4e5f60718".
+            group_id: Required user-group id, for example "000000000000000000000103".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.delete_protect_user_group(client, registry, host, group_id)
@@ -632,17 +646,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _readAfterError (null unless the re-read failed); when every requested leaf already matches,
         nothing is sent and the current record is returned with _status "noop" and _verified true.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            user_id: Required id from list_protect_users, for example "65d4f1e2a1b2c3d4e5f60718".
+            user_id: Required id from list_protect_users, for example "000000000000000000000103".
             changes: Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}.
                 Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.update_protect_user(client, registry, host, user_id, changes)
@@ -659,17 +673,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _readAfterError (null unless the re-read failed); when every requested leaf already matches,
         nothing is sent and the current record is returned with _status "noop" and _verified true.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            user_id: Required id from list_protect_users, for example "65d4f1e2a1b2c3d4e5f60718".
+            user_id: Required id from list_protect_users, for example "000000000000000000000103".
             changes: Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}.
                 Free-form object.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.update_protect_user_notifications(
@@ -689,18 +703,20 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         protect/api/users/{id}/notifications/mute {validUntil}, false sends DELETE on it.
         Returns: the upstream response with _before, _after, _verified, _readAfterError and
         _warnings (the epoch-milliseconds reminder) added to an object response.
+        When valid_until is null, _verified checks that notificationSnoozeSettings is a
+        non-null object; a concrete expiry must read back equal.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            user_id: Required id from list_protect_users, for example "65d4f1e2a1b2c3d4e5f60718".
+            user_id: Required id from list_protect_users, for example "000000000000000000000103".
             muted: Whether to mute notifications, for example true.
             valid_until: Mute expiry in epoch milliseconds, for example 1893456000000; null uses the upstream default.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.set_protect_notifications_muted(
             *deps_fn(), host, user_id, muted, valid_until
@@ -727,7 +743,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         PATCH protect/api/nvr/device-password with {devicePassword}. Returns: the upstream
         response unchanged.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -735,7 +751,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console selector from list_hosts, for example "Home NVR".
             device_password: Device password string, for example "example-device-password".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.update_protect_device_password(*deps_fn(), host, device_password)
 
@@ -748,8 +764,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            file_id: Required file collection id, for example "65d4f1e2a1b2c3d4e5f60718".
-            asset_id: Required asset id, for example "65d4f1e2a1b2c3d4e5f60719".
+            file_id: Required file collection id, for example "000000000000000000000103".
+            asset_id: Required asset id, for example "000000000000000000000104".
         """
         return await _impl.get_protect_file(*deps_fn(), host, file_id, asset_id)
 
@@ -768,17 +784,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview
         {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            file_id: Required file collection id, for example "65d4f1e2a1b2c3d4e5f60718".
-            asset_id: Required asset id, for example "65d4f1e2a1b2c3d4e5f60719".
+            file_id: Required file collection id, for example "000000000000000000000103".
+            asset_id: Required asset id, for example "000000000000000000000104".
             ignore_file_extension: Whether to ignore the extension, for example false.
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.delete_protect_file(
             *deps_fn(), host, file_id, asset_id, ignore_file_extension
@@ -800,7 +816,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Multipart POST protect/api/ringtones with the decoded bytes as the file part named
         filename. Returns: the upstream response unchanged.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns the dry-run preview
+        Under dry-run policy nothing is sent and the tool returns the dry-run preview
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body, multipart}}, where multipart names each part without its bytes.
 
@@ -810,7 +826,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             content_base64: Base64-encoded ringtone bytes, for example "SUQz".
             content_type: Media type, for example "audio/mpeg".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.upload_ringtone(*deps_fn(), host, filename, content_base64, content_type)
 
@@ -822,15 +838,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         true, message summarizes the delete, and response is the upstream body verbatim (decoded
         JSON, raw text, or null when the body is empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview
         {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            ringtone_id: Required ringtone id, for example "65d4f1e2a1b2c3d4e5f60718".
+            ringtone_id: Required ringtone id, for example "000000000000000000000103".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         client, registry = deps_fn()
         return await _impl.delete_ringtone(client, registry, host, ringtone_id)
@@ -844,7 +860,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            ringtone_id: Required ringtone id, for example "65d4f1e2a1b2c3d4e5f60718".
+            ringtone_id: Required ringtone id, for example "000000000000000000000103".
         """
         client, registry = deps_fn()
         return await _impl.get_ringtone(client, registry, host, ringtone_id)
@@ -857,14 +873,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         true, message summarizes the delete, and response is the upstream body verbatim (decoded
         JSON, raw text, or null when the body is empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview
         {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Args:
             host: Required console selector from list_hosts, for example "Home NVR".
-            liveview_id: Required liveview id, for example "65d4f1e2a1b2c3d4e5f60718".
+            liveview_id: Required liveview id, for example "000000000000000000000103".
             confirm: Accepted and ignored, for example true (kept for backward compatibility); the
-            call executes immediately.
+                call executes immediately.
         """
         return await _impl.delete_liveview(*deps_fn(), host, liveview_id)

@@ -19,7 +19,6 @@ CAPTURED = _CASES["captured"]
 AT2_BOUND = _CASES["at2_bound"]
 EXACT_128 = _CASES["at1_exact128"]
 #: Read at import: the autouse hermetic-env fixture deletes UNIFI_* before each test.
-_SLOW_REQUESTED = os.environ.get("UNIFI_SCRUB_ORACLE_SLOW") == "1"
 _EVIDENCE_DIR = os.environ.get("UNIFI_SCRUB_CORPUS_EVIDENCE")
 _AGGREGATE_REQUESTED = os.environ.get("UNIFI_SCRUB_CORPUS_AGGREGATE") == "1"
 #: corpus -> (seeds, cases per chunk, generator arguments, non-bound floors (rate, count)).
@@ -489,9 +488,7 @@ def test_shallow(chunk):
 
 @pytest.mark.slow
 @pytest.mark.parametrize("chunk", range(50))
-def test_slow(chunk, request):
-    if not _SLOW_REQUESTED and "slow" not in (request.config.getoption("-m") or ""):
-        pytest.skip("210,000-case acceptance is explicitly selected")
+def test_slow(chunk):
     run_chunk("slow", 72000 + chunk)
 
 

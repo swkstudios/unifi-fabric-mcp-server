@@ -111,10 +111,8 @@ PRESETS = [
 CAMERA = {"id": CAM, "name": "probe-camera", "shortcuts": [{"id": SC1, "name": "probe-old"}]}
 
 
-def _client(*, dry_run: bool = False, keys: list[APIKeyConfig] | None = None) -> UniFiClient:
-    settings = Settings(
-        api_keys=keys or [APIKeyConfig(key="k-test", label="test")], dry_run=dry_run
-    )
+def _client(*, keys: list[APIKeyConfig] | None = None) -> UniFiClient:
+    settings = Settings(api_keys=keys or [APIKeyConfig(key="k-test", label="test")])
     return UniFiClient(settings)
 
 
@@ -189,7 +187,7 @@ def test_descriptions_document_every_argument_with_examples():
         assert "camera_id" in tool.parameters["required"], name
         for param, spec in tool.parameters["properties"].items():
             assert "for example" in " ".join(spec.get("description", "").split()), (name, param)
-        assert "UNIFI_DRY_RUN" in tool.description, name
+        assert "dry-run policy" in tool.description, name
         if not name.startswith("create_"):
             assert "Consequence:" in tool.description, name
 
@@ -364,7 +362,10 @@ async def test_invalid_input_makes_zero_requests(name, args):
 
 @pytest.mark.parametrize("name", sorted(TOOLS))
 async def test_protect_write_opt_out_and_read_only_make_zero_requests(monkeypatch, name):
-    for env, value in (("UNIFI_PROTECT_MUTATIONS_ENABLED", "false"), ("UNIFI_READ_ONLY", "1")):
+    for env, value in (
+        ("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny"),
+        ("UNIFI_WRITE_POLICY", "deny"),
+    ):
         with monkeypatch.context() as m:
             m.setenv(env, value)
             registry = _registry()
@@ -556,8 +557,9 @@ async def test_camera_without_shortcuts_lets_the_upstream_judge():
 
 
 @pytest.mark.parametrize("name", sorted(TOOLS))
-async def test_dry_run_sends_no_write_and_returns_the_preview(name):
-    client = _client(dry_run=True)
+async def test_dry_run_sends_no_write_and_returns_the_preview(name, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = _client()
     with respx.mock(assert_all_called=False) as router:
         _reads(router)
         routes = _writes(router)
@@ -573,8 +575,9 @@ async def test_dry_run_sends_no_write_and_returns_the_preview(name):
     assert "body" in preview["preview"] and "params" in preview["preview"]
 
 
-async def test_dry_run_preview_carries_query_and_body():
-    client = _client(dry_run=True)
+async def test_dry_run_preview_carries_query_and_body(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = _client()
     with respx.mock(assert_all_called=False) as router:
         _reads(router)
         deleted = await _call("delete_camera_shortcut", client)

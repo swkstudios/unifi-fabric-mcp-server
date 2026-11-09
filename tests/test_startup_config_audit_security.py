@@ -114,7 +114,7 @@ def test_audit_text_quotes_every_free_text_field(tmp_path, field, injection):
         "status": 200,
     }
     values[field] = injection
-    AuditSink(str(path)).record(**values)
+    AuditSink(str(path), fmt="text").record(**values)
     line = path.read_text()
     assert len(line.splitlines()) == 1
     assert f"{field}={json.dumps(injection)}" in line

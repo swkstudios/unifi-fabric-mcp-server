@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import os
+import re
+import sys
 import unicodedata
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUseDefault
 from pydantic_settings import (
@@ -21,6 +26,8 @@ from pydantic_settings import (
 
 from .selector_syntax import selector_reason
 from .switches import FALSE_VALUES, TRUE_VALUES, parse_bool
+
+_AUDIT_HMAC_KEY_RE = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
 def whole_number(value: object) -> int | None:
@@ -145,19 +152,7 @@ _MIN_ZERO_INTS: dict[str, str] = {
 }
 
 #: Boolean settings: an empty or whitespace-only value means unset (the default).
-#: ``read_only`` and the per-area write flags are read from the environment at call time
-#: by their areas; they are fields here so a malformed value fails at startup.
-_BOOL_FIELDS = (
-    "enable_connector_write",
-    "redact_secrets",
-    "dry_run",
-    "read_only",
-    "protect_mutations_enabled",
-    "enable_network_write",
-    "enable_mobility_write",
-    "enable_carrier_fabric_write",
-    "enable_innerspace_write",
-)
+_BOOL_FIELDS = ("redact_secrets", "audit_calls")
 
 #: The spellings a boolean setting accepts live in ``switches`` (one parser for
 #: ``Settings`` and every runtime switch reader).
@@ -169,6 +164,10 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 #: Valid UNIFI_AUDIT_LOG_FORMAT values (case-insensitive).
 AUDIT_LOG_FORMATS = ("text", "json")
+#: Valid UNIFI_AUDIT_SINK / UNIFI_AUDIT_LEVEL / UNIFI_AUDIT_LOG_MODE values.
+AUDIT_SINKS = ("none", "stderr", "file")
+AUDIT_LEVELS = ("off", "normal", "debug")
+AUDIT_LOG_MODES = ("0600", "0640")
 
 #: The expected format of each JSON-decoded (complex) setting, named in its error.
 API_KEYS_FORMAT = (
@@ -451,6 +450,14 @@ class MCPTransportSettings(BaseSettings):
         "one of 'none', 'optional', 'required'.",
     )
 
+    # --- Opt-in liveness route ------------------------------------------------
+    health_route: bool = Field(
+        default=False,
+        description="Opt-in GET /health liveness route on the HTTP transports "
+        "(MCP_HEALTH_ROUTE): off by default. When on, the route answers 'ok' or "
+        "'degraded:<reason>' from local process state only; it never contacts a console.",
+    )
+
     # --- Host / Origin validation (DNS-rebinding and cross-site defence) -------
     host_origin_protection: bool = Field(
         default=True,
@@ -523,6 +530,14 @@ class MCPTransportSettings(BaseSettings):
         if v is None or (isinstance(v, str) and not v.strip()):
             return True
         return parse_bool(v, "MCP_HOST_ORIGIN_PROTECTION")
+
+    @field_validator("health_route", mode="before")
+    @classmethod
+    def _health_route_switch(cls, v: object) -> object:
+        """A boolean switch (the accepted spellings); empty = off."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return False
+        return parse_bool(v, "MCP_HEALTH_ROUTE")
 
     @field_validator("allowed_origins", "allowed_hosts", mode="before")
     @classmethod
@@ -776,9 +791,14 @@ class MCPTransportSettings(BaseSettings):
         # FASTMCP_* transport namespace and fail closed on the stdio footgun.
         transport = _resolved_fastmcp_transport()
         if transport == "stdio" and (self.auth_mode != "none" or self.tls_mode != "none"):
+            active = [
+                f"{name}={value!r}"
+                for name, value in (("auth_mode", self.auth_mode), ("tls_mode", self.tls_mode))
+                if value != "none"
+            ]
             raise ValueError(
                 "FastMCP transport is 'stdio' but "
-                f"auth_mode={self.auth_mode!r} / tls_mode={self.tls_mode!r} are set. "
+                f"{', '.join(active)} is set. "
                 "Auth and TLS apply to HTTP transports only — set "
                 "FASTMCP_TRANSPORT=streamable-http (or sse), or clear "
                 "MCP_AUTH_MODE/MCP_BEARER_TOKEN and MCP_TLS_MODE."
@@ -868,9 +888,11 @@ class Settings(BaseSettings):
     paginate_max_pages: int | None = Field(
         default=None,
         ge=1,
-        description="Hard cap on pagination page count (defense-in-depth backstop). "
+        description="Hard cap on pages drained per list call; query_traffic_flows and "
+        "export_traffic_flows are exempt and always drain every page. "
         "Unset by default — stall detection is the primary safeguard. "
-        "Set UNIFI_PAGINATE_MAX_PAGES to a generous number (e.g. 100000) if desired.",
+        "Set UNIFI_PAGINATE_MAX_PAGES to a generous number (e.g. 100000) if desired. "
+        "Bound a traffic-flow call with body.pageSize instead.",
     )
     log_level: str = Field(
         default="INFO",
@@ -878,18 +900,6 @@ class Settings(BaseSettings):
         "DEBUG, INFO, WARNING, ERROR, CRITICAL. Logs go to stderr only — no file handlers. "
         "Request/response bodies are never logged.",
     )
-    enable_connector_write: bool = Field(
-        default=True,
-        description="Capability flag for the guarded generic Fabric connector WRITE relay "
-        "(fabric_connector_post/put/patch/delete). Env: UNIFI_ENABLE_CONNECTOR_WRITE. "
-        "Read and write are enabled by default: an unset env var leaves connector writes "
-        "ENABLED. Set the env var to a falsey value (0/false/no/off/f/n) for a read-only "
-        "deployment of the connector relay; unset or a truthy value (1/true/yes/on/t/y) keeps "
-        "writes enabled. The `confirm` argument on the mutating connector relays is accepted "
-        "for backward compatibility and no longer required. The GET relay "
-        "(fabric_connector_get) is always available and is unaffected by this flag.",
-    )
-
     redact_secrets: bool = Field(
         default=False,
         description="Opt-in credential redaction for responses. Env: UNIFI_REDACT_SECRETS. "
@@ -904,106 +914,109 @@ class Settings(BaseSettings):
         "ending in key, psk, passphrase, password, passwd, secret, token or signature, "
         "except x_has_ flags). Matching is case-insensitive and anchored to the key.",
     )
-    dry_run: bool = Field(
-        default=False,
-        description="Opt-in dry-run preview for ALL write/action tools. "
-        "Env: UNIFI_DRY_RUN. "
-        "Default False: writes execute normally and the request path is byte-identical to a "
-        "server without this flag. Set to a truthy value (1/true/yes/on/t/y) to make every write "
-        "(POST/PUT/PATCH/DELETE classified as a mutation at the shared HTTP "
-        "chokepoint) "
-        "return a clearly-labeled preview WITHOUT performing any upstream write. The "
-        "allowlisted read-POST queries (exactly Network stat/session, Network "
-        "stat/report/{interval}.{scope} and Site Manager isp-metrics/{interval}/query) still "
-        "execute; every other POST, including any other Network /stat route, is a write.",
-    )
     audit_log: str = Field(
         default="",
         description="Opt-in audit-log file path for ALL write/action operations. "
         "Env: UNIFI_AUDIT_LOG. Unset/empty by default: no audit file is written and the request "
         "path is byte-identical to today. When set to a path, every write attempt at the shared "
         "HTTP chokepoint appends a structured record (timestamp, method, resolved path, outcome, "
-        "status). The request body and the API key value are never recorded.",
+        "status). The API key value is never recorded; the request body only at "
+        "UNIFI_AUDIT_LEVEL=debug, with credential fields masked.",
     )
     audit_log_format: str = Field(
-        default="text",
-        description="Format for the opt-in audit log. Env: UNIFI_AUDIT_LOG_FORMAT. One of "
-        '"text" (default, key=value line) or "json" (one JSON object per line), '
-        "case-insensitive; any other value fails at startup listing the formats. Not used "
-        "when UNIFI_AUDIT_LOG is unset.",
+        default="json",
+        description="Format of the audit stream. Env: UNIFI_AUDIT_LOG_FORMAT. One of "
+        '"json" (default, one canonical JSON object per line) or "text" (key=value line), '
+        "case-insensitive; any other value fails at startup listing the formats.",
     )
-    read_only: bool = Field(
+    audit_sink: str = Field(
+        default="",
+        description="Audit stream sink. Env: UNIFI_AUDIT_SINK. One of none, stderr or file. "
+        "Unset means file when UNIFI_AUDIT_LOG is set and none otherwise. file requires "
+        "UNIFI_AUDIT_LOG; none or stderr with UNIFI_AUDIT_LOG set fails at startup.",
+    )
+    audit_level: str = Field(
+        default="normal",
+        description="Audit stream level. Env: UNIFI_AUDIT_LEVEL. off (only the two policy "
+        "records), normal (default, metadata only) or debug (adds scrubbed request bodies "
+        "and call arguments).",
+    )
+    audit_calls: bool = Field(
         default=False,
-        description="Global read-only switch (UNIFI_READ_ONLY). Read at call time by "
-        "unifi_fabric.read_only; validated here so a malformed value fails at startup.",
+        description="Per-call audit records. Env: UNIFI_AUDIT_CALLS. Off by default; when on, "
+        "every tool call writes one call record (or one error record when it fails).",
     )
-    protect_mutations_enabled: bool = Field(
-        default=True,
-        description="Protect mutation opt-out (UNIFI_PROTECT_MUTATIONS_ENABLED). Read at "
-        "call time by the tool middleware and the client request chokepoint (every write "
-        "to a Protect route, the relay included); validated here so a malformed value "
-        "fails at startup.",
+    audit_log_mode: str = Field(
+        default="0600",
+        description="Permission bits of a NEW audit file. Env: UNIFI_AUDIT_LOG_MODE. 0600 "
+        "(default, owner only) or 0640 (owner plus group read). An existing file keeps its "
+        "mode.",
     )
-    enable_network_write: bool = Field(
-        default=True,
-        description="Network write opt-out (UNIFI_ENABLE_NETWORK_WRITE). Read at call "
-        "time by the tool middleware and the client request chokepoint (every write to a "
-        "Network route, the relay included); validated here so a malformed value fails "
-        "at startup.",
+    audit_hmac_key: SecretStr | None = Field(
+        default=None,
+        repr=False,
+        description="Per-installation Code Mode argument-audit HMAC key. Env: "
+        "UNIFI_AUDIT_HMAC_KEY. Canonical unpadded base64url encoding of exactly 32 bytes. "
+        "Required only when UNIFI_TOOL_MODE=codemode; every replica in one installation "
+        "must receive the same operator-provisioned key.",
     )
-    enable_mobility_write: bool = Field(
-        default=True,
-        description="Mobility write opt-out (UNIFI_ENABLE_MOBILITY_WRITE). Read at call "
-        "time by the Mobility tools and the client request chokepoint; validated here so "
-        "a malformed value fails at startup.",
-    )
-    enable_carrier_fabric_write: bool = Field(
-        default=True,
-        description="Carrier Fabric write opt-out (UNIFI_ENABLE_CARRIER_FABRIC_WRITE). Read "
-        "at call time by the Carrier Fabric tools and the client request chokepoint; "
-        "validated here so a malformed value fails at startup.",
-    )
-    enable_innerspace_write: bool = Field(
-        default=True,
-        description="InnerSpace write opt-out (UNIFI_ENABLE_INNERSPACE_WRITE). Read at call "
-        "time by the tool middleware and the client request chokepoint (every write to an "
-        "InnerSpace console route, the relay included); validated here so a malformed value "
-        "fails at startup.",
-    )
-    tool_mode: Literal["full", "discovery"] = Field(
+    tool_mode: Literal["full", "discovery", "codemode"] = Field(
         default="discovery",
         description="Tool catalog mode (UNIFI_TOOL_MODE): full advertises every selected tool; "
-        "discovery advertises compact search, describe and registered-dispatch meta-tools.",
+        "discovery advertises compact search, describe and registered-dispatch meta-tools; "
+        "codemode (experimental, read-only, opt-in) advertises search_tools, describe_tool "
+        "and execute, which runs a sandboxed Python script over the read tools.",
     )
-    tool_families: str = Field(
-        default="",
-        description="Opt-in tool-family allowlist. Env: UNIFI_TOOL_FAMILIES. "
-        "Unset/empty by default: every tool family is registered; what tools/list advertises "
-        "then follows UNIFI_TOOL_MODE (discovery, the default: the meta-tools; full: every "
-        "registered tool). Set to a list of family names separated by "
-        'commas and/or whitespace, any letter case (e.g. "network,protect") to advertise only '
-        "those families; all other tools are de-registered at startup. No family is ever off "
-        "by default. Valid names are listed in unifi_fabric.families.ALL_FAMILIES; an unknown "
-        "name fails at startup.",
+    write_policy: str | None = Field(
+        default=None,
+        description="Global write policy (UNIFI_WRITE_POLICY): allow (default), dry-run or deny. "
+        "dry-run returns a labelled preview for every write without sending it; deny refuses "
+        "every write tool and write route before any upstream call (write_denied). "
+        "Case-sensitive; a blank value fails startup.",
     )
-    disabled_tool_families: str = Field(
-        default="",
-        description=(
-            "Opt-out tool-family list. Env: UNIFI_DISABLED_TOOL_FAMILIES. Unset/empty by "
-            "default (no family is disabled). Same syntax as UNIFI_TOOL_FAMILIES; the named "
-            "families are de-registered at startup, applied after UNIFI_TOOL_FAMILIES. An "
-            "unknown name fails at startup."
-        ),
+    write_exceptions: str | None = Field(
+        default=None,
+        description="Per-family and per-tool write exceptions (UNIFI_WRITE_EXCEPTIONS): one "
+        "semicolon list of <target>=deny or <target>=dry-run, the target family:<family-id> or "
+        "tool:<public-name>, e.g. family:protect=deny;tool:fabric_connector_post=dry-run. The "
+        "strictest of the global policy and every matching exception wins (allow < dry-run < "
+        "deny); there is no allow exception. Unset means none; a blank value fails startup.",
     )
-    disable_api_sources: str = Field(
-        default="",
-        description="Opt-in API-source disable list. Env: UNIFI_DISABLE_API_SOURCES. "
-        "Unset/empty by default: every API source is enabled and the full roster is "
-        "registered. Set to comma-separated selectors at any level of app/source/access "
-        '(e.g. "network/private.classic", "protect/private", "network/private/write", '
-        '"*/write") to leave every covered tool unregistered. Valid selectors are listed by '
-        "unifi_fabric.api_sources.valid_selectors().",
+    family_allow: str | None = Field(
+        default=None,
+        description="Tool-family allowlist (UNIFI_FAMILY_ALLOW): a comma set of family IDs "
+        "(unifi_fabric.families.ALL_FAMILIES). Unset means every family; tools of other "
+        "families are not registered. The meta tools are never removed. A blank value fails "
+        "startup.",
     )
+    exclude: str | None = Field(
+        default=None,
+        description="Exclusions (UNIFI_EXCLUDE): one comma list of family:<id>, tool:<name>, "
+        "source:<selector> (unifi_fabric.api_sources.valid_selectors(), case-sensitive) and "
+        "unofficial (every tool whose primary API source is private). Excluded tools are not "
+        "registered; no token removes a meta tool. Unset means none; a blank value fails "
+        "startup.",
+    )
+
+    @field_validator("write_policy", "write_exceptions", "family_allow", "exclude", mode="before")
+    @classmethod
+    def _policy_setting(cls, v: object, info: ValidationInfo) -> object:
+        """Checked at load with the startup grammar (:mod:`unifi_fabric.policy`); the message
+        names the setting, never the value. ``tool:`` targets are checked for form here and
+        against the registered catalog at server startup."""
+        if v is None:
+            return None
+        env = _env_name(str(info.field_name))
+        if not isinstance(v, str):
+            raise ValueError(f"{env} must be a string")
+        from .policy import StartupRefusal, operator_policy
+
+        try:
+            operator_policy({env: v}, None)
+        except StartupRefusal as exc:
+            # The message starts with the startup token, the one line a refusal prints.
+            raise ValueError(f"{exc.token}: {exc.message}") from None
+        return v
 
     @field_validator("request_timeout_seconds", mode="before")
     @classmethod
@@ -1041,7 +1054,7 @@ class Settings(BaseSettings):
     @field_validator("audit_log_format", mode="before")
     @classmethod
     def _audit_log_format(cls, v: object) -> object:
-        """Empty means unset (text); otherwise one of the formats, else fail fast."""
+        """Empty means unset (json); otherwise one of the formats, else fail fast."""
         if v is None or (isinstance(v, str) and not v.strip()):
             raise PydanticUseDefault()
         fmt = str(v).strip().lower()
@@ -1051,6 +1064,39 @@ class Settings(BaseSettings):
                 f"(case-insensitive)"
             )
         return fmt
+
+    @field_validator("audit_sink", "audit_level", "audit_log_mode", mode="before")
+    @classmethod
+    def _audit_choice(cls, v: object, info: ValidationInfo) -> object:
+        """Empty means unset; otherwise one of the listed values, else fail fast."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return (
+                ""
+                if info.field_name == "audit_sink"
+                else ("normal" if info.field_name == "audit_level" else "0600")
+            )
+        choices, env = {
+            "audit_sink": (AUDIT_SINKS, "UNIFI_AUDIT_SINK"),
+            "audit_level": (AUDIT_LEVELS, "UNIFI_AUDIT_LEVEL"),
+            "audit_log_mode": (AUDIT_LOG_MODES, "UNIFI_AUDIT_LOG_MODE"),
+        }[info.field_name or ""]
+        value = str(v).strip()
+        value = value if info.field_name == "audit_log_mode" else value.lower()
+        if value not in choices:
+            raise ValueError(f"{env} must be one of {', '.join(choices)}")
+        return value
+
+    @model_validator(mode="after")
+    def _audit_sink_matches_path(self) -> Settings:
+        """file needs a path; none or stderr with a path set is a contradiction."""
+        path = (self.audit_log or "").strip()
+        if self.audit_sink == "file" and not path:
+            raise ValueError("UNIFI_AUDIT_SINK=file requires UNIFI_AUDIT_LOG (a file path)")
+        if self.audit_sink in ("none", "stderr") and path:
+            raise ValueError(
+                f"UNIFI_AUDIT_SINK={self.audit_sink} conflicts with UNIFI_AUDIT_LOG; unset one"
+            )
+        return self
 
     @field_validator("audit_log", mode="before")
     @classmethod
@@ -1066,62 +1112,58 @@ class Settings(BaseSettings):
             raise ValueError(f"UNIFI_AUDIT_LOG {problem}")
         return v
 
-    @field_validator("disable_api_sources", mode="before")
+    @field_validator("audit_hmac_key", mode="before")
     @classmethod
-    def _disable_api_sources(cls, v: object) -> object:
-        """Empty means unset (every source enabled); otherwise comma-separated known
-        selectors, each named once, checked at load -- not first at server start-up."""
-        if v is None or (isinstance(v, str) and not v.strip()):
-            return ""  # the default; validated defaults must not raise UseDefault (recursion)
-        if not isinstance(v, str):
-            raise ValueError("UNIFI_DISABLE_API_SOURCES must be a comma-separated string")
-        from .api_sources import disabled_sources_problem
-
-        problem = disabled_sources_problem(v)
-        if problem:
-            raise ValueError(problem)
-        return v
+    def _audit_hmac_key(cls, value: object) -> SecretStr | None:
+        """Validate key shape without ever echoing the key in an error."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if isinstance(value, SecretStr):
+            text = value.get_secret_value()
+        elif isinstance(value, str):
+            text = value
+        else:
+            raise ValueError(
+                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
+            )
+        if _AUDIT_HMAC_KEY_RE.fullmatch(text) is None:
+            raise ValueError(
+                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
+            )
+        try:
+            raw = base64.b64decode(text + "=", altchars=b"-_", validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError(
+                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
+            ) from None
+        canonical = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+        if len(raw) != 32 or canonical != text:
+            raise ValueError(
+                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
+            )
+        return SecretStr(text)
 
     @field_validator("tool_mode", mode="before")
     @classmethod
     def _tool_mode(cls, value: object) -> str:
         if value is None or (isinstance(value, str) and not value.strip()):
             return "discovery"
-        if isinstance(value, str) and value.strip().lower() in {"discovery", "full"}:
+        if isinstance(value, str) and value.strip().lower() in {"discovery", "full", "codemode"}:
             return value.strip().lower()
-        raise ValueError("UNIFI_TOOL_MODE must be one of discovery, full")
+        raise ValueError("UNIFI_TOOL_MODE must be one of discovery, full, codemode")
 
-    @field_validator("disabled_tool_families", mode="before")
-    @classmethod
-    def _disabled_tool_families(cls, v: object) -> object:
-        """Empty means unset (no family disabled); otherwise a list of known family names,
-        checked at load -- not first at server start-up."""
-        if v is None or (isinstance(v, str) and not v.strip()):
-            return ""
-        if not isinstance(v, str):
-            raise ValueError("UNIFI_DISABLED_TOOL_FAMILIES must be a comma-separated string")
-        from .families import DISABLED_TOOL_FAMILIES_ENV, unknown_families_problem
+    @model_validator(mode="after")
+    def _code_mode_requires_audit_hmac_key(self) -> Settings:
+        if self.tool_mode == "codemode" and self.audit_hmac_key is None:
+            raise ValueError("UNIFI_AUDIT_HMAC_KEY is required when UNIFI_TOOL_MODE=codemode")
+        return self
 
-        problem = unknown_families_problem(v, DISABLED_TOOL_FAMILIES_ENV)
-        if problem:
-            raise ValueError(problem)
-        return v
-
-    @field_validator("tool_families", mode="before")
-    @classmethod
-    def _tool_families(cls, v: object) -> object:
-        """Empty means unset (every family); otherwise a comma-separated list of known
-        family slugs, checked at load -- not first at server start-up."""
-        if v is None or (isinstance(v, str) and not v.strip()):
-            return ""  # the default; validated defaults must not raise UseDefault (recursion)
-        if not isinstance(v, str):
-            raise ValueError("UNIFI_TOOL_FAMILIES must be a comma-separated string")
-        from .families import unknown_families_problem
-
-        problem = unknown_families_problem(v)
-        if problem:
-            raise ValueError(problem)
-        return v
+    def audit_hmac_key_bytes(self) -> bytes | None:
+        """Decoded Code Mode audit key, passed through lifecycle wiring only."""
+        if self.audit_hmac_key is None:
+            return None
+        text = self.audit_hmac_key.get_secret_value()
+        return base64.b64decode(text + "=", altchars=b"-_", validate=True)
 
     @field_validator("api_base_url", mode="before")
     @classmethod
@@ -1290,3 +1332,67 @@ class Settings(BaseSettings):
         if self.api_key:
             return [APIKeyConfig(key=self.api_key, label="default")]
         return []
+
+
+#: ``UNIFI_*`` settings read outside the two settings models: the credential mode
+#: (header or environment keys). Every other current setting is a field (or alias) of
+#: :class:`Settings` or :class:`MCPTransportSettings`.
+_DIRECT_SETTINGS: frozenset[str] = frozenset({"UNIFI_KEY_MODE"})
+
+#: Variables of the maintainers' test harnesses (tests/, scripts/). The
+#: server never reads them; they are tolerated so a live run that exports them into the
+#: shell that starts the server does not refuse to start. They configure nothing here.
+_HARNESS_VARIABLES: frozenset[str] = frozenset(
+    {
+        "UNIFI_MATRIX_API_KEY",
+        "UNIFI_PAGINATION_PROFILE",
+        "UNIFI_SCRUB_CORPUS_AGGREGATE",
+        "UNIFI_SCRUB_CORPUS_EVIDENCE",
+        "UNIFI_SCRUB_ORACLE_SLOW",
+        "UNIFI_TEST_ALLOW_MUTATIONS",
+        "UNIFI_TEST_AXIS_BATCH",
+        "UNIFI_TEST_CONSOLE_ID",
+        "UNIFI_TEST_DERIVED_BATCH",
+        "UNIFI_TEST_HOST",
+        "UNIFI_TEST_MAX_BATCH",
+        "UNIFI_TEST_SELECTION_CACHE",
+        "UNIFI_TEST_SELECTION_CACHE_DIR",
+        "UNIFI_TEST_SITE",
+    }
+)
+
+
+def known_setting_names() -> frozenset[str]:
+    """Every current ``UNIFI_*`` setting name: both settings models, their aliases and the
+    settings read directly. Any other ``UNIFI_*`` name in the environment is retired and
+    refuses startup (:func:`unifi_fabric.policy.check_retired_settings`)."""
+    names: set[str] = set(_DIRECT_SETTINGS) | _HARNESS_VARIABLES
+    for model in (Settings, MCPTransportSettings):
+        prefix = str(model.model_config.get("env_prefix") or "")
+        for field_name, field in model.model_fields.items():
+            alias = field.validation_alias
+            if isinstance(alias, str):
+                names.add(alias.upper())
+            else:
+                names.add(f"{prefix}{field_name}".upper())
+    return frozenset(n for n in names if n.startswith("UNIFI_"))
+
+
+def startup_gate(environ: Mapping[str, str] | None = None) -> None:
+    """The one startup gate, run before any settings model loads.
+
+    Refuses a retired (or non-canonically spelled) ``UNIFI_*`` name, then a blank or
+    malformed policy setting (:mod:`unifi_fabric.policy` grammar; ``tool:`` targets are
+    checked for form here and against the registered catalog in the server lifespan). A
+    refusal prints its startup token as the last stderr line and exits 2; an unrecognized
+    ``UNIFI_*`` name also prints the migration line before it.
+    """
+    from .policy import StartupRefusal, check_retired_settings, operator_policy
+
+    env = os.environ if environ is None else environ
+    try:
+        check_retired_settings(env, known_setting_names())
+        operator_policy(env, None)
+    except StartupRefusal as exc:
+        print(exc.stderr_text(), end="", file=sys.stderr, flush=True)
+        raise SystemExit(2) from None

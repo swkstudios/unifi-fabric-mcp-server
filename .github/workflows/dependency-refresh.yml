@@ -1,0 +1,102 @@
+name: Dependency refresh
+
+# The seven managed pin files are generated from dependencies/manifest.toml by
+# scripts/refresh_dependencies.py. refresh-check and pip-audit run for every pull request,
+# push, merge-queue entry and weekly schedule, with no path filter, so the selector can never skip them;
+# refresh-check keeps hand edits and partial lock bumps out. Branch protection does not list it
+# as a required check, so GitHub does not block a merge on it: a red refresh-check must still
+# stop the merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Weekly: a new advisory against unchanged pins fails pip-audit without waiting for a PR.
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Rendered by scripts/gen_workflow_headers.py from .github/workflow-headers.toml.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  refresh-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Install dependency tooling (hash-pinned)
+        run: |
+          python -m venv "$RUNNER_TEMP/dependency-tooling"
+          "$RUNNER_TEMP/dependency-tooling/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+      - name: Managed pin files match the manifest
+        run: |
+          export PATH="$RUNNER_TEMP/dependency-tooling/bin:$PATH"
+          python scripts/refresh_dependencies.py --check
+      - name: Remove task-owned tooling
+        if: always()
+        run: |
+          DEPENDENCY_TOOLING="$RUNNER_TEMP/dependency-tooling"
+          rm -rf -- "${DEPENDENCY_TOOLING:?}"
+
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Install dependency tooling (hash-pinned)
+        run: |
+          python -m venv "$RUNNER_TEMP/dependency-tooling"
+          "$RUNNER_TEMP/dependency-tooling/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+      - name: Audit the seven managed pin files
+        run: |
+          export PATH="$RUNNER_TEMP/dependency-tooling/bin:$PATH"
+          python scripts/refresh_dependencies.py --audit
+      - name: Remove task-owned tooling
+        if: always()
+        run: |
+          DEPENDENCY_TOOLING="$RUNNER_TEMP/dependency-tooling"
+          rm -rf -- "${DEPENDENCY_TOOLING:?}"
+
+  cap-report:
+    # Report only, weekly and on demand: the releases each cap or exact pin in pyproject.toml still hides, and
+    # whether lifting every cap resolves. Cap changes are reviewed with full CI.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Install dependency tooling (hash-pinned)
+        run: |
+          python -m venv "$RUNNER_TEMP/dependency-tooling"
+          "$RUNNER_TEMP/dependency-tooling/bin/python" -m pip install --require-hashes --only-binary :all: -r .github/install-tooling-requirements.txt
+      - name: Relaxed-cap report
+        run: |
+          export PATH="$RUNNER_TEMP/dependency-tooling/bin:$PATH"
+          python scripts/refresh_dependencies.py --cap-report cap-report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cap-report
+          path: cap-report.json
+      - name: Remove task-owned tooling
+        if: always()
+        run: |
+          DEPENDENCY_TOOLING="$RUNNER_TEMP/dependency-tooling"
+          rm -rf -- "${DEPENDENCY_TOOLING:?}"

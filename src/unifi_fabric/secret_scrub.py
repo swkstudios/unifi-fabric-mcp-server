@@ -109,7 +109,12 @@ if TYPE_CHECKING:
 MASK = "***"
 
 #: Environment variables that each hold one secret value.
-SECRET_ENV_VARS = ("UNIFI_API_KEY", "MCP_BEARER_TOKEN", "MCP_TLS_KEY_PASSWORD")
+SECRET_ENV_VARS = (
+    "UNIFI_API_KEY",
+    "UNIFI_AUDIT_HMAC_KEY",
+    "MCP_BEARER_TOKEN",
+    "MCP_TLS_KEY_PASSWORD",
+)
 #: Environment variable holding a JSON list of ``{"key": ...}`` objects.
 KEYS_ENV_VAR = "UNIFI_API_KEYS"
 
@@ -286,6 +291,8 @@ def configured_secrets(
     if settings is not None:
         values.append(settings.api_key)
         values.extend(cfg.key for cfg in settings.api_keys)
+        if settings.audit_hmac_key is not None:
+            values.append(settings.audit_hmac_key.get_secret_value())
     if transport is not None:
         values.extend((transport.bearer_token, transport.tls_key_password))
     values.extend(extra)
@@ -1551,13 +1558,14 @@ def _scrub_rounds(view: str, values: tuple[str, ...], as_bytes: bool) -> tuple[s
 # line; an exception's text when its chain is checked and again when its stand-in is
 # built; a response body by contains_secret, then by scrub_bytes. Each is a full decode
 # of the text (on a large escape-dense error body, most of the scrubbing time), so the
-# outcome of scrubbing a large text is remembered by the SHA-256 digest of the text --
+# outcome of scrubbing a large text is remembered by a per-process keyed BLAKE2b digest --
 # never the text itself, which may hold a secret -- with the configured secrets (already
 # held by the form caches above) and the str/bytes mode: whether it holds a secret, and
 # its scrubbed result (what the caller is returned anyway, never the input). A result
 # that is a fixed point is remembered as clean too, so scrubbing it again is free.
 # Bounded in entries and in the characters of the results kept.
 #: Shorter texts are scrubbed again rather than hashed (their decode costs less).
+_MEMO_HASH_KEY = os.urandom(32)
 _MEMO_MIN_CHARS = 4096
 _MEMO_MAX_ENTRIES = 64
 _MEMO_MAX_CHARS = 4_000_000
@@ -1570,7 +1578,9 @@ _memo_lock = threading.Lock()
 
 
 def _memo_key(view: str, values: tuple[str, ...], as_bytes: bool) -> _MemoKey:
-    digest = hashlib.sha256(view.encode("utf-8", "surrogatepass")).digest()
+    digest = hashlib.blake2b(
+        view.encode("utf-8", "surrogatepass"), key=_MEMO_HASH_KEY, digest_size=32
+    ).digest()
     return values, as_bytes, digest
 
 

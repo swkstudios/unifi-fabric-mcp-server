@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-cross-family-emitted-name",
+  "description": "Two families emit the same public name",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras"
+      },
+      {
+        "base": "list_cameras",
+        "id": "network.list_cameras",
+        "family": "network",
+        "family_id": "network"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:duplicate_emitted_name",
+    "registered": 0
+  }
+}

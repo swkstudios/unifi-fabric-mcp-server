@@ -1,0 +1,28 @@
+# Shared workflow header blocks, rendered into each listed workflow by
+# scripts/gen_workflow_headers.py (`--write` renders, `--check` fails on drift; the ci.yml
+# lint job runs `--check`). Edit a block here, never in a workflow.
+
+# Pull-request concurrency: the runs of one pull request share a group and a newer push
+# cancels the older run; every other event (push, merge group, dispatch, schedule) gets a
+# group unique to its commit and run, so a pending run is never replaced.
+[pr-concurrency]
+group = "${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}"
+cancel-in-progress = "${{ github.event_name == 'pull_request' }}"
+# A listed workflow the tree does not carry is skipped (the public tree has no
+# private-only workflows).
+workflows = [
+  "changelog-size.yml",
+  "dependency-refresh.yml",
+  "docs-checks.yml",
+  "install-smoke.yml",
+  "public-artifact-dry-run.yml",
+]
+# Workflows that key a concurrency block on the pull request but deliberately keep their
+# own block, which this file does not render:
+# - ci.yml: pushes to dev also share one group, so a newer dev head cancels the superseded
+#   run (the :dev image publishes from the newest green head).
+# - codeql.yml: one group per pull request or ref, always cancelling.
+own-block = [
+  "ci.yml",
+  "codeql.yml",
+]

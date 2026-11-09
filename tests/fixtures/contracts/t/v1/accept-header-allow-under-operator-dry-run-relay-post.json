@@ -1,0 +1,42 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "accept-header-allow-under-operator-dry-run-relay-post",
+  "description": "X-UniFi-Write-Policy: allow cannot loosen UNIFI_WRITE_POLICY=dry-run: the relay POST sends no mutation and the header is ignored loosening",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_POLICY": "dry-run",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "allow"
+      ]
+    ],
+    "route": "fabric_connector_post",
+    "arguments": {
+      "host": "host-a1",
+      "path": "/proxy/network/integration/v1/sites"
+    },
+    "upstream": {
+      "default": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "ignored_loosening": [
+      "x-unifi-write-policy=allow"
+    ],
+    "upstream_mutations": 0
+  }
+}

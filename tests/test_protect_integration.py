@@ -4,10 +4,12 @@ Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
 Skip all tests automatically when the env var is absent.
 
 Also requires UNIFI_TEST_HOST to identify the Protect console. Mutating tests require
-explicit marker selection and UNIFI_TEST_ALLOW_MUTATIONS=1, with dry-run disabled.
+explicit marker selection and UNIFI_TEST_ALLOW_MUTATIONS=1, with dry-run disabled; the
+shared gate in tests/_live_gates.py (run from tests/conftest.py) enforces this.
 
-Run:
-    UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
 """
 
 from __future__ import annotations
@@ -33,8 +35,9 @@ from unifi_fabric.tools.protect import (
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated
-# at collection time, not import time.  Run with a real key to execute them:
-#   UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
+# at collection time, not import time.  Run them with a real key in the environment
+# (loaded from a secret store, never typed on the command line):
+#   UNIFI_TEST_HOST=<host> pytest tests/test_protect_integration.py -v
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
@@ -49,15 +52,6 @@ pytestmark = [
 ]
 
 _TEST_HOST = os.environ.get("UNIFI_TEST_HOST", "")
-
-
-@pytest.fixture(autouse=True)
-def _authorize_live_mutation(request):
-    if request.node.get_closest_marker("mutating"):
-        if os.environ.get("UNIFI_TEST_ALLOW_MUTATIONS") != "1":
-            pytest.fail("Set UNIFI_TEST_ALLOW_MUTATIONS=1 to authorize live mutations")
-        if Settings().dry_run:
-            pytest.fail("UNIFI_DRY_RUN cannot verify a live mutation")
 
 
 @pytest.fixture(scope="module")
@@ -149,7 +143,7 @@ class TestGetCameraIntegration:
         returned_id = camera.get("id")
         assert returned_id == camera_id
 
-    async def test_get_camera_has_state_field(self, client, registry):
+    async def test_get_camera_returns_dict(self, client, registry):
         _require_host()
         result = await list_cameras(client, registry, _TEST_HOST)
         if result["_count"] == 0:

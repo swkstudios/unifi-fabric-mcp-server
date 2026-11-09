@@ -55,8 +55,8 @@ def test_resources_are_pypi_sdists_with_sha256() -> None:
 
 def test_key_runtime_pins() -> None:
     resources = {m["name"]: _url_version(m["url"]) for m in _resources()}
-    assert resources["fastmcp"] == "4.1.4"
-    assert resources["fastmcp-slim"] == "4.1.4"
+    assert resources["fastmcp"] == "4.1.6"
+    assert resources["fastmcp-slim"] == "4.1.6"
     assert resources["mcp"] == "2.3.0"
     assert "httpx-sse" not in resources
 
@@ -123,7 +123,7 @@ def test_check_mode_reports_current_formula_without_writing(monkeypatch, tmp_pat
 
 
 def test_check_mode_diffs_stale_formula_without_writing(monkeypatch, tmp_path, capsys) -> None:
-    stale = FORMULA.read_text().replace("fastmcp-4.1.4.tar.gz", "fastmcp-4.0.11.tar.gz", 1)
+    stale = FORMULA.read_text().replace("fastmcp-4.1.6.tar.gz", "fastmcp-4.0.11.tar.gz", 1)
     assert stale != FORMULA.read_text()
     formula = tmp_path / "f.rb"
     formula.write_text(stale)
@@ -132,14 +132,14 @@ def test_check_mode_diffs_stale_formula_without_writing(monkeypatch, tmp_path, c
     assert gen.main(["--check", "--formula", str(formula)]) == 1
     out = capsys.readouterr().out
     assert "-    url" in out and "fastmcp-4.0.11.tar.gz" in out
-    assert "+    url" in out and "fastmcp-4.1.4.tar.gz" in out
+    assert "+    url" in out and "fastmcp-4.1.6.tar.gz" in out
     assert formula.read_text() == stale
 
 
 def test_write_mode_regenerates_stale_formula(monkeypatch, tmp_path) -> None:
     formula = tmp_path / "f.rb"
     formula.write_text(
-        FORMULA.read_text().replace("fastmcp-4.1.4.tar.gz", "fastmcp-4.0.11.tar.gz", 1)
+        FORMULA.read_text().replace("fastmcp-4.1.6.tar.gz", "fastmcp-4.0.11.tar.gz", 1)
     )
     sdists = _formula_sdists()
     monkeypatch.setattr(gen, "sdist", lambda name, version: sdists[name])

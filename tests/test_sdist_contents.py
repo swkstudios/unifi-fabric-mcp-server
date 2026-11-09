@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import subprocess
 import sys
 import tarfile
+import venv
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_sdist_file_list(tmp_path):
+def test_sdist_file_list(tmp_path, monkeypatch):
     dist_dir = tmp_path / "dist"
     dist_dir.mkdir()
 
@@ -48,10 +51,29 @@ def test_sdist_file_list(tmp_path):
         or name.startswith("src/unifi_fabric/")
         for name in rel_names
     )
+    # uv-created development environments need not contain pip. Bootstrap an
+    # isolated installer using the interpreter's bundled pip, with the locked
+    # build backend available through the parent import path; no network is used.
+    installer_dir = tmp_path / "installer"
+    venv.EnvBuilder(with_pip=True).create(installer_dir)
+    installer_python = installer_dir / (
+        "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+    )
     install_dir = tmp_path / "installed"
-    subprocess.run(  # noqa: S603
+    # The full suite can leave a huge sys.path. Pass only locked build-backend
+    # directories, and exercise the actual install with an oversized unrelated entry.
+    monkeypatch.setattr(sys, "path", [*sys.path, "x" * 140_000])
+    backend_dirs = set()
+    for module in ("hatchling", "packaging", "pathspec", "pluggy", "tomlkit", "trove_classifiers"):
+        spec = importlib.util.find_spec(module)
+        assert spec is not None and spec.origin is not None, module
+        origin = Path(spec.origin).resolve()
+        backend_dirs.add(
+            str(origin.parent.parent if origin.name == "__init__.py" else origin.parent)
+        )
+    installed = subprocess.run(  # noqa: S603
         [
-            sys.executable,
+            str(installer_python),
             "-m",
             "pip",
             "install",
@@ -62,8 +84,10 @@ def test_sdist_file_list(tmp_path):
             str(install_dir),
             str(archives[0]),
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sorted(backend_dirs))},
     )
+    assert installed.returncode == 0, installed.stderr
     assert (install_dir / "unifi_fabric" / "entrypoint.py").is_file()

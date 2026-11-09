@@ -74,7 +74,7 @@ def test_the_property_covers_every_settings_field():
         "allowed_origins",
         "allowed_hosts",
         "oauth_write_scope",
-        "tool_families",
+        "family_allow",
         "max_concurrency",
         "audit_log_format",
         "cache_ttl",
@@ -124,11 +124,12 @@ def test_allowlist_messages_keep_the_item_position(monkeypatch):
 
 
 def test_unknown_tool_families_are_counted_not_echoed(monkeypatch):
-    monkeypatch.setenv("UNIFI_TOOL_FAMILIES", f"network,{SENTINEL}")
+    monkeypatch.setenv("UNIFI_FAMILY_ALLOW", f"network,{SENTINEL}")
     with pytest.raises(Exception) as exc:
         Settings()
     text = str(exc.value)
-    assert "UNIFI_TOOL_FAMILIES names unknown families (item 1 of the" in text
+    assert "startup:UNIFI_FAMILY_ALLOW" in text
+    assert "UNIFI_FAMILY_ALLOW names an unknown or reserved family (position 1," in text
     assert "valid families: " in text and "network" in text
     assert not _leaks(text)
 
@@ -143,12 +144,25 @@ async def test_tool_family_filter_never_echoes_an_unknown_family():
 @pytest.mark.parametrize("value", [SENTINEL, f"{SENTINEL} x", DIGITS])
 def test_boolean_switch_parser_never_echoes(monkeypatch, value):
     with pytest.raises(ValueError) as exc:
-        switches.parse_bool(value, "UNIFI_DRY_RUN")
-    assert "UNIFI_DRY_RUN must be a boolean" in str(exc.value)
+        switches.parse_bool(value, "UNIFI_REDACT_SECRETS")
+    assert "UNIFI_REDACT_SECRETS must be a boolean" in str(exc.value)
     assert not _leaks(str(exc.value))
-    monkeypatch.setenv("UNIFI_READ_ONLY", value)
+    monkeypatch.setenv("UNIFI_REDACT_SECRETS", value)
     with pytest.raises(ValueError) as exc:
-        switches.env_flag("UNIFI_READ_ONLY", False)
+        switches.env_flag("UNIFI_REDACT_SECRETS", False)
+    assert not _leaks(str(exc.value))
+
+
+@pytest.mark.parametrize("value", [SENTINEL, f"{SENTINEL} x", DIGITS])
+def test_policy_setting_reader_never_echoes(monkeypatch, capsys, value):
+    from unifi_fabric import policy
+
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", value)
+    assert policy.current() is policy.FAIL_CLOSED
+    assert not _leaks(capsys.readouterr().err)
+    with pytest.raises(policy.StartupRefusal) as exc:
+        policy.operator_policy({"UNIFI_WRITE_POLICY": value}, None)
+    assert exc.value.token == "startup:UNIFI_WRITE_POLICY"
     assert not _leaks(str(exc.value))
 
 

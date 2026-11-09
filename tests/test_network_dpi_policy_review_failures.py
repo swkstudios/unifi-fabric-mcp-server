@@ -14,7 +14,7 @@ def bound_context(get):
     registry = SimpleNamespace(
         resolve_key_for_host=AsyncMock(return_value=None),
         resolve_host_id=AsyncMock(return_value="host-id"),
-        resolve_site_id=AsyncMock(return_value="88f7af54-98f8-306a-a1c7-c9349722b1f6"),
+        resolve_site_id=AsyncMock(return_value="00000000-0000-3000-a000-000000000016"),
     )
     return SimpleNamespace(get=get), registry
 

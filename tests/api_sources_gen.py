@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "src/unifi_fabric/_api_source_table.py"
 
 #: Opt-in switches that would change which requests a tool sends.
-_NEUTRAL_ENV = ("UNIFI_DRY_RUN", "UNIFI_READ_ONLY", api_sources.DISABLE_ENV)
+_NEUTRAL_ENV = ("UNIFI_WRITE_POLICY", "UNIFI_WRITE_EXCEPTIONS", api_sources.DISABLE_ENV)
 
 #: Conservative per-tool policy overrides, applied in addition to exercised routes.
 #: Assets belong to the same InnerSpace project surface, which may be served privately;
@@ -50,8 +50,7 @@ PAIR_OVERRIDES: dict[str, tuple[str, ...]] = {
 #: cameras/{id}/recording-snapshot route, not the Integration snapshot).
 ARG_VARIANTS: dict[str, tuple[dict[str, object], ...]] = {
     "get_camera_snapshot": ({"ts": 1_700_000_000_000},),
-    # source="v2" (and the include_* / v2 filters) read the private v2 client lists.
-    "list_clients": ({"source": "v2"},),
+    # source="v2" (and the include_* / v2 filters) reads the private v2 history list.
     "list_known_clients": ({"source": "v2"},),
     # reboot_type sends the Classic cmd/devmgr restart instead of the Integration action.
     "restart_device": ({"reboot_type": "soft"},),
@@ -63,7 +62,7 @@ class _AttemptRecording(uh.FakeUpstream):
 
     A route the harness holds no capture for raises inside the fake upstream before it is
     recorded as served; the tool still called it, so it counts towards the tool's sources
-    (list_clients with source="v2" reaches clients/active, which has no default capture).
+    (list_active_clients reaches clients/active, which has no default capture).
     """
 
     def __init__(self) -> None:
@@ -109,7 +108,10 @@ async def _paths(
         try:
             args = tool_args.generated_args(tool)
             args.update(overrides or {})
-            await server.mcp.call_tool(name, args)
+            # Source derivation bootstraps the classifications consumed by the
+            # request-policy middleware. Run the registered tool directly so a new tool
+            # can reveal its routes before it exists in the previous generated table.
+            await server.mcp.call_tool(name, args, run_middleware=False)
         except Exception:  # noqa: BLE001, S110 - a refused call still shows its routes
             pass
         finally:
@@ -120,7 +122,14 @@ async def _paths(
 async def iter_derived_async() -> AsyncIterator[tuple[str, tuple[str, ...]]]:
     """Exercise listed descriptors in order, releasing each after its routes."""
     # Preserve the listed schemas used by generated_args, then release processed tools.
-    tools = sorted(await server.mcp.list_tools(), key=lambda tool: tool.name, reverse=True)
+    # This generator produces the source classifications consumed by tools/list policy.
+    # Bypass that middleware while bootstrapping so a new tool can be classified before
+    # it exists in the previous generated table.
+    tools = sorted(
+        await server.mcp.list_tools(run_middleware=False),
+        key=lambda tool: tool.name,
+        reverse=True,
+    )
     while tools:
         tool = tools.pop()
         name = tool.name

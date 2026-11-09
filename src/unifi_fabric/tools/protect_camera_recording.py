@@ -2,7 +2,7 @@
 
 Route choice (official published API first, else the private API the web app calls). The
 official Protect Integration API pinned in ``tests/fixtures/spec_drift/baseline_snapshot.json``
-(protect 7.3.70) has no route for any capability in this module: its camera surface is
+(protect 7.3.74) has no route for any capability in this module: its camera surface is
 ``GET/PATCH /v1/cameras/{id}`` (name, OSD, LED, LCD message, mic volume, video mode, HDR,
 smart detection), snapshots, RTSPS streams, talkback, PTZ and the permanent mic disable.
 Every tool here therefore uses the private ``/proxy/protect/api`` route the Protect web
@@ -75,6 +75,7 @@ async def _get_body(
     *,
     key: APIKeyConfig | None,
     params: dict[str, Any] | None = None,
+    no_retries: bool = False,
 ) -> Any:
     """GET ``path`` and return its body: JSON or text verbatim, anything else as base64.
 
@@ -82,7 +83,8 @@ async def _get_body(
     decoded by the server's one pass-through rule. An image or file body is returned as
     ``{content_base64, content_type, size_bytes}`` with the upstream Content-Type as sent.
     """
-    resp = await client.request("GET", path, key=key, params=params or None)
+    options: dict[str, Any] = {"max_retries": 0} if no_retries else {}
+    resp = await client.request("GET", path, key=key, params=params or None, **options)
     content_type = resp.headers.get("content-type")
     lowered = (content_type or "").lower()
     if resp.status_code == 204 or not resp.content or any(t in lowered for t in _TEXT_TYPES):
@@ -128,7 +130,7 @@ def _with_epoch_unit(body: Any, **values: int | None) -> Any:
 def _action_result(status: str, response: Any) -> dict[str, Any]:
     """A write's result: ``{status, response}`` with the upstream body verbatim.
 
-    Under ``UNIFI_DRY_RUN`` nothing was sent and ``response`` is the client's preview;
+    Under ``dry-run policy`` nothing was sent and ``response`` is the client's preview;
     the preview itself is returned (``{status: "dry_run", dryRun, sent: false, message, preview}``).
     """
     if is_dry_run_preview(response):
@@ -279,7 +281,7 @@ async def _send_control_get(
 
     The route is on the write classifier's state-changing GET list
     (``read_only.STATE_CHANGING_GET_ROUTES``), so the client chokepoint treats this GET as
-    a write: refused in read-only mode, previewed under ``UNIFI_DRY_RUN`` and audited. It
+    a write: refused in read-only mode, previewed under ``dry-run policy`` and audited. It
     is sent once (``max_retries=0``: a retried GET could repeat the state change).
     """
     response = decode_body(await client.request("GET", path, key=key, max_retries=0))
@@ -413,7 +415,11 @@ async def export_edge_recording(
     try:
         body = await with_upstream_hint(
             _get_body(
-                client, _edge_path(host_id, camera_seg, action), key=key, params=params or None
+                client,
+                _edge_path(host_id, camera_seg, action),
+                key=key,
+                params=params or None,
+                no_retries=action == "prepare",
             ),
             "Prepare requires filename, start and end; times are epoch seconds."
             if missing
@@ -494,12 +500,6 @@ async def delete_recordings(
     _write_guards("DELETE")
     key, host_id = await _resolve(registry, host)
     response = await client.delete(_private(host_id, "/video"), key=key, params=params)
-    if is_dry_run_preview(response):
-        return _with_epoch_unit(
-            deletion_result(f"Recordings of camera {camera_id} deleted.", response),
-            start=start,
-            end=end,
-        )
     return _with_epoch_unit(
         deletion_result(f"Recordings of camera {camera_id} deleted.", response),
         start=start,
@@ -542,8 +542,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         that error keeps the upstream text and adds a hint (use the UniFi Protect app).
         Returns the upstream body verbatim: JSON as sent (an upstream array under result),
         or an image as {content_base64, content_type, size_bytes} with the upstream
-        Content-Type. wifi_password is a
-        registered credential: errors and logs never carry it.
+        Content-Type. wifi_password is a registered credential: always scrubbed from logs,
+        and masked in errors only under UNIFI_REDACT_SECRETS.
 
         Required arguments: host (see each parameter's description).
 
@@ -583,11 +583,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             kind: "detections" or "heatmap"; for example "detections".
             start: Window start, epoch SECONDS; for example 1760227200.
             end: Window end, epoch SECONDS; for example 1760313600.
-            step: Bucket size for detections, sent as step; for example 3600000.
+            step: Detection bucket width in MILLISECONDS (the unit start and end are sent
+                in), sent as given without conversion; for example 3600000 (1 hour).
             heatmap_type: Heatmap object type, sent as type; for example "person".
         """
         client, registry = deps_fn()
@@ -613,7 +614,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (false). The console changes state on this GET, so it is a write: refused under
         read-only mode and the Protect write opt-out, and sent once (never retried).
         Returns {status: "enabled" | "disabled", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -623,7 +624,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             enabled: true sends enable-control, false sends disable-control; for example
                 false.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -640,7 +641,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/lock (locked=true) or /unlock (false), once.
         Returns {status: "locked" | "unlocked", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -650,7 +651,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             locked: true locks, false unlocks; for example true.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -668,7 +669,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
         """
         client, registry = deps_fn()
         return await _get_camera_lux(client, registry, host, camera_id)
@@ -680,19 +681,21 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Get a Protect camera's recording (playback) history over a time window.
 
         Sends GET /cameras/{camera_id}/playback-history with start and end (epoch
-        SECONDS, sent as epoch milliseconds) and resolution only when given. Returns the
-        upstream body verbatim. _warnings is added (one entry per such time argument)
-        only when start or end is negative or looks like epoch milliseconds; an array
-        body then is returned under result.
+        SECONDS, sent as epoch milliseconds) and resolution (the recording quality channel,
+        not a time span) only when given. Returns the upstream body verbatim. _warnings is
+        added (one entry per such time argument) only when start or end is negative or looks
+        like epoch milliseconds; an array body then is returned under result.
 
         Required arguments: host, camera_id, start, end (see each parameter's description).
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             start: Window start, epoch SECONDS; for example 1760227200.
             end: Window end, epoch SECONDS; for example 1760313600.
-            resolution: Timeline resolution, sent as resolution; for example 3600000.
+            resolution: Recording quality channel whose segments to list, sent as given:
+                0 = high quality (HQ), 2 = low quality (LQ), the values the Protect web app
+                sends (its enum also has 1 = AUTO); not a time span; for example 0.
         """
         client, registry = deps_fn()
         return await _get_camera_playback_history(
@@ -707,7 +710,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/reset-isp, once. Returns {status: "reset",
         response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -717,7 +720,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -731,7 +734,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/resolutionScale/{scale}, once; the console judges
         the value. Returns {status: "sent", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -741,7 +744,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             scale: Scale value sent as one path segment; for example "1".
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -756,7 +759,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/transfer-mgmt with {nvrMac}, once (never retried).
         Returns {status: "sent", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -767,7 +770,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             nvr_mac: MAC address of the NVR to take over the camera, sent as nvrMac; for
                 example "02:00:5e:00:53:01".
             confirm: Accepted and ignored for compatibility; for example false.
@@ -783,7 +786,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/turnon-flashlight, once. Returns {status: "sent",
         response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -793,7 +796,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -812,7 +815,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
         """
         client, registry = deps_fn()
         return await _get_camera_wifi_networks(client, registry, host, camera_id)
@@ -827,7 +830,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         is free-form: its keys are not published, so it is sent exactly as given and the
         console judges it. An empty settings object fails before any request. Returns
         {status: "sent", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -838,7 +841,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             settings: Free-form wifi-setup body, sent as given (keys unpublished); for
                 example {"ssid": "Cameras-IoT", "password": "correct-horse-battery"}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -854,7 +857,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /cameras/{camera_id}/videoCodec?name=CODEC, once; the console judges
         the codec name. Returns {status: "sent", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -864,7 +867,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             codec: Codec name, sent as the name query parameter; for example "h265".
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -885,8 +888,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Action "prepare" sends GET /edge-recording/{camera_id}/prepare with filename, start
         and end (the console requires all three; start and end are epoch SECONDS sent as
         ms); the console creates an export job, copies that window off the camera and answers
-        {filename, expiresAfter}, without changing configuration. This read is allowed in
-        read-only mode and executes under UNIFI_DRY_RUN. Action "download" sends GET
+                {filename, expiresAfter}, without changing configuration. Prepare is never
+        retried. This read is allowed in
+        read-only mode and executes under dry-run policy. Action "download" sends GET
         /edge-recording/{camera_id}/download with the same filename. Only the arguments given
         are sent (start or end with download fails before any request). Returns the upstream
         body verbatim: JSON or text as sent (an upstream array under result), and a file as
@@ -898,7 +902,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Id of the camera whose storage holds the recording, from
-                list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+                list_cameras; for example "000000000000000000000103".
             action: "prepare" or "download"; for example "prepare".
             filename: Export file name, sent as filename: the name to store it under
                 (prepare) and to fetch (download); for example "edge-export.mp4".
@@ -920,7 +924,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST /edge-recording/{camera_id}/mount-state with {mountState}, once; the
         console judges the value. Returns {status: "sent", response} (response is the
         upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -931,8 +935,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Id of the camera whose storage to mount or unmount, from
-                list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
-            mount_state: Value sent as mountState; for example "unmounted".
+                list_cameras; for example "000000000000000000000103".
+            mount_state: Value sent as mountState: "unmounted" unmounts the storage and "mounted"
+                mounts it again (the console judges the value); for example "unmounted".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -946,7 +951,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST /edge-recording/{camera_id}/reformat, once (never retried). Returns
         {status: "sent", response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -957,7 +962,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Id of the camera whose storage to reformat, from list_cameras;
-                for example "65d4f1e2a1b2c3d4e5f60718".
+                for example "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -975,7 +980,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         request. Returns {status: "updated", verified, before, after, response} (response
         is the upstream body verbatim). There is no read route for these settings, so
         nothing is read back: verified, before and after are always null.
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}} and sends nothing.
 
@@ -985,7 +990,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             settings: Free-form recording-settings body, sent as given (keys
                 unpublished); for example {"enabled": true}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -1002,7 +1007,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends DELETE /video?camera=CAMERA_ID&start&end, once (never retried); start and
         end are epoch SECONDS, sent as epoch milliseconds. Returns {deleted:
         true, message, response} (response is the upstream body verbatim).
-        With UNIFI_DRY_RUN, returns a dry-run preview wrapped as {status: "dry_run",
+        With dry-run policy, returns a dry-run preview wrapped as {status: "dry_run",
         deleted: false, message, response} (response is the preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}) and sends
         nothing. Either result also carries _warnings (one entry per such time argument) when
@@ -1016,7 +1021,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Camera id from list_cameras, sent as camera; for example
-                "65d4f1e2a1b2c3d4e5f60718".
+                "000000000000000000000103".
             start: Window start, epoch SECONDS; for example 1760227200.
             end: Window end, epoch SECONDS; for example 1760230800.
             confirm: Accepted and ignored for compatibility; for example false.

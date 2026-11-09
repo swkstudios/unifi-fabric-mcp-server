@@ -5,7 +5,7 @@
 # host (or the reverse) needs no QEMU. The runtime image has no pip and no build tools.
 # Base digest: python:3.12-slim-bookworm with ca-certificates 20250419~deb12u2 or later, which
 # distrusts the eMudhra incident roots; the builder fails the build if the bundle trusts one.
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df
 
 # The base filesystem of the target platform. Nothing runs in it; the builder copies it.
 FROM ${PYTHON_IMAGE} AS base
@@ -63,7 +63,13 @@ RUN rm -rf /rootfs/usr/local/lib/python3.12/site-packages/pip \
     && sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
     && dpkg --add-architecture "$TARGETARCH" \
     && apt-get update \
-    && cd /tmp && apt-get download "tini:$TARGETARCH" \
+    && cd /tmp && apt-get download "tini:$TARGETARCH=0.19.0-1+b3" \
+    && case "$TARGETARCH" in \
+         amd64) tini_sha=7d1947665fa40e55f218fefad773dc6de66458d0b39eaa292cdcadfc7c996632 ;; \
+         arm64) tini_sha=335dee1e36c0bf61f11c9fe9740012966a3183bd50405b73ed19477293c28f7f ;; \
+         *) exit 1 ;; \
+       esac \
+    && echo "$tini_sha  tini_0.19.0-1+b3_${TARGETARCH}.deb" | sha256sum -c - \
     && dpkg --root=/rootfs --force-architecture --force-depends --force-script-chrootless \
        --log=/dev/null -i /tmp/tini_*.deb \
     && rm -rf /var/lib/apt/lists/* /tmp/tini_*.deb /rootfs/var/log/dpkg.log \

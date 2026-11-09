@@ -26,14 +26,15 @@ reports that the write response carries the requested value, as documented.
 
 Reads are typed pass-throughs. The seven documented writes (create / patch a
 subscriber; attach / detach the gateway host; assign a plan; suspend / resume) share
-one flow: the area opt-out (``UNIFI_ENABLE_CARRIER_FABRIC_WRITE``, enabled by default)
-is checked first, then the arguments are validated, then (for an existing subscriber)
-a read-before proves existence and snapshots state, an already-applied change returns
+one flow: the area opt-out (writes are enabled by default; the ``UNIFI_WRITE_EXCEPTIONS``
+entry ``family:carrier=deny`` refuses them) is checked first, then the arguments are
+validated, then (for an existing subscriber) a read-before proves existence and snapshots state, an already-applied change returns
 ``status="no_op"`` without writing, and the write response serves as the read-after.
 Every write result carries the upstream write body verbatim under ``response``, the
 per-field ``changed`` map ``{field: {"from": ..., "to": ...}}``, and (for writes that
 change an existing subscriber) a ``verified`` flag. Every write accepts an optional
-``confirm`` argument, which is ignored. Set the opt-out to 0 for a read-only deployment.
+``confirm`` argument, which is ignored. For a read-only deployment add
+``family:carrier=deny`` to ``UNIFI_WRITE_EXCEPTIONS`` or set ``UNIFI_WRITE_POLICY=deny``.
 
 Null semantics of the subscriber PATCH (spec schema ``SubscriberPatch``): an absent field
 is unchanged; JSON ``null`` clears ``name``, ``email``, ``notes``, ``serviceAddress`` and
@@ -47,7 +48,11 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Callable
 from typing import Any, cast
+
+from fastmcp import FastMCP
+from pydantic import Field
 
 from .. import switches
 from ..client import (
@@ -64,7 +69,8 @@ from ..client import (
 )
 from ..config import APIKeyConfig
 from ..matching import same_id
-from ..read_only import guard_request
+from ..read_only import guard_action, mark_write_denied
+from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import require_update_fields
 from ._continuation import encode_continuation
 from ._keys import (
@@ -95,6 +101,7 @@ from ._results import (
     short_circuit_no_op,
     with_read_after_error,
 )
+from ._shared import _nullable_default
 
 #: Cloud gateway base for the Carrier / ISP Fabric family (served from api.ui.com).
 CARRIER_BASE = "/v1/carrier"
@@ -108,26 +115,10 @@ _MAX_PAGE_SIZE = 500
 #: Documented ``sort`` enum for listSubscribers.
 _SORT_VALUES = ("createdAt", "-createdAt", "name", "-name", "subscriberNumber", "-subscriberNumber")
 
-#: Environment opt-out for the seven Carrier Fabric writes. Read and write are enabled
-#: by default: an *unset* variable leaves writes ENABLED. Set the variable to a falsey
-#: value ("0"/"false"/"no"/"off") for a read-only deployment of the Carrier Fabric area.
+#: The write exception that opts out the seven Carrier Fabric writes (``family:carrier=deny``).
 WRITE_ENABLED_ENV = switches.CARRIER_WRITES.env
 
-DISABLED_MSG = (
-    "Carrier Fabric writes are opted out: environment variable "
-    f"{WRITE_ENABLED_ENV} is set to a false value ({switches.FALSE_HINT}). "
-    "No request was sent. Writes are enabled by default. To re-enable, set "
-    f"{WRITE_ENABLED_ENV} to a true value ({switches.TRUE_HINT}) -- or remove the override -- "
-    "in the MCP client env block (and turn off the Claude Code plugin's "
-    "Read-only mode option if enabled), the environment of the shell that starts the "
-    "server (an export there works), or this service's 'environment:' block "
-    "in the deploy docker-compose.yml "
-    "(a host shell export does not reach the container; never the application source), "
-    "then recreate the container "
-    "(restart the whole compose group if a sidecar shares its network namespace). "
-    'See the README "Enabling / disabling connector writes" section; the same '
-    "compose environment: mechanism applies to every per-area write flag."
-)
+DISABLED_MSG = switches.area_deny_text("Carrier Fabric", WRITE_ENABLED_ENV)
 
 #: sentinel value distinguishing "argument omitted" from "explicitly set to null" on the
 #: nullable PATCH fields, so a caller can clear a nullable subscriber field.
@@ -173,19 +164,17 @@ def _select_key(client: UniFiClient, key_label: str | None) -> APIKeyConfig | No
     return client.get_key_by_label(key_label)
 
 
-def _require_writes() -> None:
+def _require_writes(method: str) -> None:
     """Refuse a Carrier Fabric write before any upstream call when the area is opted out."""
-    guard_request("PUT", "v1/carrier-fabric")
+    guard_action(method)
     if not writes_enabled():
-        raise ValueError(DISABLED_MSG + switches.current_value_note(WRITE_ENABLED_ENV))
+        raise mark_write_denied(
+            ValueError(DISABLED_MSG + switches.current_value_note(WRITE_ENABLED_ENV))
+        )
 
 
 def writes_enabled() -> bool:
-    """True unless the write opt-out env var is explicitly set to a falsey value.
-
-    Enabled by default (unset → enabled). Set the variable to a falsey value
-    (``0``/``false``/``no``/``off``) for a read-only deployment of this area.
-    """
+    """True unless ``UNIFI_WRITE_EXCEPTIONS`` denies this area's family (read now)."""
     return switches.CARRIER_WRITES.enabled()
 
 
@@ -393,8 +382,9 @@ async def list_carrier_subscribers(
         the request. _pageSize reports requested, actual sent sizes per request,
         observed effective size and returned count. Resume with cursor=_continuation
         string to preserve the physical size while changing the total.
-        Raw cursor strings request one verbatim page (including a supplied limit
-        and native ``meta.hasMore`` / ``meta.nextCursor``) on ONE
+        Raw cursor strings request one verbatim page (a bare array is returned as-is;
+        otherwise an object with a data array), including a supplied limit
+        and native ``meta.hasMore`` / ``meta.nextCursor`` on ONE
         key: ``key_label`` names it, and with several keys configured it is required (a
         cursor belongs to the key whose listing issued it; :func:`page_mode_scope`). The
         default (both omitted) drains every page.
@@ -436,7 +426,10 @@ async def list_carrier_subscribers(
                 )
                 if "raw" in collected:
                     return collected["raw"]
-                result = {**collected["envelope"], "data": collected["items"]}
+                result = with_context(
+                    {**collected["envelope"], "data": collected["items"]},
+                    {"_count": len(collected["items"])},
+                )
                 if collected.get("meta") is not None:
                     result["meta"] = collected["meta"]
                 meta = collected.get("meta")
@@ -621,8 +614,10 @@ async def get_carrier_service_plan(
 # --- Writes ------------------------------------------------------------------
 #
 # All seven writes share the guarded flow, in this order:
-#   1. env gate    — the write opt-out (enabled by default; set 0 for read-only) refuses
-#                    before any validation or upstream call when disabled;
+#   1. env gate    — the write opt-out (writes enabled by default; the
+#                    UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny or
+#                    UNIFI_WRITE_POLICY=deny makes them read-only) refuses
+#                    before any validation or upstream call when set;
 #   2. validate    — enforce the documented field constraints locally;
 #   3. read-before — (mutations of an existing subscriber) GET it: proves existence
 #                    and snapshots the current, observable state;
@@ -690,7 +685,7 @@ def _no_op(reason: str, before_body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dry_run_result(before_body: dict[str, Any], raw: Any) -> dict[str, Any]:
-    """Result of a guarded write under ``UNIFI_DRY_RUN``: the preview, no read-after.
+    """Result of a guarded write under ``dry-run policy``: the preview, no read-after.
 
     No write was sent: the preview is not the updated subscriber, and a read-back would
     only show the unchanged one. ``subscriber`` is the read-before GET body verbatim.
@@ -802,7 +797,7 @@ async def create_carrier_subscriber(
         multi-key deployment an omitted label routes to the key owning ``plan_id``; with
         no ``plan_id`` it fails fast listing the labels (never a first-key default).
     """
-    _require_writes()
+    _require_writes("POST")
     _validate_subscriber_number(subscriber_number, trim=False)
     body: dict[str, Any] = {"subscriberNumber": subscriber_number}
     if name is not None:
@@ -829,7 +824,7 @@ async def create_carrier_subscriber(
         _SUBSCRIBERS, key=await _create_key(client, key_label, plan_id), json=body
     )
     if is_dry_run_preview(raw):
-        # UNIFI_DRY_RUN: nothing was created; the preview is not the new subscriber.
+        # dry-run policy: nothing was created; the preview is not the new subscriber.
         return {"status": "dry_run", "subscriber": None, "response": raw}
     return {
         "status": "created",
@@ -881,7 +876,7 @@ async def update_carrier_subscriber(
         an absent key compares equal to ``{}`` (no-op and ``verified``).
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("PATCH")
     validate_id(subscriber_id, "subscriber_id")
 
     # The partial body carries only the provided (non-sentinel) fields.
@@ -997,7 +992,7 @@ async def attach_carrier_subscriber_host(
     host_id: the gateway host id to link (as reported by the host directory).
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("PUT")
     validate_id(subscriber_id, "subscriber_id")
     # Body-only (HostLinkRequest.hostId: string, maxLength 128): validated per the spec,
     # not by path rules - it never reaches a URL path.
@@ -1048,7 +1043,7 @@ async def detach_carrier_subscriber_host(
     subscriber_id: the subscriber UUID from list_carrier_subscribers.
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("DELETE")
     validate_id(subscriber_id, "subscriber_id")
     key, before_body = await first_success(
         client, key_label, lambda k: _fetch_subscriber(client, subscriber_id, k)
@@ -1092,7 +1087,7 @@ async def assign_carrier_subscriber_plan(
     plan_id: the service-plan UUID to assign (from list_carrier_service_plans).
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("PUT")
     validate_id(subscriber_id, "subscriber_id")
     validate_spec_id(plan_id, "plan_id", uuid=True)  # body planId: format uuid
 
@@ -1143,7 +1138,7 @@ async def suspend_carrier_subscriber(
     reason: optional free-text suspension reason recorded on the subscriber.
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("POST")
     validate_id(subscriber_id, "subscriber_id")
     if reason is not None:
         # The suspend body's reason: string, maxLength 1024 (characters; no byte unit).
@@ -1194,7 +1189,7 @@ async def resume_carrier_subscriber(
     subscriber_id: the subscriber UUID from list_carrier_subscribers.
     key_label: optional configured API-key label to route on a specific key.
     """
-    _require_writes()
+    _require_writes("POST")
     validate_id(subscriber_id, "subscriber_id")
     key, before_body = await first_success(
         client, key_label, lambda k: _fetch_subscriber(client, subscriber_id, k)
@@ -1216,3 +1211,580 @@ async def resume_carrier_subscriber(
         raw,
         lambda after: after.get("suspended") is False,
     )
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import carrier_fabric  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the carrier_fabric tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_carrier_subscribers(
+        plan_id: str | None = None,
+        suspended: bool | None = None,
+        sort: str | None = None,
+        key_label: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        """List Carrier / ISP Fabric subscribers visible to the authenticated ISP key.
+
+        Returns {data, _count} and the first page's envelope fields; several keys put
+        envelopes under byKey, annotate records with _keyLabel, and report per-key
+        errors. incomplete/incompleteReason appear when a drain stops early. A bare-array
+        page is returned as an array; an object without a data array raises.
+        Spec-conformance tested only, without live Carrier.
+
+        Default drains every cursor page. limit requests that many subscribers, or all
+        available if fewer exist, gathered in native pages up to the spec maximum 500;
+        the full final page can exceed limit to preserve its native continuation;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count. cursor selects the
+        starting meta.nextCursor; alone, it fetches one page with its native meta
+        continuation. With several keys, limit/cursor needs key_label.
+
+        Args:
+            plan_id: Optional service-plan UUID from list_carrier_service_plans (id).
+                Example: "3fa85f64-5717-4562-b3fc-2c963f66afa6".
+            suspended: Optional filter: true for suspended, false for active. Example: false.
+            sort: createdAt|-createdAt|name|-name|subscriberNumber|-subscriberNumber.
+                Example: "-createdAt".
+            key_label: Configured API-key label from list_configured_api_keys; omit to
+                aggregate all keys. Required with limit/cursor and several keys.
+                Example: "primary".
+            limit: Requested subscriber count, gathered in batches up to 500. Example: `100`.
+            cursor: Raw meta.nextCursor for one verbatim page, or the returned opaque
+                _continuation string preserving physical size when changing the requested limit.
+                Example: the token from the previous response.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.list_carrier_subscribers(
+            client,
+            plan_id=plan_id,
+            suspended=suspended,
+            sort=sort,
+            key_label=key_label,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_carrier_subscriber(
+        subscriber_id: str,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Get one Carrier / ISP Fabric subscriber by ID.
+
+        Spec-conformance tested only (not against a live Carrier Fabric).
+        Returns the upstream response object verbatim: the Subscriber under data beside
+        httpStatusCode and traceId; an unknown id surfaces the upstream
+        subscriber_not_found (404) verbatim.
+
+        Example call (get_carrier_subscriber):
+            {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.get_carrier_subscriber(
+            client, subscriber_id, key_label=key_label
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_carrier_service_plans(
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """List the Carrier / ISP Fabric service plans for the authenticated organization.
+
+        Returns the upstream body verbatim ({data, httpStatusCode, traceId, ...}) plus _count; with
+        several keys {data, _count, byKey} plus errors.
+
+        Spec-conformance tested only (not against a live Carrier Fabric).
+        Not query-
+        paginated by the API; the full set is returned under data (the upstream key), with the
+        additive _count.
+
+        Args:
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to cover
+                every configured key: results are merged, each record carries an additive _keyLabel, and
+                a key that fails is reported under errors.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.list_carrier_service_plans(client, key_label=key_label)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_carrier_service_plan(
+        plan_id: str,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Get one Carrier / ISP Fabric service plan by ID.
+
+        Spec-conformance tested only (not against a live Carrier Fabric).
+        Returns the upstream response object verbatim: the ServicePlan under data beside
+        httpStatusCode and traceId. An unknown id
+        surfaces the upstream service_plan_not_found (404) verbatim.
+
+        Example call (get_carrier_service_plan):
+            {"plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        Args:
+            plan_id: Carrier Fabric service-plan UUID. Get it from list_carrier_service_plans (id).
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.get_carrier_service_plan(client, plan_id, key_label=key_label)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_carrier_subscriber(
+        subscriber_number: str,
+        name: str | None = None,
+        email: str | None = None,
+        notes: str | None = None,
+        service_address: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        plan_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a Carrier / ISP Fabric subscriber (POST /v1/carrier/subscribers). Guarded write.
+
+        Returns {status: "created", changed (every sent field as {from: null, to}), subscriber (the
+        201 body verbatim, {data, traceId}, when it carries the created resource, else null),
+        response (the upstream write body verbatim)}.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber: null, response (the
+        preview)}.
+
+        Spec-conformance tested only (not against a live Carrier Fabric).
+        subscriber_number is required (1-32 chars). Optional name (<=128 bytes),
+        email (<=255 bytes), notes (<=4096 bytes), service_address (<=1024 bytes), plan_id (UUID),
+        metadata (object). Per the spec those limits are bytes of UTF-8, so a multi-byte character
+        counts as more than one. Refused when UNIFI_WRITE_POLICY=deny or the
+        UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny is set (writes are enabled by default).
+
+        Request body (Carrier Fabric 1.0.0, POST /v1/carrier/subscribers (createSubscriber); schema
+        "SubscriberCreate") is built from scalar parameters. Required keys — subscriberNumber.
+        - subscriberNumber: string
+        - name: string
+        - email: string(email)
+        - notes: string
+        - serviceAddress: string
+        - planId: string(uuid)
+        - metadata: object
+
+        Example call (create_carrier_subscriber):
+            {"subscriber_number": "SUB-1001"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_number: Unique subscriber number, 1-32 chars. REQUIRED (body field
+                subscriberNumber: string).
+            name: Subscriber display name. Optional (body field name: string).
+            email: Subscriber email. Optional (body field email: string(email)).
+            notes: Free-text notes. Optional (body field notes: string).
+            service_address: Free-text service address (a string, per the spec), at most 1024
+                bytes of UTF-8. Optional (body field serviceAddress: string).
+            plan_id: Carrier Fabric service-plan UUID. Get it from list_carrier_service_plans (id).
+            metadata: Optional profile key/values (body field metadata: object); its serialized
+                JSON may be at most 8192 bytes of UTF-8, as the spec states.
+                Free-form JSON object; arbitrary metadata properties are passed unchanged.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). With one key,
+                omit it. With several keys: when plan_id is given and key_label is omitted, the
+                subscriber is created under the key that owns that plan; otherwise pass the label
+                of the organization that should own the subscriber (omitting it fails fast listing
+                the configured labels, it never picks the first key).
+        """
+        service_address = _nullable_default(service_address, carrier_fabric._UNSET)
+        client, _ = deps_fn()
+        return await carrier_fabric.create_carrier_subscriber(
+            client,
+            subscriber_number,
+            name=name,
+            email=email,
+            notes=notes,
+            service_address=service_address,
+            plan_id=plan_id,
+            metadata=metadata,
+            confirm=confirm,
+            key_label=key_label,
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_carrier_subscriber(
+        subscriber_id: str,
+        subscriber_number: str | None = None,
+        name: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        email: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        notes: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        service_address: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        plan_id: str | None = Field(default_factory=lambda: carrier_fabric._UNSET),
+        metadata: dict[str, Any] | None = Field(  # noqa: B008 — distinguish omission from null
+            default_factory=lambda: carrier_fabric._UNSET
+        ),
+        confirm: bool = False,
+        key_label: str | None = None,
+        clear_fields: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Update a Carrier Fabric subscriber (PATCH .../subscribers/{id}).
+
+        Returns {status: "updated", changed: {field: {from, to}}, verified, subscriber, response
+        (the upstream write body verbatim)}, or {status: "no_op", reason, subscriber}.
+        subscriber is a full body, never unwrapped: the write response when it carries the
+        subscriber, else the read-back GET body (for no_op, the GET body read first).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not live). Partial update: pass at least one field.
+        subscriber_number is 1-32 chars after trimming when
+        provided; name, email, notes,
+        service_address are limited to 128 / 255 / 4096 / 1024 bytes of UTF-8 (the spec's unit).
+        Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses
+        first), read-before, no-op when all provided
+        fields already match, write, read-after. Omission leaves a field unchanged; explicit null
+        clears a nullable field, as does naming it in clear_fields (sent as JSON null). Per the spec,
+        null
+        clears name, email, notes, serviceAddress and planId; subscriberNumber cannot be cleared,
+        and metadata=null leaves metadata unchanged (send metadata={} to empty it).
+        Explicit metadata=null alone is a no-op; null is forwarded only alongside another change.
+
+        Request body (Carrier Fabric 1.0.0, PATCH /v1/carrier/subscribers/{id} (updateSubscriber);
+        schema "SubscriberPatch") is built from scalar parameters. No key is required; send only the
+        keys to change.
+        - subscriberNumber: string
+        - name: string
+        - email: string(email)
+        - notes: string
+        - serviceAddress: string
+        - planId: string(uuid)
+        - metadata: object
+
+        Example call (update_carrier_subscriber):
+            {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "notes": "Moved to plan B"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            subscriber_number: Unique subscriber number, 1-32 chars. Optional (body field
+                subscriberNumber: string).
+            name: Subscriber display name, non-empty after trimming (the spec rejects a blank name;
+                clear it with explicit null or clear_fields). Optional (body field name: string).
+            email: Subscriber email. Optional (body field email: string(email)).
+            notes: Free-text notes. Optional (body field notes: string).
+            service_address: Free-text service address (a string, per the spec), at most 1024
+                bytes of UTF-8. Optional (body field serviceAddress: string).
+            plan_id: Carrier Fabric service-plan UUID. Get it from list_carrier_service_plans (id).
+            metadata: Optional replacement metadata object (body field metadata); it replaces the
+                whole document, so pass {} to empty it. Explicit metadata=null alone is a no-op;
+                null is forwarded only alongside another change and leaves metadata unchanged.
+                Omission leaves metadata unchanged. A subscriber with no metadata reads back
+                without the key (the spec omits it), which counts as {}: metadata={} on it is a no-op.
+                Its serialized JSON may be at most 8192 bytes of UTF-8, as the spec states.
+                Free-form JSON object; arbitrary metadata properties are passed unchanged.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+            clear_fields: Optional list of fields to clear by sending JSON null: any of "name",
+                "email", "notes", "service_address", "plan_id". A field named here must not also be
+                given a value. Omit to clear nothing (the default; existing behaviour).
+                Shape: ('name'|'email'|'notes'|'service_address'|'plan_id')[]
+        """
+        name = _nullable_default(name, carrier_fabric._UNSET)
+        email = _nullable_default(email, carrier_fabric._UNSET)
+        notes = _nullable_default(notes, carrier_fabric._UNSET)
+        service_address = _nullable_default(service_address, carrier_fabric._UNSET)
+        plan_id = _nullable_default(plan_id, carrier_fabric._UNSET)
+        metadata = _nullable_default(metadata, carrier_fabric._UNSET)
+        client, _ = deps_fn()
+        kwargs: dict[str, Any] = {"confirm": confirm, "key_label": key_label}
+        clearable = ("name", "email", "notes", "service_address", "plan_id")
+        given = {
+            "name": name,
+            "email": email,
+            "notes": notes,
+            "service_address": service_address,
+            "plan_id": plan_id,
+        }
+        for field in clear_fields or []:
+            if field not in clearable:
+                raise ValueError(
+                    f"clear_fields: {field!r} cannot be cleared. Clearable fields (sent as JSON null): "
+                    f"{', '.join(clearable)}. subscriber_number cannot be cleared, and metadata is not "
+                    "cleared by null (pass metadata={} to empty it)."
+                )
+            if given[field] is not carrier_fabric._UNSET and given[field] is not None:
+                raise ValueError(
+                    f"clear_fields names {field!r} but a value was also given for it: pass one or the "
+                    "other."
+                )
+            kwargs[field] = None
+        # Preserve omitted fields separately from explicit JSON null clears.
+        if subscriber_number is not None:
+            kwargs["subscriber_number"] = subscriber_number
+            kwargs["_preserve_subscriber_number"] = True
+        if name is not carrier_fabric._UNSET:
+            kwargs["name"] = name
+        if email is not carrier_fabric._UNSET:
+            kwargs["email"] = email
+        if notes is not carrier_fabric._UNSET:
+            kwargs["notes"] = notes
+        if service_address is not carrier_fabric._UNSET:
+            kwargs["service_address"] = service_address
+        if plan_id is not carrier_fabric._UNSET:
+            kwargs["plan_id"] = plan_id
+        if metadata is not carrier_fabric._UNSET:
+            kwargs["metadata"] = metadata
+        return await carrier_fabric.update_carrier_subscriber(client, subscriber_id, **kwargs)
+
+    @mcp.tool(annotations=WRITE)
+    async def attach_carrier_subscriber_host(
+        subscriber_id: str,
+        host_id: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Attach or re-link a subscriber's gateway host (PUT .../subscribers/{id}/host). Guarded.
+
+        Returns {status: "attached", changed, _prev_host_id (the response's prevHostId), verified,
+        subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is
+        a full body ({data, ...}), never unwrapped: the write response when it carries the
+        subscriber, else the read-back GET body (for no_op, the GET body read first).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not against a live Carrier Fabric). host_id must be a host in
+        the same ISP organization. Guarded, in order: the Carrier write opt-out
+        (family:carrier=deny refuses first), read-before, no-op when already linked,
+        write, read-after (reports _prev_host_id).
+
+        Request body (Carrier Fabric 1.0.0, PUT /v1/carrier/subscribers/{id}/host
+        (attachSubscriberHost); schema "inline requestBody schema") is built from scalar parameters.
+        Required keys — hostId.
+        - hostId: string
+
+        Example call (attach_carrier_subscriber_host):
+            {
+              "subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "host_id": "942A6FF664C0000000000964970E0000000009E710560000000068A9873F:9999999999"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            host_id: Gateway host id (Site Manager) in the same ISP org. Get it from list_hosts (id).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.attach_carrier_subscriber_host(
+            client, subscriber_id, host_id, confirm=confirm, key_label=key_label
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def detach_carrier_subscriber_host(
+        subscriber_id: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Detach a subscriber's gateway host (DELETE .../subscribers/{id}/host). Guarded write.
+
+        Consequence: the gateway host is no longer linked to the subscriber until re-attached with
+        attach_carrier_subscriber_host.
+
+        Returns {status: "detached", changed, _prev_host_id (the response's prevHostId), verified,
+        subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is
+        a full body ({data, ...}), never unwrapped: the write response when it carries the
+        subscriber, else the read-back GET body (for no_op, the GET body read first).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
+        Carrier write opt-out (family:carrier=deny refuses first), read-before,
+        no-op when no host is attached, write, read-after (reports the just-detached
+        _prev_host_id).
+
+        Example call (detach_carrier_subscriber_host):
+            {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.detach_carrier_subscriber_host(
+            client, subscriber_id, confirm=confirm, key_label=key_label
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def assign_carrier_subscriber_plan(
+        subscriber_id: str,
+        plan_id: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Assign a service plan to a subscriber (PUT .../subscribers/{id}/plan). Guarded write.
+
+        Returns {status: "assigned", changed, verified, subscriber, response (verbatim)}, or
+        {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never
+        unwrapped: the write response when it carries the subscriber, else the read-back GET body
+        (for no_op, the GET body read first).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not against a live Carrier Fabric). An archived or unknown
+        plan is rejected upstream. Guarded, in order: the Carrier write opt-out
+        (family:carrier=deny refuses first), read-before, no-op when already on this
+        plan, write, read-after.
+
+        Request body (Carrier Fabric 1.0.0, PUT /v1/carrier/subscribers/{id}/plan
+        (assignSubscriberPlan); schema "inline requestBody schema") is built from scalar parameters.
+        Required keys — planId.
+        - planId: string(uuid)
+
+        Example call (assign_carrier_subscriber_plan):
+            {
+              "subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            plan_id: Carrier Fabric service-plan UUID. Get it from list_carrier_service_plans (id).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.assign_carrier_subscriber_plan(
+            client, subscriber_id, plan_id, confirm=confirm, key_label=key_label
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def suspend_carrier_subscriber(
+        subscriber_id: str,
+        reason: str | None = None,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Suspend a subscriber's service (POST .../subscribers/{id}/suspend). Guarded write.
+
+        Consequence: the subscriber's service stops until resumed with resume_carrier_subscriber.
+
+        Returns {status: "suspended", changed (suspended, and suspendReason when a reason is sent),
+        verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}.
+        subscriber is a full body ({data, ...}), never unwrapped: the write response when it
+        carries the subscriber, else the read-back GET body (for no_op, the GET body read first).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
+        Carrier write opt-out (family:carrier=deny refuses first), read-before,
+        no-op only when already suspended AND no reason is given or the current suspendReason
+        already equals it (a different reason is sent upstream), write, read-after. An optional
+        reason is recorded on the subscriber.
+
+        Request body (Carrier Fabric 1.0.0, POST /v1/carrier/subscribers/{id}/suspend
+        (suspendSubscriber); schema "inline requestBody schema") is built from scalar parameters. No key
+        is required; send only the keys to change.
+        - reason: string
+
+        Example call (suspend_carrier_subscriber):
+            {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            reason: Optional suspension reason, max 1024 chars (spec body reason).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.suspend_carrier_subscriber(
+            client, subscriber_id, reason=reason, confirm=confirm, key_label=key_label
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def resume_carrier_subscriber(
+        subscriber_id: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Resume a suspended subscriber's service (POST .../subscribers/{id}/resume). Guarded.
+
+        Consequence: the subscriber's service is restored.
+
+        Returns {status: "resumed", changed, verified, subscriber, response (verbatim)}, or {status:
+        "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the
+        write response when it carries the subscriber, else the read-back GET body; for no_op it is
+        the GET body read first.
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
+        response (the preview)}; there is no read-after.
+
+        Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
+        Carrier write opt-out (family:carrier=deny refuses first), read-before,
+        no-op when not currently suspended, write, read-after.
+
+        Example call (resume_carrier_subscriber):
+            {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            subscriber_id: Carrier Fabric subscriber UUID. Get it from list_carrier_subscribers (id).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await carrier_fabric.resume_carrier_subscriber(
+            client, subscriber_id, confirm=confirm, key_label=key_label
+        )
+
+    return {
+        "list_carrier_subscribers": list_carrier_subscribers,
+        "get_carrier_subscriber": get_carrier_subscriber,
+        "list_carrier_service_plans": list_carrier_service_plans,
+        "get_carrier_service_plan": get_carrier_service_plan,
+        "create_carrier_subscriber": create_carrier_subscriber,
+        "update_carrier_subscriber": update_carrier_subscriber,
+        "attach_carrier_subscriber_host": attach_carrier_subscriber_host,
+        "detach_carrier_subscriber_host": detach_carrier_subscriber_host,
+        "assign_carrier_subscriber_plan": assign_carrier_subscriber_plan,
+        "suspend_carrier_subscriber": suspend_carrier_subscriber,
+        "resume_carrier_subscriber": resume_carrier_subscriber,
+    }

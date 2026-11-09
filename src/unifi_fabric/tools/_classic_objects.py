@@ -359,24 +359,33 @@ def purpose_hint(tool: str, body: Any, purpose: str) -> str | None:
     )
 
 
-def listed_record_id(record: dict[str, Any], arg_name: str) -> str:
+def listed_record_id(
+    record: dict[str, Any], arg_name: str, *, client: UniFiClient | None = None
+) -> str:
     """The upstream ``_id`` of a record :func:`require_listed_record` returned, validated
     as a URL path id (named ``arg_name``): the id a write sends in its URL and body."""
     value = record.get("_id")
-    identifying = {k: record[k] for k in ("_id", "id", "external_id", "name", "mac") if k in record}
+    identifying = {
+        k: upstream_error_value(record[k], client)
+        for k in ("_id", "id", "external_id", "name", "mac")
+        if k in record
+    }
     if not isinstance(value, str) or not value:
         raise ValueError(
-            f"Selected record has invalid native _id {upstream_error_text(value)}; "
+            f"Selected record has invalid native _id {upstream_error_text(value, client)}; "
             "expected a non-empty "
-            f"string for {arg_name}. Identifying fields: {upstream_error_text(identifying)}. "
+            f"string for {arg_name}. Identifying fields: "
+            f"{upstream_error_text(identifying, client)}. "
             "No write was sent."
         )
     try:
         validate_id(value, arg_name)
-    except ValueError as exc:
+    except ValueError:
         raise ValueError(
-            f"{exc}. Identifying fields: {upstream_error_text(identifying)}. No write was sent."
-        ) from exc
+            f"Invalid {arg_name!r} {upstream_error_value(value, client)!r}: "
+            "expected alphanumeric, hyphens, and underscores only. Identifying fields: "
+            f"{upstream_error_text(identifying, client)}. No write was sent."
+        ) from None
     return value
 
 
@@ -406,6 +415,7 @@ async def require_listed_record(
     kind: str,
     list_tool: str,
     label_fields: tuple[str, ...] = ("name",),
+    read_after: bool = False,
 ) -> dict[str, Any]:
     """The record whose ``_id`` is ``wanted`` in the collection at ``list_path``.
 
@@ -446,5 +456,9 @@ async def require_listed_record(
     )
     raise ValueError(
         f"{kind} {wanted!r} not found; valid: {valid}. Get ids from {list_tool} (_id). "
-        "No write was sent."
+        + (
+            "The write was sent; read-back could not find the record."
+            if read_after
+            else "No write was sent."
+        )
     )

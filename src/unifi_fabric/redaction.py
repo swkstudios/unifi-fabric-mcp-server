@@ -41,8 +41,13 @@ mask) and the dropped paths are reported on the tool result under
 
 from __future__ import annotations
 
+import ast
 import functools
 import inspect
+import json
+import re
+import sys
+import unicodedata
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -281,6 +286,507 @@ def redact_credentials(obj: Any) -> Any:
     if isinstance(obj, tuple):
         return tuple(redact_credentials(item) for item in obj)
     return obj
+
+
+#: The longest quoted key read in error text (a key never spans a line either).
+_ERROR_KEY_MAX = 1024
+#: A JSON or Python escape written into a bare key (``pass\u0077ord=v``), at any depth.
+_ERROR_KEY_ESCAPE = r"\\+(?:u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|x[0-9A-Fa-f]{2})"
+#: Where a key in error text starts: the opening quote of a quoted key, as JSON or a
+#: Python repr writes it at any escape depth (``"k"``, ``'k'``, ``\"k\"``, ``\\'k\\'``;
+#: its complete content and the ``:`` or ``=`` after it are read by
+#: :func:`_quoted_error_key`), or a bare key before ``=`` (``k=v``: a keyword argument, a
+#: query or form parameter). A bare key is any run of word characters (Unicode, digits
+#: first included), ``.:/@$+-`` and escapes, starting after a delimiter or a ``\n``,
+#: ``\r`` or ``\t`` escape, at most a quarter of :data:`_ERROR_KEY_MAX` long.
+_ERROR_KEY = re.compile(
+    r"(?P<q>\\*[\"'])"
+    r"|(?:(?<![\w\\\"'-])|(?<=\\[nrt]))"
+    rf"(?P<bare>(?:[\w.:/@$+-]|{_ERROR_KEY_ESCAPE}){{1,{_ERROR_KEY_MAX // 4}}})"
+    r"[ \t]?=(?!=)[ \t]?"
+)
+#: The separator between a quoted key and its value.
+_ERROR_KEY_SEPARATOR = re.compile(r"\s*[:=]\s*")
+#: How many escape layers a key is decoded through (a repr of JSON-encoded JSON is 3).
+_ERROR_KEY_DEPTH = 6
+#: Maximum fallback escape-decoding iterations; scan the result of every iteration.
+_ERROR_ESCAPE_ITERATIONS = 128
+_ERROR_WITHHELD = (
+    "upstream error withheld: it contained credential-shaped content (UNIFI_REDACT_SECRETS)"
+)
+#: One JSON or Python string escape: ``\uXXXX``, ``\UXXXXXXXX``, ``\xXX``, ``\N{name}``,
+#: an octal escape, or a backslash before any other character.
+_KEY_ESCAPE = re.compile(
+    r"\\(?:u(?P<u>[0-9A-Fa-f]{4})|U(?P<U>[0-9A-Fa-f]{8})|x(?P<x>[0-9A-Fa-f]{2})"
+    r"|N\{(?P<name>[^}]*)\}|(?P<octal>[0-7]{1,3})|(?P<char>.))",
+    re.DOTALL,
+)
+_KEY_SIMPLE_ESCAPES = {
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+}
+#: The opening quote of a quoted value, with the backslashes its escape depth adds.
+_ERROR_QUOTE = re.compile(r"\\*[\"']")
+#: An unquoted value: a JSON scalar, a repr'd number or a bare ``k=v`` value.
+_ERROR_BARE_VALUE = re.compile(r"[^\s,;&)\]}]+")
+_ERROR_PAIR_BARE_VALUE = re.compile(r"[^,;&\n\r)\]}]+")
+_ERROR_LITERAL_PREFIX = re.compile(r"""(?i:br|rb|rf|fr|b|r|u|f)(?=["'])""")
+_ERROR_SCALARS: dict[str, Any] = {
+    "null": None,
+    "None": None,
+    "true": True,
+    "True": True,
+    "false": False,
+    "False": False,
+}
+
+
+def _quoted_value_end(
+    text: str,
+    start: int,
+    quote: str,
+    stop: int | None = None,
+    *,
+    escape_scale: int | None = None,
+) -> tuple[int, int]:
+    """Find the closing quote at the enclosing representation's escape parity.
+
+    Each enclosing string doubles the backslashes representing an escape. A closing
+    quote can also follow any number of literal backslashes; only its delimiter's
+    backslashes belong outside the masked content. Unclosed values run to ``stop``.
+    """
+    depth, char = len(quote) - 1, quote[-1]
+    if escape_scale is None:
+        escape_scale = max(1, depth + 1)
+    limit = len(text) if stop is None else stop
+    cursor = start
+    while (found := text.find(char, cursor, limit)) >= 0:
+        first = found
+        while first > start and text[first - 1] == "\\":
+            first -= 1
+        if (found - first - depth) % (2 * escape_scale) == 0:
+            return found - depth, found + 1
+        cursor = found + 1
+    return limit, limit
+
+
+def _quoted_error_key(text: str, start: int, quote: str) -> tuple[str, int] | None:
+    """``(raw key, value start)`` for a quoted key whose ``quote`` ends at ``start``.
+
+    The key is the COMPLETE quoted content, any characters and escapes included, closed
+    by the quote of the opening's depth (:func:`_quoted_value_end`) on the same line and
+    followed by ``:`` or ``=``. ``None`` when the quote opens no key.
+    """
+    newline = text.find("\n", start)
+    stop = min(len(text) if newline < 0 else newline, start + _ERROR_KEY_MAX)
+    last, end = _quoted_value_end(text, start, quote, stop)
+    if last == end:
+        return None  # Unclosed on this line: not a key.
+    separator = _ERROR_KEY_SEPARATOR.match(text, end)
+    if separator is None:
+        return None
+    return text[start:last], separator.end()
+
+
+def _unescape_key(key: str) -> str:
+    """``key`` with one layer of JSON or Python string escapes decoded.
+
+    Covers both grammars (``json.loads`` for a double-quoted key, a Python literal for a
+    single-quoted one): ``\\uXXXX``, ``\\UXXXXXXXX``, ``\\xXX``, ``\\N{name}``, octal,
+    the single-letter escapes and an escaped quote or backslash. Never evaluates code and
+    never raises: an escape that does not decode is kept as written.
+    """
+
+    def decode(match: re.Match[str]) -> str:
+        code = match.group("u") or match.group("U") or match.group("x")
+        if code is not None:
+            point = int(code, 16)
+            return chr(point) if point <= sys.maxunicode else match.group()
+        if (name := match.group("name")) is not None:
+            try:
+                return unicodedata.lookup(name)
+            except KeyError:
+                return match.group()
+        if (octal := match.group("octal")) is not None:
+            return chr(int(octal, 8))
+        char = match.group("char")
+        return _KEY_SIMPLE_ESCAPES.get(char, char)
+
+    return _KEY_ESCAPE.sub(decode, key) if "\\" in key else key
+
+
+def _error_key_forms(raw: str) -> list[str]:
+    """``raw`` and each decoding of it, one escape layer at a time.
+
+    An error key is written at the escape depth of the message around it (a key inside a
+    repr of JSON carries ``pass\\\\u0077ord``), so every layer down to the plain key is
+    tried against the credential rules: a key is a credential field when any form is.
+    """
+    forms = [raw]
+    for _ in range(_ERROR_KEY_DEPTH):
+        decoded = _unescape_key(forms[-1])
+        if decoded == forms[-1]:
+            break
+        forms.append(decoded)
+    return forms
+
+
+def _structure_end(text: str, start: int) -> int:
+    """Consume a complete credential container, or fail closed on ambiguity."""
+    end = _literal_end(text, start)
+    if end is not None:
+        span = text[start:end]
+        try:
+            json.loads(span)
+            return end
+        except ValueError:
+            try:
+                ast.literal_eval(span)
+                return end
+            except (ValueError, TypeError, SyntaxError, RecursionError):
+                pass
+    # An invalid/unclosed representation cannot safely establish a delimiter.
+    return len(text)
+
+
+def _bare_value(token: str) -> Any:
+    """An unquoted value as the type it spells (``null`` -> None, ``12`` -> 12)."""
+    if token in _ERROR_SCALARS:
+        return _ERROR_SCALARS[token]
+    try:
+        return int(token)
+    except ValueError:
+        pass
+    try:
+        return float(token)
+    except ValueError:
+        return token
+
+
+def _literal_end(text: str, start: int) -> int | None:
+    """Scan one balanced literal with local quote and backslash state.
+
+    Prose apostrophes never establish representation depth. Only completely
+    parsed literals may decode an enclosing representation.
+    """
+    stack: list[str] = []
+    quote = ""
+    cursor = start
+    while cursor < len(text):
+        char = text[cursor]
+        if quote:
+            if char == "\\":
+                cursor += 2
+                continue
+            if char == quote:
+                quote = ""
+                if not stack:
+                    return cursor + 1
+        elif char in "\"'":
+            quote = char
+        elif char in "{[(":
+            stack.append({"{": "}", "[": "]", "(": ")"}[char])
+        elif char in "}])":
+            if not stack or stack.pop() != char:
+                return None
+            if not stack:
+                return cursor + 1
+        cursor += 1
+    return None
+
+
+def _mask_literal_value(value: Any, depth: int) -> Any:
+    """Apply the shared predicate, including structures encoded inside strings."""
+    if isinstance(value, dict):
+        return {
+            key: REDACTION_MASK if _should_mask(key, item) else _mask_literal_value(item, depth)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_mask_literal_value(item, depth) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_mask_literal_value(item, depth) for item in value)
+    if isinstance(value, str):
+        return _mask_error_text(value, depth + 1)
+    return value
+
+
+def _split_string_container(value: str) -> bool:
+    """Reject prose-string prefixes that end partway through a container.
+
+    A complete encoded string is authoritative at its own escape layer. For
+    prose, only the first container matters: its quoted values may contain
+    arbitrary unmatched braces.
+    """
+    try:
+        json.loads(value)
+        return False
+    except ValueError:
+        try:
+            ast.literal_eval(value)
+            return False
+        except (ValueError, TypeError, SyntaxError, RecursionError):
+            pass
+    opening = re.search(r"[{\[(]", value)
+    return opening is not None and _literal_end(value, opening.start()) is None
+
+
+def _mask_embedded_json(text: str, depth: int) -> str:
+    """Mask complete JSON/repr literals; leave other spans to the fallback.
+
+    Never use raw_decode: accepting a prefix of a represented document can change
+    its escape grammar and expose the remainder of a credential value.
+    """
+    literals: list[tuple[int, int, str]] = []
+    position = 0
+    while position < len(text):
+        char = text[position]
+        if char not in "{[(\"'" or (
+            char in "\"'"
+            and position
+            and (text[position - 1].isalnum() or text[position - 1] == "\\")
+        ):
+            position += 1
+            continue
+        end = _literal_end(text, position)
+        if end is None:
+            position += 1
+            continue
+        span = text[position:end]
+        try:
+            value = json.loads(span)
+            is_json = True
+        except ValueError:
+            try:
+                value = ast.literal_eval(span)
+                is_json = False
+            except (ValueError, TypeError, SyntaxError, RecursionError):
+                position += 1
+                continue
+        if isinstance(value, str) and _split_string_container(value):
+            # A prose quote can close inside a represented container. Test the
+            # decoded layer, never raw nested offsets from another escape layer.
+            position += 1
+            continue
+        if isinstance(value, str):
+            try:
+                inner = ast.literal_eval(value)
+            except (ValueError, TypeError, SyntaxError, RecursionError):
+                position += 1
+                continue
+            if not isinstance(inner, (dict, list, tuple, str)):
+                position += 1
+                continue
+        masked = _mask_literal_value(value, depth)
+        if masked != value:
+            rendered = json.dumps(masked, ensure_ascii=False) if is_json else repr(masked)
+            # Render before the quoting-agnostic final fallback scan.
+            literals.append((position, end, rendered))
+            position = end
+        elif isinstance(value, (dict, list, tuple, str)):
+            literals.append((position, end, span))
+            position = end
+        else:
+            # A valid string may only be a prefix delimited by prose quotes.
+            # Keep looking inside it for an independently complete structure.
+            position += 1
+    # Scan the FINAL rendering too, including every structured span. Descendants
+    # such as bytes and sets may contain credential pairs that literal traversal
+    # does not interpret; no enclosing container grants them an exemption.
+    pieces: list[str] = []
+    cursor = 0
+    for first, end, rendered in literals:
+        pieces.extend((text[cursor:first], rendered))
+        cursor = end
+    pieces.append(text[cursor:])
+    return _fail_closed_error_text("".join(pieces))
+
+
+def mask_error_text(text: str) -> str:
+    """Error text with every credential field's value masked, whatever form carries it.
+
+    The one boundary every tool error passes on its way to the client under
+    ``UNIFI_REDACT_SECRETS`` (``server.SecretScrubMiddleware``); the per-site renderings
+    (``client.upstream_error_value`` and friends) mask first, and this is the guarantee
+    behind them. The keys are the documented credential fields (:func:`_should_mask`,
+    the list :func:`redact_credentials` and ``route_secrets`` use), in every form an
+    upstream value takes once formatted into a message:
+
+    * an embedded JSON object or array, parsed and re-rendered masked;
+    * a JSON or Python-repr pair (``"k": "v"``, ``'k': 'v'``, ``'k': "it's"``) at any
+      escape depth: inside a repr'd or JSON-encoded string (``\\"k\\": \\"v\\"``), with
+      escaped quotes and apostrophes in the value, and with an object, array, number or
+      ``true``/``false`` value (masked under the same type rules as a response);
+    * a ``k=v`` pair, quoted (``password='v'``) or bare (``api_key=v``).
+
+    A key is read whole, any characters included (``1_password``,
+    ``service.auth_password``, ``é_password``), and decoded through its escape layers
+    (``pass\\u0077ord``) before the same rules :func:`redact_credentials` applies to a
+    response key decide whether it is a credential field. A bare key that is not one is
+    retried from each later segment (``service.password=v`` is read as ``password``).
+
+    Single-level JSON/repr diagnostics are preserved. Nested strings are decoded
+    up to six layers; ambiguous credential spans fail closed through the end of
+    the message and may discard following identifiers and reasons. Parser errors
+    never escape this boundary. Masking is idempotent.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    return _mask_error_text(text, 0)
+
+
+def _fail_closed_error_text(text: str) -> str:
+    """Find credential tokens through escape layers and drop an uncertain suffix.
+
+    Keep source offsets while decoding so an escaped key cannot hide the start
+    of the unsafe span. Scan each level, including the final result, until a
+    fixed point. Exhausting the decoding bound withholds the whole message.
+    This fallback does not attempt to recover diagnostics.
+    """
+    decoded = text
+    offsets = list(range(len(text)))
+    earliest = len(text)
+    for iteration in range(_ERROR_ESCAPE_ITERATIONS + 1):
+        for token in re.finditer(r"[\w./@$+-]+", decoded):
+            # Only keys qualify; prose and longer tool identifiers are preserved.
+            separator = re.match(r"[\"']?\s*[:=]\s*", decoded[token.end() :])
+            if separator is None:
+                continue
+            if decoded[: token.start()].endswith("Error calling tool '") and re.match(
+                r"[\w.-]+':", decoded[token.start() :]
+            ):
+                continue  # Only a complete, identifier-only tool header is exempt.
+            value_start = token.end() + separator.end()
+            value: Any = decoded[value_start:]
+            if (quote := _ERROR_QUOTE.match(decoded, value_start)) is not None:
+                last, end = _quoted_value_end(decoded, quote.end(), quote.group())
+                quoted = decoded[quote.end() : last]
+                if last != end and quoted == REDACTION_MASK:
+                    continue  # Proven masked value, not a trusted container span.
+                # Empty quoted values are valid; a third quote is ambiguous.
+                closed = last != end
+                triple = not quoted and decoded.startswith(quote.group(), end)
+                value = quoted if closed and not triple else decoded[value_start:]
+            elif value_start < len(decoded) and decoded[value_start] in "{[(":
+                literal_end = _literal_end(decoded, value_start)
+                if literal_end is not None:
+                    try:
+                        value = ast.literal_eval(decoded[value_start:literal_end])
+                    except (ValueError, TypeError, SyntaxError, RecursionError):
+                        pass
+            elif (bare := _ERROR_BARE_VALUE.match(decoded, value_start)) is not None:
+                value = _bare_value(bare.group())
+            word = token.group()
+            starts = [0, *(match.end() for match in re.finditer(r"[./@$+-]", word))]
+            for start in starts:
+                if _should_mask(word[start:], value):
+                    earliest = min(earliest, offsets[token.start() + start])
+        matches = list(_KEY_ESCAPE.finditer(decoded))
+        if not matches:
+            break
+        parts: list[str] = []
+        mapped: list[int] = []
+        cursor = 0
+        for match in matches:
+            parts.append(decoded[cursor : match.start()])
+            mapped.extend(offsets[cursor : match.start()])
+            replacement = _unescape_key(match.group())
+            parts.append(replacement)
+            mapped.extend([offsets[match.start()]] * len(replacement))
+            cursor = match.end()
+        parts.append(decoded[cursor:])
+        mapped.extend(offsets[cursor:])
+        updated = "".join(parts)
+        if updated == decoded:
+            break
+        if iteration == _ERROR_ESCAPE_ITERATIONS:
+            # The final decoded level was scanned above. Further decoding is
+            # unresolved, so even an apparently safe prefix cannot be trusted.
+            return _ERROR_WITHHELD
+        decoded, offsets = updated, mapped
+    return text[:earliest] + REDACTION_MASK if earliest < len(text) else text
+
+
+def _mask_error_text(text: str, depth: int) -> str:
+    """Decode at most six enclosing strings; every failure uses the same guard."""
+    try:
+        if depth >= _ERROR_KEY_DEPTH:
+            return _fail_closed_error_text(text)
+        return _mask_embedded_json(text, depth)
+    except Exception:
+        try:
+            return _fail_closed_error_text(text)
+        except Exception:
+            return REDACTION_MASK
+
+
+def _mask_error_pairs(text: str, literals: list[tuple[int, int, str]]) -> str:
+    """Scan original grammar outside literals, allowing enclosing credential pairs."""
+    replacements = list(literals)
+    position = literal_index = 0
+    while (match := _ERROR_KEY.search(text, position)) is not None:
+        while literal_index < len(literals) and literals[literal_index][1] <= match.start():
+            literal_index += 1
+        if literal_index < len(literals):
+            first, end, _ = literals[literal_index]
+            if first <= match.start() < end:
+                position = end
+                continue
+        if (opening := match.group("q")) is not None:
+            found = _quoted_error_key(text, match.end(), opening)
+            if found is None:
+                position = match.start() + 1  # A shallower opening, or the next quote.
+                continue
+            raw, start = found
+        else:
+            raw, start = match.group("bare"), match.end()
+        keys = _error_key_forms(raw)
+        if not any(is_credential_field(key) for key in keys):
+            # A non-credential value (a JSON string, an object) is scanned too, and a
+            # bare key's later segments are tried as keys of their own.
+            position = start if opening is not None else match.start() + 1
+            continue
+        position = start
+        value: Any
+        prefix = _ERROR_LITERAL_PREFIX.match(text, start)
+        quote_start = prefix.end() if prefix else start
+        if (quote := _ERROR_QUOTE.match(text, quote_start)) is not None:
+            content_start = quote.end()
+            last, end = _quoted_value_end(text, content_start, quote.group())
+            value = text[content_start:last]
+            if prefix:
+                first, last = start, end
+            else:
+                first = content_start
+        elif start < len(text) and text[start] in "{[":
+            first, end = start, _structure_end(text, start)
+            last, value = end, {"value": text[start:end]}  # An object: masked by name only.
+        elif (bare := _ERROR_PAIR_BARE_VALUE.match(text, start)) is not None:
+            first, last = bare.span()
+            end, value = last, _bare_value(bare.group())
+        else:
+            continue
+        if value == REDACTION_MASK or not any(_should_mask(key, value) for key in keys):
+            continue
+        replacements.append((first, last, REDACTION_MASK))
+        position = end
+    pieces: list[str] = []
+    cursor = 0
+    # An enclosing credential value wins over any literals parsed inside it.
+    # Reverse insertion order so a whole-value mask also wins an identical span.
+    for first, last, rendered in sorted(
+        reversed(replacements), key=lambda item: (item[0], -item[1])
+    ):
+        if first < cursor:
+            continue
+        pieces.extend((text[cursor:first], rendered))
+        cursor = last
+    return "".join((*pieces, text[cursor:])) if pieces else text
 
 
 #: Additive key on a write tool's result listing the body fields that held exactly

@@ -10,7 +10,7 @@ ca. Envelope pass-through: for every list tool, every top-level key of the upstr
 cb. A single-GET list whose upstream total exceeds the records it returned is
     ``incomplete: true`` with a reason, never presented as complete; nothing is invented.
 cc. With the opt-in ``UNIFI_REDACT_SECRETS`` on, dry-run previews carry no secret: under
-    ``UNIFI_DRY_RUN`` no write tool's result contains a secret value the call supplied
+    ``dry-run policy`` no write tool's result contains a secret value the call supplied
     (password, passphrase, ``x_*`` secrets, psk, private keys, tokens), at any depth; the
     preview masks it. With redaction off (the default) the preview shows the caller's input
     verbatim (tests/test_dry_run_preview_redaction_optin.py).
@@ -291,7 +291,11 @@ async def test_cc_dry_run_preview_never_carries_a_secret(monkeypatch, name):
     up = uh.FakeUpstream()
     try:
         res = await _call(
-            monkeypatch, name, up, args, env={"UNIFI_DRY_RUN": "1", "UNIFI_REDACT_SECRETS": "1"}
+            monkeypatch,
+            name,
+            up,
+            args,
+            env={"UNIFI_WRITE_POLICY": "dry-run", "UNIFI_REDACT_SECRETS": "1"},
         )
     except ToolError as exc:
         assert SECRET not in str(exc), f"{name}: the error echoes a secret: {exc}"
@@ -423,7 +427,7 @@ async def test_ce_relay_dry_run_is_audited_dry_run_with_no_status(monkeypatch, t
     old_level = relay_logger.level
     relay_logger.setLevel(logging.INFO)
     try:
-        env = {"UNIFI_DRY_RUN": "1", "UNIFI_AUDIT_LOG": str(audit)}
+        env = {"UNIFI_WRITE_POLICY": "dry-run", "UNIFI_AUDIT_LOG": str(audit)}
         payload = uh.result_payload(await _call(monkeypatch, name, up, args, env=env))
     finally:
         relay_logger.removeHandler(handler)
@@ -444,7 +448,7 @@ _SPEC_TYPES = re.compile(r"(image|audio)/[a-z0-9.+-]+")
 
 def _spec_upload_types() -> set[str]:
     spec = json.loads(
-        (uh.Path(__file__).parent / "fixtures/openapi/protect-7.3.70.json").read_text()
+        (uh.Path(__file__).parent / "fixtures/openapi/protect-7.3.74.json").read_text()
     )
     post = spec["paths"]["/v1/files/{fileType}"]["post"]
     schema = post["requestBody"]["content"]["multipart/form-data"]["schema"]
@@ -479,7 +483,7 @@ async def test_cf_extension_maps_to_the_spec_type(monkeypatch, ext, mime):
             "upload_protect_file",
             up,
             _upload_args(f"a{ext.upper() if ext == '.wav' else ext}"),
-            env={"UNIFI_DRY_RUN": "1"},
+            env={"UNIFI_WRITE_POLICY": "dry-run"},
         )
     )
     assert payload["response"]["preview"]["multipart"][0]["contentType"] == mime
@@ -505,7 +509,9 @@ async def test_cf_explicit_content_type_is_passed_through(monkeypatch):
     up = uh.FakeUpstream()
     args = _upload_args("clip.bin", content_type="audio/wave")
     payload = uh.result_payload(
-        await _call(monkeypatch, "upload_protect_file", up, args, env={"UNIFI_DRY_RUN": "1"})
+        await _call(
+            monkeypatch, "upload_protect_file", up, args, env={"UNIFI_WRITE_POLICY": "dry-run"}
+        )
     )
     assert payload["response"]["preview"]["multipart"][0]["contentType"] == "audio/wave"
 

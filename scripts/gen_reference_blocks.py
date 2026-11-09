@@ -14,13 +14,25 @@ duplicated block fails the run):
 * ``settings-reference`` (docs/CONFIGURATION.md): every ``UNIFI_*`` setting of
   ``unifi_fabric.config.Settings``: variable, default, accepted values and the first sentence
   of the field description;
-* ``write-switch-names`` (README.md): the names of the write opt-out switches, one sentence;
+* ``write-switch-names`` (README.md): the per-area ``UNIFI_WRITE_EXCEPTIONS`` entries, one
+  sentence;
 * ``write-switches`` (docs/CONFIGURATION.md, docs/TOOL-USAGE.md): the per-area write
-  opt-outs from ``unifi_fabric.switches.AREA_WRITE_SWITCHES`` and ``Settings``, with the
-  families each one governs;
-* ``tool-mode-defaults`` (docs/TOOL-USAGE.md): the tool-mode, family and read-only
-  defaults and the discovery meta-tool count;
-* ``family-names`` (docs/TOOL-USAGE.md): the family count and names from ``families.ALL_FAMILIES``.
+  exceptions from ``unifi_fabric.switches.AREA_WRITE_SWITCHES``, with the families each one
+  governs;
+* ``tool-mode-defaults`` (docs/TOOL-USAGE.md): the tool-mode, family, exclusion and write
+  policy defaults and the discovery meta-tool count;
+* ``family-names`` (docs/TOOL-USAGE.md): the family count and names from ``families.ALL_FAMILIES``;
+* ``tool-families`` (README.md): the registered-tool count and the per-family tool table from
+  ``families.build_family_index()``;
+* ``search-tools-limit`` (docs/TOOL-USAGE.md): the ``limit`` default of the registered
+  ``search_tools`` meta-tool;
+* ``tool-mode-choices`` (README.md): the accepted ``UNIFI_TOOL_MODE`` values, from the
+  ``Settings.tool_mode`` annotation;
+* ``code-mode`` (README.md, AGENTS.md, llms.txt): what ``UNIFI_TOOL_MODE=codemode`` advertises
+  (``code_mode.CODE_MODE_TOOLS``), its read-only posture and the experimental notice
+  (``code_mode.EXPERIMENTAL_NOTICE``), verbatim;
+* ``audit-schema`` (README.md): the audit record schema of ``unifi_fabric.audit``: schema
+  version, events and their fields, outcomes, formats, sinks, levels and file modes.
 
 The hand-written environment tables (README and docs/CONFIGURATION.md) also keep a Default
 column. ``default_findings`` compares each row of those tables with the code default and the
@@ -34,6 +46,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 import sys
 from dataclasses import dataclass
@@ -42,20 +55,30 @@ from typing import Any, Literal, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
 
-from unifi_fabric import discovery, families, switches
+from unifi_fabric import audit, code_mode, config, discovery, families, switches
 from unifi_fabric.config import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+AGENTS = ROOT / "AGENTS.md"
+LLMS = ROOT / "llms.txt"
 CONFIGURATION = ROOT / "docs" / "CONFIGURATION.md"
 TOOL_USAGE = ROOT / "docs" / "TOOL-USAGE.md"
 FIX_COMMAND = "python3 scripts/gen_reference_blocks.py"
 
 #: Which blocks each file carries, in file order.
 BLOCKS: dict[Path, tuple[str, ...]] = {
-    README: ("write-switch-names",),
-    CONFIGURATION: ("settings-reference", "write-switches"),
-    TOOL_USAGE: ("write-switches", "tool-mode-defaults", "family-names"),
+    README: ("tool-families",),
+    AGENTS: ("code-mode",),
+    LLMS: ("code-mode",),
+    CONFIGURATION: ("settings-reference", "write-switch-names", "write-switches", "audit-schema"),
+    TOOL_USAGE: (
+        "write-switches",
+        "tool-mode-defaults",
+        "tool-mode-choices",
+        "family-names",
+        "search-tools-limit",
+    ),
 }
 
 _BLOCK_RE = re.compile(
@@ -63,7 +86,6 @@ _BLOCK_RE = re.compile(
 )
 #: Hand-written environment tables whose Default column is checked against the code.
 DEFAULT_TABLES: dict[Path, tuple[str, int]] = {
-    README: ("| Variable | Default | What it does |", 1),
     CONFIGURATION: ("| Variable | Required | Default | Description |", 2),
 }
 _ROW_RE = re.compile(r"^\| `([A-Z_]+)` \|(.*)\|$", re.M)
@@ -95,7 +117,24 @@ def _show_default(value: Any) -> str:
     return "unset" if _is_unset(value) else f"`{value}`"
 
 
-def _accepted(field: Any) -> str:
+#: ``str`` settings whose validator accepts a fixed set (the tuples config.py validates with);
+#: the annotation alone would render them as free text.
+_CHOICES: dict[str, tuple[str, ...]] = {
+    "log_level": config.LOG_LEVELS,
+    "audit_log_format": config.AUDIT_LOG_FORMATS,
+    "audit_sink": config.AUDIT_SINKS,
+    "audit_level": config.AUDIT_LEVELS,
+    "audit_log_mode": config.AUDIT_LOG_MODES,
+}
+#: ``str`` settings validated by ``config.api_base_url_problem``.
+_URLS = frozenset({"api_base_url"})
+
+
+def _accepted(field: Any, name: str = "") -> str:
+    if name in _CHOICES:
+        return " or ".join(f"`{v}`" for v in _CHOICES[name])
+    if name in _URLS:
+        return "absolute `http://` or `https://` URL"
     if get_origin(field.annotation) is Literal:
         return " or ".join(f"`{v}`" for v in get_args(field.annotation))
     if field.annotation is bool:
@@ -112,7 +151,7 @@ def settings_reference() -> str:
     rows = ["| Variable | Default | Accepted | Meaning |", "|---|---|---|---|"]
     for name, field in Settings.model_fields.items():
         rows.append(
-            f"| `{_env(name)}` | {_show_default(_default(field))} | {_accepted(field)} | "
+            f"| `{_env(name)}` | {_show_default(_default(field))} | {_accepted(field, name)} | "
             f"{_first_sentence(field.description or '')} |"
         )
     return "\n".join(rows)
@@ -122,26 +161,32 @@ def _family_text(names: list[str]) -> str:
     return ", ".join(f"`{n}`" for n in names)
 
 
+def _area_scope(sw: Any) -> str:
+    governed = [sw.family, *sw.related_families]
+    return (
+        f"the write tools of {_family_text(governed)} and every write request to its console routes"
+    )
+
+
 def write_switches() -> str:
-    fields = Settings.model_fields
-    lines = []
-    for sw in switches.AREA_WRITE_SWITCHES:
-        default = "on" if _default(fields[sw.env.removeprefix("UNIFI_").lower()]) else "off"
-        governed = [sw.family, *sw.related_families]
-        lines.append(
-            f"- `{sw.env}` (default {default}): the write tools of {_family_text(governed)}"
-        )
-    connector = _default(fields["enable_connector_write"])
+    lines = [
+        f"- `{sw.env}`: {_area_scope(sw)}, the connector relay included"
+        for sw in switches.AREA_WRITE_SWITCHES
+    ]
     lines.append(
-        f"- `UNIFI_ENABLE_CONNECTOR_WRITE` (default {'on' if connector else 'off'}): "
-        "the connector relay's write tools and the typed tools it also governs"
+        f"- `{switches.CONNECTOR_WRITE_TOKEN}`: the connector relay's write tools and the typed "
+        "tools it also governs"
+    )
+    lines.append(
+        "Each is one entry of `UNIFI_WRITE_EXCEPTIONS` (unset by default: every write allowed); "
+        "`dry-run` in place of `deny` previews the same writes instead of refusing them."
     )
     return "\n".join(lines)
 
 
 def write_switch_names() -> str:
-    names = [sw.env for sw in switches.AREA_WRITE_SWITCHES] + ["UNIFI_ENABLE_CONNECTOR_WRITE"]
-    return f"The switches are {_family_text(names)}."
+    names = [sw.env for sw in switches.AREA_WRITE_SWITCHES] + [switches.CONNECTOR_WRITE_TOKEN]
+    return f"The area entries of `UNIFI_WRITE_EXCEPTIONS` are {_family_text(names)}."
 
 
 def tool_mode_defaults() -> str:
@@ -149,15 +194,14 @@ def tool_mode_defaults() -> str:
     modes = get_args(fields["tool_mode"].annotation)
     meta = sorted(discovery.META_TOOLS)
     read_meta = len(discovery.META_TOOLS - {"call_write_tool"})
-    read_only = "on" if _default(fields["read_only"]) else "off"
     return (
         f"Defaults: `UNIFI_TOOL_MODE={fields['tool_mode'].default}` "
-        f"(modes {_family_text(list(modes))}), `UNIFI_TOOL_FAMILIES` "
-        f"{_show_default(_default(fields['tool_families']))} (every family), "
-        "`UNIFI_DISABLED_TOOL_FAMILIES` "
-        f"{_show_default(_default(fields['disabled_tool_families']))}, "
-        f"`UNIFI_READ_ONLY` {read_only}. Discovery mode advertises {len(meta)} meta-tools "
-        f"({_family_text(meta)}), or {read_meta} with `UNIFI_READ_ONLY=1`."
+        f"(modes {_family_text(list(modes))}), `UNIFI_FAMILY_ALLOW` "
+        f"{_show_default(_default(fields['family_allow']))} (every family), "
+        f"`UNIFI_EXCLUDE` {_show_default(_default(fields['exclude']))}, "
+        f"`UNIFI_WRITE_POLICY` {_show_default(_default(fields['write_policy']))} (`allow`). "
+        f"Discovery mode advertises {len(meta)} meta-tools "
+        f"({_family_text(meta)}), or {read_meta} with `UNIFI_WRITE_POLICY=deny`."
     )
 
 
@@ -166,12 +210,142 @@ def family_names() -> str:
     return f"The {len(names)} families are {_family_text(names)}."
 
 
+def tool_mode_choices() -> str:
+    modes = list(get_args(Settings.model_fields["tool_mode"].annotation))
+    return (
+        "Empty or whitespace-only `UNIFI_TOOL_MODE` uses the default; any value other than "
+        f"{_family_text(modes)} fails startup with an error naming `UNIFI_TOOL_MODE` and the "
+        "valid choices."
+    )
+
+
+def code_mode_text() -> str:
+    tools = sorted(code_mode.CODE_MODE_TOOLS)
+    return (
+        f"`UNIFI_TOOL_MODE=codemode` (opt-in, experimental) advertises {len(tools)} tools: "
+        f"{_family_text(tools)}. `{code_mode.EXECUTE_TOOL}` runs one Python script in a sandbox "
+        "with no credentials, environment, network, filesystem or process access; inside it, "
+        "`call_tool` reaches the enabled read tools only and every write is refused, whatever "
+        f"the write policy and its exceptions say. {code_mode.EXPERIMENTAL_NOTICE} Limits and "
+        "refusal codes: [docs/CONFIGURATION.md](docs/CONFIGURATION.md#code-mode-experimental)."
+    )
+
+
+def audit_schema() -> str:
+    def names(values: tuple[str, ...] | list[str]) -> str:
+        return _family_text(list(values)) if values else "none"
+
+    lines = [
+        f"Every record carries `schema_version` `{audit.SCHEMA_VERSION}`; the fields of each "
+        "event (rendered from `src/unifi_fabric/audit.py`):",
+        "",
+        "| Event | Required fields | Optional fields |",
+        "|---|---|---|",
+    ]
+    for event, shape in audit.EVENT_FIELDS.items():
+        lines.append(f"| `{event}` | {names(shape['required'])} | {names(shape['optional'])} |")
+    lines += [
+        "",
+        f"The policy records {names(audit.POLICY_EVENTS)} share the stream. An `audit` record's "
+        f"`outcome` is one of {names(audit.OUTCOMES)}, or `http_<status>` for a non-2xx upstream "
+        f"status; a `call` record's is {names(audit.CALL_OUTCOMES)}. "
+        f"`UNIFI_AUDIT_LOG_FORMAT`: {names(audit.FORMATS)}; `UNIFI_AUDIT_SINK`: "
+        f"{names(audit.SINKS)}; `UNIFI_AUDIT_LEVEL`: {names(audit.LEVELS)}; "
+        f"`UNIFI_AUDIT_LOG_MODE`: {names(list(audit.FILE_MODES))}.",
+    ]
+    return "\n".join(lines)
+
+
+@functools.cache
+def registered_search_limit() -> Any:
+    """The ``limit`` default of ``search_tools`` as discovery mode registers it."""
+    import asyncio
+
+    from fastmcp import FastMCP
+
+    async def read() -> Any:
+        app = FastMCP("reference-blocks")
+        cleanup = await discovery.apply_tool_mode(app, "discovery")
+        try:
+            tools = {t.name: t for t in await app.list_tools()}
+            return tools["search_tools"].parameters["properties"]["limit"]["default"]
+        finally:
+            cleanup()
+
+    return asyncio.run(read())
+
+
+def search_tools_limit() -> str:
+    return (
+        f"`search_tools` returns {registered_search_limit()} matches by default; `limit` takes "
+        "any positive integer, or null for every match."
+    )
+
+
+#: Family IDs as the README's family table titles them. ``carrier`` and ``mobility`` are the
+#: ISP and mobile-routing products the table leaves out; a new family must be added to one
+#: of these two structures or ``tool_families`` fails the run.
+FAMILY_LABELS = {
+    "network": "Network",
+    "protect": "Protect",
+    "vpn": "VPN",
+    "devices": "Devices",
+    "firewall": "Firewall",
+    "innerspace": "InnerSpace",
+    "site_manager": "Site Manager",
+    "statistics": "Statistics",
+    "clients": "Clients",
+    "connector": "Connector relay",
+    "hotspot": "Hotspot",
+}
+UNLISTED_FAMILIES = ("carrier", "mobility")
+
+
+def tool_families() -> str:
+    """The README catalog accounting and two-column family table, from the family index."""
+    index = families.build_family_index()
+    counts: dict[str, int] = {}
+    for family in index.values():
+        counts[family] = counts.get(family, 0) + 1
+    unknown = set(counts) - set(FAMILY_LABELS) - set(UNLISTED_FAMILIES)
+    if unknown:
+        raise SystemExit(f"tool-families: families without a table label: {sorted(unknown)}")
+    total = sum(counts.values())
+    rest = sum(counts.get(f, 0) for f in UNLISTED_FAMILIES)
+    listed = sorted(
+        ((FAMILY_LABELS[f], n) for f, n in counts.items() if f in FAMILY_LABELS),
+        key=lambda item: (-item[1], item[0]),
+    )
+    lines = [
+        f"Catalog: **{total} registered tools**; **{total - rest}** are in the product",
+        f"families listed below. The remaining {rest} cover Ubiquiti's ISP and",
+        "mobile-routing products (Carrier Fabric and Mobility), which this overview",
+        "leaves out. Availability depends on your hardware, permissions and API routes;",
+        "see [coverage and limitations](docs/COVERAGE.md).",
+        "",
+        "| Family | Tools | Family | Tools |",
+        "|---|---:|---|---:|",
+    ]
+    for i in range(0, len(listed), 2):
+        pair = listed[i : i + 2]
+        cells = [f"{name} | {count}" for name, count in pair]
+        if len(cells) < 2:
+            cells.append(" | ")
+        lines.append(f"| {cells[0]} | {cells[1]} |")
+    return "\n".join(lines)
+
+
 RENDERERS = {
+    "tool-mode-choices": tool_mode_choices,
+    "code-mode": code_mode_text,
+    "audit-schema": audit_schema,
+    "search-tools-limit": search_tools_limit,
     "settings-reference": settings_reference,
     "write-switches": write_switches,
     "write-switch-names": write_switch_names,
     "tool-mode-defaults": tool_mode_defaults,
     "family-names": family_names,
+    "tool-families": tool_families,
 }
 
 
@@ -196,9 +370,10 @@ def render_file(path: Path, text: str) -> tuple[str, list[Finding]]:
         found.append(Finding(path, name, "unknown block name"))
     for name in sorted({n for n in seen if seen.count(n) > 1}):
         found.append(Finding(path, name, "block appears more than once"))
-    if text.count("<!-- BEGIN GENERATED") != len(seen) or text.count("<!-- END GENERATED") != len(
-        seen
-    ):
+    # Only line-start markers count: prose may quote the marker syntax inline (llms.txt does).
+    begins = len(re.findall(r"^<!-- BEGIN GENERATED", text, re.M))
+    ends = len(re.findall(r"^<!-- END GENERATED", text, re.M))
+    if begins != len(seen) or ends != len(seen):
         found.append(Finding(path, "(markers)", "unpaired BEGIN or END GENERATED marker"))
 
     def fill(match: re.Match[str]) -> str:

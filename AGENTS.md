@@ -1,7 +1,52 @@
 # AGENTS.md — UniFi Fabric MCP Server
 
 Instructions for AI coding agents and human contributors working on this repository.
-`CLAUDE.md` imports this file, so Claude Code reads the same guide.
+`CLAUDE.md` imports this file, so Claude Code reads the same guide. The file index for agents
+is [llms.txt](llms.txt); the tool-change recipe is [docs/AI-CHANGES.md](docs/AI-CHANGES.md).
+
+## Operational constraints (read first)
+
+- Never edit a generated file by hand ([generated paths](docs/AI-CHANGES.md#generated-files-sources-outputs-and-checks)); run its generator.
+- Do not add runtime filtering, redaction or field-stripping to tool responses ([pass-through invariant](#pass-through-invariant-do-not-break-this)).
+- Do not remove or rename a tool, change the `UNIFI_` prefix, or change the entry point name ([What not to touch](#what-not-to-touch)).
+- Do not edit `CHANGELOG.md` or any released section; add one `changelog.d` fragment ([Changelog discipline](#changelog-discipline)).
+- Tests never read real credentials; keep the hermetic fixture ([Testing](#testing)).
+- Do not push until `scripts/prepush.sh` prints its pass line for the exact head ([push gate](#priority-and-workflow-rules)).
+- Never print or commit a credential value.
+
+Official-only catalog: with `UNIFI_EXCLUDE=unofficial,source:relay` 191 tools remain and 601 are excluded. `unofficial` removes every tool whose primary API source is private; `source:relay` removes the generic `fabric_connector_*` relays, which `unofficial` alone keeps and which can reach private routes ([official-only catalog](docs/CONFIGURATION.md#official-only-catalog)).
+
+Tools using console-internal paths depend on routes Ubiquiti can restrict without notice. `UNIFI_EXCLUDE=unofficial` alone excludes those tools but retains generic relays; use `UNIFI_EXCLUDE=unofficial,source:relay` for the official-only API profile.
+
+Every `UNIFI_*` setting with its default and accepted values: the generated [settings reference](docs/CONFIGURATION.md#settings-reference-generated), rendered by `scripts/gen_reference_blocks.py`.
+
+## Setup
+
+One canonical setup, the same hash-locked install CI uses (CONTRIBUTING.md names the same commands):
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.lock
+.venv/bin/python -m pip install --no-deps -e .
+```
+
+Do not use `pip install -e ".[dev]"`: it resolves unlocked versions and can differ from CI.
+
+## Verify without committing
+
+These commands change nothing and need no commit. Run the ones that match what you touched:
+
+```bash
+.venv/bin/python scripts/gen_tools_doc.py --check
+.venv/bin/python scripts/gen_catalog_figures.py --check
+.venv/bin/python scripts/gen_reference_blocks.py --check
+.venv/bin/python scripts/gen_tool_input_schemas.py --check
+.venv/bin/python -m tests.api_sources_gen
+.venv/bin/python scripts/check_markdown.py
+.venv/bin/python -m pytest tests/test_<module>.py -n 4 -q   # the test files for the modules you touched
+```
+
+A failing `--check` names the generator to run (see the [generator table](docs/AI-CHANGES.md#generated-files-sources-outputs-and-checks)). `scripts/prepush.sh` stays the push gate: it needs a commit and is described under [Testing](#testing).
 
 ## What this repo is
 
@@ -46,19 +91,25 @@ Scope note: the same rule covers *error messages*. An upstream error is reported
 its real request path and its complete body — identifiers (console ids, UUIDs,
 ObjectIds) are not secrets and are never masked, and nothing is truncated; credential
 fields in an error body are masked only when the operator opts in with
-`UNIFI_REDACT_SECRETS` (redact the secret, never the reason). It is unrelated to
+`UNIFI_REDACT_SECRETS` (preserve reasons for single-level JSON/repr text; ambiguous or multi-nested credential spans may fail closed and discard following diagnostics, as described in docs/CONFIGURATION.md). It is unrelated to
 `.github/scripts/check_fixtures_sanitization.py`, which governs what synthetic data
 may be committed into repo fixtures — a separate concern that stays. Conflating committed-fixture hygiene with runtime responses is how the
 runtime filtering got written; keep them separate.
 
 ## Using the server: discovery mode and tool families
 
-The default `UNIFI_TOOL_MODE=discovery` advertises five discovery meta-tools (four with `UNIFI_READ_ONLY=1`, which hides
+The default `UNIFI_TOOL_MODE=discovery` advertises five discovery meta-tools (four with `UNIFI_WRITE_POLICY=deny`, which hides
 `call_write_tool`) instead of the full catalog: `search_tools` finds a tool, `describe_tool` returns its input
 schema, `call_read_tool` or `call_write_tool` runs it, and `list_tool_families` lists
 the families. `UNIFI_TOOL_MODE=full` advertises every tool (for gateways and clients that need
-the whole catalog), `UNIFI_TOOL_FAMILIES` limits the catalog to the listed families, `UNIFI_DISABLED_TOOL_FAMILIES`
-removes families, and `UNIFI_DISABLE_API_SOURCES` removes tools by API source selector.
+the whole catalog), `UNIFI_FAMILY_ALLOW` limits the catalog to the listed families, and `UNIFI_EXCLUDE`
+removes families (`family:<id>`), single tools (`tool:<name>`), tools by API source selector (`source:<selector>`)
+and every unofficial tool (`unofficial`).
+
+<!-- BEGIN GENERATED: code-mode -->
+`UNIFI_TOOL_MODE=codemode` (opt-in, experimental) advertises 3 tools: `describe_tool`, `execute`, `search_tools`. `execute` runs one Python script in a sandbox with no credentials, environment, network, filesystem or process access; inside it, `call_tool` reaches the enabled read tools only and every write is refused, whatever the write policy and its exceptions say. Code Mode is an opt-in, read-only experimental feature. It may change without a deprecation cycle. There is no compatibility promise for execute()'s schema or output shape until graduation. Limits and refusal codes: [docs/CONFIGURATION.md](docs/CONFIGURATION.md#code-mode-experimental).
+<!-- END GENERATED -->
+
 Tool modules are grouped by UniFi product and task family under
 `src/unifi_fabric/tools/`. Every tool advertises the four MCP annotation hints, derived
 from source and never hand-set (`src/unifi_fabric/tool_annotations.py`): read-only when it
@@ -75,8 +126,8 @@ src/unifi_fabric/
   config.py       : Settings (pydantic-settings, UNIFI_*) and MCPTransportSettings (MCP_*), env var loading and validation
   registry.py      — Lazy-load host/site cache with per-key TTL (MSP support)
   discovery.py    : discovery mode: the five meta-tools and the search index
-  families.py, api_sources.py: tool families and API-source selectors (UNIFI_TOOL_FAMILIES, UNIFI_DISABLE_API_SOURCES)
-  read_only.py, read_only_tools.py, switches.py: UNIFI_READ_ONLY and the per-area write opt-outs
+  families.py, api_sources.py: tool families and API-source selectors (UNIFI_FAMILY_ALLOW, UNIFI_EXCLUDE)
+  read_only.py, read_only_tools.py, switches.py: UNIFI_WRITE_POLICY and UNIFI_WRITE_EXCEPTIONS
   secret_scrub.py, redaction.py: the server's own secret scrub and the opt-in UNIFI_REDACT_SECRETS masking
   transport_security.py: HTTP auth, Host and Origin checks, OAuth write scope
   tool_annotations.py: the four MCP hints, derived from source
@@ -106,20 +157,19 @@ pyproject.toml     — Hatchling build, deps, ruff + pytest config
 
 ## Development setup
 
-See `README.md` for development setup instructions.
+See [Setup](#setup) above. `README.md` covers using the server, not developing it.
 
 
 ## Environment variables
 
 `UNIFI_API_KEY` (or the JSON list `UNIFI_API_KEYS` for several keys) is required.
 `MCP_AUTH_MODE`, `MCP_BEARER_TOKEN`, `MCP_TLS_MODE` and the `MCP_OAUTH_*` settings configure HTTP
-transport authentication and TLS (setting either on the stdio transport fails at startup).
-`UNIFI_READ_ONLY`, the per-area write opt-outs (`UNIFI_ENABLE_NETWORK_WRITE`,
-`UNIFI_ENABLE_CONNECTOR_WRITE`, `UNIFI_PROTECT_MUTATIONS_ENABLED` and the Mobility, Carrier Fabric and
-InnerSpace flags; writes are on by default), `UNIFI_DRY_RUN`, `UNIFI_TOOL_MODE` and
-`UNIFI_TOOL_FAMILIES` control which tools are exposed and which calls are sent;
-`UNIFI_REDACT_SECRETS`, `UNIFI_AUDIT_LOG` and `UNIFI_AUDIT_LOG_FORMAT` are the opt-in privacy and audit
-options. Boolean switches accept `1/true/yes/on/t/y` and `0/false/no/off/f/n`; any other value fails. See
+transport authentication and TLS. A bearer token, a non-`none` auth mode or a non-`none` TLS mode on stdio fails at startup.
+`UNIFI_WRITE_POLICY` (`allow` by default, `dry-run` or `deny`), `UNIFI_WRITE_EXCEPTIONS` (per-family or
+per-tool `deny` or `dry-run` entries; the strictest applies), `UNIFI_TOOL_MODE`, `UNIFI_FAMILY_ALLOW` and
+`UNIFI_EXCLUDE` control which tools are exposed and which calls are sent;
+`UNIFI_REDACT_SECRETS` and the `UNIFI_AUDIT_*` settings (`UNIFI_AUDIT_LOG`, `_LOG_FORMAT`, `_SINK`,
+`_LEVEL`, `_CALLS`, `_LOG_MODE`) are the opt-in privacy and audit options. Boolean switches accept `1/true/yes/on/t/y` and `0/false/no/off/f/n`; any other value fails. See
 `docs/CONFIGURATION.md` for the full environment variable reference.
 
 ## Key conventions
@@ -148,18 +198,21 @@ See README.md for stateless design rationale. Do not add mandatory file-based lo
 
 ## CI requirements
 
-All of the following are enforced by GitHub Actions (`.github/workflows/ci.yml`) and must
-pass before merge. What to run locally before pushing is in
+All of the following run in GitHub Actions (`.github/workflows/ci.yml`) and must pass
+before merge. Branch protection may require only a subset of the checks, and a red
+check that is not required does not disable the merge button or auto-merge: do not
+merge until every check that ran is green. What to run locally before pushing is in
 [Mandatory local test before push](#priority-and-workflow-rules):
 
-- `ruff check src/ tests/ scripts/ .github/scripts/` — linting (E, F, I, W, B, S, ANN, UP rules)
-- `ruff format --check src/ tests/ scripts/ .github/scripts/` — formatting
+- `ruff check src/ tests/ scripts/ .github/scripts/ tools/` — linting (E, F, I, W, B, S, ANN, UP rules)
+- `ruff format --check src/ tests/ scripts/ .github/scripts/ tools/` — formatting
 - "No runtime response redaction" grep step (in the `lint` job) — fails if a removed
   response-filtering helper reappears in `src/`, enforcing the pass-through invariant above
 
 - `mypy src/unifi_fabric --ignore-missing-imports` — type checking
 - `pytest tests/ -v --cov=src/unifi_fabric --cov-fail-under=97` — full suite with 97% coverage
-  gate (CI only, never run locally)
+  gate. CI runs it; locally run only the targeted files, because the full local run is the
+  opt-in, advisory `scripts/prepush.sh --full` (see [Testing](#testing))
 - `python3 scripts/gen_tools_doc.py --check` — `docs/TOOLS.md` must be current with the runtime
 - `python3 scripts/gen_catalog_figures.py --check`: the README and CHANGELOG catalog sizes and tool counts must match the runtime
 - `python3 scripts/check_markdown.py`, `tests/test_readme_catalog_size.py` and `tests/test_discovery_accuracy.py`: also in the `docs` job
@@ -179,8 +232,7 @@ PREPUSH_PYTHON=.venv/bin/python scripts/prepush.sh
 ```
 
 `scripts/prepush.sh` reads the steps of CI's fast jobs from the workflows themselves: from
-`.github/workflows/ci.yml` lint, typecheck, docs, the version, fixture and changelog checks,
-and the changed-path test selection from `scripts/select_pr_tests.py` with CI's pytest flags;
+`.github/workflows/ci.yml` lint, typecheck, docs, the version, fixture and changelog checks;
 then the fast jobs of every other workflow that runs for a pull request (the documentation
 checks and the changelog size). It runs them for the commit you are about to push, with each
 job's CI condition evaluated for a pull request into the base branch (a workflow's
@@ -189,7 +241,7 @@ job's CI condition evaluated for a pull request into the base branch (a workflow
 The venv must be installed from `requirements.lock` as CI's is (`python3.12 -m venv .venv`,
 `.venv/bin/python -m pip install --require-hashes -r requirements.lock`, then
 `.venv/bin/python -m pip install --no-deps -e .`). Set `PREPUSH_BASE_BRANCH` to the pull
-request's base branch and `PREPUSH_LABELS` to its labels (for example `full-ci`) when they
+request's base branch and `PREPUSH_LABELS` to its labels when they
 differ from the defaults. It stops at the first failing step, refuses uncommitted tracked
 changes, and on success prints `Pre-push: scripts/prepush.sh pass (head <sha7>)`.
 
@@ -254,7 +306,7 @@ preserve that coverage.
 The lane gate is the single source of this rule: lanes never edit `CHANGELOG.md`. Use a unique sortable filename
 ending in `.added.md`, `.changed.md`, `.fixed.md`, or `.security.md`; see `changelog.d/README.md` for the fragment
 format. A release PR folds queued fragments into the in-flight version section of `CHANGELOG.md`, then deletes
-the folded fragments. Use one block per heading, ordered Added → Changed → Removed → Fixed. When the release ships, the
+the folded fragments. Use one block per heading, ordered Added → Changed → Fixed → Security. When the release ships, the
 maintainers date that version heading, and every released section stays verbatim. Follow Keep a Changelog conventions:
 - `.added.md` — new tools, new env vars, new behavior
 - `.changed.md` — modifications to existing behavior or defaults
@@ -293,11 +345,11 @@ Drop all other parenthetical `(#NNN)` references — let the description stand o
   push, and push only when it prints `Pre-push: scripts/prepush.sh pass (head <sha7>)` with
   that commit's short SHA. Cite that line in the pull request body (Self-review section);
   the SHA must equal the head you pushed. A new commit needs a new run.
-- `scripts/prepush.sh` runs CI's fast jobs, including the changed-path test selection.
-  When the selector escalates a change to the full tier (dependency locks, workflows, test
-  configuration or the selector itself), the full suite runs in CI's `test` and
-  `test-locked` jobs, not in the default local run.
-- The full suite is CI's gate: the `test` check runs all of it with the coverage gate.
+- `scripts/prepush.sh` runs CI's fast jobs. The full suite runs in CI's `test` and
+  `test-locked` jobs on `main`, not in the default local run.
+- The full suite is CI's gate for `main`: the `test` check runs all of it with the coverage gate on
+  every pull request into `main` and every push to `main` (no subset). It is a merge rule even where
+  branch protection does not list `test` as required.
   The only local full run is the opt-in `scripts/prepush.sh --full`, which is advisory
   ("local full suite (advisory)") and never replaces the CI check. To measure the suite's
   size, duration or failure count, dispatch the CI workflow (`workflow_dispatch`) on the

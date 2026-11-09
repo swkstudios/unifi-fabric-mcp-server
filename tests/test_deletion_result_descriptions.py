@@ -14,7 +14,7 @@ return: the bare upstream or native body, null as the whole result, additive ``_
 partial tool states the same shape for its delete path. A tool outside the set never
 claims the shape (the registration-time footer is chosen by tool name).
 
-A behavioural cross-check runs every write tool under ``UNIFI_DRY_RUN``: a tool that
+A behavioural cross-check runs every write tool under ``dry-run policy``: a tool that
 answers with the deletion_result dry-run shape must be in the derived set, so a call
 pattern the derivation does not follow fails here instead of passing unchecked.
 """
@@ -58,7 +58,7 @@ NEVER_PURE = {
         r"\b(?:upstream|native) (?:body|response) (?:is )?returned\b", re.I
     ),
     "unwrapped dry-run preview": re.compile(
-        r'dry-run returns \{status: "dry_run", dryRun|unifi_dry_run the preview \{', re.I
+        r'dry-run returns \{status: "dry_run", dryRun|dry-run policy the preview \{', re.I
     ),
 }
 
@@ -213,7 +213,7 @@ def test_no_other_tool_claims_the_deletion_result_shape():
 @lazy_parametrize("name", lambda: cti._lz_WRITE_TOOLS())
 async def test_every_tool_answering_with_the_delete_shape_is_derived(monkeypatch, name):
     upstream = uh.FakeUpstream()
-    result = await cti._call(monkeypatch, name, upstream, env={"UNIFI_DRY_RUN": "1"})
+    result = await cti._call(monkeypatch, name, upstream, env={"UNIFI_WRITE_POLICY": "dry-run"})
     payload = uh.result_payload(result)
     shaped = (
         isinstance(payload, dict)

@@ -468,10 +468,13 @@ class TestMaskedFieldsReport:
         assert await _make_redacting_fn(list_tool, enabled)() == [1, 2]
         assert await _make_redacting_fn(clean_tool, enabled)() == {"ok": True}
 
-    async def test_client_write_path_drops_mask_and_dry_run_preview_shows_clean_body(self):
+    async def test_client_write_path_drops_mask_and_dry_run_preview_shows_clean_body(
+        self, monkeypatch
+    ):
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
         from unifi_fabric.client import UniFiClient, is_dry_run_preview
 
-        client = UniFiClient(Settings(api_key="sk-test", dry_run=True, redact_secrets=True))
+        client = UniFiClient(Settings(api_key="sk-test", redact_secrets=True))
         body = {"name": "n", "x_passphrase": REDACTION_MASK, "nested": {"psk": REDACTION_MASK}}
         out = await client.put("/v1/connector/consoles/H/proxy/network/x", json=body)
         assert is_dry_run_preview(out)
@@ -841,8 +844,9 @@ def test_recorded_google_maps_api_key_default_verbatim_and_opt_in_masked():
 def test_server_certificate_key_opt_in_masked_and_default_verbatim_unit():
     raw = {"server_certificate_key": "private-key-material-xxxx"}
     assert is_credential_field("server_certificate_key") is True
-    # Default (pass-through / verbatim)
-    assert raw["server_certificate_key"] == "private-key-material-xxxx"
+    from unifi_fabric.redaction import _make_redacting_fn
+
+    assert _make_redacting_fn(lambda: raw, lambda: False)() == raw
     # Opt-in masked
     masked = redact_credentials(raw)
     assert masked == {"server_certificate_key": REDACTION_MASK}
@@ -869,8 +873,9 @@ def test_recorded_radius_server_certificate_key_default_verbatim_and_opt_in_mask
 def test_sso_app_id_canary_allowlist_verbatim_in_both_modes():
     assert is_credential_field("sso_app_id") is False
     data = {"sso_app_id": "sso-app-id-0001"}
-    # Verbatim in default mode
-    assert data["sso_app_id"] == "sso-app-id-0001"
+    from unifi_fabric.redaction import _make_redacting_fn
+
+    assert _make_redacting_fn(lambda: data, lambda: False)() == data
     # Verbatim under opt-in redaction
     assert redact_credentials(data) == {"sso_app_id": "sso-app-id-0001"}
     # Also verify in recorded sysinfo fixture
@@ -952,10 +957,11 @@ async def test_vpn_client_list_credentials_follow_opt_in(monkeypatch, _relay, en
 
 
 @pytest.mark.parametrize("enabled", [False, True], ids=["off", "on"])
-async def test_vpn_client_create_dry_run_preview_follows_opt_in(enabled):
+async def test_vpn_client_create_dry_run_preview_follows_opt_in(enabled, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     from unifi_fabric.client import UniFiClient, is_dry_run_preview
 
-    client = UniFiClient(Settings(api_key="sk-test", dry_run=True, redact_secrets=enabled))
+    client = UniFiClient(Settings(api_key="sk-test", redact_secrets=enabled))
     body = {
         "name": "wg-client",
         "x_wireguard_private_key": "example-wg-create-pk",
@@ -1084,12 +1090,13 @@ def test_x_identifier_fields_are_never_masked(key):
     assert not is_credential_field(key)
 
 
-async def test_dry_run_preview_says_nothing_was_sent_and_keeps_the_key_label():
+async def test_dry_run_preview_says_nothing_was_sent_and_keeps_the_key_label(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiClient, is_dry_run_preview
     from unifi_fabric.config import APIKeyConfig
 
     key = APIKeyConfig(key="sk-alpha", label="alpha")
-    client = UniFiClient(Settings(api_keys=[key], dry_run=True))
+    client = UniFiClient(Settings(api_keys=[key]))
     out = await client.put("/v1/connector/consoles/H/proxy/network/x", key=key, json={"a": 1})
     assert is_dry_run_preview(out)
     assert out["status"] == "dry_run" and out["dryRun"] is True and out["sent"] is False

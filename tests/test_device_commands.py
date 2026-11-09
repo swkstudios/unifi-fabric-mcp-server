@@ -250,13 +250,14 @@ async def test_arbitrary_response_remains_verbatim(deps):
     "name,args,route,body",
     COMMAND_CASES,
 )
-async def test_real_client_dry_run_all_commands(deps, name, args, route, body):
+async def test_real_client_dry_run_all_commands(deps, name, args, route, body, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     from unifi_fabric.client import UniFiClient
     from unifi_fabric.config import Settings
 
     _, registry = deps
     registry.resolve_key_for_host.return_value = None
-    client = UniFiClient(Settings(api_key="synthetic-test-api-key", dry_run=True))
+    client = UniFiClient(Settings(api_key="synthetic-test-api-key"))
     if name in READ_TOOLS:
         # A read command is a read: dry-run sends it once and returns the body verbatim.
         received: list = []
@@ -290,10 +291,10 @@ async def test_real_client_read_only_all_commands(deps, monkeypatch, name, args,
     from unifi_fabric.config import Settings
     from unifi_fabric.read_only import ReadOnlyModeError
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     _, registry = deps
     registry.resolve_key_for_host.return_value = None
-    client = UniFiClient(Settings(api_key="synthetic-test-api-key", dry_run=True))
+    client = UniFiClient(Settings(api_key="synthetic-test-api-key"))
     if name in READ_TOOLS:
         # A read command is a read: read-only mode sends it once, body verbatim.
         received: list = []
@@ -363,6 +364,9 @@ def test_create_backup_says_where_the_file_is_and_what_cannot_see_it(deps):
         assert "transient" in text
         for tool in ("list_backups", "cancel_controller_backup", "delete_controller_backup"):
             assert tool in text
+        # The description must not promise a stored backup the API never creates.
+        assert "no stored backup is added" in " ".join(text.split())
+        assert not text.lstrip().startswith("Create a controller backup")
 
 
 async def test_export_site_backup_failed_names_the_next_step(deps):
@@ -374,6 +378,7 @@ async def test_export_site_backup_failed_names_the_next_step(deps):
     message = str(raised.value)
     assert message.startswith(EXPORT_FAILED)
     assert "Network application log" in message
+    assert "free storage space" in message
     assert raised.value.status == 400
     assert raised.value.request_sent is True
     assert raised.value.__cause__ is error

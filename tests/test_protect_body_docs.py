@@ -1,6 +1,6 @@
-"""Protect request-body descriptions agree with the pinned Protect 7.3.70 spec.
+"""Protect request-body descriptions agree with the pinned Protect 7.3.74 spec.
 
-Every Protect tool whose description carries a "Request body (Protect 7.3.70, METHOD
+Every Protect tool whose description carries a "Request body (Protect 7.3.74, METHOD
 path; ...)" block lists the body keys as ``- key: <type ...>``. For each listed key the
 spec documents:
 
@@ -8,7 +8,9 @@ spec documents:
   1-100, not an object);
 * a nested object (or array of objects) names every key the spec gives it, so a caller
   can build ``osdSettings`` / ``ringSettings`` / ``slots`` / ... without the spec;
-* every ``minimum`` / ``maximum`` of a nested key is stated as a range next to that key.
+* every ``minimum`` / ``maximum`` of a nested key is stated as a range next to that key;
+* a time unit the spec gives a key (milliseconds, seconds, ...) is stated next to it
+  (``pirDuration`` is milliseconds, ``cycleInterval`` seconds).
 """
 
 from __future__ import annotations
@@ -24,9 +26,9 @@ from tests._tool_catalog import lazy_parametrize
 from unifi_fabric import server
 
 SPEC = json.loads(
-    (Path(__file__).parent / "fixtures" / "openapi" / "protect-7.3.70.json").read_text()
+    (Path(__file__).parent / "fixtures" / "openapi" / "protect-7.3.74.json").read_text()
 )
-_BLOCK_RE = re.compile(r"Request body \(Protect 7\.3\.70, (\w+) (\S+?);")
+_BLOCK_RE = re.compile(r"Request body \(Protect 7\.3\.\d+, (\w+) (\S+?);")
 
 
 def _resolve(node: Any) -> Any:
@@ -71,8 +73,7 @@ def _documented_bodies() -> list[tuple[str, dict[str, Any], dict[str, str]]]:
             continue
         method, path = match.group(1).lower(), match.group(2)
         op = SPEC["paths"].get(path, {}).get(method)
-        if op is None or "requestBody" not in op:
-            continue
+        assert op is not None and "requestBody" in op, (name, method, path)
         body = _resolve(op["requestBody"]["content"]["application/json"]["schema"])
         documented: dict[str, str] = {}
         current: str | None = None
@@ -127,6 +128,7 @@ def test_documented_body_keys_match_the_spec(tool):
     problems: list[str] = []
     for key, text in documented.items():
         if key not in props:
+            problems.append(f"{key}: not in spec")
             continue
         kind = _spec_kind(props[key])
         first = text.split(" ", 1)[0]
@@ -151,7 +153,45 @@ def test_documented_body_keys_match_the_spec(tool):
         low, high = own.get("minimum"), own.get("maximum")
         if low is not None and high is not None and f"{low}-{high}" not in text:
             problems.append(f"{key}: range {low}-{high} not documented")
+        problems += _unit_problems(key, own, text)
+        if nested is not None:
+            for sub, sub_schema in nested["properties"].items():
+                start = text.find(sub)
+                if start >= 0:
+                    after = text[start + len(sub) :]
+                    later = [after.find(f" {o}:") for o in nested["properties"] if o != sub]
+                    end = min([i for i in later if i >= 0], default=len(after))
+                    problems += _unit_problems(f"{key}.{sub}", _resolve(sub_schema), after[:end])
     assert problems == []
+
+
+_UNITS = {
+    "millisecond": ("millisecond", "ms"),
+    "second": ("second",),
+    "minute": ("minute",),
+    "hour": ("hour",),
+}
+
+
+def _unit_problems(key: str, schema: Any, text: str) -> list[str]:
+    """The spec's time unit for ``key`` (the first one its description names) is in ``text``."""
+    found = re.search(
+        r"\b(millisecond|second|minute|hour)s?\b", str(schema.get("description") or ""), re.I
+    )
+    if not found:
+        return []
+    unit = found.group(1).lower()
+    if any(re.search(rf"\b{word}s?\b", text, re.I) for word in _UNITS[unit]):
+        return []
+    return [f"{key}: unit {unit}s not documented"]
+
+
+def test_the_unit_check_flags_a_unitless_key():
+    schema = {"description": "How long the light stays on in milliseconds."}
+    assert _unit_problems("pirDuration", schema, "number (>= 0)") == [
+        "pirDuration: unit milliseconds not documented"
+    ]
+    assert _unit_problems("pirDuration", schema, "number, ms (>= 0)") == []
 
 
 def test_ptz_patrol_start_names_the_patrol_slot():

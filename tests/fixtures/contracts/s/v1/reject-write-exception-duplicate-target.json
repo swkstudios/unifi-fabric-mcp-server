@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-write-exception-duplicate-target",
+  "description": "A duplicate exception target fails startup.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_EXCEPTIONS": "family:network=deny;family:network=dry-run"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_WRITE_EXCEPTIONS",
+    "upstream_calls": 0
+  }
+}

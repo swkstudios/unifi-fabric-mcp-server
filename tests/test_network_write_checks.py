@@ -26,7 +26,7 @@ from unifi_fabric.tools.network_services_proxy import update_setting
 
 TOOLS = cti.TOOLS
 HOST_ID = "host-001"
-SPEC = pathlib.Path(__file__).parent / "fixtures" / "openapi" / "network-10.6.106.json"
+SPEC = pathlib.Path(__file__).parent / "fixtures" / "openapi" / "network-11.0.97.json"
 
 
 @pytest.fixture()

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-key-label-null",
+  "description": "Header mode refuses a present key_label, even null",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {
+      "key_label": null
+    }
+  },
+  "expected": {
+    "code": "key_label_not_allowed",
+    "upstream_calls": 0
+  }
+}

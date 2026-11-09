@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-blank-write-policy-header",
+  "description": "A present but blank X-UniFi-Write-Policy refuses with invalid_policy_header",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        ""
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_policy_header",
+    "upstream_calls": 0
+  }
+}

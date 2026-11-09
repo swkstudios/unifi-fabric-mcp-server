@@ -1,0 +1,36 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "accept-defaults",
+  "description": "No policy setting: allow, no exceptions, all 13 families, no exclusions.",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "write_policy": "allow",
+      "write_exceptions": [],
+      "exposed_families": [
+        "carrier",
+        "clients",
+        "connector",
+        "devices",
+        "firewall",
+        "hotspot",
+        "innerspace",
+        "mobility",
+        "network",
+        "protect",
+        "site_manager",
+        "statistics",
+        "vpn"
+      ],
+      "exclusions": []
+    },
+    "upstream_calls": 0
+  }
+}

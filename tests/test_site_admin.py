@@ -38,7 +38,7 @@ async def test_the_three_tools_are_registered_writes_naming_the_multi_site_limit
         tool = tools[name]
         assert tool.annotations is not None and tool.annotations.read_only_hint is False, name
         assert {"host", "site"} <= set(tool.parameters["required"]), name
-        assert "UNIFI_DRY_RUN" in (tool.description or ""), name
+        assert "dry-run policy" in (tool.description or ""), name
     assert "site_to_delete" in tools["delete_site"].parameters["required"]
     assert "Consequence" in (tools["delete_site"].description or "")
 
@@ -92,6 +92,8 @@ async def test_delete_of_an_unknown_site_sends_no_command_and_lists_the_sites(mo
 )
 async def test_dry_run_previews_without_sending_the_command(monkeypatch, name, extra) -> None:
     up = uh.FakeUpstream()
-    result = await _call(monkeypatch, name, up, {**BASE, **extra}, env={"UNIFI_DRY_RUN": "true"})
+    result = await _call(
+        monkeypatch, name, up, {**BASE, **extra}, env={"UNIFI_WRITE_POLICY": "dry-run"}
+    )
     assert _commands(up) == []
     assert "dry_run" in _text(result)

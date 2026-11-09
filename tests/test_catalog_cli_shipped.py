@@ -10,8 +10,9 @@ from pathlib import Path
 
 def test_catalog_cli_from_shipped_tree(tmp_path):
     root = Path(__file__).resolve().parents[1]
-    shutil.copytree(root / "src", tmp_path / "src")
-    shutil.copytree(root / "scripts", tmp_path / "scripts")
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
+    shutil.copytree(root / "src", tmp_path / "src", ignore=ignore)
+    shutil.copytree(root / "scripts", tmp_path / "scripts", ignore=ignore)
     cli = tmp_path / "scripts" / "check_catalog_regression.py"
     result = subprocess.run(  # noqa: S603 - fixed repo-local CLI and Python executable
         [sys.executable, str(cli)],

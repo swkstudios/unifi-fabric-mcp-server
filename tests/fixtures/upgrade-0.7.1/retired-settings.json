@@ -1,0 +1,16 @@
+{
+  "description": "The settings 0.7.1 retired, each with a value a 0.7.0 configuration used. Kept here and in the migration kit only: the server lists no old names.",
+  "settings": {
+    "UNIFI_READ_ONLY": "1",
+    "UNIFI_DRY_RUN": "true",
+    "UNIFI_ENABLE_CONNECTOR_WRITE": "0",
+    "UNIFI_ENABLE_NETWORK_WRITE": "0",
+    "UNIFI_ENABLE_MOBILITY_WRITE": "0",
+    "UNIFI_ENABLE_CARRIER_FABRIC_WRITE": "0",
+    "UNIFI_ENABLE_INNERSPACE_WRITE": "0",
+    "UNIFI_PROTECT_MUTATIONS_ENABLED": "0",
+    "UNIFI_TOOL_FAMILIES": "network,protect",
+    "UNIFI_DISABLED_TOOL_FAMILIES": "vpn",
+    "UNIFI_DISABLE_API_SOURCES": "network/private"
+  }
+}

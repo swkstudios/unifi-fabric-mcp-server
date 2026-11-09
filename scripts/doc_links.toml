@@ -13,3 +13,7 @@ exclude = [
 [[anonymous_blocked]]
 url = "https://chatgpt.com/plugins"
 reason = "Authenticated client UI endpoint returns HTTP 403 to anonymous automation; NOT-TESTED anonymously. The companion official Apps SDK documentation remains checked."
+
+[[anonymous_blocked_prefix]]
+prefix = "https://insiders.vscode.dev/redirect/"
+reason = "Editor install deeplink: responds 302 into the vscode custom scheme; not followable anonymously."

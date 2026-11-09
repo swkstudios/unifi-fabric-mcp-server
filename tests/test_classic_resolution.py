@@ -251,6 +251,24 @@ def test_catalog_discovery_covers_all_classic_resolver_families():
     } <= set(_lz_CLASSIC_TOOLS())
 
 
+def test_catalog_discovery_finds_the_selector_and_alias_families():
+    """The integration-selector and alias tool_batches below select their tools from the
+    catalog; an empty selection would collect as an empty parameter set, not fail, so
+    each family's known members are pinned here, through both selection paths."""
+    selectors = {"get_radius_profile", "get_vpn_server"}
+    aliases = {
+        "update_device_tag",
+        "delete_device_tag",
+        "update_vpn_server",
+        "delete_vpn_server",
+        "update_wan_interface",
+    }
+    assert selectors <= set(_lz_INTEGRATION_SELECTORS())
+    assert aliases <= set(_lz_ALIAS_TOOLS())
+    assert all(_is_integration_selector(name) for name in selectors)
+    assert all(_is_alias_tool(name) for name in aliases)
+
+
 # Tools whose only Classic list read comes AFTER their write: the networkconf name
 # resolution of create_port_profile is a read-after (safe_read_after), so a malformed row
 # there must not fail a create the controller already applied; it is reported instead.

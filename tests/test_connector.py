@@ -29,6 +29,7 @@ import pytest
 import respx
 from httpx import Response
 
+from unifi_fabric import policy, switches
 from unifi_fabric.client import DRY_RUN_MESSAGE, RateLimitError, UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.tools import connector
@@ -373,23 +374,9 @@ class TestConnectorGet:
 # --------------------------------------------------------------------------- #
 
 
-_AREA_OPT_OUT_ENVS = (
-    "UNIFI_ENABLE_NETWORK_WRITE",
-    "UNIFI_PROTECT_MUTATIONS_ENABLED",
-    "UNIFI_ENABLE_MOBILITY_WRITE",
-    "UNIFI_ENABLE_CARRIER_FABRIC_WRITE",
-    "UNIFI_ENABLE_INNERSPACE_WRITE",
-)
-
-
 class TestUnclassifiedRoutes:
     """An unmapped path relays; a mutation on
     it is refused only while a per-area write opt-out is active."""
-
-    @pytest.fixture(autouse=True)
-    def _no_area_opt_outs(self, monkeypatch):
-        for env in _AREA_OPT_OUT_ENVS:
-            monkeypatch.delenv(env, raising=False)
 
     async def test_unclassified_get_passes(self, client, registry):
         client.request.return_value = FakeResp(200, {"data": []})
@@ -401,7 +388,7 @@ class TestUnclassifiedRoutes:
     async def test_unclassified_get_passes_while_an_opt_out_is_set(
         self, client, registry, monkeypatch
     ):
-        monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
         client.request.return_value = FakeResp(200, {"data": []})
         result = await connector_get(client, registry, "h", "talk/api/devices")
         client.request.assert_awaited_once()
@@ -419,27 +406,26 @@ class TestUnclassifiedRoutes:
     async def test_unclassified_mutation_refused_while_protect_opts_out(
         self, client, registry, monkeypatch
     ):
-        monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
         with pytest.raises(ValueError, match="unclassified route is refused") as exc:
             await connector_write(
                 client, registry, "h", "POST", "talk/api/devices", body={"name": "x"}
             )
-        assert "UNIFI_PROTECT_MUTATIONS_ENABLED" in str(exc.value)
+        assert "family:protect=deny" in str(exc.value)
         client.request.assert_not_called()
         registry.resolve_host_id.assert_not_called()
 
     async def test_refusal_names_every_active_opt_out(self, client, registry, monkeypatch):
-        monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
-        monkeypatch.setenv("UNIFI_ENABLE_MOBILITY_WRITE", "false")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny;family:mobility=deny")
         with pytest.raises(ValueError) as exc:
             await connector_write(client, registry, "h", "DELETE", "talk/api/devices/x")
-        assert "UNIFI_PROTECT_MUTATIONS_ENABLED" in str(exc.value)
-        assert "UNIFI_ENABLE_MOBILITY_WRITE" in str(exc.value)
+        assert "family:protect=deny" in str(exc.value)
+        assert "family:mobility=deny" in str(exc.value)
         client.request.assert_not_called()
 
     async def test_mapped_route_of_another_area_still_relays(self, client, registry, monkeypatch):
         # Control: the Protect opt-out does not touch a mapped Network route.
-        monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
         client.request.return_value = FakeResp(200, {"meta": {"rc": "ok"}})
         result = await connector_write(
             client,
@@ -473,7 +459,7 @@ class TestMutationGating:
         assert result["writeEnabled"] is True
 
     async def test_write_reaches_network_when_flag_enabled(self, client, registry):
-        # Explicit opt-in (UNIFI_ENABLE_CONNECTOR_WRITE=1 -> write_enabled=True) with
+        # Explicit opt-in (family:connector=deny=1 -> write_enabled=True) with
         # confirm=True: the mutation proceeds to the relay.
         client.request.return_value = FakeResp(200, {"meta": {"rc": "ok"}})
         result = await connector_write(
@@ -492,9 +478,9 @@ class TestMutationGating:
         assert result["writeEnabled"] is True
 
     async def test_write_explicitly_disabled_rejected_before_network(self, client, registry):
-        # Explicit opt-out: write_enabled=False (from UNIFI_ENABLE_CONNECTOR_WRITE=0)
+        # Explicit opt-out: write_enabled=False (from the family:connector=deny entry)
         # still refuses, before any network call, and the message names the env var.
-        with pytest.raises(ValueError, match="UNIFI_ENABLE_CONNECTOR_WRITE"):
+        with pytest.raises(ValueError, match="family:connector=deny"):
             await connector_write(
                 client,
                 registry,
@@ -526,9 +512,7 @@ class TestMutationGating:
         client.request.assert_awaited()
         assert result["status"] == 200
 
-    async def test_unmapped_namespace_relays_as_unclassified(self, client, registry, monkeypatch):
-        for env in _AREA_OPT_OUT_ENVS:
-            monkeypatch.delenv(env, raising=False)
+    async def test_unmapped_namespace_relays_as_unclassified(self, client, registry):
         client.request.return_value = FakeResp(200, {"ok": True})
         result = await connector_write(
             client,
@@ -648,6 +632,8 @@ class TestWriteFlow:
         assert result["noOp"] is False
 
     async def test_mutation_emits_audit_log(self, client, registry, caplog):
+        key = APIKeyConfig(label="audit", key="synthetic-audit-key-0001")
+        registry.resolve_key_for_host.return_value = key
         client.request.side_effect = [
             FakeResp(200, {"data": []}),
             FakeResp(200, {"meta": {"rc": "ok"}}),
@@ -669,8 +655,8 @@ class TestWriteFlow:
         assert audit, "expected a structured audit line for the mutation"
         msg = audit[0].getMessage()
         assert "method=PUT" in msg and "confirm=True" in msg and "MyHost" in msg
-        # The API key value must never appear in the audit line.
-        assert "k-" not in msg
+        # The configured API key value must never appear in the audit line.
+        assert key.key not in msg
 
     async def test_read_before_failure_is_tolerated(self, client, registry):
         client.request.side_effect = [
@@ -925,40 +911,26 @@ def test_module_exposes_all_five_relay_verbs():
 
 
 # --------------------------------------------------------------------------- #
-# Regression coverage — connector-write default-ON + InnerSpace write-route invariant
+# Regression coverage — connector-write default-ON + InnerSpace write classification
 #
 # These are hermetic (no network, no client): the first is a config-level
-# assertion of the open-access default; the second is a ROUTE-ASSERTION (it
-# inspects the exposed route surface, it does NOT execute any write) proving the
-# InnerSpace owner-session (private session + CSRF) write route stays DISABLED
-# regardless of UNIFI_ENABLE_CONNECTOR_WRITE. That console route is
-# non-functional and rejected, and is deliberately not wired into any tool.
+# assertion of the open-access default; the second inspects the registered
+# InnerSpace tools (it executes no write): the published-API module registers
+# reads only, and every InnerSpace write tool is classified as a write, so the
+# write policy (read-only mode, dry-run, family:innerspace=deny) gates it.
 # --------------------------------------------------------------------------- #
 
 
 def test_connector_write_enabled_by_default_when_env_unset(monkeypatch):
-    # With UNIFI_ENABLE_CONNECTOR_WRITE unset, the generic connector relay
+    # With family:connector=deny unset, the generic connector relay
     # capability flag resolves to ENABLED (read + write on by default).
-    monkeypatch.delenv("UNIFI_ENABLE_CONNECTOR_WRITE", raising=False)
-    assert Settings().enable_connector_write is True
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
+    assert switches.connector_writes_enabled() is True
 
 
-@pytest.mark.parametrize("flag_value", [None, "1", "true", "on", "0", "false"])
-def test_innerspace_disabled_owner_session_write_route_regardless_of_flag(monkeypatch, flag_value):
-    # Route-assertion only: the InnerSpace owner-session write route is
-    # non-functional and rejected. It must NOT be coupled to the
-    # connector-write capability flag, and must never be confirmed. No write
-    # is executed here.
-    if flag_value is None:
-        monkeypatch.delenv("UNIFI_ENABLE_CONNECTOR_WRITE", raising=False)
-    else:
-        monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", flag_value)
-
-    # The owner-session write route is never confirmed, independent of the flag.
-    assert getattr(_innerspace_module, "_INNERSPACE_WRITE_ROUTE_CONFIRMED", False) is False
-
-    # The InnerSpace tool surface exposes only read routes (get_*/list_*); no
-    # create/update/delete/patch/post/put/write/mutate entry point exists.
+def test_innerspace_read_module_is_read_only_and_its_write_tools_are_writes():
+    # tools/innerspace.py (the published InnerSpace API) registers only read tools
+    # (get_*/list_*): no create/update/delete/patch/post/put/write/mutate entry point.
     own = [
         n
         for n in dir(_innerspace_module)
@@ -969,7 +941,32 @@ def test_innerspace_disabled_owner_session_write_route_regardless_of_flag(monkey
     assert read_tools, "expected InnerSpace read tools to be present"
     forbidden = ("create", "update", "delete", "patch", "post", "put", "write", "mutate", "save")
     offenders = [n for n in own if not n.startswith("_") and any(t in n.lower() for t in forbidden)]
-    assert offenders == [], f"InnerSpace must expose no write route, found: {offenders}"
+    assert offenders == [], f"tools/innerspace.py must register reads only, found: {offenders}"
+
+    # The InnerSpace write tools live in tools/innerspace_internal.py; every one of them
+    # is classified as a write (not read-only), which is what the write policy gates on.
+    from tests import test_cross_tool_invariants as cti
+
+    internal = [
+        name
+        for name, tool in cti.TOOLS.items()
+        if getattr(tool.fn, "__module__", "") == "unifi_fabric.tools.innerspace_internal"
+    ]
+    writes = {name for name in internal if not name.startswith(("get_", "list_"))}
+    assert {
+        "create_innerspace_plan",
+        "delete_innerspace_plan",
+        "update_innerspace_project",
+        "import_innerspace_backup",
+        "upload_innerspace_plan_asset",
+    } <= writes
+    write_tools = set(cti._lz_WRITE_TOOLS())
+    unclassified = sorted(
+        name
+        for name in writes
+        if name not in write_tools or cti.TOOLS[name].annotations.readOnlyHint is not False
+    )
+    assert unclassified == [], f"InnerSpace write tools not classified as writes: {unclassified}"
 
 
 # --------------------------------------------------------------------------- binary bodies
@@ -1027,6 +1024,7 @@ class TestBinaryBodies:
             "preview": {"method": "GET", "path": path, "params": {"probe": "value"}},
         }
         client = MagicMock()
+        client.dry_run = True
         client.request = AsyncMock(return_value=FakeResp(200, json_body=preview))
         with caplog.at_level(logging.INFO, logger="unifi_fabric.tools.connector"):
             result = await connector_get(client, registry, "con", path, params={"probe": "value"})
@@ -1092,8 +1090,8 @@ class TestNetworkAreaOptOut:
     async def test_matter_relay_refuses_before_resolution(
         self, client, registry, monkeypatch, method
     ):
-        monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", "0")
-        with pytest.raises(ValueError, match="UNIFI_ENABLE_NETWORK_WRITE"):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
+        with pytest.raises(ValueError, match="family:network=deny"):
             await connector_write(
                 client,
                 registry,
@@ -1110,7 +1108,7 @@ class TestNetworkAreaOptOut:
         client.request.assert_not_awaited()
 
     async def test_network_read_remains_available(self, client, registry, monkeypatch):
-        monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
         client.request.return_value = FakeResp(200, {"data": []})
         result = await connector_get(
             client, registry, "h", "network/v2/api/site/{site}/matter/nodes", site="Office"
@@ -1123,36 +1121,32 @@ class TestNetworkAreaOptOut:
         ["network", "firewall", "clients", "devices", "vpn", "hotspot", "statistics"],
     )
     def test_all_network_families_share_the_opt_out(self, monkeypatch, family):
-        monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", "0")
-        assert connector.area_write_env(family) == "UNIFI_ENABLE_NETWORK_WRITE"
-        assert "UNIFI_ENABLE_NETWORK_WRITE" in connector.area_write_refusal(family)
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
+        assert connector.area_write_env(family) == "family:network=deny"
+        assert "family:network=deny" in connector.area_write_refusal(family)
         assert connector.area_write_refusal("protect") is None
 
-    @pytest.mark.parametrize("value", [None, "", " ", "1", "TRUE", "yes", "on", "t", "y"])
-    def test_default_on_and_true_spellings(self, monkeypatch, value):
+    @pytest.mark.parametrize("value", [None, "family:protect=deny", "family:network=dry-run"])
+    def test_network_writes_allowed_without_a_network_deny(self, monkeypatch, value):
         if value is None:
-            monkeypatch.delenv("UNIFI_ENABLE_NETWORK_WRITE", raising=False)
+            monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
         else:
-            monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", value)
-        assert Settings(api_key="test-key").enable_network_write is True
+            monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", value)
+        assert switches.NETWORK_WRITES.enabled() is True
         assert connector.area_write_refusal("network") is None
 
-    @pytest.mark.parametrize("value", ["0", "FALSE", "no", "off", "f", "n"])
-    def test_false_spellings(self, monkeypatch, value):
-        monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", value)
-        assert Settings(api_key="test-key").enable_network_write is False
-        assert connector.area_write_env("network") == "UNIFI_ENABLE_NETWORK_WRITE"
+    def test_network_deny_exception_opts_out(self, monkeypatch):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=dry-run;family:network=deny")
+        assert switches.NETWORK_WRITES.enabled() is False
+        assert connector.area_write_env("network") == "family:network=deny"
 
-    def test_invalid_spelling_rejects_without_echo(self, monkeypatch):
+    def test_malformed_exceptions_fail_closed_without_echo(self, monkeypatch, capsys):
         value = "synthetic-misplaced-secret"
-        monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", value)
-        with pytest.raises(ValueError) as runtime:
-            connector.area_write_refusal("network")
-        with pytest.raises(Exception) as startup:
-            Settings(api_key="test-key")
-        for error in (runtime.value, startup.value):
-            assert "UNIFI_ENABLE_NETWORK_WRITE" in str(error)
-            assert value not in str(error)
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", value)
+        # A setting made malformed after startup denies every write (fail closed).
+        assert policy.current() is policy.FAIL_CLOSED
+        assert switches.is_read_only() is True
+        assert value not in capsys.readouterr().err
 
 
 TWIN_NOT_ONE_RECORD = "a device-twin read did not return exactly one device record"
@@ -1337,3 +1331,91 @@ async def test_action_get_is_never_a_write_twin(client, registry, method, action
     assert result["status"] == status
     assert [call.args[0] for call in client.request.await_args_list] == [method]
     assert result["noOp"] is None
+
+
+async def test_relay_error_retains_http_status(client, registry):
+    from unifi_fabric.client import UniFiConnectionError
+
+    client.request.return_value = FakeResp(403, text="forbidden")
+    with pytest.raises(UniFiConnectionError) as exc:
+        await connector_get(
+            client, registry, "h", "network/integration/v1/sites", raise_on_error=True
+        )
+    assert exc.value.status == 403
+
+
+async def test_real_response_shaped_like_preview_is_not_dry_run(client, registry):
+    from unifi_fabric.client import DRY_RUN_MESSAGE
+
+    client.dry_run = False
+    client.request.return_value = FakeResp(
+        200, {"dryRun": True, "message": DRY_RUN_MESSAGE, "preview": {}}
+    )
+    result = await connector_write(
+        client, registry, "h", "POST", "network/integration/v1/sites", write_enabled=True
+    )
+    assert result["status"] == 200
+
+
+async def test_post_write_exception_redacts_nested_credentials(monkeypatch):
+    client = SimpleNamespace(
+        _settings=Settings(api_key="synthetic", redact_secrets=True),
+        dry_run=False,
+        request=AsyncMock(return_value=FakeResp(200, {"name": "saved"})),
+        audit_refusal=lambda **kwargs: None,
+    )
+    registry = SimpleNamespace(
+        resolve_key_for_host=AsyncMock(return_value=None),
+        resolve_host_id=AsyncMock(return_value="host-1"),
+    )
+    monkeypatch.setattr(connector, "_safe_get", AsyncMock(return_value={"status": 200, "body": {}}))
+    monkeypatch.setattr(
+        connector,
+        "_no_op_verdict",
+        lambda *args: (_ for _ in ()).throw(RuntimeError('{"password":"SYNTHETIC_SECRET"}')),
+    )
+    result = await connector_write(
+        client,
+        registry,
+        "synthetic",
+        "PATCH",
+        "network/api/s/default/rest/wlanconf/synthetic",
+        body={"name": "saved"},
+        write_enabled=True,
+    )
+    assert "SYNTHETIC_SECRET" not in result["postWriteError"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        '"password=SCALAR_SENTINEL"',
+        '{"detail":"password=NESTED_SENTINEL"}',
+    ],
+)
+async def test_post_write_exception_masks_credential_pairs_in_json_strings(monkeypatch, message):
+    client = SimpleNamespace(
+        _settings=Settings(api_key="synthetic", redact_secrets=True),
+        dry_run=False,
+        request=AsyncMock(return_value=FakeResp(200, {"name": "saved"})),
+        audit_refusal=lambda **kwargs: None,
+    )
+    registry = SimpleNamespace(
+        resolve_key_for_host=AsyncMock(return_value=None),
+        resolve_host_id=AsyncMock(return_value="host-1"),
+    )
+    monkeypatch.setattr(connector, "_safe_get", AsyncMock(return_value={"status": 200, "body": {}}))
+    monkeypatch.setattr(
+        connector, "_no_op_verdict", lambda *args: (_ for _ in ()).throw(RuntimeError(message))
+    )
+    result = await connector_write(
+        client,
+        registry,
+        "synthetic",
+        "PATCH",
+        "network/api/s/default/rest/wlanconf/synthetic",
+        body={"name": "saved"},
+        write_enabled=True,
+    )
+    assert "SENTINEL" not in result["postWriteError"]
+    assert "***REDACTED***" in result["postWriteError"]

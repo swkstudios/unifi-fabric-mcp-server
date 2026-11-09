@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import os
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -103,7 +104,28 @@ def registry(key: APIKeyConfig | None = None) -> AsyncMock:
     )
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def client(handler, **settings: Any) -> UniFiClient:
+    settings = _modes(settings)
     c = UniFiClient(Settings(api_key="test-key", **settings))
     c._clients[("beta", _key_fingerprint("test-key"))] = httpx.AsyncClient(
         base_url="https://api.ui.com", transport=httpx.MockTransport(handler)
@@ -582,9 +604,9 @@ async def test_blank_host_or_site_makes_no_request():
     ],
 )
 async def test_read_only_mode_refuses_writes_with_zero_requests(monkeypatch, fn, args):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     up = Upstream()
-    with pytest.raises(Exception, match="UNIFI_READ_ONLY|read-only"):
+    with pytest.raises(Exception, match="UNIFI_WRITE_POLICY|read-only"):
         await run(up, fn, *args)
     assert up.seen == []
 
@@ -850,11 +872,11 @@ async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypat
 
     app = app_with_tools()
     assert names <= await apply_read_only_tool_filter(app, True)
-    monkeypatch.setenv("UNIFI_ENABLE_NETWORK_WRITE", "false")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
     app = app_with_tools()
     hidden = await apply_area_opt_out_tool_filter(app, True)
     assert names <= hidden.keys()
-    assert all(hidden[name] == "UNIFI_ENABLE_NETWORK_WRITE" for name in names)
+    assert all(hidden[name] == "family:network=deny" for name in names)
 
 
 @pytest.mark.parametrize(
@@ -875,8 +897,8 @@ async def test_read_post_description_explains_area_opt_out(module_name, tool_nam
     app = FastMCP("read-post-guidance")
     module.register(app, lambda: (None, None))
     tool = await app.get_tool(tool_name)
-    assert "UNIFI_ENABLE_NETWORK_WRITE=false" in tool.description
-    assert "UNIFI_READ_ONLY" in tool.description
+    assert "family:network=deny" in tool.description
+    assert "UNIFI_WRITE_POLICY" in tool.description
 
 
 @pytest.mark.parametrize(
@@ -895,7 +917,7 @@ async def test_mixed_action_description_explains_whole_tool_filter(module_name, 
     module.register(app, lambda: (None, None))
     tool = await app.get_tool(tool_name)
     assert "whole tool" in tool.description
-    assert "UNIFI_READ_ONLY" in tool.description
+    assert "UNIFI_WRITE_POLICY" in tool.description
 
 
 async def test_recover_invalid_target_port_preserves_body_and_explains_state():

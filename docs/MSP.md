@@ -9,7 +9,7 @@ for staff who should investigate without making changes.
 Set `UNIFI_API_KEYS` to a JSON array. Each label is unique and identifies a key in
 tool results; `is_org_key` identifies an organization key when applicable.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:5e8bcdf0f74c062cdd783f0630fd37548419f5b233c5a46c149c958657b996b3 support=0.7.0 citation=file:src/unifi_fabric/config.py@sha256:5e8bcdf0f74c062cdd783f0630fd37548419f5b233c5a46c149c958657b996b3 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:2059742604710e2a025ed26c40cf668babfb2101ccbfa0daf75052241fb8755b support=0.7.1 citation=file:src/unifi_fabric/config.py@sha256:2059742604710e2a025ed26c40cf668babfb2101ccbfa0daf75052241fb8755b -->
 ```json
 [
   {"key": "YOUR_EAST_KEY", "label": "east", "is_org_key": true},
@@ -25,46 +25,25 @@ the console. Results identify their key with `_keyLabel`; a failed key is report
 alongside successful results. See [multi-key configuration](CONFIGURATION.md#multi-key-msp-setup)
 for details and limitations.
 
-## Three scripted demonstrations
+To keep customer keys off the server, run an HTTP transport with `UNIFI_KEY_MODE=header`: the
+server stores no key, and each client sends the keys it may use in the `X-UniFi-Api-Key` request
+header, a JSON object of label to key, so one server can serve technicians who hold different
+customers' keys. Run it behind MCP authentication and over TLS. See
+[Header key mode](CONFIGURATION.md#header-key-mode-unifi_key_mode).
 
-These recordings are scripted examples, not live AI sessions. They use invented sites,
-synthetic keys and a loopback mock. Every displayed result comes from real MCP calls to
-the server. The rollout applies only to the mock. The exact prompts are shown below;
-an assistant may choose different tools or wording in a live session.
+## Write controls for staff
 
-### Morning check
+Writes are enabled by default. Use `UNIFI_WRITE_POLICY=dry-run` to preview writes and
+review the network assignment, security configuration and site before applying a change.
+Dry-run applies to the whole server process; applying a change requires a separate session
+with dry-run disabled. A client of a write-enabled server can request its own preview with
+`X-UniFi-Write-Policy: dry-run`.
 
-> Check all client sites for offline devices and critical alerts.
-
-![Morning check across five synthetic client sites](assets/msp-morning.gif)
-
-The script calls `list_sites` and `list_devices`, identifies offline devices and
-reports the critical notification count supplied in site statistics. These are counts,
-not a detailed alert feed.
-
-### Guest Wi-Fi rollout
-
-> Preview a Guest Wi-Fi broadcast at all five client sites, then apply it to the mock.
-
-![Preview and apply guest Wi-Fi on five mock sites](assets/msp-guest.gif)
-
-With `UNIFI_DRY_RUN=1`, five `create_wifi_broadcast` calls return previews and no
-write reaches the mock. A separate server session then applies five calls to the mock.
-The mock accepts those writes in memory only. In a real deployment, review each
-preview, network assignment, security configuration and site before taking action.
-Dry-run applies to the whole server process; applying requires a separate session with
-dry-run disabled. Writes are enabled by default.
-
-### Junior staff access
-
-> As junior staff, create a Guest Wi-Fi broadcast at Main Office.
-
-![Read-only refusal and audit record](assets/msp-read-only.gif)
-
-A server started with `UNIFI_READ_ONLY=1` refuses the write before contacting the
-mock. With `UNIFI_AUDIT_LOG` set, the recording shows the actual refusal record.
-Read-only mode is a server-wide control, not a per-user role: give junior staff a
-separately configured server and protect access to any write-enabled server.
+Read-only mode is a server-wide control, not a per-user role. Give staff who should not
+write a separately configured server and protect access to any write-enabled server. A
+client can request `X-UniFi-Write-Policy: deny`, but because the client chooses that
+header it is a safeguard, not an access control. See
+[request policy headers](CONFIGURATION.md#request-policy-headers).
 
 ## Audit and operating controls
 
@@ -75,6 +54,3 @@ failure produces a warning and does not stop the call. Restrict access to logs a
 arrange collection and retention in your deployment. See
 [configuration](CONFIGURATION.md) for read-only mode, dry-run, audit fields and
 additional write controls.
-
-To reproduce the recordings and verify their assertions, follow
-[the MSP demo instructions](../scripts/demo/README.md#msp-demonstrations).

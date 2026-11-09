@@ -1,13 +1,14 @@
 """Live, non-mutating integration tests for the Protect live-stream collectors.
 
-Requires UNIFI_API_KEY and UNIFI_TEST_HOST. Skipped automatically when the key is
-absent (CI). All three tests are read-only: the two collectors poll GET endpoints over
+Requires UNIFI_API_KEY and UNIFI_TEST_HOST. Tests skip when the key is absent and fail
+when the key is present but the host is absent. The collectors poll GET endpoints over
 a fixed number of complete polls, and the WebSocket canary issues a single upgrade
 GET and only inspects the status code. No token is ever minted here — the configured
 key is used as-is.
 
-Run:
-    UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> \
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    UNIFI_TEST_HOST=<host> \
         pytest tests/test_protect_collectors_integration.py -v
 """
 
@@ -59,7 +60,7 @@ def registry(client, settings):
 
 def _require_host():
     if not _TEST_HOST:
-        pytest.skip("UNIFI_TEST_HOST must be set for Protect collector tests")
+        pytest.fail("UNIFI_TEST_HOST must be set for Protect collector tests")
 
 
 class TestCollectEventsIntegration:
@@ -110,14 +111,14 @@ async def _check_websocket_canary(http, registry, settings, host):
         },
     )
     assert response.status_code != 101, "connector accepted the WebSocket upgrade"
-    # Other HTTP errors may be authorization, routing, or upstream failures. Do not
-    # claim a transport limitation without an explicit server rejection message.
+    # The documented answer (protect.py exclusion note, acceptance-protect.md, `tf
+    # collectors`) is the upstream HTTP 404 "Entity 'endpoint' not found". Any other status
+    # may be authorization, routing or an upstream failure, or a changed connector: it is
+    # inconclusive, never a pass, exactly as `tf collectors` treats it.
     message = response.text.lower()
-    assert (
-        response.status_code in (400, 501)
-        and "websocket" in message
-        and ("not supported" in message or "unsupported" in message)
-    ), "inconclusive: upgrade rejection was not evidenced"
+    assert response.status_code == 404 and "not found" in message, (
+        f"inconclusive: expected upstream HTTP 404 'not found', got {response.status_code}"
+    )
 
 
 class TestWebSocketCanary:

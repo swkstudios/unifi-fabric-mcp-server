@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qsl
+
 import pytest
 from fastmcp.exceptions import ToolError
 
@@ -34,17 +36,29 @@ async def test_get_client_observability_refuses_an_argument_its_view_ignores(mon
 
 
 @pytest.mark.parametrize(
-    "override",
+    "override,suffix,query",
     [
         # the generated baseline is a window view, so the snapshot view clears it
-        {"view": "topology", "timestamp": 1760003000, "start": None, "end": None},
-        {"view": "timeline", "start": 1760000000, "end": 1760003600},
+        (
+            {"view": "topology", "timestamp": 1760003000, "start": None, "end": None},
+            "/topology/at/1760003000000",
+            [],
+        ),
+        (
+            {"view": "timeline", "start": 1760000000, "end": 1760003600},
+            "/timeline",
+            [("start", "1760000000000"), ("end", "1760003600000")],
+        ),
     ],
 )
 async def test_get_client_observability_still_sends_the_arguments_its_view_uses(
-    monkeypatch, override
+    monkeypatch, override, suffix, query
 ):
     up = uh.FakeUpstream()
     args = {**tool_args.generated_args(cti.TOOLS["get_client_observability"]), **override}
     await cti._call(monkeypatch, "get_client_observability", up, args=args)
-    assert any(not s.resolution for s in up.served)
+    (served,) = [s for s in up.served if "/observability/client/" in s.path]
+    # The arguments reach the upstream in epoch milliseconds: the topology snapshot in
+    # the path, the timeline window as its query.
+    assert served.path.endswith(suffix), served.path
+    assert sorted(parse_qsl(served.query, keep_blank_values=True)) == sorted(query)

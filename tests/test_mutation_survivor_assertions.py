@@ -196,8 +196,7 @@ async def test_name_tiers_casefold_not_lower():
 # --------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("label", ["forwarded parameters", "time parameter"])
-async def test_fleet_device_filters_reach_the_request(label):
+async def test_fleet_device_filters_reach_the_request():
     """aggregation.py:_fleet_devices -- forwarded params replaced with {};
     aggregation.py:_list_all_devices_fleet -- time parameter dropped."""
     client, calls = _client_with_pages({"data": []})
@@ -338,13 +337,6 @@ async def test_search_device_echoes_the_query():
 # --------------------------------------------------------------------------------------
 
 
-async def test_collect_cursor_keeps_the_array_key():
-    """_pagination.py:collect_cursor -- array-key metadata becomes None."""
-    client, _calls = _client_with_pages({"data": []})
-    collected = await _pagination.collect_cursor(client, "/v1/probe")
-    assert collected["array_key"] == "data"
-
-
 async def test_links_drain_default_page_size():
     """Recognition drains use the measured 100-record maximum, starting at page one."""
     client, calls = _client_with_pages({"groups": [{"id": "g"}], "links": {"next": None}})
@@ -389,7 +381,7 @@ async def test_first_success_takes_the_first_configured_key(multikey_client):
     assert {"key": key.label, "body": body} == {"key": "alpha", "body": {"owner": "alpha"}}
 
 
-def test_key_errors_come_before_existing_errors():
+def test_key_errors_are_recorded_as_wrapper_fields():
     """_keys.py:report_keys -- error-list concatenation reversed."""
     result = _keys.report_keys(
         {"errors": ["site: synthetic failure"]}, [], ["beta: synthetic failure"], multi=True

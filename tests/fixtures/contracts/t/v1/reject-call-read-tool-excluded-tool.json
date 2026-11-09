@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-call-read-tool-excluded-tool",
+  "description": "call_read_tool dispatching list_cameras excluded by UNIFI_EXCLUDE=family:protect refuses with tool_not_exposed",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:protect"
+    },
+    "route": "call_read_tool",
+    "arguments": {
+      "name": "list_cameras",
+      "arguments": {
+        "host": "host-a1"
+      }
+    }
+  },
+  "expected": {
+    "code": "tool_not_exposed",
+    "upstream_calls": 0
+  }
+}

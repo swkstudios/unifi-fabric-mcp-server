@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import re
 import sys
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,31 @@ DOCS_PATH = ROOT / "docs" / "TOOLS.md"
 #: generator rewrites it from the registry and ``--check`` fails when it drifts.
 RELEASE_COUNT_FILES = (ROOT / "docs" / "COVERAGE.md",)
 RELEASE_COUNT_RE = re.compile(r"(this release's )(\d+)( tools\b)")
+#: Settings that shape the registered catalog (UNIFI_EXCLUDE, UNIFI_FAMILY_ALLOW,
+#: UNIFI_TOOL_MODE, ...). Generated files describe the complete catalog, so the generators
+#: drop every one of them from the caller's environment before importing the server.
+CATALOG_ENV_PREFIXES = ("UNIFI_", "MCP_", "FASTMCP_")
+
+
+def catalog_environ(environ: Mapping[str, str]) -> dict[str, str]:
+    """``environ`` without catalog settings, in full tool mode with a placeholder key."""
+    env = {k: v for k, v in environ.items() if not k.startswith(CATALOG_ENV_PREFIXES)}
+    env["UNIFI_API_KEY"] = "catalog-generator-placeholder-key"
+    env["UNIFI_TOOL_MODE"] = "full"
+    return env
+
+
+@contextlib.contextmanager
+def complete_catalog_env() -> Iterator[None]:
+    """Run the block under :func:`catalog_environ`; the caller's environment is restored."""
+    saved = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(catalog_environ(saved))
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def _tool_name(tool: Any) -> str:
@@ -185,12 +212,12 @@ def _category(tool_name: str) -> str:
 
 
 async def _runtime_tools() -> list[Any]:
-    # The reference documents domain tools regardless of the startup default.
-    os.environ["UNIFI_TOOL_MODE"] = "full"
+    # The reference documents every domain tool regardless of the caller's settings.
     sys.path.insert(0, str(SRC))
-    from unifi_fabric.server import mcp
+    with complete_catalog_env():
+        from unifi_fabric.server import mcp
 
-    return sorted(await mcp.list_tools(), key=_tool_name)
+        return sorted(await mcp.list_tools(), key=_tool_name)
 
 
 def _anchor(text: str) -> str:
@@ -224,8 +251,8 @@ def _api_source_section(tools: list[Any]) -> list[str]:
             "(the `unifi/apiSource` tool metadata). `official` is a published Ubiquiti API; "
             "`private` and `private.<surface>` are the routes the controller web UIs call "
             "(no published spec); `relay/generic` is the generic connector relay. "
-            "`UNIFI_DISABLE_API_SOURCES` disables any app, source or access level "
-            "(see docs/CONFIGURATION.md); everything is enabled by default."
+            "A `source:<selector>` entry of `UNIFI_EXCLUDE` removes any app, source or "
+            "access level (see docs/CONFIGURATION.md); everything is enabled by default."
         ),
         "",
     ]
@@ -258,11 +285,37 @@ def _access(tool: Any) -> str:
 
 
 def _family_index() -> dict[str, str]:
-    """``tool -> family`` (``unifi_fabric.families``): the names UNIFI_TOOL_FAMILIES takes."""
+    """``tool -> family`` (``unifi_fabric.families``): the IDs UNIFI_FAMILY_ALLOW takes."""
     sys.path.insert(0, str(SRC))
     from unifi_fabric.families import build_family_index
 
     return build_family_index()
+
+
+def _connector_typed_writes(tools: list[Any], families: dict[str, str]) -> list[str]:
+    """Typed write tools ``family:connector=deny`` also hides, from the generated table.
+
+    The same selection as ``read_only_tools.apply_area_opt_out_tool_filter``: a write tool
+    (not ``readOnlyHint``, not the mixed GET relay) whose call graph checks the connector
+    write switch (``families.connector_write_tools``), outside the relay's own family.
+    """
+    sys.path.insert(0, str(SRC))
+    from unifi_fabric.families import connector_write_tools
+
+    governed = connector_write_tools()
+    return sorted(
+        name
+        for tool in tools
+        if (name := _tool_name(tool)) in governed
+        and _access(tool) == "write"
+        and families.get(name) != "connector"
+    )
+
+
+def _code_list(names: list[str]) -> str:
+    """```a`, `b` and `c``` (the prose list style of the reference)."""
+    quoted = [f"`{name}`" for name in names]
+    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " and " + quoted[-1]
 
 
 def _family_section(tools: list[Any], families: dict[str, str]) -> list[str]:
@@ -276,9 +329,9 @@ def _family_section(tools: list[Any], families: dict[str, str]) -> list[str]:
         "## Tools by family",
         "",
         (
-            "Every tool is in one family, the name `UNIFI_TOOL_FAMILIES` and "
-            "`UNIFI_DISABLED_TOOL_FAMILIES` take (separated by commas or whitespace, any "
-            "letter case). `firewall` is assigned by route: a tool that calls a firewall "
+            "Every tool is in one family, the ID `UNIFI_FAMILY_ALLOW` and the `family:` "
+            "entries of `UNIFI_EXCLUDE` take (comma-separated, lower case). `firewall` is "
+            "assigned by route: a tool that calls a firewall "
             "policy, firewall zone, ACL rule or classic firewall rule or group route is in "
             "`firewall`. Every family is enabled by default; `list_tool_families` reports the "
             "families and counts of the running catalog."
@@ -299,11 +352,11 @@ def _access_index_section(tools: list[Any]) -> list[str]:
         "## Tool access index",
         "",
         (
-            "Every tool with its family (the name `UNIFI_TOOL_FAMILIES` and "
-            "`UNIFI_DISABLED_TOOL_FAMILIES` take) and its access: `read` tools make no "
+            "Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` "
+            "take) and its access: `read` tools make no "
             "change upstream (`readOnlyHint` true, or the mixed `fabric_connector_get` relay, "
             "which is selected as read) and stay available in read-only mode "
-            "(`UNIFI_READ_ONLY`); `write` tools change state and are enabled by default."
+            "(`UNIFI_WRITE_POLICY=deny`); `write` tools change state and are enabled by default."
         ),
         "",
         "| Tool | Family | Access |",
@@ -330,12 +383,12 @@ def render_markdown(tools: list[Any]) -> str:
         "Reference manual for every tool registered with the FastMCP runtime.",
         "",
         "Discovery mode is the default: use search_tools, describe_tool, "
-        "call_read_tool and call_write_tool "
+        "call_read_tool, call_write_tool and list_tool_families "
         "to discover and invoke these same tools through a compact catalog. "
         "Set UNIFI_TOOL_MODE=full to advertise the complete catalog. "
-        "UNIFI_TOOL_FAMILIES and UNIFI_DISABLED_TOOL_FAMILIES select the available families "
-        "in either mode; UNIFI_READ_ONLY and the per-area write opt-outs hide the write "
-        "tools they refuse.",
+        "UNIFI_FAMILY_ALLOW and UNIFI_EXCLUDE select the available tools "
+        "in either mode; UNIFI_WRITE_POLICY=deny and the deny entries of "
+        "UNIFI_WRITE_EXCEPTIONS hide the write tools they refuse.",
         "",
         *_access_index_section(tools),
         "",
@@ -392,16 +445,18 @@ def render_markdown(tools: list[Any]) -> str:
         ),
         "",
         (
-            "1. **`UNIFI_ENABLE_CONNECTOR_WRITE` \u2014 a deployment capability flag, "
-            "ENABLED by default.** With the variable unset, connector writes are enabled "
-            "and no action is needed for write capability. For a deliberate read-only "
-            'deployment, set it to `"0"` in the environment of the process that starts the '
-            "server; the server reads it from its environment. For a Compose deployment "
+            "1. **`family:connector=deny` \u2014 a `UNIFI_WRITE_EXCEPTIONS` entry; connector "
+            "writes are ENABLED by default.** With `UNIFI_WRITE_EXCEPTIONS` unset, connector "
+            "writes are enabled and no action is needed for write capability. For a "
+            "deliberate read-only relay, add `family:connector=deny` to "
+            "`UNIFI_WRITE_EXCEPTIONS` (a semicolon list) in the environment of the process "
+            "that starts the server; `family:connector=dry-run` previews the same writes "
+            "instead. For a Compose deployment "
             "that is the **service's `environment:` block of the docker-compose file that "
             "deploys this server** (then recreate the container); for a local install it is "
             "the client's server `env` block or a shell `export` before the client starts. "
-            "It is not set in the application source. Accepted values: unset / `1` / "
-            "`true` / `yes` / `on` enable writes; `0` / `false` / `no` / `off` disable them."
+            "It is not set in the application source. Values are case-sensitive; a blank "
+            "or malformed value fails startup naming the setting."
         ),
         "",
         "   Compose example (read-only opt-out):",
@@ -410,49 +465,44 @@ def render_markdown(tools: list[Any]) -> str:
         "   services:",
         "     unifi-fabric-mcp:",
         "       environment:",
-        '         UNIFI_ENABLE_CONNECTOR_WRITE: "0"   # read-only: refuse connector mutations',
+        '         UNIFI_WRITE_EXCEPTIONS: "family:connector=deny"   # refuse connector mutations',
         "   ```",
         "",
         (
             "   If this server shares a network namespace with a sidecar (for example a "
             '`ghostunnel` proxy via `network_mode: "service:..."`), restart the whole '
             "compose group together, not the app container alone. To re-enable, remove "
-            'the variable or set it to `"1"`, with the same restart rule.'
+            "the entry from `UNIFI_WRITE_EXCEPTIONS`, with the same restart rule."
         ),
         "",
         (
             "2. **`confirm` \u2014 accepted and ignored.** The "
             "`confirm` argument is still accepted on the mutating relay tools so existing "
             "callers do not break, but it is ignored: the mutation runs whenever the "
-            "capability flag is enabled, whether or not `confirm` is passed."
+            "relay's writes are allowed, whether or not `confirm` is passed."
         ),
         "",
         (
-            "When writes are disabled, the write tools this flag governs are hidden from "
+            "When the entry is set, the write tools it governs are hidden from "
             "`tools/list` and from discovery search at startup. A call to one by name is "
             "refused before the console is touched and audited, and the refusal message "
-            "names `UNIFI_ENABLE_CONNECTOR_WRITE` and points back to this section."
+            "names `family:connector=deny` and points back to this section."
         ),
         "",
         (
-            "**Scope.** `UNIFI_ENABLE_CONNECTOR_WRITE` governs the four generic "
+            "**Scope.** `family:connector=deny` governs the four generic "
             "connector relay mutation tools (`fabric_connector_post`, "
             "`fabric_connector_put`, `fabric_connector_patch`, "
             "`fabric_connector_delete`), a `fabric_connector_get` call to a known "
             "state-changing GET route (Protect camera `enable-control` / "
-            "`disable-control`), and these typed tools: `update_device_radio`; the Wi-Fi "
-            "radio tools `preview_radio_ai_optimization`, `apply_radio_ai_optimization`, "
-            "`control_wifi_doctor_optimization`, `start_wifi_quick_scan`, "
-            "`start_spectrum_scan` and `configure_wifi_wan`; and the Protect private-API "
-            "writes `update_camera_private`, `update_nvr`, `update_sensor_private`, "
-            "`reboot_protect_device`, `adopt_protect_device`, `unadopt_protect_device`, "
-            "`reboot_nvr` and `clear_sensor_tamper`. All use the same enabled-by-default "
-            "flag, and each typed tool also follows its own area's opt-out. Ordinary GET "
+            "`disable-control`), and these typed tools: "
+            f"{_code_list(_connector_typed_writes(tools, families))}. Each typed tool also "
+            "follows its own area's entry. Ordinary GET "
             "reads through `fabric_connector_get` stay available. "
             "The InnerSpace typed write tools are governed by "
-            "`UNIFI_ENABLE_INNERSPACE_WRITE`, not by this flag. An InnerSpace write path "
-            "reached through the generic relay follows the connector write flag, "
-            "`UNIFI_ENABLE_INNERSPACE_WRITE` and read-only mode, as other relay "
+            "`family:innerspace=deny`, not by this entry. An InnerSpace write path "
+            "reached through the generic relay follows `family:connector=deny`, "
+            "`family:innerspace=deny` and `UNIFI_WRITE_POLICY`, as other relay "
             "mutations; writes are enabled by default."
         ),
         "",
@@ -565,7 +615,9 @@ def main() -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(content)
-    write_release_counts(count)
+    # A preview written elsewhere leaves the tracked release-count phrases alone.
+    if args.output.resolve() == DOCS_PATH.resolve():
+        write_release_counts(count)
     print(f"Generated {args.output} from FastMCP metadata", file=sys.stderr)
     return 0
 

@@ -243,7 +243,7 @@ def test_every_fanout_site_has_a_catalog_property():
                 discovered.add((path.stem, node.name))
     covered = {(fn.__module__.rsplit(".", 1)[-1], fn.__name__) for fn, _, _ in CATALOG}
     covered |= {
-        ("server", "query_isp_metrics"),
+        ("site_manager", "register"),  # hosts the query_isp_metrics wrapper (tested via server)
         ("site_manager", "search_across_sites"),
         ("aggregation", "_fleet_devices"),  # exercised through both public consumers
         ("aggregation", "register"),  # wrappers delegate to the tested handlers

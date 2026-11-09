@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-api-key-header-case-variant-twice",
+  "description": "X-UniFi-Api-Key sent twice under names that differ only by case is invalid",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "x-unifi-api-key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ],
+      [
+        "X-UniFi-Api-Key",
+        "{\"beta\":\"synthetic-key-b\"}"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_api_key_header",
+    "upstream_calls": 0
+  }
+}

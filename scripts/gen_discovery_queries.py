@@ -11,10 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 from pathlib import Path
 
-from unifi_fabric import server
-from unifi_fabric.families import build_family_index
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gen_tools_doc import complete_catalog_env  # noqa: E402
+
+from unifi_fabric.families import build_family_index  # noqa: E402
 
 TARGET = Path(__file__).resolve().parents[1] / "tests/fixtures/discovery_queries.json"
 CONFUSABLE = [
@@ -50,6 +53,8 @@ CONFUSABLE = [
     ("get_innerspace_summary", "Summarize the InnerSpace project contents"),
     ("list_mobility_devices", "Show the cellular mobility devices"),
     ("update_mobility_device_name", "Rename a mobility device"),
+    ("list_firewall_zones_proxy", "list firewall zones"),
+    ("list_firewall_zones_proxy", "firewall zone ids"),
     ("list_dns_policies", "Show the DNS policies for a site"),
     ("list_port_forwards", "Show the port forwarding rules"),
     ("get_unifi_placement_snapshot", "Export where each device is placed on the floor plans"),
@@ -89,7 +94,10 @@ def _as_request(purpose: str) -> str:
 
 
 async def generate():
-    tools = await server.mcp.list_tools()
+    with complete_catalog_env():
+        from unifi_fabric import server
+
+        tools = await server.mcp.list_tools()
     families = build_family_index()
     queries = []
     for tool in sorted(tools, key=lambda item: item.name):

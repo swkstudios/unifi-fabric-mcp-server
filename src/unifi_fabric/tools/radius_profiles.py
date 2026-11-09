@@ -33,7 +33,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the updated profile]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -70,7 +70,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         rest/radiusprofile first, so an unknown id is never reported as deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim. Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false,
+        verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
         message, response (the preview with method, path, params (query parameters), body)}.
 
         Example call (delete_radius_profile):

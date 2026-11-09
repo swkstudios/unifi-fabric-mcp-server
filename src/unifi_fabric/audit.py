@@ -1,71 +1,146 @@
-"""Opt-in audit log for write operations.
+"""One typed audit stream: startup, call, error and write-audit records.
 
-OFF by default. When ``UNIFI_AUDIT_LOG`` names a file path, EVERY write/action a tool
-sends through the shared HTTP chokepoint (``UniFiClient.request`` — i.e. every
-POST/PUT/PATCH/DELETE that is classified as a write) is appended as a structured
-record carrying: timestamp (UTC ISO-8601), HTTP method, the resolved request path,
-the outcome, and the upstream status. Format is selectable via
-``UNIFI_AUDIT_LOG_FORMAT`` (``text`` default, or ``json`` for one JSON object per line).
+OFF by default. The stream is configured by four settings:
 
-Because the chokepoint is below every tool, this covers all write surfaces uniformly
-(network, protect, hotspot, device management, clients, carrier fabric, mobility, port
-profiles, settings, the connector relay, ...) without per-tool wiring.
+* ``UNIFI_AUDIT_SINK`` -- ``none`` | ``stderr`` | ``file``. Unset means ``file`` when
+  ``UNIFI_AUDIT_LOG`` names a path and ``none`` otherwise, so an existing
+  ``UNIFI_AUDIT_LOG`` deployment keeps writing its file. ``file`` requires
+  ``UNIFI_AUDIT_LOG``; ``none`` or ``stderr`` with a path set is a startup error.
+  The remote sink is not part of this build (its transport contract comes first).
+* ``UNIFI_AUDIT_LEVEL`` -- ``off`` | ``normal`` (default) | ``debug``. ``off`` writes
+  nothing except the two policy records (:meth:`AuditStream.policy_record`);
+  ``normal`` writes metadata only; ``debug`` adds the scrubbed request body of a write
+  and the scrubbed arguments of a call record, and nothing else.
+* ``UNIFI_AUDIT_CALLS`` -- per-call logging, off by default: one ``call`` record per
+  tool call that completes and one ``error`` record per tool call that fails.
+* ``UNIFI_AUDIT_LOG_FORMAT`` -- ``json`` (default) or ``text``.
 
-A write attempt refused before it reaches the upstream is audited too, with
-``outcome=refused`` and a ``reason`` naming the gate: ``UNIFI_READ_ONLY`` (the read-only
-mode, at the tool middleware or the chokepoint), the area opt-out variable
-(``UNIFI_ENABLE_NETWORK_WRITE``, ``UNIFI_PROTECT_MUTATIONS_ENABLED``,
-``UNIFI_ENABLE_MOBILITY_WRITE``, ``UNIFI_ENABLE_CARRIER_FABRIC_WRITE``,
-``UNIFI_ENABLE_INNERSPACE_WRITE``,
-``UNIFI_ENABLE_CONNECTOR_WRITE``; at the tool middleware or the chokepoint), or
-``empty_update`` / ``required_body_fields`` (the empty-update guard). Every other refusal
-of a write tool call, at any layer (an argument check, a guard inside the tool, a
-list-first resolution that finds no such id, the chokepoint's unsafe-path and
-mask-only-body checks, the connector relay's validation), is audited too, exactly once,
-with the refusal message as ``reason`` (:mod:`unifi_fabric.refusal_audit`). A refusal
-made before the request is resolved carries the ``tool`` name, and ``method`` / ``path``
-are absent (``-`` in the text format, ``null`` in JSON). In the text format a reason that
-is not one plain token is written JSON-quoted, so it stays one field of one line.
+Every JSON record carries ``schema_version`` (``"1"``), ``event`` (one of
+:data:`EVENTS`) and ``timestamp_utc`` (``datetime.now(UTC).isoformat()``), and is
+serialized ``json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",",
+":"))``: the same canonical form as the policy records. The field set of each event
+is fixed in :data:`EVENT_FIELDS` and tested in ``tests/test_audit_contract.py``. The
+text format keeps the 0.7.0 key=value line for ``audit`` records (timestamp first, no
+``event`` field) and writes ``event=<name>`` first for every other event.
+
+A write attempt is an ``audit`` record (every POST/PUT/PATCH/DELETE classified as a
+write at the shared HTTP chokepoint, and every refused write tool call, exactly once:
+:mod:`unifi_fabric.refusal_audit`). Its outcome is one of :data:`OUTCOMES`.
 
 Design notes:
 
-* **Opt-in / byte-identical when off.** With ``UNIFI_AUDIT_LOG`` unset,
-  :func:`build_audit_sink` returns ``None`` and the request path is byte-identical to
-  today — nothing is written.
-* **Secret scrubbing.** Only the method, resolved path, outcome and status are
-  recorded. The request BODY is deliberately NOT written (a write body can contain a
-  passphrase/secret), and the API key only ever travels in a header, never the path.
-  Text records also pass through the central secret scrubber after assembly.
-  JSON string values are scrubbed before encoding. JSON keys and numeric metadata
-  retain their original values, including when they equal a configured secret.
-* **Fail fast on a bad format.** ``UNIFI_AUDIT_LOG_FORMAT`` is validated when the
-  settings load; an unknown value is a startup error listing the formats, never a
-  silent fallback.
-* **Best-effort, never fatal.** A sink write failure is swallowed (logged at WARNING);
-  an audit-log I/O error must never break a tool call.
+* **Secret scrubbing.** String values are scrubbed of every configured secret before
+  encoding; JSON keys, numbers and nulls keep their values. A write's query string and
+  fragment are never recorded. A body or argument object is written only at ``debug``,
+  with every credential-named field masked (:func:`redaction.redact_credentials`) and
+  every configured secret scrubbed from its strings.
+* **File creation.** A new audit file is created with mode ``UNIFI_AUDIT_LOG_MODE``
+  (``0600`` default, ``0640`` for a group reader), set with ``fchmod`` so the umask
+  cannot widen or narrow it. An existing file keeps its mode; the startup record
+  reports it. The file is opened ``O_APPEND | O_NOFOLLOW`` for every record and closed
+  again, so a host-owned rotation (logrotate ``create``/``copytruncate``) is followed
+  and a symlink at the path is refused.
+* **Fail open.** A write failure never breaks a tool call. Any ``OSError`` (``ENOSPC``,
+  ``EACCES``, ``EPERM``, ``EROFS``, ``ENOENT`` and the rest) marks the stream
+  unavailable: every tool response then carries the fixed notice
+  :data:`AUDIT_UNAVAILABLE` until a later record is written again, and that first
+  record after the fault is an ``audit.recovered`` record counting the records lost.
 """
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
+import os
+import re
+import stat
+import sys
+import threading
+from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TextIO
 
+from .redaction import REDACTION_MASK, redact_credentials
 from .refusal_audit import note_refused_record
-from .secret_scrub import configured_secrets, scrub
+from .secret_scrub import configured_secrets, scrub, scrub_json_strings
 
 if TYPE_CHECKING:
     from .config import Settings
 
 _logger = logging.getLogger(__name__)
 
-_VALID_FORMATS = ("text", "json")
+SCHEMA_VERSION = "1"
+
+#: Valid values of each setting (config.py keeps the same tuples for its validators).
+SINKS = ("none", "stderr", "file")
+LEVELS = ("off", "normal", "debug")
+FORMATS = ("text", "json")
+FILE_MODES = {"0600": 0o600, "0640": 0o640}
+
+#: The fixed per-response notice while the sink cannot be written.
+AUDIT_UNAVAILABLE = "audit_unavailable"
+#: The ``_meta`` key of a tool result that carries the notice.
+NOTICE_META_KEY = "unifi_fabric/audit"
+
+#: Errnos the fault fixtures cover; every other ``OSError`` is handled the same way.
+FAULT_ERRNOS = (errno.ENOSPC, errno.EACCES, errno.EPERM, errno.EROFS, errno.ENOENT)
+
+#: Outcomes of an ``audit`` record (a write attempt): these tokens, or ``http_<status>``
+#: for a non-2xx upstream status (:data:`OUTCOME_HTTP`).
+OUTCOMES = (
+    "success",
+    "no_response",
+    "rate_limited",
+    "classic_rc_error",
+    "error",
+    "dry_run",
+    "refused",
+)
+OUTCOME_HTTP = r"http_[1-5][0-9][0-9]"
+CALL_OUTCOMES = ("ok", "error")
+
+_ENVELOPE = ("schema_version", "event", "timestamp_utc")
+#: Field set of each event. ``optional`` fields are present only when they have a value.
+EVENT_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
+    "startup": {
+        "required": (*_ENVELOPE, "version", "sink", "level", "format", "calls"),
+        "optional": ("file_mode",),
+    },
+    "audit": {
+        "required": (*_ENVELOPE, "method", "path", "outcome", "status"),
+        "optional": (
+            "tool",
+            "reason",
+            "resolvedHost",
+            "resolvedSite",
+            "duration_ms",
+            "body",
+            "via",
+        ),
+    },
+    "call": {
+        "required": (*_ENVELOPE, "tool", "outcome", "duration_ms"),
+        "optional": ("arguments",),
+    },
+    "error": {
+        "required": (*_ENVELOPE, "tool", "error_type", "duration_ms"),
+        "optional": ("message",),
+    },
+    "audit.recovered": {
+        "required": (*_ENVELOPE, "lost_records", "fault"),
+        "optional": (),
+    },
+}
+#: The two policy records the audit stream carries byte-identical (shapes: policy.py).
+POLICY_EVENTS = ("policy.startup", "policy.refusal")
+EVENTS = (*EVENT_FIELDS, *POLICY_EVENTS)
+
+_AUDIT_VIA: ContextVar[str | None] = ContextVar("audit_via", default=None)
 _AUDIT_TOOL: ContextVar[str | None] = ContextVar("audit_tool", default=None)
 _AUDIT_HOST: ContextVar[str | None] = ContextVar("audit_host", default=None)
 _AUDIT_SITE: ContextVar[str | None] = ContextVar("audit_site", default=None)
@@ -75,6 +150,10 @@ _AUDIT_START: ContextVar[float | None] = ContextVar("audit_start", default=None)
 @contextmanager
 def audit_call(tool: str | None):
     """Scope tool provenance and duration to its audit records."""
+    parent = _AUDIT_TOOL.get()
+    via_token = _AUDIT_VIA.set(
+        parent if parent in {"call_read_tool", "call_write_tool", "execute"} else _AUDIT_VIA.get()
+    )
     tokens = (
         _AUDIT_TOOL.set(tool),
         _AUDIT_HOST.set(None),
@@ -88,6 +167,12 @@ def audit_call(tool: str | None):
         _AUDIT_SITE.reset(tokens[2])
         _AUDIT_HOST.reset(tokens[1])
         _AUDIT_TOOL.reset(tokens[0])
+        _AUDIT_VIA.reset(via_token)
+
+
+def current_tool() -> str | None:
+    """The public name of the tool whose call is running now, else None."""
+    return _AUDIT_TOOL.get()
 
 
 def set_audit_resolution(*, host: str | None = None, site: str | None = None) -> None:
@@ -97,21 +182,287 @@ def set_audit_resolution(*, host: str | None = None, site: str | None = None) ->
         _AUDIT_SITE.set(site)
 
 
-@dataclass(frozen=True)
-class AuditSink:
-    """Append-only structured audit sink writing to a configured file path."""
+def elapsed_ms() -> float | None:
+    """Milliseconds since the current tool call started (``None`` outside one)."""
+    started = _AUDIT_START.get()
+    return round((perf_counter() - started) * 1000, 3) if started is not None else None
+
+
+#: Characters a canonical line escapes although ``ensure_ascii=False`` would keep them:
+#: DEL, the C1 controls and the Unicode line/paragraph separators split lines in
+#: splitlines()-based shippers or act on a terminal.
+_LINE_UNSAFE = re.compile("[\x7f-\x9f\u2028\u2029]")
+
+
+def canonical_json(obj: Mapping[str, Any]) -> str:
+    """The one serialization of a JSON record (the policy record form, with DEL, C1
+    and U+2028/U+2029 escaped so a record is always exactly one line)."""
+    line = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return _LINE_UNSAFE.sub(lambda m: f"\\u{ord(m.group()):04x}", line)
+
+
+#: Debug-only ceiling on one serialized ``body`` / ``arguments`` value; a larger value is
+#: replaced by ``{"truncated": true, "bytes": <size>}``.
+DEBUG_VALUE_MAX_BYTES = 65536
+_MAX_DEPTH = 64
+
+#: Debug bodies and arguments: a key containing one of these (case-insensitive) is a
+#: credential field and its value is masked whatever its type (fail closed, in addition
+#: to :func:`redaction.redact_credentials`). Cursor fields stay readable.
+_AUDIT_CREDENTIAL_PARTS = (
+    "pass",
+    "password",
+    "passwd",
+    "community",
+    "bearer",
+    "jwt",
+    "pwd",
+    "passphrase",
+    "secret",
+    "token",
+    "key",
+    "pin",
+    "otp",
+    "code",
+    "cred",
+    "auth",
+    "cookie",
+    "psk",
+    "private",
+    "signature",
+    "session",
+)
+_CURSOR_KEYS = frozenset({"nexttoken", "next_token", "pagetoken", "page_token", "cursor"})
+
+
+def _mask_audit_credentials(obj: Any, depth: int = 0) -> Any:
+    if depth > _MAX_DEPTH:
+        return "[truncated: depth]"
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            lowered = str(k).lower()
+            if (
+                lowered not in _CURSOR_KEYS
+                and any(p in lowered for p in _AUDIT_CREDENTIAL_PARTS)
+                and v not in (None, "")
+            ):
+                out[str(k)] = REDACTION_MASK
+            else:
+                out[str(k)] = _mask_audit_credentials(v, depth + 1)
+        return out
+    if isinstance(obj, list):
+        return [_mask_audit_credentials(v, depth + 1) for v in obj]
+    return obj
+
+
+# ------------------------------------------------------------------------------ sinks
+class SinkWriteError(Exception):
+    """A sink could not write a line; ``errno_name`` names the fault (``EIO`` if none)."""
+
+    def __init__(self, exc: BaseException) -> None:
+        super().__init__(type(exc).__name__)
+        code = exc.errno if isinstance(exc, OSError) else None
+        self.errno_name = errno.errorcode.get(code or 0, "EIO")
+
+
+class NullSink:
+    name = "none"
+
+    def write(self, line: str) -> None:  # pragma: no cover - never called
+        return None
+
+
+@dataclass
+class StderrSink:
+    """One line per record to the process's standard error (never stdout: stdio MCP)."""
+
+    stream: Callable[[], TextIO] = field(default=lambda: sys.stderr)
+    name: str = "stderr"
+
+    def write(self, line: str) -> None:
+        try:
+            out = self.stream()
+            out.write(line + "\n")
+            out.flush()
+        except Exception as exc:  # noqa: BLE001 - every sink failure fails open
+            raise SinkWriteError(exc) from None
+
+
+def _identity(st: os.stat_result) -> tuple[int, int, int]:
+    return (st.st_dev, st.st_ino, st.st_rdev if stat.S_ISCHR(st.st_mode) else 0)
+
+
+def _fd_identity(fd: int) -> tuple[int, int, int] | None:
+    try:
+        return _identity(os.fstat(fd))
+    except OSError:
+        return None
+
+
+@dataclass
+class FileSink:
+    """Append-only file sink. A new file is created with ``mode`` exactly.
+
+    Every decision is taken on the opened descriptor (``fstat``), never on the path, so
+    a path swapped between a check and the open cannot redirect records:
+
+    * a regular file is accepted only when it is not reached through a symlink and is
+      owned by this process's user (else ``EPERM``);
+    * a symlink is followed only to this process's own standard error (``/dev/stderr``
+      in a container, whatever it is: pipe, terminal or file); never elsewhere
+      (``ELOOP``); a FIFO or device named directly must belong to this user;
+    * the target is never this process's standard output (the stdio MCP channel);
+    * the open is non-blocking, so a FIFO with no reader is a fault (``ENXIO``), not a
+      hang.
+    """
 
     path: str
-    fmt: str = "text"
-    #: Configured secrets each line is scrubbed of (never shown in repr).
+    mode: int = 0o600
+    name: str = "file"
+    _partial: bool = field(default=False, repr=False, compare=False)
+    _wide_warned: bool = field(default=False, repr=False, compare=False)
+
+    def _open(self) -> int:
+        flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOCTTY", 0)
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        created = False
+        try:
+            fd = os.open(self.path, flags | nofollow | os.O_CREAT | os.O_EXCL, self.mode)
+            created = True
+        except FileExistsError:
+            try:
+                fd = os.open(self.path, flags | nofollow)
+                via_link = False
+            except OSError as exc:
+                if exc.errno != errno.ELOOP:
+                    raise
+                fd = os.open(self.path, flags)  # a symlink: validated on the fd below
+                via_link = True
+        try:
+            if created:
+                os.fchmod(fd, self.mode)
+            else:
+                self._check_existing(fd, via_link)
+            if hasattr(os, "set_blocking"):
+                os.set_blocking(fd, True)
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
+
+    def _check_existing(self, fd: int, via_link: bool) -> None:
+        st = os.fstat(fd)
+        ident = _identity(st)
+        if ident == _fd_identity(1):
+            raise OSError(errno.EPERM, "audit sink is standard output")
+        if via_link:
+            if ident != _fd_identity(2):
+                raise OSError(errno.ELOOP, "audit path is a symlink to something else")
+            return
+        if stat.S_ISREG(st.st_mode):
+            if hasattr(os, "geteuid") and st.st_uid != os.geteuid():
+                raise OSError(errno.EPERM, "audit file is owned by another user")
+            if stat.S_IMODE(st.st_mode) & ~self.mode and not self._wide_warned:
+                self._wide_warned = True
+                _logger.warning(
+                    "audit file permissions are wider than UNIFI_AUDIT_LOG_MODE; "
+                    "tighten them or rotate the file"
+                )
+            return
+        if not (stat.S_ISCHR(st.st_mode) or stat.S_ISFIFO(st.st_mode)):
+            raise OSError(errno.EPERM, "audit path is not a file, device or FIFO")
+        if ident != _fd_identity(2) and hasattr(os, "geteuid") and st.st_uid != os.geteuid():
+            raise OSError(errno.EPERM, "audit device or FIFO is owned by another user")
+
+    def write(self, line: str) -> None:
+        # A record that a fault cut short has no newline: start this one on its own line.
+        prefix = "\n" if self._partial else ""
+        data = (prefix + line + "\n").encode("utf-8", errors="backslashreplace")
+        written = 0
+        try:
+            fd = self._open()
+            try:
+                view = memoryview(data)
+                while view:
+                    n = os.write(fd, view)
+                    written += n
+                    view = view[n:]
+            finally:
+                os.close(fd)
+        except Exception as exc:  # noqa: BLE001 - every sink failure fails open
+            if written:
+                self._partial = True
+            raise SinkWriteError(exc) from None
+        self._partial = False
+
+    def existing_mode(self) -> str | None:
+        """The octal permission bits of what the path resolves to (startup record)."""
+        try:
+            st = os.stat(self.path)
+        except OSError:
+            return None
+        return f"{stat.S_IMODE(st.st_mode):04o}"
+
+
+Sink = NullSink | StderrSink | FileSink
+
+
+# ----------------------------------------------------------------------------- stream
+@dataclass
+class AuditStream:
+    """The typed stream over one sink. Thread-safe; every write is best-effort and no
+    exception of the stream ever reaches the caller (fail open)."""
+
+    sink: Sink
+    fmt: str = "json"
+    level: str = "normal"
+    calls: bool = False
+    #: Configured secrets each record is scrubbed of (never shown in repr).
     secrets: tuple[str, ...] = field(default=(), repr=False, compare=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    _fault: str | None = field(default=None, repr=False, compare=False)
+    _lost: int = field(default=0, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        if self.fmt not in _VALID_FORMATS:
+        if self.fmt not in FORMATS:
             raise ValueError(
-                f"UNIFI_AUDIT_LOG_FORMAT must be one of {', '.join(_VALID_FORMATS)} "
+                f"UNIFI_AUDIT_LOG_FORMAT must be one of {', '.join(FORMATS)} "
                 "(the value is not shown here)"
             )
+        if self.level not in LEVELS:
+            raise ValueError(f"UNIFI_AUDIT_LEVEL must be one of {', '.join(LEVELS)}")
+
+    # -- state
+    @property
+    def enabled(self) -> bool:
+        """True when records are written (a sink is set and the level is not off)."""
+        return not isinstance(self.sink, NullSink) and self.level != "off"
+
+    @property
+    def unavailable(self) -> bool:
+        """True while the sink cannot be written (the per-response notice is due)."""
+        return self._fault is not None
+
+    @property
+    def path(self) -> str | None:
+        return self.sink.path if isinstance(self.sink, FileSink) else None
+
+    def probe(self) -> bool:
+        """While unavailable, try to write the ``audit.recovered`` record now (called
+        once per tool response), so the notice clears as soon as the sink works again
+        even when no other record is due. Returns :attr:`unavailable` afterwards."""
+        if self._fault is None:
+            return False
+        with self._lock:
+            if self._fault is not None:
+                self._write_locked(None, datetime.now(UTC).isoformat())
+        return self.unavailable
+
+    # -- records (each fails open: an exception is a lost record, never the caller's)
+    def startup(self, version: str) -> None:
+        self._guard(self._startup, version)
 
     def record(
         self,
@@ -122,90 +473,245 @@ class AuditSink:
         status: int | None,
         tool: str | None = None,
         reason: str | None = None,
+        body: Any = None,
     ) -> None:
-        """Append one audit record for a write attempt. Best-effort — I/O errors swallowed.
-
-        The request body is omitted and configured string values are scrubbed. ``tool``
-        and ``reason`` (the gate that refused the attempt) are written only when given.
-        JSON metadata is preserved as described above.
-        """
-        ts = datetime.now(UTC).isoformat()
-        tool = tool or _AUDIT_TOOL.get()
-        resolved_host, resolved_site = _AUDIT_HOST.get(), _AUDIT_SITE.get()
-        started = _AUDIT_START.get()
-        duration_ms = round((perf_counter() - started) * 1000, 3) if started is not None else None
-        secrets = configured_secrets(extra=self.secrets)
-        # Scrub the free-text values before they are encoded: JSON quoting doubles every
-        # backslash, which would hide an escaped secret from the scrub of the whole line.
-        if reason is not None:
-            reason = scrub(reason, secrets)
-        if path is not None:
-            # Refusals can arrive before route validation; no query or fragment belongs
-            # in either audit format, including values not registered as credentials.
-            prefix = path.partition("?")[0].partition("#")[0]
-            safe_prefix = scrub(prefix, secrets)
-            safe_path = scrub(path, secrets)
-            # A secret can span the delimiter. Scrubbing the truncated prefix alone
-            # would expose its leading fragment; fail closed if the boundary moved.
-            if len(prefix) < len(path) and not safe_path.startswith(
-                safe_prefix + path[len(prefix)]
-            ):
-                path = "***"
-            else:
-                path = safe_prefix
-        if self.fmt == "json":
-            rec: dict[str, object] = {
-                "timestamp": ts,
-                "method": method,
-                "path": path,
-                "outcome": outcome,
-                "status": status,
-            }
-            if tool is not None:
-                rec["tool"] = tool
-            if reason is not None:
-                rec["reason"] = reason
-            if resolved_host is not None:
-                rec["resolvedHost"] = resolved_host
-            if resolved_site is not None:
-                rec["resolvedSite"] = resolved_site
-            if duration_ms is not None:
-                rec["duration_ms"] = duration_ms
-            # Scrub the string values, never the serialized line: a short configured secret
-            # that matches a digit of ``status`` or ``duration_ms`` would otherwise turn the
-            # number into a mask and leave a line that is not valid JSON.
-            rec = {k: scrub(v, secrets) if isinstance(v, str) else v for k, v in rec.items()}
-            line = json.dumps(rec, separators=(",", ":"))
-        else:
-            # Scrub values before encoding, then the completed text line as well.
-            # A configured secret can span a label/value boundary or equal metadata;
-            # text redaction takes precedence over preserving colliding field bytes.
-            def text(value: str) -> str:
-                return _text_field(scrub(value, secrets))
-
-            line = (
-                f"{scrub(ts, secrets)} method={text(method or '-')} "
-                f"path={text(path or '-')} outcome={text(outcome)} "
-                f"status={status if status is not None else '-'}"
-            )
-            if tool is not None:
-                line += f" tool={text(tool)}"
-            if reason is not None:
-                line += f" reason={text(reason)}"
-            if resolved_host is not None:
-                line += f" resolvedHost={text(resolved_host)}"
-            if resolved_site is not None:
-                line += f" resolvedSite={text(resolved_site)}"
-            if duration_ms is not None:
-                line += f" duration_ms={duration_ms}"
-            line = scrub(line, secrets)
+        """One ``audit`` record for a write attempt. ``body`` is written at debug only."""
         if outcome == "refused":
             note_refused_record()
+        if not self.enabled:
+            return
+        self._guard(
+            self._record,
+            method=method,
+            path=path,
+            outcome=outcome,
+            status=status,
+            tool=tool or _AUDIT_TOOL.get(),
+            reason=reason,
+            body=body,
+        )
+
+    def call(self, tool: str | None, arguments: Any = None) -> None:
+        """One ``call`` record for a completed tool call (per-call logging only)."""
+        if self.calls and self.enabled:
+            self._guard(self._call, tool, arguments)
+
+    def error(self, tool: str | None, exc: BaseException) -> None:
+        """One ``error`` record for a failed tool call (per-call logging only). The
+        message, scrubbed, is written at debug only; normal carries the type alone."""
+        if self.calls and self.enabled:
+            self._guard(self._error, tool, exc)
+
+    def policy_record(self, line: str) -> None:
+        """Carry one policy record (``policy.startup`` / ``policy.refusal``),
+        byte-identical, at every level including off. The policy module already writes it to
+        stderr, so a stderr sink adds no second copy."""
+        if isinstance(self.sink, NullSink | StderrSink):
+            return
+        self._guard(self._write, line, datetime.now(UTC).isoformat())
+
+    # -- builders
+    def _startup(self, version: str) -> None:
+        rec: dict[str, Any] = {
+            "version": version,
+            "sink": self.sink.name,
+            "level": self.level,
+            "format": self.fmt,
+            "calls": self.calls,
+        }
+        if isinstance(self.sink, FileSink):
+            mode = self.sink.existing_mode()
+            rec["file_mode"] = mode if mode is not None else f"{self.sink.mode:04o}"
+        self._emit("startup", rec)
+
+    def _record(self, *, method, path, outcome, status, tool, reason, body) -> None:  # noqa: ANN001
+        secrets = self._secrets()
+        rec: dict[str, Any] = {
+            "method": method,
+            "path": _safe_path(path, secrets) if path is not None else None,
+            "outcome": outcome,
+            "status": status,
+        }
+        optional = {
+            "tool": tool,
+            "via": _AUDIT_VIA.get(),
+            "reason": _safe_reason(reason, secrets) if reason is not None else None,
+            "resolvedHost": _AUDIT_HOST.get(),
+            "resolvedSite": _AUDIT_SITE.get(),
+            "duration_ms": elapsed_ms(),
+        }
+        rec.update({k: v for k, v in optional.items() if v is not None})
+        if self.level == "debug" and body is not None:
+            rec["body"] = self._scrub_object(body, secrets)
+        self._emit("audit", rec, secrets=secrets)
+
+    def _call(self, tool: str | None, arguments: Any) -> None:
+        secrets = self._secrets()
+        rec: dict[str, Any] = {"tool": tool, "outcome": "ok", "duration_ms": elapsed_ms()}
+        if self.level == "debug" and arguments is not None:
+            rec["arguments"] = self._scrub_object(arguments, secrets)
+        self._emit("call", rec, secrets=secrets)
+
+    def _error(self, tool: str | None, exc: BaseException) -> None:
+        secrets = self._secrets()
+        rec: dict[str, Any] = {
+            "tool": tool,
+            "error_type": type(exc).__name__,
+            "duration_ms": elapsed_ms(),
+        }
+        if self.level == "debug":
+            rec["message"] = _cap_text(_safe_reason(str(exc), secrets))
+        self._emit("error", rec, secrets=secrets)
+
+    # -- internals
+    def _guard(self, fn: Callable[..., None], *args: Any, **kwargs: Any) -> None:
         try:
-            with Path(self.path).open("a", encoding="utf-8") as fh:
-                fh.write(line + "\n")
-        except OSError as exc:  # pragma: no cover - defensive, never fatal
-            _logger.warning("audit-log write failed path=%s error=%s", self.path, exc)
+            fn(*args, **kwargs)
+        except Exception:  # noqa: BLE001 - the audit stream never breaks a tool call
+            with self._lock:
+                if self._fault is None:
+                    _logger.warning("audit record could not be built; it is dropped")
+                self._fault = self._fault or "EIO"
+                self._lost += 1
+
+    def _secrets(self) -> tuple[str, ...]:
+        return configured_secrets(extra=self.secrets)
+
+    def _scrub_object(self, obj: Any, secrets: tuple[str, ...]) -> Any:
+        """A debug value: JSON data only, credential fields masked, secrets scrubbed,
+        capped at :data:`DEBUG_VALUE_MAX_BYTES`."""
+        try:
+            plain = json.loads(json.dumps(obj))
+        except (TypeError, ValueError, RecursionError):
+            return {"unserializable": type(obj).__name__}
+        try:
+            masked = _mask_audit_credentials(redact_credentials(plain))
+            clean = scrub_json_strings(masked, secrets)
+            size = len(canonical_json({"v": clean}).encode("utf-8", errors="backslashreplace"))
+        except RecursionError:
+            return {"unserializable": type(obj).__name__}
+        if size > DEBUG_VALUE_MAX_BYTES:
+            return {"truncated": True, "bytes": size}
+        return clean
+
+    def _emit(self, event: str, fields: dict[str, Any], *, secrets: tuple[str, ...] = ()) -> None:
+        if not self.enabled:
+            return
+        secrets = secrets or self._secrets()
+        ts = datetime.now(UTC).isoformat()
+        if self.fmt == "json":
+            rec = {"schema_version": SCHEMA_VERSION, "event": event, "timestamp_utc": ts}
+            rec.update(fields)
+            # Scrub string values (recursively for body/arguments), never the serialized
+            # line: a short secret that matches a digit of a number would break the JSON.
+            rec = {k: _scrub_value(v, secrets) for k, v in rec.items()}
+            line = canonical_json(rec)
+        else:
+            line = _text_line(event, ts, fields, secrets)
+        self._write(line, ts)
+
+    def _write(self, line: str, ts: str) -> None:
+        with self._lock:
+            self._write_locked(line, ts)
+
+    def _write_locked(self, line: str | None, ts: str) -> None:
+        """Write ``line`` (``None``: only the pending recovery record). After a fault the
+        ``audit.recovered`` record goes first, stamped with the same time as the record
+        that follows it; the loss count resets once it is written."""
+        try:
+            if self._fault is not None:
+                self.sink.write(self._recovered_line(ts))
+                self._fault, self._lost = None, 0
+            if line is not None:
+                self.sink.write(line)
+        except SinkWriteError as exc:
+            if self._fault is None:
+                _logger.warning(
+                    "audit sink %s unavailable (%s); records are dropped until it recovers",
+                    self.sink.name,
+                    exc.errno_name,
+                )
+            self._fault = self._fault or exc.errno_name
+            if line is not None:
+                self._lost += 1
+
+    def _recovered_line(self, ts: str) -> str:
+        fields = {"lost_records": self._lost, "fault": self._fault}
+        if self.fmt == "json":
+            return canonical_json(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "event": "audit.recovered",
+                    "timestamp_utc": ts,
+                    **fields,
+                }
+            )
+        return _text_line("audit.recovered", ts, fields, ())
+
+
+#: Kept name: the 0.7.0 class every caller and test constructs.
+class AuditSink(AuditStream):
+    """An :class:`AuditStream` over a file path (the 0.7.0 constructor)."""
+
+    def __init__(
+        self,
+        path: str,
+        fmt: str = "json",
+        secrets: tuple[str, ...] = (),
+        *,
+        level: str = "normal",
+        calls: bool = False,
+        mode: int = 0o600,
+    ) -> None:
+        super().__init__(
+            sink=FileSink(path=path, mode=mode),
+            fmt=fmt,
+            level=level,
+            calls=calls,
+            secrets=secrets,
+        )
+
+
+def _scrub_value(value: Any, secrets: tuple[str, ...]) -> Any:
+    if isinstance(value, str):
+        return scrub(value, secrets)
+    if isinstance(value, dict | list):
+        return scrub_json_strings(value, secrets)
+    return value
+
+
+def _safe_path(path: str, secrets: tuple[str, ...]) -> str:
+    """The path without query or fragment, scrubbed; ``***`` if a secret spans the cut."""
+    prefix = path.partition("?")[0].partition("#")[0]
+    safe_prefix = scrub(prefix, secrets)
+    safe_path = scrub(path, secrets)
+    # A secret can span the delimiter. Scrubbing the truncated prefix alone would expose
+    # its leading fragment; fail closed if the boundary moved.
+    if len(prefix) < len(path) and not safe_path.startswith(safe_prefix + path[len(prefix)]):
+        return "***"
+    return safe_prefix
+
+
+#: A URL or path followed by a query inside free text (a refusal message that quotes
+#: the request path): the query, and any fragment after it, is cut like the ``path``
+#: field's. A bare ``#anchor`` (a documentation link) carries no request data and stays.
+_QUERY_IN_TEXT = re.compile(r"(?P<p>(?:https?://[^\s'\"?#]*|/[^\s'\"?#]*))\?[^\s'\"]*")
+#: A pydantic validation message echoes the rejected value as ``input_value=...``.
+_INPUT_VALUE = re.compile(r"input_value=(?:.*(?=, input_type=\w+\])|.*)", re.S)
+_TEXT_MAX = 4096
+
+
+def _safe_reason(text: str, secrets: tuple[str, ...] = ()) -> str:
+    """A free-text reason or error message: secrets scrubbed first (on the whole text, so
+    the cap never cuts a secret or an escape chain around it), queries and fragments of
+    quoted paths cut, echoed validation inputs masked, capped."""
+    text = scrub(text, secrets)
+    text = _QUERY_IN_TEXT.sub(lambda m: m.group("p"), text)
+    return _cap_text(_INPUT_VALUE.sub("input_value=***", text))
+
+
+def _cap_text(text: str) -> str:
+    return text if len(text) <= _TEXT_MAX else text[:_TEXT_MAX] + "...[truncated]"
 
 
 #: Characters that make a text-format value JSON-quoted (besides whitespace).
@@ -220,15 +726,65 @@ def _text_field(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def build_audit_sink(settings: Settings) -> AuditSink | None:
-    """Return an :class:`AuditSink` when ``UNIFI_AUDIT_LOG`` is set, else ``None``.
+_AUDIT_TEXT_ORDER = ("method", "path", "outcome", "status")
 
-    ``None`` is the default (opt-in): the caller then writes nothing to disk. An
-    unrecognised format raises ``ValueError`` listing the formats (the settings
-    validator already rejects one at startup).
-    """
-    path = (settings.audit_log or "").strip()
-    if not path:
+
+def _text_line(event: str, ts: str, fields: dict[str, Any], secrets: tuple[str, ...]) -> str:
+    """The text form. Values are scrubbed before encoding, then the completed line too:
+    a secret can span a label/value boundary or equal metadata, and text redaction takes
+    precedence over preserving colliding field bytes."""
+
+    def text(value: Any) -> str:
+        if value is None:
+            return "-"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int | float):
+            return str(value)
+        if isinstance(value, dict | list):
+            return _text_field(canonical_json({"v": scrub_json_strings(value, secrets)})[5:-1])
+        return _text_field(scrub(str(value), secrets))
+
+    parts = [scrub(ts, secrets)]
+    if event == "audit":
+        # The 0.7.0 line: no event field; method/path/outcome/status first, in order.
+        parts += [f"{k}={text(fields.get(k) or None)}" for k in _AUDIT_TEXT_ORDER[:2]]
+        parts += [f"{k}={text(fields.get(k))}" for k in _AUDIT_TEXT_ORDER[2:]]
+        rest = {k: v for k, v in fields.items() if k not in _AUDIT_TEXT_ORDER}
+    else:
+        parts.append(f"event={event}")
+        rest = fields
+    parts += [f"{k}={text(v)}" for k, v in rest.items() if v is not None]
+    line = scrub(" ".join(parts), secrets)
+    return _LINE_UNSAFE.sub(lambda m: f"\\u{ord(m.group()):04x}", line)
+
+
+# ---------------------------------------------------------------------------- builder
+def resolve_sink_name(settings: Settings) -> str:
+    """The effective sink: ``UNIFI_AUDIT_SINK``, else ``file`` when a path is set."""
+    sink = (getattr(settings, "audit_sink", "") or "").strip()
+    if sink:
+        return sink
+    return "file" if (settings.audit_log or "").strip() else "none"
+
+
+def build_audit_stream(settings: Settings) -> AuditStream | None:
+    """The configured stream, or ``None`` when no sink is configured (the default)."""
+    sink_name = resolve_sink_name(settings)
+    if sink_name == "none":
         return None
-    fmt = (settings.audit_log_format or "text").strip().lower()
-    return AuditSink(path=path, fmt=fmt, secrets=configured_secrets(settings))
+    fmt = (settings.audit_log_format or "json").strip().lower()
+    level = (getattr(settings, "audit_level", "normal") or "normal").strip().lower()
+    calls = bool(getattr(settings, "audit_calls", False))
+    secrets = configured_secrets(settings)
+    sink: Sink
+    if sink_name == "stderr":
+        sink = StderrSink()
+    else:
+        mode = FILE_MODES[(getattr(settings, "audit_log_mode", "0600") or "0600").strip()]
+        sink = FileSink(path=settings.audit_log.strip(), mode=mode)
+    return AuditStream(sink=sink, fmt=fmt, level=level, calls=calls, secrets=secrets)
+
+
+#: Kept name for 0.7.0 callers.
+build_audit_sink = build_audit_stream

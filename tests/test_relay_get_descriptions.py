@@ -65,9 +65,9 @@ def registry():
     return registry
 
 
-@pytest.mark.parametrize("env", ["UNIFI_PROTECT_MUTATIONS_ENABLED", connector.CONNECTOR_WRITE_ENV])
+@pytest.mark.parametrize("env", ["family:protect=deny", connector.CONNECTOR_WRITE_ENV])
 async def test_a_state_changing_get_follows_the_write_switches(monkeypatch, registry, env):
-    monkeypatch.setenv(env, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env)
     client = UniFiClient(Settings(api_key="synthetic-relay-doc"))
     path = f"protect/api/cameras/{SAMPLE_ID}/enable-control"
     with respx.mock(assert_all_called=False) as router:
@@ -79,7 +79,7 @@ async def test_a_state_changing_get_follows_the_write_switches(monkeypatch, regi
 
 
 async def test_an_ordinary_get_relays_while_an_area_opt_out_is_active(monkeypatch, registry):
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
     client = UniFiClient(Settings(api_key="synthetic-relay-doc"))
     path = f"protect/api/cameras/{SAMPLE_ID}"
     with respx.mock as router:

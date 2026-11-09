@@ -16,6 +16,14 @@ from unifi_fabric.redaction import REDACTION_MASK
 
 
 @pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy (``real_client`` sets one for its modes)."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+@pytest.fixture(autouse=True)
 def catalog_lifespan(_reset_server_singletons, monkeypatch):
     monkeypatch.setattr(server, "_settings", server.Settings(api_key="n06-unit-test-key"))
 

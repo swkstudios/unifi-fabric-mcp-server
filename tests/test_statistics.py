@@ -18,8 +18,10 @@ from unifi_fabric.tools.statistics import (
     _get_system_info,
     _list_active_clients_stats,
     _list_client_sessions,
+    _list_controller_stat_schemas,
     _list_device_stats,
     _list_known_clients,
+    _list_speedtest_results,
 )
 
 HOST_ID = "host-001"
@@ -45,6 +47,31 @@ def registry():
 
 
 # --- get_site_statistics ---
+
+
+class TestListControllerStatSchemas:
+    async def test_gets_modern_schema_route_and_preserves_body(self, client, registry):
+        body = [
+            {
+                "name": "wanBySite",
+                "keys": ["siteId"],
+                "values": ["rxBytes", "txBytes"],
+                "syntheticExtra": {"survives": True},
+            }
+        ]
+        client.get.return_value = body
+        result = await _list_controller_stat_schemas(client, registry, "h")
+        client.get.assert_awaited_once_with(
+            "/v1/connector/consoles/host-001/proxy/network/v2/api/stats/schemas",
+            key=None,
+        )
+        assert result is body
+
+    async def test_empty_host_fails_before_resolution_or_request(self, client, registry):
+        with pytest.raises(ValueError, match="host.*must not be empty"):
+            await _list_controller_stat_schemas(client, registry, "")
+        registry.resolve_key_for_host.assert_not_awaited()
+        client.get.assert_not_awaited()
 
 
 class TestGetSiteStatistics:
@@ -268,6 +295,72 @@ class TestGetHistoricalStats:
             await _get_historical_stats(
                 client, registry, "h", "s", "hourly", "switch", _START_S, _END_S
             )
+
+
+class TestListSpeedtestResults:
+    async def test_posts_archive_query_and_preserves_response(self, client, registry):
+        response = {
+            "meta": {"rc": "ok"},
+            "data": [
+                {
+                    "xput_download": 100_000_000,
+                    "xput_upload": 25_000_000,
+                    "latency": 7,
+                    "time": _START_S * 1000,
+                    "interface_name": "wan-synthetic",
+                    "wan_networkgroup": "WAN",
+                    "synthetic_extra": "survives",
+                }
+            ],
+        }
+        client.post.return_value = response
+        result = await _list_speedtest_results(client, registry, "h", "s", _START_S, _END_S)
+        client.post.assert_awaited_once_with(
+            f"{STAT_BASE}/report/archive.speedtest",
+            key=None,
+            json={
+                "attrs": [
+                    "xput_download",
+                    "xput_upload",
+                    "latency",
+                    "time",
+                    "interface_name",
+                    "wan_networkgroup",
+                ],
+                "start": _START_S * 1000,
+                "end": _END_S * 1000,
+            },
+        )
+        assert result is response
+        assert result["data"][0]["synthetic_extra"] == "survives"
+
+    async def test_non_integer_window_fails_before_resolution_or_request(self, client, registry):
+        with pytest.raises(ValueError, match="start.*integer epoch-seconds"):
+            await _list_speedtest_results(client, registry, "h", "s", "bad", _END_S)
+        registry.resolve_key_for_host.assert_not_awaited()
+        client.post.assert_not_awaited()
+
+    async def test_unknown_site_error_keeps_valid_choices(self, client, registry):
+        registry.resolve_site_slug.side_effect = ValueError(
+            "Site 'missing' not found on host 'host-001'; valid: Default (default)"
+        )
+        with pytest.raises(ValueError, match="valid: Default"):
+            await _list_speedtest_results(client, registry, "h", "missing", _START_S, _END_S)
+        client.post.assert_not_awaited()
+
+    async def test_upstream_host_not_found_keeps_reason_and_appends_hint(self, client, registry):
+        client.post.side_effect = UniFiConnectionError(
+            "HTTP 403 from POST archive.speedtest: host not found",
+            request_sent=True,
+            status=403,
+        )
+        with pytest.raises(UniFiConnectionError) as caught:
+            await _list_speedtest_results(client, registry, "h", "s", _START_S, _END_S)
+        text = str(caught.value)
+        assert text.startswith("HTTP 403 from POST archive.speedtest: host not found")
+        assert "Hint:" in text and "list_hosts" in text
+        assert caught.value.request_sent is True
+        assert caught.value.status == 403
 
 
 # --- list_all_clients (/stat/alluser — GET) ---
@@ -931,6 +1024,46 @@ async def test_list_known_clients_v2_routes_to_owning_key(multikey_client, multi
         multikey_client, multikey_registry, "Beta-Branch", "Default", within_hours=1
     )
     assert captured["key"] is not None and captured["key"].label == "beta"
+
+
+async def test_controller_stat_schemas_routes_to_owning_key(multikey_client, multikey_registry):
+    for label, hosts in MULTIKEY_HOSTS_BY_LABEL.items():
+        await multikey_registry.set_hosts(hosts, key=multikey_client.get_key_by_label(label))
+    multikey_registry.resolve_host_id = AsyncMock(return_value="console-beta-1")
+    captured: dict[str, object] = {}
+
+    async def _get(path, *, key=None, params=None):
+        captured["path"] = path
+        captured["key"] = key
+        return []
+
+    multikey_client.get = AsyncMock(side_effect=_get)
+    await _list_controller_stat_schemas(multikey_client, multikey_registry, "Beta-Branch")
+    assert captured["key"] is not None and captured["key"].label == "beta"
+    assert str(captured["path"]).endswith(
+        "/consoles/console-beta-1/proxy/network/v2/api/stats/schemas"
+    )
+
+
+async def test_speedtest_results_routes_to_owning_key(multikey_client, multikey_registry):
+    for label, hosts in MULTIKEY_HOSTS_BY_LABEL.items():
+        await multikey_registry.set_hosts(hosts, key=multikey_client.get_key_by_label(label))
+    multikey_registry.resolve_host_id = AsyncMock(return_value="console-beta-1")
+    multikey_registry.resolve_site_slug = AsyncMock(return_value="default")
+    captured: dict[str, object] = {}
+
+    async def _post(path, *, key=None, json=None, params=None):
+        captured.update(path=path, key=key, json=json, params=params)
+        return {"meta": {"rc": "ok"}, "data": []}
+
+    multikey_client.post = AsyncMock(side_effect=_post)
+    await _list_speedtest_results(
+        multikey_client, multikey_registry, "Beta-Branch", "Default", _START_S, _END_S
+    )
+    assert captured["key"] is not None and captured["key"].label == "beta"
+    assert str(captured["path"]).endswith(
+        "/consoles/console-beta-1/proxy/network/api/s/default/stat/report/archive.speedtest"
+    )
 
 
 class TestHealthSummary:

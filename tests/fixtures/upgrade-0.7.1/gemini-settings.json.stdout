@@ -1,0 +1,9 @@
+== gemini-settings.json (json)
+mcpServers.unifi-fabric.env:
+  - UNIFI_READ_ONLY
+  - UNIFI_ENABLE_MOBILITY_WRITE
+  + UNIFI_WRITE_POLICY=deny
+  + UNIFI_WRITE_EXCEPTIONS=family:mobility=deny
+  # MANUAL: UNIFI_DRY_RUN has a value this script cannot read (a reference or pass-through); see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+Dry run: nothing written. Run again with --write to save (keeps a .bak copy).
+Some settings need a decision (# MANUAL above); see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md

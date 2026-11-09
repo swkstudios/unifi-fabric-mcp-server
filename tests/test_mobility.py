@@ -5,10 +5,10 @@ exact paths, query/pagination behavior, selected-key routing, PUT bodies, and th
 read-before / write / read-after write flow are all asserted directly. The three
 PUT writes are mocked only — no live write is ever issued.
 
-The write gate (``UNIFI_ENABLE_MOBILITY_WRITE``) is ON by default
-(opt out with ``UNIFI_ENABLE_MOBILITY_WRITE=0``); the hermetic fixture strips
-``UNIFI_*``, so tests that exercise the actual PUT path re-assert ON via the
-``enable_writes`` fixture. Wireless passwords must never be logged or retained — that is asserted
+Mobility writes are enabled by default (opt out with the ``UNIFI_WRITE_EXCEPTIONS``
+entry ``family:mobility=deny``); the hermetic fixture strips ``UNIFI_*``, so tests
+that exercise the actual PUT path re-assert the default via the ``enable_writes`` fixture.
+Wireless passwords must never be logged or retained — that is asserted
 explicitly. All ids/secrets are synthetic and no real value appears here.
 """
 
@@ -17,7 +17,6 @@ from __future__ import annotations
 import json as _json
 import logging
 
-import httpx
 import pytest
 import respx
 from httpx import Response
@@ -52,8 +51,8 @@ def client():
 
 @pytest.fixture()
 def enable_writes(monkeypatch):
-    """Re-assert UNIFI_ENABLE_MOBILITY_WRITE=1 for tests that exercise a real PUT."""
-    monkeypatch.setenv(WRITE_ENABLED_ENV, "1")
+    """Re-assert the default (no family:mobility=deny entry) for tests that exercise a real PUT."""
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
 
 
 @pytest.fixture()
@@ -264,7 +263,7 @@ class TestValidation:
             await update_mobility_device_network(client, WID, DID, confirm=True)
 
 
-# --- Write gate is ON by default (opt out UNIFI_ENABLE_MOBILITY_WRITE=0) -----
+# --- Writes are enabled by default (opt out: family:mobility=deny) -----
 
 
 class TestWriteGate:
@@ -272,14 +271,18 @@ class TestWriteGate:
         # The hermetic fixture strips UNIFI_* env, so the gate is unset here → ON.
         assert mobility.writes_enabled() is True
 
-    @pytest.mark.parametrize("val", ["1", "true", "TRUE", "yes", "on", "", "   "])
-    def test_truthy_or_unset_enables(self, monkeypatch, val):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, val)
+    @pytest.mark.parametrize(
+        "val", [WRITE_ENABLED_ENV.replace("=deny", "=dry-run"), "family:network=deny"]
+    )
+    def test_other_exceptions_leave_writes_enabled(self, monkeypatch, val):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", val)
         assert mobility.writes_enabled() is True
 
-    @pytest.mark.parametrize("val", ["0", "false", "no", "off"])
-    def test_explicit_falsey_disables(self, monkeypatch, val):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, val)
+    @pytest.mark.parametrize(
+        "val", [WRITE_ENABLED_ENV, f"family:network=dry-run;{WRITE_ENABLED_ENV}"]
+    )
+    def test_area_deny_exception_disables(self, monkeypatch, val):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", val)
         assert mobility.writes_enabled() is False
 
     @respx.mock
@@ -297,7 +300,7 @@ class TestWriteGate:
 
     @respx.mock
     async def test_explicit_off_blocks_write(self, client, monkeypatch):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", WRITE_ENABLED_ENV)
         respx.get(DEV).mock(return_value=Response(200, json=_detail(name="Old")))
         put = respx.put(DEV).mock(return_value=Response(204))
         with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
@@ -598,12 +601,6 @@ class TestUpstreamErrors:
         assert result["status"] == "updated"
 
 
-def test_module_imports_httpx_client_symbol():
-    # Guard: mobility depends only on the shared client, no second auth path.
-    assert isinstance(UniFiClient(Settings(api_key="x")), UniFiClient)
-    assert httpx is not None
-
-
 # --- Device-detail envelope shape ---------------------------------------------
 
 
@@ -664,7 +661,7 @@ class TestUniformWriteResults:
     async def test_gate_is_checked_before_field_validation(
         self, client, monkeypatch, fn, args, kwargs
     ):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", WRITE_ENABLED_ENV)
         with respx.mock(assert_all_called=False) as router:
             with pytest.raises(ValueError, match=WRITE_ENABLED_ENV):
                 await fn(client, *args, **kwargs)
@@ -859,3 +856,32 @@ async def test_wireless_error_retains_body_when_redaction_disabled(client, enabl
     with pytest.raises(UniFiConnectionError) as error:
         await update_mobility_device_wireless(client, WID, DID, "New-SSID", secret, confirm=True)
     assert secret in str(error.value)
+
+
+async def test_limited_drain_reports_count():
+    from unittest.mock import AsyncMock
+
+    client = AsyncMock()
+    client.paginate_max_pages = None
+    client.get.return_value = {"data": [{"id": "one"}], "total": 1}
+    result = await mobility._drain(client, "/synthetic", None, limit=5)
+    assert result["_count"] == 1
+
+
+@respx.mock
+async def test_list_devices_limit_mode_carries_the_documented_count(client):
+    # The description promises {data, _count} in every mode; limit mode once omitted _count.
+    respx.get(f"{WS}/{WID}/devices").mock(
+        return_value=Response(
+            200,
+            json={
+                "data": [{"id": "d-0"}, {"id": "d-1"}],
+                "total": 5,
+                "httpStatusCode": 200,
+                "traceId": "t",
+            },
+        )
+    )
+    result = await list_mobility_devices(client, WID, limit=2)
+    assert result["_count"] == 2
+    assert [d["id"] for d in result["data"]] == ["d-0", "d-1"]

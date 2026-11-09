@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "accept-write-policy-dry-run",
+  "description": "UNIFI_WRITE_POLICY=dry-run is the global write policy.",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_POLICY": "dry-run"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "write_policy": "dry-run",
+      "write_exceptions": [],
+      "exposed_families": [
+        "carrier",
+        "clients",
+        "connector",
+        "devices",
+        "firewall",
+        "hotspot",
+        "innerspace",
+        "mobility",
+        "network",
+        "protect",
+        "site_manager",
+        "statistics",
+        "vpn"
+      ],
+      "exclusions": []
+    },
+    "upstream_calls": 0
+  }
+}

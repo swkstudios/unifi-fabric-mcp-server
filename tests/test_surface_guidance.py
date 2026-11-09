@@ -32,9 +32,9 @@ RELAY_COMMON = (
     "bodyBase64",
     "sizeBytes",
     "dry_run",
-    "UNIFI_ENABLE_CONNECTOR_WRITE",
-    "UNIFI_READ_ONLY",
-    "UNIFI_PROTECT_MUTATIONS_ENABLED",
+    "family:connector=deny",
+    "UNIFI_WRITE_POLICY",
+    "family:protect=deny",
     "unclassified",
     "never auto-retried on 429",
 )
@@ -94,7 +94,7 @@ def test_acl_rules_say_what_they_are_and_when_to_use_them() -> None:
 
 
 def test_instructions_name_the_tool_family_allowlist() -> None:
-    assert "UNIFI_TOOL_FAMILIES" in server.INSTRUCTIONS
+    assert "UNIFI_FAMILY_ALLOW" in server.INSTRUCTIONS
     assert len(server.INSTRUCTIONS) <= 2048
 
 

@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-invalid-spec-handler-outside-family",
+  "description": "A HandlerRef outside its family's adapter module",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras",
+        "handler": "unifi_fabric._generated.adapters.network:list_cameras"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:invalid_spec",
+    "registered": 0
+  }
+}

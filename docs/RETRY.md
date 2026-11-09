@@ -54,7 +54,7 @@ The following errors are **not retried** and raise immediately:
 - **Connection failed**: Network unreachable, DNS failure, refused connection
 - **HTTP errors**: non-429 4xx (auth, not found) and 5xx (server error) are raised immediately without retry
 
-These are considered non-transient and retrying would not help. See [Troubleshooting](../README.md#troubleshooting) for how to handle them.
+These are considered non-transient and retrying would not help. See the [configuration reference](CONFIGURATION.md) for related settings.
 
 ## Configuration
 

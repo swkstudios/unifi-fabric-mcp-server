@@ -19,6 +19,9 @@ from unifi_fabric.tools.clients import (
     _get_client as get_client,
 )
 from unifi_fabric.tools.clients import (
+    _list_active_clients as list_active_clients,
+)
+from unifi_fabric.tools.clients import (
     _list_clients as list_clients,
 )
 from unifi_fabric.tools.clients import (
@@ -414,39 +417,42 @@ class TestReconnectClient:
             )
 
 
-# --- list_clients: v2 active-client source (additive; Integration stays the default) ---
+# --- list_active_clients: explicit private v2 active-client tool ---
 
 V2_ACTIVE = f"/v1/connector/consoles/{HOST_ID}/proxy/network/v2/api/site/{SITE_SLUG}/clients/active"
 
 
-class TestListClientsV2Active:
-    async def test_source_v2_returns_body_verbatim(self, client, registry):
+class TestListActiveClients:
+    async def test_returns_body_verbatim(self, client, registry):
         body = [{"mac": "02:00:00:00:00:01", "type": "WIRELESS", "_extra": 1}]
         client.get.return_value = body
-        result = await list_clients(client, registry, "h", "s", source="v2")
+        result = await list_active_clients(client, registry, "h", "s", {})
         client.get.assert_called_once_with(V2_ACTIVE, key=None)
         client.paginate_offset.assert_not_called()
         assert result is body
         registry.resolve_site_slug.assert_called_once_with("s", HOST_ID, key=None)
 
-    async def test_matter_thread_flag_alone_selects_v2(self, client, registry):
+    async def test_matter_thread_flag_is_forwarded(self, client, registry):
         client.get.return_value = []
-        await list_clients(client, registry, "h", "s", include_matter_thread_clients=True)
+        await list_active_clients(
+            client, registry, "h", "s", {"include_matter_thread_clients": True}
+        )
         client.get.assert_called_once_with(
             V2_ACTIVE, key=None, params={"includeMatterThreadClients": "true"}
         )
 
     async def test_every_flag_is_sent_as_given(self, client, registry):
         client.get.return_value = []
-        await list_clients(
+        await list_active_clients(
             client,
             registry,
             "h",
             "s",
-            source=" V2 ",
-            include_matter_thread_clients=False,
-            include_traffic_usage=True,
-            include_unifi_devices=False,
+            {
+                "include_matter_thread_clients": False,
+                "include_traffic_usage": True,
+                "include_unifi_devices": False,
+            },
         )
         client.get.assert_called_once_with(
             V2_ACTIVE,
@@ -458,48 +464,13 @@ class TestListClientsV2Active:
             },
         )
 
-    async def test_default_and_blank_source_keep_integration(self, client, registry):
-        client.get.return_value = {"data": [], "totalCount": 0}
-        await list_clients(client, registry, "h", "s", source="  ")
-        await list_clients(client, registry, "h", "s", source="integration")
-        assert (
-            client.get.await_args_list
-            == [
-                call(
-                    f"{BASE}/sites/{SITE_ID}/clients",
-                    key=None,
-                    params={"limit": 200, "offset": 0},
-                )
-            ]
-            * 2
-        )
-
-    @pytest.mark.parametrize(
-        "kwargs",
-        [
-            {"source": "v3"},
-            {"source": "integration", "include_traffic_usage": True},
-            {"source": "v2", "offset": 0},
-            {"source": "v2", "client_type": "WIRED"},
-            {"include_unifi_devices": True, "filter": "type.eq('WIRED')"},
-            {"include_unifi_devices": True, "limit": 25},
-        ],
-    )
-    async def test_invalid_combinations_refused_before_any_request(self, client, registry, kwargs):
-        with pytest.raises(ValueError, match="source must be one of|source conflict"):
-            await list_clients(client, registry, "h", "s", **kwargs)
-        registry.resolve_key_for_host.assert_not_called()
-        registry.resolve_host_id.assert_not_called()
-        client.get.assert_not_called()
-        client.paginate_offset.assert_not_called()
-
     async def test_upstream_error_propagates_unchanged(self, client, registry):
         client.get.side_effect = UniFiConnectionError("HTTP 404 Not Found: {'error': 'x'}")
         with pytest.raises(UniFiConnectionError, match="HTTP 404 Not Found"):
-            await list_clients(client, registry, "h", "s", source="v2")
+            await list_active_clients(client, registry, "h", "s", {})
 
 
-async def test_list_clients_v2_routes_to_owning_key(multikey_client, multikey_registry):
+async def test_list_active_clients_routes_to_owning_key(multikey_client, multikey_registry):
     for label, hosts in MULTIKEY_HOSTS_BY_LABEL.items():
         await multikey_registry.set_hosts(hosts, key=multikey_client.get_key_by_label(label))
     multikey_registry.resolve_host_id = AsyncMock(return_value="console-beta-1")
@@ -512,6 +483,6 @@ async def test_list_clients_v2_routes_to_owning_key(multikey_client, multikey_re
         return []
 
     multikey_client.get = AsyncMock(side_effect=_get)
-    await list_clients(multikey_client, multikey_registry, "Beta-Branch", "Default", source="v2")
+    await list_active_clients(multikey_client, multikey_registry, "Beta-Branch", "Default", {})
     assert captured["key"] is not None and captured["key"].label == "beta"
     assert str(captured["path"]).endswith("/v2/api/site/default/clients/active")

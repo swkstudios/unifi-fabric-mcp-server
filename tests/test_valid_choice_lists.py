@@ -15,7 +15,7 @@ from unifi_fabric import registry
 from unifi_fabric.registry import _valid_site_choices, match_ea_site, valid_host_choices
 
 SITE_ID = "a" * 24
-PROXY_SITE_ID = "88f7af54-98f8-306a-a1c7-c9349722b1f6"
+PROXY_SITE_ID = "00000000-0000-3000-a000-000000000016"
 
 
 def test_distinct_labels_keeps_the_first_spelling_of_each_case_folded_name():

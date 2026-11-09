@@ -59,7 +59,7 @@ def _args(name: str, example: dict[str, Any]) -> dict[str, Any]:
 
 @tool_batches("name", lambda: sorted(_lz_EXAMPLES()))
 async def test_documented_example_passes_argument_validation(name):
-    up = uh.FakeUpstream()
+    up = uh.FakeUpstream(replay_recordings=False)
     with pytest.MonkeyPatch.context() as mp:
         for k, v in tool_args.TOOL_ENV.get(name, {}).items():
             mp.setenv(k, v)
@@ -79,4 +79,6 @@ async def test_documented_example_passes_argument_validation(name):
             assert refusal is None or refusal.category not in _ARGUMENT_REFUSALS, (
                 f"{name}: the documented example is refused ({refusal.id}): {exc}"
             )
-            assert refusal is not None or up.served, f"{name}: unregistered refusal: {exc}"
+            assert refusal is not None or any(not s.resolution for s in up.served), (
+                f"{name}: unregistered refusal: {exc}"
+            )

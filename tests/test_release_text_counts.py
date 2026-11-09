@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = (ROOT / "docs" / "MIGRATING-0.7.md").read_text()
 CHANGELOG = (ROOT / "CHANGELOG.md").read_text()
+FIXTURES = ROOT / "tests" / "fixtures"
+RELEASED_LOCK = json.loads((FIXTURES / "v0_7_0_lock_pins.json").read_text())
+OLD_PINS = json.loads((FIXTURES / "v0_6_2_lock_pins.json").read_text())["pins"]
 
 
 def _section(anchor: str) -> str:
@@ -15,10 +19,17 @@ def _section(anchor: str) -> str:
 
 
 def test_runtime_lock_package_count_matches_the_migration_guide():
-    lock = (ROOT / "requirements-runtime.lock").read_text()
-    packages = {m.lower() for m in re.findall(r"(?m)^([A-Za-z0-9_.-]+)==", lock)}
-    stated = re.findall(r"(\d+) hash-locked packages", MIGRATION)
-    assert stated == [str(len(packages))]
+    # change-079 describes the runtime lock 0.7.0 shipped, read from the frozen v0.7.0 tag
+    # fixture, never the lock at head: a later refresh must not rewrite released history.
+    # The fixture keys every pin, including the four written with extras (for example
+    # ``pydantic[email]==``), which a bare ``^name==`` count skips.
+    runtime = RELEASED_LOCK["runtime_pins"]
+    assert {"fastmcp-slim", "py-key-value-aio", "pydantic", "pyjwt"} <= runtime.keys()
+    carried = runtime.keys() & OLD_PINS.keys()
+    changed = sum(OLD_PINS[name] != runtime[name] for name in carried)
+    entry = " ".join(_section("change-079").split())
+    assert re.findall(r"(\d+) hash-locked packages", MIGRATION) == [str(len(runtime))]
+    assert f"({changed} of the {len(carried)} carried over changed)" in entry
 
 
 def test_route_fix_write_count_matches_the_named_writes():
@@ -41,10 +52,18 @@ def test_spec_limit_tools_are_listed_in_the_migration_guide():
     match = re.search(r"The (\d+) tools: (.*?)\.\n", entry, re.S)
     assert match, "change-085 must list the tools whose limits are checked"
     listed = re.findall(r"`([a-z_0-9]+)`", match.group(2))
-    assert int(match.group(1)) == len(listed) == len(SPEC_LIMITS)
-    assert listed == sorted(SPEC_LIMITS)
+    # change-085 and CHANGELOG describe shipped 0.7.0; later additions are listed
+    # separately so current-table coverage cannot rewrite released history.
+    assert int(match.group(1)) == len(listed)
+    additions = re.search(r"Additional tools in 0[.]7[.]1: (.*?)\. ", entry, re.S)
+    assert additions, "the migration guide must name the later spec-limit additions"
+    added = re.findall(r"`([a-z_0-9]+)`", additions.group(1))
+    assert listed == sorted(listed)
+    assert not (set(listed) & set(added))
+    assert len(listed) + len(added) == len(SPEC_LIMITS)
+    assert sorted(listed + added) == sorted(SPEC_LIMITS)
     (bullet,) = [line for line in CHANGELOG.splitlines() if "#change-085" in line]
-    assert f"{len(SPEC_LIMITS)} tools, listed in the migration guide" in bullet
+    assert f"{len(listed)} tools, listed in the migration guide" in bullet
 
 
 def _description(name: str) -> str:

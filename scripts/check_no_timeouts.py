@@ -19,13 +19,58 @@ SCAN_ROOTS = (
     "tests/",
     "scripts/",
     "docs/",
-    "docs" + "/" + "internal" + "/",
     ".github/scripts/",
     ".github/workflows/",
     ".github/",
 )
 TOML_GATE = Path("scripts/doc_links.toml")
+#: pytest reads its ini options (a pytest-timeout ``timeout`` key or ``--timeout`` in
+#: ``addopts``) from here.
+PYPROJECT = Path("pyproject.toml")
 DOCKERFILE = Path("Dockerfile")
+#: Sandbox-runtime duration settings (pydantic-monty ResourceLimits/OSPolicy keys and pool
+#: arguments). Any non-None value is a duration cap; Code Mode's one interpreter-CPU entry is
+#: the reviewed exception in docs/no-timeouts-allowlist.json.
+SANDBOX_DURATION_KEYS = frozenset(
+    {
+        "max_feed_duration_secs",
+        "max_turn_duration_secs",
+        "max_total_sleep_secs",
+        "sleep_system_max",
+    }
+)
+SANDBOX_DURATION_KEYWORDS = frozenset(
+    {
+        "request_timeout",
+        "checkout_timeout",
+        "feed_duration_limit_grace",
+        "turn_duration_limit_grace",
+    }
+)
+CODE_MODE_PATH = "src/unifi_fabric/code_mode.py"
+CODE_MODE_CPU_PATTERN = '"max_feed_duration_secs": CPU_SECONDS_LIMIT,'
+CODE_MODE_CPU_CITATION = (
+    "https://github.com/pydantic/monty/blob/1.4.0/packages/pydantic-monty/README.md#resource-limits"
+)
+#: Calls whose arguments set an elapsed-time cap: asyncio/anyio/trio scopes, SIGALRM timers
+#: and socket timeouts. None sets no cap. Zero only disables alarms/timers or makes
+#: sockets non-blocking; scope deadlines still enforce a cap at zero. For setitimer
+#: the first argument names the timer.
+CAP_CALLS = frozenset(
+    {
+        "timeout",
+        "timeout_at",
+        "fail_after",
+        "fail_at",
+        "move_on_after",
+        "move_on_at",
+        "alarm",
+        "setitimer",
+        "settimeout",
+        "setdefaulttimeout",
+    }
+)
+ZERO_NO_CAP_CALLS = frozenset({"alarm", "setitimer", "settimeout", "setdefaulttimeout"})
 MARKDOWN_CODE = re.compile(r"```([A-Za-z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
 
 SHELL_CAPS = re.compile(
@@ -37,6 +82,25 @@ SHELL_CAPS = re.compile(
 
 def _is_none(node: ast.expr) -> bool:
     return isinstance(node, ast.Constant) and node.value is None
+
+
+def _is_no_cap(node: ast.expr) -> bool:
+    return _is_none(node) or (
+        isinstance(node, ast.Constant)
+        and not isinstance(node.value, bool)
+        and isinstance(node.value, (int, float))
+        and node.value == 0
+    )
+
+
+def _is_pytest_mark(func: ast.expr) -> bool:
+    """Return True for ``<...>.mark.<name>`` (``pytest.mark.timeout`` and its aliases)."""
+    if not isinstance(func, ast.Attribute):
+        return False
+    owner = func.value
+    return (isinstance(owner, ast.Attribute) and owner.attr == "mark") or (
+        isinstance(owner, ast.Name) and owner.id == "mark"
+    )
 
 
 def _is_qualified_timeout(func: ast.expr) -> bool:
@@ -131,93 +195,7 @@ def python_findings(path: Path, text: str) -> list[str]:
     except SyntaxError as exc:
         return [f"{path}:{exc.lineno or 1}: Python parse error during timeout scan"]
     found: list[str] = []
-    scope: list[tuple[str, str | None]] = []
     waitable_names: set[str] = set()
-
-    def is_demo(pathname: Path) -> bool:
-        return pathname.as_posix() == "scripts/demo/demo.py"
-
-    def allowed_demo_wait(func: ast.expr, args: list[ast.expr]) -> bool:
-        if not is_demo(path) or not isinstance(func, ast.Attribute) or func.attr != "wait":
-            return False
-        receiver = func.value
-        current_class, current_function = scope[-1] if scope else ("", None)
-        allowed_receiver = (
-            (
-                current_class == "Screen"
-                and current_function in {"think", "user", "say"}
-                and isinstance(receiver, ast.Name)
-                and receiver.id == "self"
-            )
-            or (
-                current_class == "Session"
-                and current_function == "tool"
-                and isinstance(receiver, ast.Name)
-                and receiver.id == "s"
-            )
-            or (
-                current_class is None
-                and current_function == "main"
-                and isinstance(receiver, ast.Name)
-                and receiver.id == "screen"
-            )
-        )
-        if not allowed_receiver or len(args) != 1:
-            return False
-        argument = args[0]
-        if current_class is None and current_function == "main":
-            return True
-        return (
-            isinstance(argument, ast.Constant)
-            and isinstance(argument.value, (int, float))
-            and not isinstance(argument.value, bool)
-        ) or (isinstance(argument, ast.Name) and argument.id == "seconds")
-
-    def allowed_demo_clock(expression: ast.expr) -> bool:
-        if not is_demo(path) or not scope:
-            return False
-        current_class, current_function = scope[-1]
-        if current_class == "Screen" and current_function == "wait":
-            if (
-                isinstance(expression, ast.BinOp)
-                and isinstance(expression.op, ast.Add)
-                and is_monotonic(expression.left)
-                and isinstance(expression.right, ast.BinOp)
-                and isinstance(expression.right.op, ast.Mult)
-                and isinstance(expression.right.left, ast.Name)
-                and expression.right.left.id == "seconds"
-                and isinstance(expression.right.right, ast.Name)
-                and expression.right.right.id == "PACE"
-            ):
-                return True
-            return (
-                isinstance(expression, ast.Compare)
-                and len(expression.ops) == 1
-                and isinstance(expression.ops[0], ast.Lt)
-                and is_monotonic(expression.left)
-                and len(expression.comparators) == 1
-                and isinstance(expression.comparators[0], ast.Name)
-                and expression.comparators[0].id == "end"
-            )
-        if current_class == "Session" and current_function == "tool":
-            return (
-                isinstance(expression, ast.Compare)
-                and len(expression.ops) == 1
-                and isinstance(expression.ops[0], ast.Lt)
-                and len(expression.comparators) == 1
-                and is_monotonic_arithmetic(expression.left)
-                and isinstance(expression.left, ast.BinOp)
-                and isinstance(expression.left.op, ast.Sub)
-                and isinstance(expression.left.right, ast.Name)
-                and expression.left.right.id == "started"
-                and isinstance(expression.comparators[0], ast.BinOp)
-                and isinstance(expression.comparators[0].op, ast.Mult)
-                and isinstance(expression.comparators[0].left, ast.Name)
-                and expression.comparators[0].left.id == "min_s"
-                and isinstance(expression.comparators[0].right, ast.Name)
-                and expression.comparators[0].right.id == "PACE"
-            )
-        return False
 
     class Visitor(ast.NodeVisitor):
         def visit_Assign(self, node: ast.Assign) -> None:
@@ -264,19 +242,6 @@ def python_findings(path: Path, text: str) -> list[str]:
                 found.extend(python_findings(path, node.value.value))
             self.generic_visit(node)
 
-        def visit_ClassDef(self, node: ast.ClassDef) -> None:
-            scope.append((node.name, None))
-            self.generic_visit(node)
-            scope.pop()
-
-        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-            current_class = scope[-1][0] if scope else None
-            scope.append((current_class, node.name))
-            self.generic_visit(node)
-            scope.pop()
-
-        visit_AsyncFunctionDef = visit_FunctionDef
-
         def visit_Call(self, node: ast.Call) -> None:
             func = node.func
             name = (
@@ -285,6 +250,10 @@ def python_findings(path: Path, text: str) -> list[str]:
                 else (func.id if isinstance(func, ast.Name) else "")
             )
             for keyword in node.keywords:
+                if keyword.arg in SANDBOX_DURATION_KEYWORDS and not _is_none(keyword.value):
+                    found.append(f"{path}:{node.lineno}: sandbox duration argument")
+                if keyword.arg in SANDBOX_DURATION_KEYS and not _is_none(keyword.value):
+                    found.append(f"{path}:{node.lineno}: sandbox duration limit")
                 if keyword.arg == "deadline" and not _is_none(keyword.value):
                     found.append(f"{path}:{node.lineno}: deadline keyword")
                 if keyword.arg in {
@@ -304,6 +273,12 @@ def python_findings(path: Path, text: str) -> list[str]:
                         found.append(f"{path}:{node.lineno}: HTTP client timeout component")
             if name == "wait_for":
                 found.append(f"{path}:{node.lineno}: wait_for call")
+            if name in CAP_CALLS and not _is_pytest_mark(func):
+                cap_args = node.args[1:] if name == "setitimer" else node.args
+                values = [*cap_args, *(keyword.value for keyword in node.keywords)]
+                is_no_cap = _is_no_cap if name in ZERO_NO_CAP_CALLS else _is_none
+                if any(not is_no_cap(value) for value in values):
+                    found.append(f"{path}:{node.lineno}: {name} call")
             if name in {"wait", "join", "communicate", "result", "exception"} and node.args:
                 receiver = func.value if isinstance(func, ast.Attribute) else None
                 asyncio_wait = (
@@ -311,11 +286,9 @@ def python_findings(path: Path, text: str) -> list[str]:
                 )
                 if (
                     not asyncio_wait
-                    and not allowed_demo_wait(func, node.args)
                     and any(_is_time_arg(arg) for arg in node.args)
                     or (
                         not asyncio_wait
-                        and not allowed_demo_wait(func, node.args)
                         and receiver is not None
                         and (
                             _is_waitable_receiver(receiver)
@@ -327,11 +300,24 @@ def python_findings(path: Path, text: str) -> list[str]:
                     found.append(f"{path}:{node.lineno}: timed {name} call")
             self.generic_visit(node)
 
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if node.attr == "timeout" and _is_pytest_mark(node):
+                found.append(f"{path}:{node.lineno}: pytest timeout mark")
+            self.generic_visit(node)
+
+        def visit_Dict(self, node: ast.Dict) -> None:
+            for key, value in zip(node.keys, node.values, strict=True):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value in SANDBOX_DURATION_KEYS
+                    and not _is_none(value)
+                ):
+                    found.append(f"{path}:{key.lineno}: sandbox duration limit")
+            self.generic_visit(node)
+
         def visit_BinOp(self, node: ast.BinOp) -> None:
-            if (
-                isinstance(node.op, ast.Add)
-                and (is_monotonic(node.left) or is_monotonic(node.right))
-                and not allowed_demo_clock(node)
+            if isinstance(node.op, ast.Add) and (
+                is_monotonic(node.left) or is_monotonic(node.right)
             ):
                 found.append(f"{path}:{node.lineno}: monotonic clock plus budget")
             self.generic_visit(node)
@@ -340,7 +326,7 @@ def python_findings(path: Path, text: str) -> list[str]:
             if any(
                 is_monotonic(expr) or is_monotonic_arithmetic(expr)
                 for expr in [node.left, *node.comparators]
-            ) and not allowed_demo_clock(node):
+            ):
                 found.append(f"{path}:{node.lineno}: monotonic clock comparison")
             self.generic_visit(node)
 
@@ -362,38 +348,9 @@ def is_monotonic_arithmetic(node: ast.expr) -> bool:
 
 def workflow_findings(path: Path, text: str) -> list[str]:
     found: list[str] = []
-    # 7200 removes GitHub's implicit 360-minute cap on self-hosted
-    # jobs. Only this platform maximum is permitted, never step-level caps.
-    job_blocks = re.split(r"(?m)(?=^  [A-Za-z0-9_-]+:\s*$)", text)
-    allowed_lines: set[int] = set()
-    offset = 0
-    for block in job_blocks:
-        lines = block.splitlines()
-        if re.search(r"(?m)^    runs-on: .*\bself-hosted\b", block):
-            for index, line in enumerate(lines, 1):
-                runner = next(
-                    (
-                        item.removeprefix("    runs-on: ")
-                        for item in lines
-                        if item.startswith("    runs-on: ")
-                    ),
-                    "",
-                )
-                # A configurable runner uses the maximum for its selected platform.
-                conditional = (
-                    "    timeout-minutes: ${{ contains("
-                    + runner[4:-3]
-                    + ", 'self-hosted') && 7200 || 360 }}"
-                    if runner.startswith("${{ fromJSON(") and runner.endswith(" }}")
-                    else ""
-                )
-                if line == "    timeout-minutes: 7200" or line == conditional:
-                    allowed_lines.add(offset + index)
-        offset += len(lines)
     for line_number, line in enumerate(text.splitlines(), 1):
         if re.match(r"^\s*(?:timeout-minutes|deadline)\s*:", line):
-            if line_number not in allowed_lines:
-                found.append(f"{path}:{line_number}: workflow cap setting")
+            found.append(f"{path}:{line_number}: workflow cap setting")
     for line_number, command in _logical_shell_lines(text):
         if SHELL_CAPS.search(command):
             found.append(f"{path}:{line_number}: shell time cap")
@@ -405,6 +362,7 @@ def toml_findings(path: Path, text: str) -> list[str]:
         f"{path}:{line_number}: TOML time cap setting"
         for line_number, line in enumerate(text.splitlines(), 1)
         if re.match(r"\s*(?:timeout(?:[-_]minutes)?|deadline|max_time|connect_timeout)\s*=", line)
+        or re.search(r"""(?:^|[\s"'])--(?:session-)?timeout(?:[=\s"']|$)""", line)
     ]
 
 
@@ -506,7 +464,7 @@ def tracked_paths(root: Path) -> list[Path]:
         path
         for path in paths
         if (
-            path == TOML_GATE
+            path in {TOML_GATE, PYPROJECT}
             or path.as_posix().startswith(".github/")
             or path.as_posix().startswith(SCAN_ROOTS)
             or path == Path("docs/no-timeouts-allowlist.json")
@@ -532,34 +490,51 @@ def check_allowlist(root: Path) -> list[str]:
     if not isinstance(entries, list):
         return [f"{ALLOWLIST}: root must be a JSON array"]
     required = {"path", "pattern", "class", "citation", "verdict", "added"}
-    approved = {
-        "Dockerfile",
-        "docs/TLS.md",
-    }
     expected_pattern = "HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3"
     expected_citation = "https://docs.docker.com/reference/dockerfile/#healthcheck"
 
     private_verdict = "public-platform-healthcheck"
     public_verdict = "public-platform-healthcheck"
+    # Code Mode interpreter-CPU exception (30 s of sandbox execution time only; waits on
+    # UniFi are never capped). One entry, one line of src/unifi_fabric/code_mode.py.
+    private_cpu_verdict = "public-code-mode-interpreter-cpu"
+    public_cpu_verdict = "public-code-mode-interpreter-cpu"
+    healthcheck = (
+        expected_pattern,
+        "platform-mandated-maximum",
+        expected_citation,
+        {private_verdict, public_verdict},
+        "2026-10-23",
+    )
+    approved = {
+        "Dockerfile": healthcheck,
+        "docs/TLS.md": healthcheck,
+        CODE_MODE_PATH: (
+            CODE_MODE_CPU_PATTERN,
+            "sandbox-interpreter-cpu",
+            CODE_MODE_CPU_CITATION,
+            {private_cpu_verdict, public_cpu_verdict},
+            "2026-11-03",
+        ),
+    }
     seen: set[str] = set()
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict) or set(entry) != required:
             return [f"{ALLOWLIST}[{index}]: entry must use the exact six-field schema"]
+        expected = approved.get(entry["path"])
         if (
-            entry["path"] not in approved
+            expected is None
             or entry["path"] in seen
-            or entry["pattern"] != expected_pattern
-            or entry["class"] != "platform-mandated-maximum"
-            or entry["citation"] != expected_citation
-            or entry["verdict"] not in {private_verdict, public_verdict}
-            or entry["added"] != "2026-10-23"
+            or entry["pattern"] != expected[0]
+            or entry["class"] != expected[1]
+            or entry["citation"] != expected[2]
+            or entry["verdict"] not in expected[3]
+            or entry["added"] != expected[4]
         ):
-            return [
-                f"{ALLOWLIST}[{index}]: entry does not match the approved healthcheck exception"
-            ]
+            return [f"{ALLOWLIST}[{index}]: entry does not match an approved exception"]
         seen.add(entry["path"])
-    if seen != approved:
-        return [f"{ALLOWLIST}: approved Docker healthcheck entries are missing"]
+    if seen != set(approved):
+        return [f"{ALLOWLIST}: approved exception entries are missing"]
     return []
 
 

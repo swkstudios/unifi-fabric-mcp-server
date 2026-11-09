@@ -1,7 +1,7 @@
 """The mixed GET relay on a state-changing route under a write opt-out is audited.
 
-With UNIFI_READ_ONLY off and a write opt-out set (the route's area switch, or
-UNIFI_ENABLE_CONNECTOR_WRITE), ``call_read_tool(name="fabric_connector_get")`` on a
+With UNIFI_WRITE_POLICY off and a write opt-out set (the route's area switch, or
+family:connector=deny), ``call_read_tool(name="fabric_connector_get")`` on a
 state-changing route is refused with the call_write_tool redirect. Before the fix that
 refusal wrote no audit record, while the same call made directly is audited with the
 opt-out that refuses it. Now each writes exactly one ``outcome=refused`` record naming the
@@ -19,7 +19,7 @@ import httpx
 import pytest
 from fastmcp import Client, FastMCP
 
-from unifi_fabric import server
+from unifi_fabric import server, switches
 from unifi_fabric.config import Settings
 from unifi_fabric.read_only_tools import AreaOptOutMiddleware, ReadOnlyToolMiddleware
 from unifi_fabric.refusal_audit import RefusedWriteAuditMiddleware
@@ -38,32 +38,29 @@ async def _app() -> FastMCP:
     app.add_middleware(RefusedWriteAuditMiddleware(app, lambda: True, server._audit_refusal))
     app.add_middleware(ReadOnlyToolMiddleware(app, audit=server._audit_refusal))
     app.add_middleware(
-        AreaOptOutMiddleware(
-            app, lambda: server.get_settings().enable_connector_write, audit=server._audit_refusal
-        )
+        AreaOptOutMiddleware(app, switches.connector_writes_enabled, audit=server._audit_refusal)
     )
     return app
 
 
 @pytest.fixture(
     params=[
-        "UNIFI_PROTECT_MUTATIONS_ENABLED",
-        "UNIFI_ENABLE_NETWORK_WRITE",
-        "UNIFI_ENABLE_CONNECTOR_WRITE",
+        "family:protect=deny",
+        "family:network=deny",
+        "family:connector=deny",
     ]
 )
 def opted_out(request, monkeypatch, tmp_path) -> tuple[str, Path]:
     env = request.param
     path = tmp_path / "audit.jsonl"
-    monkeypatch.delenv("UNIFI_READ_ONLY", raising=False)
-    monkeypatch.setenv(env, "0")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY", raising=False)
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env)
     monkeypatch.setattr(
         server,
         "_settings",
         Settings(
             api_key="synthetic-key",
             tool_mode="discovery",
-            enable_connector_write=env != "UNIFI_ENABLE_CONNECTOR_WRITE",
             audit_log=str(path),
             audit_log_format="json",
         ),
@@ -79,7 +76,11 @@ def opted_out(request, monkeypatch, tmp_path) -> tuple[str, Path]:
 def _records(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return [
+        r
+        for r in (json.loads(line) for line in path.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
 
 
 async def test_mixed_route_through_call_read_tool_and_direct_each_audit_once(opted_out):
@@ -122,23 +123,23 @@ async def test_mixed_route_that_fails_validation_writes_no_record(opted_out, pat
     ("env", "path", "expected"),
     [
         (None, WRITE_GET, None),
-        ("UNIFI_PROTECT_MUTATIONS_ENABLED", WRITE_GET, "UNIFI_PROTECT_MUTATIONS_ENABLED"),
-        ("UNIFI_PROTECT_MUTATIONS_ENABLED", "/proxy/protect/api/cameras", None),
+        ("family:protect=deny", WRITE_GET, "family:protect=deny"),
+        ("family:protect=deny", "/proxy/protect/api/cameras", None),
         # The route class is unclassified, which every active area opt-out refuses
         # (_check_unclassified_mutation) and the relay audits with that variable.
-        ("UNIFI_ENABLE_NETWORK_WRITE", WRITE_GET, "UNIFI_ENABLE_NETWORK_WRITE"),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", WRITE_GET, "UNIFI_ENABLE_CONNECTOR_WRITE"),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", "/proxy/protect/api/../x/enable-control", None),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", 5, None),
+        ("family:network=deny", WRITE_GET, "family:network=deny"),
+        ("family:connector=deny", WRITE_GET, "family:connector=deny"),
+        ("family:connector=deny", "/proxy/protect/api/../x/enable-control", None),
+        ("family:connector=deny", 5, None),
     ],
 )
 def test_relay_get_opt_out_env_follows_the_relay_order(monkeypatch, env, path, expected):
     for name in (
-        "UNIFI_PROTECT_MUTATIONS_ENABLED",
-        "UNIFI_ENABLE_NETWORK_WRITE",
-        "UNIFI_ENABLE_CONNECTOR_WRITE",
+        "family:protect=deny",
+        "family:network=deny",
+        "family:connector=deny",
     ):
         monkeypatch.delenv(name, raising=False)
     if env is not None:
-        monkeypatch.setenv(env, "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env)
     assert connector.relay_get_opt_out_env(path, None) == expected

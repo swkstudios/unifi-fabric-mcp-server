@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-write-policy-uppercase",
+  "description": "Values are case-sensitive: DENY is malformed.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_POLICY": "DENY"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_WRITE_POLICY",
+    "upstream_calls": 0
+  }
+}

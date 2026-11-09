@@ -4,7 +4,7 @@
 Reads the runtime catalog (every registered tool's ``unifi/apiSource`` metadata, derived
 from the routes it calls; see ``src/unifi_fabric/api_sources.py``), so the counts are
 what ``tools/list`` serves with every source enabled. Also reports, per selector, how many
-tools ``UNIFI_DISABLE_API_SOURCES=<selector>`` would remove (a mixed tool is removed by
+tools ``UNIFI_EXCLUDE=source:<selector>`` would remove (a mixed tool is removed by
 any private surface it calls).
 
     python3 scripts/api_source_counts.py            # markdown
@@ -21,13 +21,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 async def _report() -> dict:
-    from unifi_fabric import api_sources
-    from unifi_fabric.server import mcp
+    from gen_tools_doc import complete_catalog_env
 
-    tools = await mcp.list_tools()
+    with complete_catalog_env():
+        from unifi_fabric import api_sources
+        from unifi_fabric.server import mcp
+
+        tools = await mcp.list_tools()
     table = api_sources.table()
     classes: dict[str, str] = {}
     unclassified: list[str] = []
@@ -63,7 +67,7 @@ def _markdown(report: dict) -> str:
         lines += [f"| `{k}` | {v} |" for k, v in report["counts"][level].items()]
         lines.append("")
     lines += [
-        "## Tools removed per UNIFI_DISABLE_API_SOURCES selector",
+        "## Tools removed per UNIFI_EXCLUDE source: selector",
         "",
         "| selector | removed |",
         "| --- | ---: |",

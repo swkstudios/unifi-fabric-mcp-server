@@ -4,10 +4,12 @@ Release images are signed keylessly with [Sigstore Cosign](https://docs.sigstore
 by this repository's `publish.yml` workflow, which also attaches an SPDX SBOM attestation and a
 GitHub build-provenance attestation. Verify the digest, not a mutable tag. The expected workflow
 identity and the GitHub Actions OIDC issuer make these checks reject images that were not built
-and signed by a release tag of this repository.
+and signed by a release tag of this repository. Use cosign v3 or later: images from 0.7.1 on
+store their signature and attestations as Sigstore bundles attached through OCI referrers, which
+older cosign releases do not read.
 
 <!-- install-case: verify-image-01 mode=non-executable reason=verification requires a published digest -->
-<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:ab38e562f9226e30204bf31eeb39b7a1c4d0ab315fa213a06c622e1207128fba support=0.7.0 case=verify-image-01 -->
+<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:34f2c6c7c0f753cbebb4cd6d82ba1800b5db17f29852858dc2b67ec8ae6c5594 support=0.7.1 case=verify-image-01 -->
 ```bash
 IMAGE=ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
 IDENTITY='^https://github\.com/swkstudios/unifi-fabric-mcp-server/\.github/workflows/publish\.yml@refs/tags/v.*$'
@@ -31,7 +33,7 @@ verify the index digest with the commands above, then list the images that index
 the per-platform digest must appear next to its platform:
 
 <!-- install-case: verify-image-02 mode=non-executable reason=verification requires a published digest -->
-<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:ab38e562f9226e30204bf31eeb39b7a1c4d0ab315fa213a06c622e1207128fba support=0.7.0 case=verify-image-02 -->
+<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:34f2c6c7c0f753cbebb4cd6d82ba1800b5db17f29852858dc2b67ec8ae6c5594 support=0.7.1 case=verify-image-02 -->
 ```bash
 docker buildx imagetools inspect "$IMAGE"
 ```

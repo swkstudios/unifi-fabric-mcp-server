@@ -12,6 +12,17 @@ B_TARGET = 1024
 B_HEADERS = 16 * 1024
 _logger = logging.getLogger("unifi_fabric.access")
 _BODIES = {414: b"Request target too large\n", 431: b"Request headers too large\n"}
+#: Log form of each request-target byte: printable ASCII as is; control bytes (ESC, CR,
+#: LF) and non-ASCII as ``\\xNN``, the form ``backslashreplace`` already gave non-ASCII
+#: and the log scrubber matches. The line is built from this fixed table, never from the
+#: raw request bytes, so no terminal escape or line break reaches the access record
+#: (CodeQL py/clear-text-logging-sensitive-data).
+_BYTE_TEXT = tuple(chr(b) if 0x20 <= b < 0x7F else f"\\x{b:02x}" for b in range(256))
+
+
+def _printable(raw: bytes) -> str:
+    """The request target as one printable ASCII token for the access line."""
+    return "".join(_BYTE_TEXT[b] for b in raw)
 
 
 class AccessLogMiddleware:
@@ -46,9 +57,7 @@ class AccessLogMiddleware:
         else:
             # Query keys and bare tokens can themselves be credentials.
             safe_query = b"***"
-            logged_target = (raw_path + (b"?" + safe_query if query else b"")).decode(
-                "ascii", errors="backslashreplace"
-            )
+            logged_target = _printable(raw_path + (b"?" + safe_query if query else b""))
         status = 500
         logged = False
 

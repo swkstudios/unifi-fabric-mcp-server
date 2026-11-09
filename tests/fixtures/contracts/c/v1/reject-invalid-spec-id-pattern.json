@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-invalid-spec-id-pattern",
+  "description": "A ToolSpec id off the <family>.<name> pattern",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras",
+        "id": "Protect.list_cameras"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:invalid_spec",
+    "registered": 0
+  }
+}

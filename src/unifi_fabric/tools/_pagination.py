@@ -5,9 +5,9 @@ Background — the bug these fix
 Every list tool used to issue a single ``client.get()`` and return page one.
 For a cursor endpoint it surfaced the ``nextToken``; for an offset endpoint it
 surfaced ``totalCount``. Either way the *caller* was expected to notice and
-follow up. On a single-console estate that never crossed a page boundary this
+follow up. On a single-console deployment that never crossed a page boundary this
 looked complete forever — and silently truncated the moment it pointed at a
-large estate, which is the whole reason this server exists.
+large deployment, which is the whole reason this server exists.
 
 These helpers make ``list_*`` tools drain *all* pages by default while keeping
 manual paging available and never masking a capped drain as complete.

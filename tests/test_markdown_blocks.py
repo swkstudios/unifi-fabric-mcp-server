@@ -347,7 +347,15 @@ def _tracked_public_markdown() -> list[Path]:
     )
     assert listed.returncode == 0, "Tracked Markdown enumeration failed: " + listed.stderr
     paths = [root / name for name in listed.stdout.split("\0") if name]
-    return [p for p in paths if "internal" not in p.relative_to(root).parts and p.is_file()]
+    return [
+        p
+        for p in paths
+        if (
+            p.relative_to(root).parts[:1] != ("docs",)
+            or p.relative_to(root).parts[1:2] != ("internal",)
+        )
+        and p.is_file()
+    ]
 
 
 def test_tracked_public_markdown_has_no_fence_the_scanner_cannot_see():

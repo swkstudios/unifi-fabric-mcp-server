@@ -56,3 +56,14 @@ def test_authorization_header_declares_required_secret_variable():
         assert variable["description"]
         assert variable["isRequired"] is True
         assert variable["isSecret"] is True
+
+
+def test_registry_exposes_tool_modes_and_write_policy():
+    data = json.loads(SERVER_JSON.read_text())
+    for package in data["packages"]:
+        settings = {item["name"]: item for item in package["environmentVariables"]}
+        assert settings["UNIFI_TOOL_MODE"]["choices"] == ["discovery", "full", "codemode"]
+        policy = settings["UNIFI_WRITE_POLICY"]
+        assert policy["choices"] == ["allow", "dry-run", "deny"]
+        assert policy["default"] == "allow"
+        assert policy["isRequired"] is False

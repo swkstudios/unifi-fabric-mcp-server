@@ -27,12 +27,20 @@ def _step(job: str, needle: str) -> dict[str, Any]:
 
 
 def test_build_packs_and_validates_with_a_pinned_mcpb():
-    step = _step("build", "npx --yes")
+    step = _step("build", "npm ci --ignore-scripts")
     assert re.fullmatch(r"@anthropic-ai/mcpb@\d+\.\d+\.\d+", step["env"]["MCPB"])
+    manifest = json.loads((ROOT / "tools/mcpb/package.json").read_text())
+    lock = json.loads((ROOT / "tools/mcpb/package-lock.json").read_text())
+    assert step["env"]["MCPB"] == (
+        "@anthropic-ai/mcpb@" + manifest["dependencies"]["@anthropic-ai/mcpb"]
+    )
+    assert lock["packages"][""]["dependencies"] == manifest["dependencies"]
+    assert all("integrity" in value for key, value in lock["packages"].items() if key)
     run = step["run"]
-    assert 'npx --yes "${MCPB}" validate plugins/claude-desktop/manifest.json' in run
+    assert "tools/mcpb/node_modules/.bin/mcpb validate plugins/claude-desktop/manifest.json" in run
     assert (
-        'npx --yes "${MCPB}" pack plugins/claude-desktop "mcpb/unifi-fabric-${VERSION}.mcpb"' in run
+        "tools/mcpb/node_modules/.bin/mcpb pack plugins/claude-desktop "
+        '"mcpb/unifi-fabric-${VERSION}.mcpb"' in run
     )
     assert "dist/" not in run  # never next to the PyPI artifacts
     node = _step("build", "actions/setup-node@")
@@ -63,7 +71,7 @@ def test_the_bundle_packs_exactly_the_manifest_and_readme(tmp_path):
     with zipfile.ZipFile(bundle, "w") as out:
         for name in ("README.md", "manifest.json"):
             out.write(folder / name, name)
-    script = _step("build", "npx --yes")["run"]
+    script = _step("build", "npm ci --ignore-scripts")["run"]
     check = script.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
     check = "\n".join(line.removeprefix("          ") for line in check.splitlines())
     subprocess.run(  # noqa: S603 - in-repo check script, temp file
@@ -85,9 +93,10 @@ def test_packed_bundle_is_scanned_before_upload():
     assert "python -m zipfile -e" in run
     assert 'gitleaks" detect --no-git' in run
     assert "--redact --exit-code 1" in run
-    assert "sha256sum -c -" in run
-    assert re.fullmatch(r"\d+\.\d+\.\d+", job["env"]["GITLEAKS_VERSION"])
-    assert re.fullmatch(r"[0-9a-f]{64}", job["env"]["GITLEAKS_SHA256"])
+    # The pinned, checksum-verified binary (.github/gitleaks.pin) in the scan directory.
+    assert 'bash scripts/install_gitleaks.sh --dest "${scan_dir}"' in run
+    assert run.index("install_gitleaks.sh") < run.index('gitleaks" detect')
+    assert "GITLEAKS_VERSION" not in str(job.get("env", {}))
 
 
 def test_bundle_supports_macos_and_windows():

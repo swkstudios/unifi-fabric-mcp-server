@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "/absolute/path/to/uvx",
+      "args": [
+        "--from",
+        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp"
+      ],
+      "env": {
+        "UNIFI_API_KEY": "your-api-key-here",
+        "UNIFI_WRITE_POLICY": "deny",
+        "UNIFI_WRITE_EXCEPTIONS": "family:network=deny;family:protect=deny",
+        "UNIFI_FAMILY_ALLOW": "network,protect,firewall",
+        "UNIFI_TOOL_MODE": "full"
+      }
+    }
+  }
+}

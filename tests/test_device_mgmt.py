@@ -1041,3 +1041,99 @@ async def test_external_upgrade_preserves_valid_url(client, slug_registry, url):
         key=None,
         json={"url": url, "macs": ["aa:bb:cc:dd:ee:02"]},
     )
+
+
+class TestHeaderModeStaleMacCache:
+    """Header mode keeps one MAC -> id cache per credential identity; unadopt, forget,
+    adopt and a cached-id 404 drop the entry from every one of them, not only from the
+    environment-mode cache."""
+
+    MAC = "de:ad:be:ef:00:0c"
+    OLD = "aaaaaaaa-0000-4000-8000-00000000000c"
+    NEW = "bbbbbbbb-0000-4000-8000-00000000000d"
+
+    @pytest.fixture(autouse=True)
+    def _header_mode(self, monkeypatch):
+        import unifi_fabric.tools.device_mgmt as dm
+        from unifi_fabric.config import APIKeyConfig
+
+        self.identity = {"keys": [APIKeyConfig(label="a", key="synthetic-a")]}
+        monkeypatch.setattr(dm, "header_mode_enabled", lambda: True)
+        monkeypatch.setattr(dm, "request_key_configs", lambda: self.identity["keys"])
+        _mac_uuid_cache.clear()
+        dm._mac_uuid_identity_cache.clear()
+        yield
+        dm._mac_uuid_identity_cache.clear()
+
+    def _use(self, label):
+        from unifi_fabric.config import APIKeyConfig
+
+        self.identity["keys"] = [APIKeyConfig(label=label, key=f"synthetic-{label}")]
+
+    def _entries(self, client):
+        from unifi_fabric.tools.device_mgmt import _mac_uuid_identity_cache
+
+        return {
+            k: v
+            for cache in _mac_uuid_identity_cache.get(client, {}).values()
+            for k, v in cache.items()
+        }
+
+    async def _prime(self, client, registry):
+        client.get.side_effect = [[{"id": self.OLD, "macAddress": self.MAC}], [], {"id": self.OLD}]
+        await get_device(client, registry, "h", "s", self.MAC)
+        assert self.OLD in self._entries(client).values()  # cached in the identity cache
+        assert not _mac_uuid_cache.get(client)  # never in the environment-mode cache
+        client.get.side_effect = [[{"id": self.NEW, "macAddress": self.MAC}], []]
+        client.get.reset_mock()
+
+    def _action_path(self, uuid):
+        return f"{BASE}/sites/{SITE_ID}/devices/{uuid}/actions"
+
+    @pytest.mark.parametrize("op", ["unadopt_mac", "unadopt_uuid", "forget", "adopt", "approve"])
+    async def test_invalidating_ops_drop_the_identity_cache_entry(self, client, registry, op):
+        await self._prime(client, registry)
+        client.post.return_value = {"meta": {"rc": "ok"}, "data": []}
+        if op == "unadopt_mac":
+            await unadopt_device(client, registry, "h", "s", self.MAC)
+        elif op == "unadopt_uuid":
+            await unadopt_device(client, registry, "h", "s", self.OLD)
+        elif op == "forget":
+            await forget_device(client, registry, "h", "s", self.MAC.upper())
+        elif op == "adopt":
+            await adopt_device(client, registry, "h", "s", {"macAddress": self.MAC.upper()})
+        else:
+            await approve_pending_device(client, registry, "h", "s", self.MAC, False)
+        assert self._entries(client) == {}
+        client.post.reset_mock()
+        await execute_device_action(client, registry, "h", "s", self.MAC, {"action": "RESTART"})
+        assert client.post.call_args.args[0] == self._action_path(self.NEW)
+
+    async def test_forget_under_one_identity_drops_every_identity_entry(self, client, registry):
+        await self._prime(client, registry)  # cached under identity "a"
+        self._use("b")
+        client.post.return_value = {"meta": {"rc": "ok"}, "data": []}
+        await forget_device(client, registry, "h", "s", self.MAC)
+        assert self._entries(client) == {}
+        self._use("a")
+        client.post.reset_mock()
+        await execute_device_action(client, registry, "h", "s", self.MAC, {"action": "RESTART"})
+        assert client.post.call_args.args[0] == self._action_path(self.NEW)
+
+    async def test_cached_id_404_on_a_read_re_resolves_from_the_device_list(self, client, registry):
+        await self._prime(client, registry)
+        gone = UniFiConnectionError(f"HTTP 404 from GET devices/{self.OLD}: not found")
+        client.get.side_effect = [
+            gone,
+            [{"id": self.NEW, "macAddress": self.MAC}],
+            [],
+            {"id": self.NEW},
+        ]
+        result = await get_device(client, registry, "h", "s", self.MAC)
+        assert result == {"id": self.NEW}
+        assert [c.args[0] for c in client.get.call_args_list] == [
+            f"{BASE}/sites/{SITE_ID}/devices/{self.OLD}",
+            f"{BASE}/sites/{SITE_ID}/devices",
+            f"{BASE}/sites/{SITE_ID}/devices",
+            f"{BASE}/sites/{SITE_ID}/devices/{self.NEW}",
+        ]

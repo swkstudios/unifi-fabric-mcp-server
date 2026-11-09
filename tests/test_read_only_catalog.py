@@ -35,16 +35,17 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
     monkeypatch, tmp_path, mode, families, disabled
 ):
     audit_file = tmp_path / "audit.jsonl"
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+    if families:
+        monkeypatch.setenv("UNIFI_FAMILY_ALLOW", families)
+    if disabled:
+        monkeypatch.setenv("UNIFI_EXCLUDE", f"source:{disabled}")
     monkeypatch.setattr(
         server,
         "_settings",
         Settings(
             api_key="synthetic-key",
-            read_only=True,
             tool_mode=mode,
-            tool_families=families,
-            disable_api_sources=disabled,
             audit_log=str(audit_file),
             audit_log_format="json",
         ),
@@ -55,9 +56,14 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
 
     monkeypatch.setattr(httpx.AsyncClient, "send", no_upstream)
     expected_app = await clone_app()
-    await apply_tool_family_filter(expected_app, families)
-    await apply_api_source_filter(expected_app, disabled)
+    unfiltered = {tool.name: tool for tool in await expected_app.list_tools()}
+    if families:
+        await apply_tool_family_filter(expected_app, families)
+    if disabled:
+        await apply_api_source_filter(expected_app, disabled)
     selected = {tool.name: tool for tool in await expected_app.list_tools()}
+    # list_configured_api_keys is a local tool: no exposure setting hides it.
+    selected.setdefault("list_configured_api_keys", unfiltered["list_configured_api_keys"])
     writes = derive_write_tools(list(selected.values()))
     reads = set(selected) - writes
     assert writes and reads
@@ -88,7 +94,7 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
             ).data
             assert {row["name"] for row in write_rows} == mixed_reads
             for name in (hidden_name, "call_write_tool"):
-                with pytest.raises(Exception, match="UNIFI_READ_ONLY") as error:
+                with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
                     await client.call_tool("describe_tool", {"name": name})
                 assert read_only_message(name, tool=True) in str(error.value)
             family_counts = (await client.call_tool("list_tool_families", {})).data
@@ -97,20 +103,26 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
                 Counter(family_index[name] for name in callable_reads)
             )
             assert sum(row["tools"] for row in family_counts) == len(callable_reads)
-            with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+            with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
                 await client.call_tool("call_write_tool", {"name": hidden_name, "arguments": {}})
 
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY") as error:
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
             await client.call_tool(hidden_name, {})
         assert read_only_message(hidden_name, tool=True) in str(error.value)
         assert await app.get_tool(hidden_name) is None
-        records = [json.loads(line) for line in audit_file.read_text().splitlines()]
+        records = [
+            r
+            for r in (json.loads(line) for line in audit_file.read_text().splitlines())
+            if r.get("event", "audit") == "audit"
+        ]
+        # A refusal through the discovery dispatcher is audited under the tool it targets,
+        # so the call_write_tool refusal and the direct refusal both name the hidden tool.
         assert [(row["tool"], row["outcome"], row["reason"]) for row in records] == (
-            [("call_write_tool", "refused", "UNIFI_READ_ONLY")] if mode == "discovery" else []
-        ) + [(hidden_name, "refused", "UNIFI_READ_ONLY")]
+            [(hidden_name, "refused", "UNIFI_WRITE_POLICY")] if mode == "discovery" else []
+        ) + [(hidden_name, "refused", "UNIFI_WRITE_POLICY")]
         if not families and not disabled:
             assert "fabric_connector_get" in mixed_reads
-            with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+            with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
                 await client.call_tool(
                     "fabric_connector_get",
                     {
@@ -124,7 +136,7 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
 async def test_default_startup_catalog_is_identical(monkeypatch, mode):
     from unifi_fabric.discovery import apply_tool_mode
 
-    monkeypatch.delenv("UNIFI_READ_ONLY", raising=False)
+    monkeypatch.delenv("UNIFI_WRITE_POLICY", raising=False)
     monkeypatch.setattr(server, "_settings", Settings(api_key="synthetic-key", tool_mode=mode))
     baseline = await clone_app()
     restore = await apply_tool_mode(baseline, mode)
@@ -172,7 +184,7 @@ async def test_mixed_get_relay_keeps_reads_under_every_write_policy(
         apply_area_opt_out_tool_filter,
     )
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", str(int(read_only)))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny" if read_only else "allow")
     app = FastMCP("mixed-relay")
 
     @app.tool(annotations=WRITE)
@@ -203,7 +215,7 @@ async def test_mixed_get_relay_keeps_reads_under_every_write_policy(
                         "call_read_tool", {"name": "fabric_connector_get", "arguments": action_args}
                     )
             elif read_only or not connector_enabled:
-                with pytest.raises(Exception, match="UNIFI_READ_ONLY|UNIFI_ENABLE_CONNECTOR_WRITE"):
+                with pytest.raises(Exception, match="UNIFI_WRITE_POLICY|family:connector=deny"):
                     await client.call_tool("fabric_connector_get", action_args)
             else:
                 assert (

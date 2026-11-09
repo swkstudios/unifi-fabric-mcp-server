@@ -55,7 +55,10 @@ Set `MCP_AUTH_MODE=oauth` and the resource-server descriptor:
 **Every token the server accepts can call every tool, writes included.** OAuth scopes control
 admission to the whole server. `MCP_OAUTH_REQUIRED_SCOPES` decides which tokens get in: a scope named
 `fabric:read` does not disable write tools.
-All admitted clients use the deployment's configured UniFi key(s), tool catalog and write settings.
+All admitted clients share the deployment's tool catalog and write settings; a client can tighten them for its
+own calls with the [request policy headers](CONFIGURATION.md#request-policy-headers) (for example `X-UniFi-Write-Policy: deny`),
+never loosen them. In the default key mode they also share its configured UniFi key(s); with
+`UNIFI_KEY_MODE=header` each call sends its own ([Header key mode](CONFIGURATION.md#header-key-mode-unifi_key_mode)).
 
 To separate readers from writers on one instance, set `MCP_OAUTH_WRITE_SCOPE` (opt-in, unset by
 default). A write tool (any tool not annotated `readOnlyHint`), and a `fabric_connector_get` call to a
@@ -63,15 +66,16 @@ known state-changing GET route (Protect camera `enable-control` / `disable-contr
 before it runs, with an error naming the variable, unless the caller's token also carries that scope;
 read tools need only the admission scopes. The refusal is written to `UNIFI_AUDIT_LOG` like the other operator refusals.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 export MCP_OAUTH_REQUIRED_SCOPES="fabric:read"   # every caller
 export MCP_OAUTH_WRITE_SCOPE="fabric:write"      # callers that may change the estate
 ```
 
-For read-only access with no write path at all, run an instance with `UNIFI_READ_ONLY=1`; use separate
-instances and keys when callers need different UniFi permissions.
+For read-only access with no write path at all, run an instance with `UNIFI_WRITE_POLICY=deny`; use separate
+instances and keys when callers need different UniFi permissions, or run with `UNIFI_KEY_MODE=header` so each
+caller sends a key that carries only its own UniFi permissions.
 
 All four required fields are validated **fail-closed** at startup: if any of issuer,
 JWKS URI, audience, or base URL is missing, the server refuses to start with an explicit
@@ -85,7 +89,7 @@ TLS-terminating reverse proxy maps to that local socket — the two are independ
 When running directly (not via Docker), FastMCP defaults to `127.0.0.1:8000`; the
 Docker image sets `0.0.0.0:3000`.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 export FASTMCP_TRANSPORT=streamable-http
@@ -101,12 +105,12 @@ export MCP_OAUTH_REQUIRED_SCOPES="fabric:read"
 
 ### Example (Docker Compose)
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
     environment:
       UNIFI_API_KEY: "your-api-key"
       FASTMCP_TRANSPORT: streamable-http
@@ -120,19 +124,19 @@ services:
       - "3000:3000"
 ```
 
-> **Tip:** The image tag above pins this release. For production deployments, pin by digest instead — see the [Docker Deployment](../README.md#docker-deployment) section in the README.
+> **Tip:** The image tag above pins this release. For production deployments, pin by digest instead — see the [Docker deployment guide](DOCKER.md).
 
 ### Example — OAuth + in-server HTTPS (Recommended for internet-exposed)
 
 The matrix labels `oauth + https` as the recommended public posture. Add the
 `MCP_TLS_*` variables to any OAuth config above:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-4 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
     environment:
       UNIFI_API_KEY: "your-api-key"
       FASTMCP_TRANSPORT: streamable-http
@@ -161,12 +165,12 @@ variables and set `MCP_OAUTH_BASE_URL` to the proxy's `https://` address.
 
 For the highest-assurance posture, combine OAuth JWT validation with mutual TLS:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-5 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
     environment:
       UNIFI_API_KEY: "your-api-key"
       FASTMCP_TRANSPORT: streamable-http
@@ -232,7 +236,7 @@ Create an API resource / application in your IdP:
 
 ### Step 2 — Acquire a token
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-6 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 ISSUER="https://idp.example.com/realms/main"   # your IdP's issuer URL — no trailing slash
@@ -264,7 +268,7 @@ echo "Token prefix: ${TOKEN:0:20}"   # should start with "ey" for a JWT
 
 `streamable-http` transport:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-7 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 curl -s http://127.0.0.1:8000/.well-known/oauth-protected-resource/mcp | jq .
@@ -272,7 +276,7 @@ curl -s http://127.0.0.1:8000/.well-known/oauth-protected-resource/mcp | jq .
 
 Expected `200 OK` response:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-8 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -283,7 +287,7 @@ Expected `200 OK` response:
 
 `sse` transport (`FASTMCP_TRANSPORT=sse`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-9 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 curl -s http://127.0.0.1:8000/.well-known/oauth-protected-resource/sse | jq .
@@ -291,7 +295,7 @@ curl -s http://127.0.0.1:8000/.well-known/oauth-protected-resource/sse | jq .
 
 Expected `200 OK` response:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-10 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -306,7 +310,7 @@ POST an `initialize` message to confirm the server is up and the token is accept
 (A bare GET to `/mcp` returns `400 Bad Request` — the streamable-http protocol
 requires a POST to open a session.)
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-11 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 curl -s -w "\nHTTP:%{http_code}\n" \
@@ -328,7 +332,7 @@ The SSE transport model is fundamentally different — a client opens a long-liv
 GET to `/sse` rather than posting to `/mcp`. The `Authorization: Bearer` header
 is identical; only the endpoint changes:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-12 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 curl --include --no-buffer --silent --show-error \
@@ -352,7 +356,7 @@ discover the authorization server automatically via the protected-resource metad
 document (see [Discovery endpoint](#discovery-endpoint) above). The client config is
 minimal — no token or header injection needed:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-13 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -378,7 +382,7 @@ operator must rotate the injected token before it expires.
 
 **`streamable-http` transport:**
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-14 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -394,7 +398,7 @@ operator must rotate the injected token before it expires.
 
 **`sse` transport:**
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-oauth-15 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -454,6 +458,7 @@ stderr logs.
 | `claim 'exp' is required` | The IdP issued a token with no expiry | Configure the IdP to set an access-token lifetime; a token without `exp` is never accepted. |
 | `claim 'nbf'` / `claim 'iat'` is in the future | The IdP's clock or this server's clock is more than 60 s off | Sync both clocks (NTP). |
 | JWKS endpoint unreachable | `MCP_OAUTH_JWKS_URI` is wrong or outbound egress to the IdP is blocked | Verify the URI and network path from the server to the IdP. |
+| Requests hang while others authenticate | The IdP accepted a JWKS download and has not answered; a key download has no time limit, so a request that needs fresh keys waits for one | Fix the IdP or the network path; no restart is needed. A later request starts a new download (at most one every 30 s, and at most four open at once), and when one answers, every waiting request continues. |
 | `kid` not found after IdP key rotation | IdP rotated signing keys; cached JWKS is stale | Restart the server so the JWKS is re-fetched, or check your IdP's key-rotation policy. |
 | Algorithm mismatch | Token `alg` ≠ `MCP_OAUTH_ALGORITHM` (default `RS256`) | Set `MCP_OAUTH_ALGORITHM` to match the algorithm your IdP uses for signing. |
 | Server refuses to start | A required descriptor field is unset | Provide issuer + JWKS URI + audience + base URL. |

@@ -185,6 +185,7 @@ async def test_before_send_transport_is_not_reported_unknown(
         ("/v1/carrier/subscribers/x", {"list_carrier_subscribers", "list_carrier_service_plans"}),
         ("/v1/mobility/devices/x", {"list_mobility_devices", "list_mobility_workspaces"}),
         (RELAY, {"fabric_connector_get"}),
+        ("/ea/sites/site-id/rest/firewallrule", {"list_firewall_rules"}),
     ],
 )
 def test_every_named_verify_tool_is_in_the_catalog(path: str, tools: set[str]) -> None:

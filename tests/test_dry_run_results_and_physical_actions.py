@@ -1,6 +1,6 @@
 """Dry-run results and previews, forget_device shape, physical actions.
 
-1. Every delete tool under UNIFI_DRY_RUN returns ``status: "dry_run"`` and never
+1. Every delete tool under dry-run policy returns ``status: "dry_run"`` and never
    ``deleted: true`` (deletion_result recognises the preview).
 2. The dry-run preview carries the query ``params`` the write would have sent.
 3. forget_device with several MACs under dry-run is a dry-run result, never "forgotten".
@@ -9,7 +9,6 @@
    never sends (no false "silent no-op", no false ``verified: false``).
 6. allow_/exclude_network_on_port_profile (and update_port_profile) return the bare
    preview under dry-run, with no name-resolution GET after the suppressed PUT.
-7. update_device_tag validates member_device_macs before any request.
 8. list_client_sessions rejects an unknown session_type before any request.
 9. restart_device / execute_device_action / execute_port_action / unadopt_device resolve a
    MAC to the device id; an unknown MAC fails listing the site's devices.
@@ -91,7 +90,7 @@ def test_deletion_result_on_a_real_body_is_unchanged():
 )
 async def test_named_delete_callers_report_dry_run(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = await _call(monkeypatch, name, up, UNIFI_DRY_RUN="1")
+    payload = await _call(monkeypatch, name, up, UNIFI_WRITE_POLICY="dry-run")
     assert up.writes() == []
     assert payload.get("deleted") is not True, payload
     assert payload["status"] == "dry_run"
@@ -107,7 +106,7 @@ async def test_preview_shows_the_bulk_voucher_delete_filter(monkeypatch):
         "bulk_delete_hotspot_vouchers",
         up,
         {"filter_params": {"filter": "name.eq('Conference')"}},
-        UNIFI_DRY_RUN="1",
+        UNIFI_WRITE_POLICY="dry-run",
     )
     assert up.writes() == []
     assert _preview(payload)["params"] == {"filter": "name.eq('Conference')"}
@@ -117,7 +116,9 @@ async def test_preview_shows_the_bulk_voucher_delete_filter(monkeypatch):
 @pytest.mark.parametrize("force", [True, False])
 async def test_preview_shows_delete_network_force(monkeypatch, force):
     up = uh.FakeUpstream()
-    payload = await _call(monkeypatch, "delete_network", up, {"force": force}, UNIFI_DRY_RUN="1")
+    payload = await _call(
+        monkeypatch, "delete_network", up, {"force": force}, UNIFI_WRITE_POLICY="dry-run"
+    )
     assert _preview(payload)["params"] == {"force": "true" if force else "false"}
 
 
@@ -133,7 +134,7 @@ async def test_preview_shows_the_policy_ordering_zone_ids(monkeypatch):
             "destination_zone_id": dst,
             "ordering": {"orderedFirewallPolicyIds": ["00000000-0000-4000-8000-0000000000b3"]},
         },
-        UNIFI_DRY_RUN="1",
+        UNIFI_WRITE_POLICY="dry-run",
     )
     assert up.writes() == []
     assert _preview(payload)["params"] == {
@@ -144,7 +145,7 @@ async def test_preview_shows_the_policy_ordering_zone_ids(monkeypatch):
 
 async def test_preview_params_is_null_when_the_write_has_none(monkeypatch):
     up = uh.FakeUpstream()
-    payload = await _call(monkeypatch, "delete_network", up, UNIFI_DRY_RUN="1")
+    payload = await _call(monkeypatch, "delete_network", up, UNIFI_WRITE_POLICY="dry-run")
     preview = _preview(payload)
     assert "params" in preview and preview["params"] is None
 
@@ -153,7 +154,9 @@ async def test_preview_params_is_null_when_the_write_has_none(monkeypatch):
 async def test_forget_several_macs_under_dry_run_is_not_forgotten(monkeypatch):
     up = uh.FakeUpstream()
     macs = ["02:00:5e:00:00:a1", "02-00-5E-00-00-A2"]
-    payload = await _call(monkeypatch, "forget_device", up, {"mac": macs}, UNIFI_DRY_RUN="1")
+    payload = await _call(
+        monkeypatch, "forget_device", up, {"mac": macs}, UNIFI_WRITE_POLICY="dry-run"
+    )
     assert up.writes() == []
     assert "forgotten" not in payload, payload
     assert payload["status"] == "dry_run"
@@ -166,7 +169,9 @@ async def test_forget_several_macs_under_dry_run_is_not_forgotten(monkeypatch):
 
 async def test_forget_one_mac_string_under_dry_run_returns_the_preview(monkeypatch):
     up = uh.FakeUpstream()
-    payload = await _call(monkeypatch, "forget_device", up, {"mac": uh.ARG_MAC}, UNIFI_DRY_RUN="1")
+    payload = await _call(
+        monkeypatch, "forget_device", up, {"mac": uh.ARG_MAC}, UNIFI_WRITE_POLICY="dry-run"
+    )
     assert is_dry_run_preview(payload)
 
 
@@ -292,7 +297,7 @@ async def test_protect_update_verifies_despite_additive_keys(monkeypatch):
 )
 async def test_port_profile_writes_return_the_bare_preview(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = await _call(monkeypatch, name, up, UNIFI_DRY_RUN="1")
+    payload = await _call(monkeypatch, name, up, UNIFI_WRITE_POLICY="dry-run")
     assert up.writes() == []
     assert is_dry_run_preview(payload), payload
     assert not {"_profileNote", "_tagged_networks", "_network"} & set(payload)
@@ -302,7 +307,6 @@ async def test_port_profile_writes_return_the_bare_preview(monkeypatch, name):
     assert len(networkconf_reads) == (0 if name == "update_port_profile" else 1)
 
 
-# --------------------------------------------------------------------------- (7)
 # --------------------------------------------------------------------------- (8)
 async def test_list_client_sessions_rejects_a_mistyped_session_type(client, registry):
     with pytest.raises(ValueError) as exc:

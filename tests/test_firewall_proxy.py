@@ -717,7 +717,7 @@ class TestAclRuleOrdering:
 
 
 class TestFirewallPolicyDocsMatchSpec:
-    """Docstrings must use the Network 10.6.106 enum values and filter shapes."""
+    """Docstrings must use the Network 11.0.97 enum values and filter shapes."""
 
     def _doc(self, name):
         from tests.test_spec_conformance import usage_section

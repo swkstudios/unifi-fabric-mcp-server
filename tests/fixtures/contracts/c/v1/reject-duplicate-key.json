@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-duplicate-key",
+  "description": "Two entries share one (family, name) key",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras"
+      },
+      {
+        "base": "list_cameras"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:duplicate_key",
+    "registered": 0
+  }
+}

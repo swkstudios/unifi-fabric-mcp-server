@@ -1,0 +1,47 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-fanout-two-labels",
+  "description": "A host-less fan-out uses each request label once, in request order",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\",\"beta\":\"synthetic-key-b\"}"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {},
+    "upstream": {
+      "alpha": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ-A"
+          }
+        ]
+      },
+      "beta": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-b1",
+            "name": "HQ-B"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "selected_labels": [
+      "alpha",
+      "beta"
+    ]
+  }
+}

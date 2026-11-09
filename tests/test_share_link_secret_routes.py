@@ -65,7 +65,10 @@ class _Upstream:
 def wire(monkeypatch):
     def install(status_for: dict[str, int], **settings: Any) -> _Upstream:
         upstream = _Upstream(status_for)
-        s = Settings(api_key="synthetic-share-key", **settings)
+        s = Settings(
+            api_key="synthetic-share-key",
+            **{k: v for k, v in settings.items() if k != "write_policy"},
+        )
         client = UniFiClient(s)
         http = httpx.AsyncClient(base_url=s.api_base_url, transport=httpx.MockTransport(upstream))
         client._get_client = AsyncMock(return_value=http)
@@ -76,8 +79,10 @@ def wire(monkeypatch):
         monkeypatch.setattr(server, "_client", client)
         monkeypatch.setattr(server, "_registry", registry)
         monkeypatch.setattr(uh.asyncio, "sleep", uh._no_sleep)
-        monkeypatch.delenv("UNIFI_READ_ONLY", raising=False)
-        monkeypatch.delenv("UNIFI_PROTECT_MUTATIONS_ENABLED", raising=False)
+        monkeypatch.delenv("UNIFI_WRITE_POLICY", raising=False)
+        monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
+        if settings.get("write_policy"):
+            monkeypatch.setenv("UNIFI_WRITE_POLICY", settings["write_policy"])
         return upstream
 
     return install
@@ -132,7 +137,8 @@ async def test_typed_error_follows_opt_in(wire, logs, redact, name, status):
         assert MARKER in text
     assert str(status) in text
     assert REASON in text, "the rest of the upstream reason stays verbatim"
-    _assert_masked("\n".join(logs) + "***")
+    assert MARKER not in "\n".join(logs)
+    assert MARKER[::-1] not in "\n".join(logs)
     assert up.calls, "the upstream was reached"
 
 
@@ -179,11 +185,12 @@ async def test_relay_non_2xx_follows_opt_in(wire, logs, redact, tool, method, st
     else:
         assert MARKER in text
     assert REASON in text
-    _assert_masked("\n".join(logs) + "***")
+    assert MARKER not in "\n".join(logs)
+    assert MARKER[::-1] not in "\n".join(logs)
 
 
 async def test_relay_dry_run_read_before_masks_the_link(wire, logs):
-    up = wire({}, dry_run=True, redact_secrets=True)
+    up = wire({}, write_policy="dry-run", redact_secrets=True)
     res = await server.mcp.call_tool("fabric_connector_delete", {"host": "console", "path": ROUTE})
     payload = uh.result_payload(res)
     assert payload["status"] == "dry_run"
@@ -193,7 +200,8 @@ async def test_relay_dry_run_read_before_masks_the_link(wire, logs):
     assert before["body"]["enabled"] is True and before["body"]["cameraId"] == CAM
     assert MARKER not in _texts(payload)
     assert [c.method for c in up.calls] == ["GET"], "dry-run sends no DELETE"
-    _assert_masked("\n".join(logs) + "***")
+    assert MARKER not in "\n".join(logs)
+    assert MARKER[::-1] not in "\n".join(logs)
 
 
 async def test_relay_real_delete_read_before_is_verbatim_success(wire):
@@ -214,7 +222,7 @@ async def test_relay_get_success_body_stays_verbatim(wire):
 
 
 async def test_relay_dry_run_preview_masks_a_share_link_body(wire, logs):
-    up = wire({}, dry_run=True, redact_secrets=True)
+    up = wire({}, write_policy="dry-run", redact_secrets=True)
     res = await server.mcp.call_tool(
         "fabric_connector_post", {"host": "console", "path": ROUTE, "body": {"shareLink": LINK}}
     )
@@ -222,4 +230,5 @@ async def test_relay_dry_run_preview_masks_a_share_link_body(wire, logs):
     assert payload["status"] == "dry_run"
     assert MARKER not in _texts(payload)
     assert up.calls == []
-    _assert_masked("\n".join(logs) + "***")
+    assert MARKER not in "\n".join(logs)
+    assert MARKER[::-1] not in "\n".join(logs)

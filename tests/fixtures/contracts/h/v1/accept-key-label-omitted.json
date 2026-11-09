@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-key-label-omitted",
+  "description": "A header-mode call without key_label uses the header's one label",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {},
+    "upstream": {
+      "alpha": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ-A"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "selected_labels": [
+      "alpha"
+    ],
+    "upstream_calls": 1
+  }
+}

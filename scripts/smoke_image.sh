@@ -30,14 +30,15 @@ case "$PLATFORM" in
   linux/arm64) MACHINE=aarch64 ;;
   *) echo "::error::no architecture check defined for ${PLATFORM}" >&2; exit 2 ;;
 esac
-TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+MCP_BEARER_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+export MCP_BEARER_TOKEN
 NAME="unifi-fabric-smoke-$$"
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 run_args=(--detach --name "$NAME"
   --env UNIFI_API_KEY=image-smoke-placeholder-key
-  --env MCP_AUTH_MODE=bearer --env MCP_BEARER_TOKEN="$TOKEN")
+  --env MCP_AUTH_MODE=bearer --env MCP_BEARER_TOKEN)
 if [ -n "$PLATFORM" ]; then
   run_args+=(--platform "$PLATFORM")
 fi

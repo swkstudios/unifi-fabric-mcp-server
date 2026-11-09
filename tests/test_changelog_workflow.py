@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
         ("src/tool.py\nCHANGELOG.md", "[]", 0),
         *[
             (f"src/tool.py\nchangelog.d/lane.{kind}.md", "[]", 0)
-            for kind in ("added", "changed", "fixed", "security")
+            for kind in ("added", "changed", "removed", "fixed", "security")
         ],
         ("src/tool.py\nchangelog.d/README.md", "[]", 1),
         ("src/tool.py\nchangelog.d/lane.invalid.md", "[]", 1),

@@ -17,32 +17,29 @@ import pytest
 
 from tests.test_core_strict_readers_and_name_tiers import _BAD_SETTINGS
 from unifi_fabric.config import MCPTransportSettings, Settings
-from unifi_fabric.families import parse_families_env
 
 #: field -> a valid value in its canonical spelling (every enumerated setting).
 VALID: dict[str, str] = {
     "log_level": "WARNING",
     "audit_log_format": "json",
+    "audit_sink": "stderr",
+    "audit_level": "debug",
+    "audit_calls": "true",
+    "audit_log_mode": "0640",
     "auth_mode": "bearer",
     "tls_mode": "https",
     "tls_cert_reqs": "required",
     "oauth_algorithm": "ES256",
-    "tool_families": "network,protect",
-    "disabled_tool_families": "network,protect",
-    "dry_run": "true",
-    "read_only": "true",
     "redact_secrets": "true",
-    "enable_connector_write": "false",
-    "protect_mutations_enabled": "false",
-    "enable_mobility_write": "false",
-    "enable_carrier_fabric_write": "false",
-    "enable_innerspace_write": "false",
     "host_origin_protection": "off",
     "tool_mode": "discovery",
-    "enable_network_write": "false",
+    "write_policy": "deny",
+    "family_allow": "network,protect",
+    "health_route": "true",
 }
 #: Enumerated settings whose values are case-sensitive by definition.
-CASE_SENSITIVE = {"oauth_algorithm"}
+#: The policy settings are case-sensitive lower-case by contract (policy grammar).
+CASE_SENSITIVE = {"oauth_algorithm", "write_policy", "family_allow"}
 
 #: Values another setting needs for a valid combination (keyed by the field under test).
 _COMPANIONS: dict[str, dict[str, str]] = {
@@ -102,10 +99,8 @@ def _shouted(value: str) -> str:
 
 
 def _meaning(field: str, value: Any) -> Any:
-    """What a loaded value means: the tool-family allow and disable lists are kept as configured and
-    parsed (case-insensitively) where it is used."""
-    families = ("tool_families", "disabled_tool_families")
-    return parse_families_env(value) if field in families else value
+    """What a loaded value means (every enumerated setting is kept as loaded)."""
+    return value
 
 
 @pytest.mark.parametrize("field", sorted(set(VALID) - CASE_SENSITIVE))

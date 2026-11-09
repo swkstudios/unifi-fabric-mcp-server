@@ -8,7 +8,7 @@ Mobility, Carrier Fabric; every one default on):
 * the client chokepoint (``read_only.guard_area_write`` in ``UniFiClient.request``)
   refuses every write REQUEST to one of the area's routes, whichever tool, shared helper
   or relay sent it, so no path can bypass the opt-out (the same two layers as
-  ``UNIFI_READ_ONLY``).
+  ``UNIFI_WRITE_POLICY``).
 
 The tool set and each tool's areas are derived, never listed: the write tools come from
 ``derive_write_tools`` and a tool's areas are the routes its writes actually reach when
@@ -59,7 +59,7 @@ def _quiet_logs():
 
 def _env_off() -> dict[str, str]:
     """Every area on, explicitly (a deployment's environment never leaks in)."""
-    return {env: "1" for env in SWITCHES}
+    return {"UNIFI_WRITE_POLICY": "allow"}
 
 
 async def _run_direct(mp: pytest.MonkeyPatch, name: str, up: uh.FakeUpstream, env: dict):
@@ -101,7 +101,7 @@ def test_every_derived_write_tool_is_advertised_as_a_write():
 
 
 def test_every_area_switch_has_routes():
-    assert "UNIFI_ENABLE_NETWORK_WRITE" in {s.env for s in switches.AREA_WRITE_SWITCHES}
+    assert "family:network=deny" in {s.env for s in switches.AREA_WRITE_SWITCHES}
     for s in switches.AREA_WRITE_SWITCHES:
         assert s.routes, s.env
 
@@ -124,7 +124,7 @@ async def test_area_opt_out_binds_every_write_tool(name):
         # The family's area switch must govern a route the tool actually writes.
         problems.append(f"family {cti.FAMILY.get(name)} is governed by {governing}")
     for env in sorted(SWITCHES):
-        off = {**_env_off(), env: "0"}
+        off = {**_env_off(), **tool_args.optout_env(env)}
         # Direct call: the client chokepoint alone.
         up = uh.FakeUpstream()
         mp = pytest.MonkeyPatch()
@@ -138,9 +138,9 @@ async def test_area_opt_out_binds_every_write_tool(name):
         sent = _writes(up)
         if env in areas:
             if sent:
-                problems.append(f"{env}=0 direct: {len(sent)} write(s) sent, first {sent[0]}")
+                problems.append(f"{env} direct: {len(sent)} write(s) sent, first {sent[0]}")
             if error is None or env not in str(error):
-                problems.append(f"{env}=0 direct: not refused naming {env}: {error!s:.160}")
+                problems.append(f"{env} direct: not refused naming {env}: {error!s:.160}")
             # Through MCP: the middleware or the chokepoint, and the refusal names the area.
             up = uh.FakeUpstream()
             mp = pytest.MonkeyPatch()
@@ -148,14 +148,14 @@ async def test_area_opt_out_binds_every_write_tool(name):
                 with pytest.raises(ToolError) as exc_info:
                     await cti._call(mp, name, up, env=off)
             except pytest.fail.Exception:
-                problems.append(f"{env}=0 MCP: not refused")
+                problems.append(f"{env} MCP: not refused")
             else:
                 if env not in str(exc_info.value):
-                    problems.append(f"{env}=0 MCP: refusal does not name {env}")
+                    problems.append(f"{env} MCP: refusal does not name {env}")
                 if up.served:
                     first = up.served[0]
                     problems.append(
-                        f"{env}=0 MCP: {len(up.served)} request(s) before the refusal, "
+                        f"{env} MCP: {len(up.served)} request(s) before the refusal, "
                         f"first {first.method} {first.path}"
                     )
             finally:
@@ -175,15 +175,15 @@ async def test_relay_area_routes_refused_at_the_chokepoint(monkeypatch, switch, 
 
     console = f"/v1/connector/consoles/{uh.HOST_ID}/proxy"
     paths = {
-        "UNIFI_ENABLE_NETWORK_WRITE": f"{console}/network/api/s/default/rest/x",
-        "UNIFI_PROTECT_MUTATIONS_ENABLED": f"{console}/protect/integration/v1/sirens/a/play",
-        "UNIFI_ENABLE_MOBILITY_WRITE": "/v1/mobility/workspaces/w/devices/d",
-        "UNIFI_ENABLE_CARRIER_FABRIC_WRITE": "/v1/carrier/subscribers/s",
-        "UNIFI_ENABLE_INNERSPACE_WRITE": f"{console}/innerspace/api/project/plan",
+        "family:network=deny": f"{console}/network/api/s/default/rest/x",
+        "family:protect=deny": f"{console}/protect/integration/v1/sirens/a/play",
+        "family:mobility=deny": "/v1/mobility/workspaces/w/devices/d",
+        "family:carrier=deny": "/v1/carrier/subscribers/s",
+        "family:innerspace=deny": f"{console}/innerspace/api/project/plan",
     }
     up = uh.FakeUpstream()
     uh.install(monkeypatch, up)
-    monkeypatch.setenv(switch.env, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", switch.env)
     client = UniFiClient(Settings(api_key="sk-test-optout"))
     try:
         with pytest.raises(AreaOptOutError, match=switch.env):
@@ -194,17 +194,44 @@ async def test_relay_area_routes_refused_at_the_chokepoint(monkeypatch, switch, 
             with pytest.raises((AreaOptOutError, ValueError)):
                 await client.request(method, encoded, json={})
         # Reads of the area still run; other areas' writes are untouched.
-        monkeypatch.setenv(switch.env, "1")
+        monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
         await client.request(method, paths[switch.env], json={}, raise_on_error=False)
     finally:
         await client.close()
     assert len([s for s in up.served if s.method == method]) == 1  # the enabled call, once
 
 
+async def test_network_opt_out_refuses_ea_firewall_write_at_chokepoint(monkeypatch):
+    """The Network switch owns the EA firewall-rule route as well as proxy/network."""
+    from unifi_fabric.client import UniFiClient
+    from unifi_fabric.config import Settings
+
+    path = f"/ea/sites/{uh.ARG_ID}/rest/firewallrule"
+    up = uh.FakeUpstream()
+    uh.install(monkeypatch, up)
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", switches.NETWORK_WRITES.env)
+    client = UniFiClient(Settings(api_key="sk-test-optout"))
+    try:
+        with pytest.raises(AreaOptOutError, match=switches.NETWORK_WRITES.env):
+            await client.post(path, json={"name": "Synthetic rule", "action": "accept"})
+        assert up.served == []
+
+        monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
+        await client.request(
+            "POST",
+            path,
+            json={"name": "Synthetic rule", "action": "accept"},
+            raise_on_error=False,
+        )
+    finally:
+        await client.close()
+    assert [(request.method, request.path) for request in up.served] == [("POST", path)]
+
+
 _RELAY_PATHS = {
-    "UNIFI_ENABLE_NETWORK_WRITE": "network/api/s/{site}/rest/x",
-    "UNIFI_PROTECT_MUTATIONS_ENABLED": "protect/integration/v1/sirens/a/play",
-    "UNIFI_ENABLE_INNERSPACE_WRITE": "innerspace/api/project/plan",
+    "family:network=deny": "network/api/s/{site}/rest/x",
+    "family:protect=deny": "protect/integration/v1/sirens/a/play",
+    "family:innerspace=deny": "innerspace/api/project/plan",
 }
 
 
@@ -224,7 +251,7 @@ async def test_relay_tool_honours_area_opt_out_via_mcp(monkeypatch, switch):
         mp = pytest.MonkeyPatch()
         try:
             with pytest.raises(ToolError, match=switch.env):
-                await cti._call(mp, tool, up, args, env={switch.env: "0"})
+                await cti._call(mp, tool, up, args, env={"UNIFI_WRITE_EXCEPTIONS": switch.env})
         finally:
             mp.undo()
         assert up.writes() == [], (tool, up.writes())
@@ -232,18 +259,18 @@ async def test_relay_tool_honours_area_opt_out_via_mcp(monkeypatch, switch):
 
 @pytest.mark.parametrize("switch", switches.AREA_WRITE_SWITCHES, ids=lambda s: s.env)
 def test_area_refusal_text_comes_from_the_one_table(monkeypatch, switch):
-    monkeypatch.setenv(switch.env, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", switch.env)
     assert switch.env in (connector.area_write_refusal(switch.family) or "")
 
 
 @pytest.mark.parametrize("switch", switches.AREA_WRITE_SWITCHES, ids=lambda s: s.env)
-@pytest.mark.parametrize("value", ["0", " False "])
+@pytest.mark.parametrize("value", ["{token}", " family:vpn=dry-run ; {token} "])
 def test_area_refusal_names_variable_current_value_and_that_nothing_was_sent(
     monkeypatch, switch, value
 ):
-    """Every area's refusal, whichever layer raises it, carries the switch's current value."""
-    monkeypatch.setenv(switch.env, value)
-    note = f"Current value: {switch.env}={value.strip()}."
+    """Every area's refusal, whichever layer raises it, names the denying exception."""
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", value.format(token=switch.env))
+    note = f"Current value: UNIFI_WRITE_EXCEPTIONS includes {switch.env}."
     texts = [connector.area_write_refusal(switch.family) or ""]
     with pytest.raises(ValueError) as relay:
         connector._check_area_opt_out("POST", f"{switch.relay_prefix}x")
@@ -252,5 +279,5 @@ def test_area_refusal_names_variable_current_value_and_that_nothing_was_sent(
         assert switch.env in text and note in text, text
         assert "No request was sent" in text, text
     # Enabled again: no note, no refusal.
-    monkeypatch.setenv(switch.env, "1")
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
     assert connector.area_write_refusal(switch.family) is None

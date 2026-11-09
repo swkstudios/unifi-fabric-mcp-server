@@ -20,7 +20,7 @@ URL = f"{BASE}/v1/connector/consoles/{HOST}/proxy/network/api/s/default/cmd/devm
 
 @pytest.fixture
 def client(monkeypatch) -> UniFiClient:
-    for var in ("UNIFI_DRY_RUN", "UNIFI_READ_ONLY", "UNIFI_REDACT_SECRETS"):
+    for var in ("UNIFI_WRITE_POLICY", "UNIFI_WRITE_EXCEPTIONS", "UNIFI_REDACT_SECRETS"):
         monkeypatch.delenv(var, raising=False)
     return UniFiClient(Settings(api_key="sk-test"))
 
@@ -126,7 +126,7 @@ async def test_http_error_status_raises(client):
 
 @respx.mock
 async def test_dry_run_returns_the_preview(monkeypatch):
-    monkeypatch.setenv("UNIFI_DRY_RUN", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     client = UniFiClient(Settings(api_key="sk-test"))
     route = respx.route().mock(return_value=Response(200, json={"meta": {"rc": "error"}}))
     out = await cc.classic_command(client, HOST, "default", "devmgr", "set-locate", {"mac": "m"})

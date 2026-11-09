@@ -76,6 +76,7 @@ _OFFSET_HELPER_TOOLS = {
     "list_firewall_policies",
     "list_firewall_zones_proxy",
     "list_hotspot_vouchers",
+    "list_integration_device_tags",
     "list_lags",
     "list_local_sites",
     "list_mc_lag_domains",

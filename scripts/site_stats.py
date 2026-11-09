@@ -3,14 +3,21 @@
 
 The website reads ``docs/site-stats.json`` from inside each release tag. Its contract::
 
-    {"schema": 1, "version": "v0.7.0", "tools": 786, "live_verified": 380, "unit_tested": 406}
+    {"schema": 1, "version": "v0.7.1", "tools": 792, "live_verified": 380, "unit_tested": 412,
+     "live_verified_note": "historical: 380 of 786 passed on build cde04b5c1520, 2026-10-28"}
 
 - ``version`` equals the release tag (``v`` plus ``pyproject.toml`` ``[project] version``);
 - ``tools`` is the registered catalog count;
 - ``live_verified`` is the ``passed`` count of the ``docs/COVERAGE.md`` live-evidence marker
   (the figure the README verification block shows);
-- ``unit_tested`` is ``tools - live_verified``: the tools whose evidence is the CI run against
-  a simulated upstream only. So ``live_verified + unit_tested == tools``; all are integers.
+- ``unit_tested`` is ``tools - live_verified``: the tools not counted as
+  live-verified in the historical sweep; the sweep also recorded one
+  server-local pass. CI covers all registered tools against a simulated
+  upstream. So ``live_verified + unit_tested == tools``; all are integers.
+- ``live_verified_note`` qualifies ``live_verified`` as historical: the run it comes
+  from (passed of total tools, build, date), read from the same marker and worded as
+  the README verification block and ``docs/COVERAGE.md`` word it. The figure is not
+  re-measured at each release, so it never appears without its run.
 
 ``scripts/gen_catalog_figures.py`` writes the file from the running server's catalog together
 with the README figures, and its ``--check`` (run in CI's docs job) fails when the file is
@@ -34,7 +41,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SITE_STATS = Path("docs") / "site-stats.json"
 SCHEMA = 1
-KEYS = ("schema", "version", "tools", "live_verified", "unit_tested")
+KEYS = ("schema", "version", "tools", "live_verified", "unit_tested", "live_verified_note")
+#: Prefix of ``live_verified_note``, the qualifier docs/COVERAGE.md puts on the same figure.
+HISTORICAL = "historical: "
 _LIVE_EVIDENCE_RE = re.compile(
     r"<!-- live-evidence: passed=(\d+) writes=(\d+) total=(\d+) "
     r"build=([0-9a-f]+) date=(\d{4}-\d{2}-\d{2}) -->"
@@ -42,12 +51,23 @@ _LIVE_EVIDENCE_RE = re.compile(
 _TOOL_HEADING_RE = re.compile(r"^### `([a-z][a-z0-9_]*)`\s*$", re.MULTILINE)
 
 
-def live_verified(coverage_text: str) -> int:
-    """The passed count of the docs/COVERAGE.md live-evidence marker."""
+def _live_evidence(coverage_text: str) -> re.Match[str]:
     match = _LIVE_EVIDENCE_RE.search(coverage_text)
     if match is None:
         raise ValueError("docs/COVERAGE.md has no live-evidence marker")
-    return int(match.group(1))
+    return match
+
+
+def live_verified(coverage_text: str) -> int:
+    """The passed count of the docs/COVERAGE.md live-evidence marker."""
+    return int(_live_evidence(coverage_text).group(1))
+
+
+def live_verified_note(coverage_text: str) -> str:
+    """The historical qualifier for that count: its run, as the README block words it."""
+    match = _live_evidence(coverage_text)
+    passed, _writes, total, build_id, date = match.groups()
+    return f"{HISTORICAL}{passed} of {total} passed on build {build_id}, {date}"
 
 
 def build(version: str, tools: int, coverage_text: str) -> dict[str, object]:
@@ -60,6 +80,7 @@ def build(version: str, tools: int, coverage_text: str) -> dict[str, object]:
         "tools": tools,
         "live_verified": live,
         "unit_tested": tools - live,
+        "live_verified_note": live_verified_note(coverage_text),
     }
 
 
@@ -84,6 +105,9 @@ def validate(data: object, version: str | None = None) -> list[str]:
             f"live_verified + unit_tested must equal tools: {counts[1]} + {counts[2]} "
             f"!= {counts[0]}"
         )
+    note = data.get("live_verified_note")
+    if not (isinstance(note, str) and note.startswith(HISTORICAL)):
+        problems.append(f"live_verified_note {note!r} does not start with {HISTORICAL!r}")
     if not re.fullmatch(r"v\d+\.\d+\.\d+", str(data.get("version"))):
         problems.append(f"version {data.get('version')!r} is not a vX.Y.Z tag")
     elif version is not None and data.get("version") != f"v{version}":

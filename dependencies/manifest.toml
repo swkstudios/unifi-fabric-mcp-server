@@ -1,0 +1,121 @@
+# Dependency manifest: the one declaration of every managed pin file, its inputs, the
+# constraint chain that keeps shared packages on one version and one hash set, and the
+# wheel/interpreter target the image, the wheel check and the Homebrew formula share.
+#
+# scripts/refresh_dependencies.py reads this file:
+#   python3 scripts/refresh_dependencies.py --upgrade      newest jointly resolving releases
+#   python3 scripts/refresh_dependencies.py                re-resolve inputs, keep current pins
+#   python3 scripts/refresh_dependencies.py --check        regenerate in a scratch tree, exit 1 on drift
+#   python3 scripts/refresh_dependencies.py --audit        pip-audit all seven files, no ignores
+#   python3 scripts/refresh_dependencies.py --cap-report R relaxed-cap candidates and conflicts
+#
+# Hand edits to the seven outputs are overwritten by the next refresh and fail --check.
+
+[target]
+# The interpreter and platform every output is resolved for (uv --python-version and
+# --python-platform). The image, publish-pypi.yml and install-smoke.yml run CPython 3.12
+# on Linux x86_64; the image is also built for aarch64 from the same pins.
+python = "3.12"
+resolve_platform = "x86_64-manylinux_2_28"
+# Wheel policy for the image (scripts/check_lock_wheels.sh): CPython 3.12 wheels or pure
+# wheels for these architectures, manylinux2014 and manylinux_2_<min>..2_<max> (the glibc
+# range of the Debian bookworm base).
+image_architectures = ["x86_64", "aarch64"]
+implementation = "cp"
+abi = "cp312"
+manylinux_min = 17
+manylinux_max = 36
+docker_base = "python:3.12-slim-bookworm"
+# Deliberate Homebrew difference: the formula installs sdists of the runtime lock's
+# versions into a virtualenv on Homebrew's python@3.12, not the image's wheels.
+homebrew_python = "python@3.12"
+# Workflows whose setup-python version must equal python above.
+python_workflows = [
+    ".github/workflows/publish-pypi.yml",
+    ".github/workflows/install-smoke.yml",
+    ".github/workflows/dependency-refresh.yml",
+]
+
+[resolution]
+# Release cooldown, the same as .github/dependabot.yml: --upgrade only takes files uploaded
+# before now minus cooldown_days and records that cutoff in exclude_newer, which every
+# later resolution (--check included) reuses, so a check is unaffected by later uploads.
+index_url = "https://pypi.org/simple"
+cooldown_days = 3
+exclude_newer = "2026-11-01T01:00:00Z"
+# Reviewed exceptions to the cooldown, each with a fixed cutoff so --check stays
+# deterministic: FastMCP is the release target (the newest FastMCP at release time), and
+# its 4.1.6 compatibility was reviewed before the refresh. authlib and dnspython take the
+# security releases their advisory floors below require, published inside the cooldown.
+[resolution.exclude_newer_package]
+authlib = "2026-11-04T10:00:00Z"
+dnspython = "2026-11-04T01:00:00Z"
+fastmcp = "2026-11-03T03:00:00Z"
+fastmcp-slim = "2026-11-03T03:00:00Z"
+
+# Advisory floors: the first fixed release of a package with a published advisory, which
+# pip-audit (PyPI/OSV data) may not report yet, for example a GitHub repository advisory.
+# Every refresh lifts a pin below its floor (uv --upgrade-package) to the newest release
+# the cutoffs allow, and --check and every refresh fail while any managed file pins a
+# lower version, so allow the fixed release above when it is inside the cooldown. Keep an
+# entry after pip-audit reports the advisory: it also stops a later downgrade.
+[resolution.advisory_floor.authlib]
+version = "1.9.4"
+advisories = ["GHSA-f3fg-34g9-v7jx", "GHSA-gp2m-377p-m4j3", "GHSA-9qr6-8289-9j56"]
+
+[resolution.advisory_floor.dnspython]
+version = "2.9.2"
+advisories = ["GHSA-vvf4-9x63-8xvv"]
+
+
+[backend]
+# The one build-backend pin. The refresh renders requirements-build.in from it and keeps
+# pyproject.toml's dev extra on the same version; every output that carries hatchling
+# must resolve to it with the same hashes.
+name = "hatchling"
+version = "1.33.0"
+
+# The managed pin files, in resolution order (the seventh, private to the source
+# repository, is declared in dependencies/manifest.private.toml). A later file is constrained by the
+# earlier files it names, so a package shared between files is resolved once.
+[[output]]
+path = "requirements.lock"
+purpose = "Development and CI lock (pip install --require-hashes -r requirements.lock): the project resolved with every extra, as uv pip compile --all-extras."
+inputs = ["pyproject.toml"]
+constraints = []
+options = ["--all-extras", "--no-strip-extras"]
+
+[[output]]
+path = "requirements-runtime.lock"
+purpose = "Runtime lock for the image (Dockerfile), the Homebrew formula and user installs: the project without extras, at the development lock's versions."
+inputs = ["pyproject.toml"]
+constraints = ["requirements.lock"]
+options = ["--no-strip-extras", "--no-annotate"]
+
+[[output]]
+path = "requirements-build.lock"
+purpose = "Build backend for the Docker builder stage (Dockerfile), installed --only-binary for the target platform."
+inputs = ["requirements-build.in"]
+constraints = ["requirements.lock"]
+options = ["--no-strip-extras"]
+
+[[output]]
+path = ".github/publish-pypi-requirements.txt"
+purpose = "Build and upload tooling for .github/workflows/publish-pypi.yml (pip --require-hashes --only-binary :all:; the package is built with python -m build --no-isolation, so hatchling comes from here)."
+inputs = ["dependencies/publish-pypi.in"]
+constraints = ["requirements.lock", "requirements-build.lock"]
+options = ["--strip-extras"]
+
+[[output]]
+path = ".github/install-build-requirements.txt"
+purpose = "Dedicated smoke build environment for .github/workflows/install-smoke.yml: the build subset of the publish lock."
+inputs = ["dependencies/install-build.in"]
+constraints = [".github/publish-pypi-requirements.txt"]
+options = ["--strip-extras"]
+
+[[output]]
+path = ".github/install-tooling-requirements.txt"
+purpose = "Hash-pinned CI tooling: install-smoke.yml (pip --require-hashes --only-binary :all:) and the dependency refresh/audit jobs (uv, pip-audit). PyYAML, pytest and pytest-xdist resolve to requirements.lock's versions and hashes."
+inputs = ["dependencies/install-tooling.in"]
+constraints = ["requirements.lock", ".github/publish-pypi-requirements.txt"]
+options = ["--strip-extras"]

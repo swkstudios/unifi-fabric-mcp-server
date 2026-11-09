@@ -17,7 +17,7 @@ from unifi_fabric.read_post_routes import READ_POST_ROUTES
 
 
 async def test_every_read_answers_in_read_only_mode(monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     upstream = uh.FakeUpstream(replay_recordings=False)
     client = uh.install(monkeypatch, upstream)
     tools = list(await server.mcp.list_tools())
@@ -31,13 +31,14 @@ async def test_every_read_answers_in_read_only_mode(monkeypatch):
             for tool in tools:
                 if tool.name in writes:
                     continue
-                for name, value in tool_args.TOOL_ENV.get(tool.name, {}).items():
-                    monkeypatch.setenv(name, value)
-                try:
-                    await session.call_tool(tool.name, tool_args.generated_args(tool))
-                    answered.add(tool.name)
-                except Exception as exc:  # collect every refusal, never skip a tool
-                    failures.append(f"{tool.name}: {exc}")
+                with pytest.MonkeyPatch.context() as mp:
+                    for name, value in tool_args.TOOL_ENV.get(tool.name, {}).items():
+                        mp.setenv(name, value)
+                    try:
+                        await session.call_tool(tool.name, tool_args.generated_args(tool))
+                        answered.add(tool.name)
+                    except Exception as exc:  # collect every refusal, never skip a tool
+                        failures.append(f"{tool.name}: {exc}")
         assert not failures, "Read-only refusals/errors:\n" + "\n".join(failures)
         assert answered == {tool.name for tool in tools} - writes
         assert {name for route in READ_POST_ROUTES for name in route.tools} <= answered
@@ -45,11 +46,11 @@ async def test_every_read_answers_in_read_only_mode(monkeypatch):
         await client.close()
 
 
-@pytest.mark.parametrize("mode", ["UNIFI_READ_ONLY", "UNIFI_DRY_RUN"])
+@pytest.mark.parametrize("mode", ["deny", "dry-run"])
 async def test_traffic_flows_read_sends_and_returns_data(monkeypatch, mode):
-    monkeypatch.setenv(mode, "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", mode)
     upstream = uh.FakeUpstream(replay_recordings=False)
-    client = uh.install(monkeypatch, upstream, dry_run=mode == "UNIFI_DRY_RUN")
+    client = uh.install(monkeypatch, upstream, dry_run=mode == "dry-run")
     try:
         tool = next(t for t in await server.mcp.list_tools() if t.name == "query_traffic_flows")
         assert tool.annotations.read_only_hint is True
@@ -86,7 +87,7 @@ class FailedFlowPage(uh.FakeUpstream):
 async def test_traffic_flows_mid_drain_408_returns_gathered_pages(monkeypatch):
     from unifi_fabric.tools.network_nat_qos_traffic import query_traffic_flows
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     upstream = FailedFlowPage(replay_recordings=False)
     client = uh.install(monkeypatch, upstream)
     body = {"pageSize": 5000, "timestampFrom": 1, "timestampTo": 2, "extra": {"kept": True}}
@@ -131,14 +132,14 @@ class SelectorFlowPages(uh.FakeUpstream):
         return super().__call__(request)
 
 
-@pytest.mark.parametrize("mode", ["UNIFI_READ_ONLY", "UNIFI_DRY_RUN"])
+@pytest.mark.parametrize("mode", ["deny", "dry-run"])
 @pytest.mark.parametrize("body_case", ["typed", "override", "partial"])
 async def test_typed_flow_selectors_preserve_body_and_drain_in_read_modes(
     monkeypatch, mode, body_case
 ):
-    monkeypatch.setenv(mode, "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", mode)
     upstream = SelectorFlowPages()
-    client = uh.install(monkeypatch, upstream, dry_run=mode == "UNIFI_DRY_RUN")
+    client = uh.install(monkeypatch, upstream, dry_run=mode == "dry-run")
     body = {"custom": {"kept": [1, 2]}}
     if body_case == "override":
         body.update(

@@ -1,6 +1,6 @@
 """GS3 P06: the listed tools return the deletion_result dry-run shape.
 
-Under UNIFI_DRY_RUN each listed tool returns ``{status: "dry_run", deleted: false, message,
+Under dry-run policy each listed tool returns ``{status: "dry_run", deleted: false, message,
 response: <client preview>}`` - never the bare client preview - and sends no write.
 """
 
@@ -24,7 +24,9 @@ DELETE_TOOLS = [
 @pytest.mark.parametrize("name", DELETE_TOOLS)
 async def test_delete_dry_run_is_the_deletion_result_shape(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await cti._call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await cti._call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     assert up.writes() == [], name
     assert isinstance(payload, dict), payload
     assert payload["status"] == "dry_run", payload

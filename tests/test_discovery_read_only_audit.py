@@ -3,9 +3,9 @@
 With ``UNIFI_AUDIT_LOG`` on, a write named through ``call_read_tool`` writes one
 ``outcome=refused`` record naming the switch that refused it, and the same refusal reached
 by a direct call writes one as well:
-- ``UNIFI_READ_ONLY``: a hidden write tool, or the mixed GET relay on a state-changing route
+- ``UNIFI_WRITE_POLICY``: a hidden write tool, or the mixed GET relay on a state-changing route
   (ReadOnlyToolMiddleware, fabric_connector_get);
-- a per-area write opt-out (``UNIFI_ENABLE_CONNECTOR_WRITE=0``): a write it hides
+- a per-area write opt-out (``family:connector=deny``): a write it hides
   (AreaOptOutMiddleware).
 Without an audit helper (apply_tool_mode's default) the refusals are unchanged. No request
 reaches the upstream.
@@ -21,7 +21,7 @@ import httpx
 import pytest
 from fastmcp import Client, FastMCP
 
-from unifi_fabric import server
+from unifi_fabric import server, switches
 from unifi_fabric._read_only_audit import derive_write_tools
 from unifi_fabric.config import Settings
 from unifi_fabric.discovery import apply_tool_mode
@@ -51,13 +51,13 @@ async def _app() -> FastMCP:
 @pytest.fixture()
 def audit_file(monkeypatch, tmp_path) -> Path:
     path = tmp_path / "audit.jsonl"
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     monkeypatch.setattr(
         server,
         "_settings",
         Settings(
             api_key="synthetic-key",
-            read_only=True,
+            write_policy="deny",
             tool_mode="discovery",
             audit_log=str(path),
             audit_log_format="json",
@@ -74,7 +74,11 @@ def audit_file(monkeypatch, tmp_path) -> Path:
 def _records(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return [
+        r
+        for r in (json.loads(line) for line in path.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
 
 
 async def _hidden_write() -> str:
@@ -86,24 +90,24 @@ async def test_hidden_write_through_call_read_tool_and_direct_each_audit_once(au
     name = await _hidden_write()
     app = await _app()
     async with server.lifespan(app), Client(app) as client:
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY") as error:
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
             await client.call_tool("call_read_tool", {"name": name, "arguments": {}})
         assert read_only_message(name, tool=True) in str(error.value)
         discovery = _records(audit_file)
         assert [(r["tool"], r["outcome"], r["reason"]) for r in discovery] == [
-            (name, "refused", "UNIFI_READ_ONLY")
+            (name, "refused", "UNIFI_WRITE_POLICY")
         ]
 
         # describe_tool names the same switch but is not a call: no record.
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
             await client.call_tool("describe_tool", {"name": name})
         assert len(_records(audit_file)) == 1
 
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
             await client.call_tool(name, {})
         direct = _records(audit_file)[1:]
         assert [(r["tool"], r["outcome"], r["reason"]) for r in direct] == [
-            (name, "refused", "UNIFI_READ_ONLY")
+            (name, "refused", "UNIFI_WRITE_POLICY")
         ]
 
 
@@ -113,7 +117,7 @@ async def test_mixed_get_write_route_through_call_read_tool_and_direct_each_audi
     args = {"host": "console", "path": WRITE_GET}
     app = await _app()
     async with server.lifespan(app), Client(app) as client:
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY") as error:
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
             await client.call_tool(
                 "call_read_tool", {"name": "fabric_connector_get", "arguments": args}
             )
@@ -121,28 +125,27 @@ async def test_mixed_get_write_route_through_call_read_tool_and_direct_each_audi
         discovery = _records(audit_file)
         assert len(discovery) == 1
         assert discovery[0]["outcome"] == "refused"
-        assert discovery[0]["reason"] == "UNIFI_READ_ONLY"
+        assert discovery[0]["reason"] == "UNIFI_WRITE_POLICY"
 
-        with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+        with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
             await client.call_tool("fabric_connector_get", args)
         direct = _records(audit_file)[1:]
         assert len(direct) == 1
         assert direct[0]["outcome"] == "refused"
-        assert direct[0]["reason"] == "UNIFI_READ_ONLY"
+        assert direct[0]["reason"] == "UNIFI_WRITE_POLICY"
 
 
 @pytest.fixture()
 def area_audit_file(monkeypatch, tmp_path) -> Path:
     path = tmp_path / "audit.jsonl"
-    monkeypatch.delenv("UNIFI_READ_ONLY", raising=False)
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY", raising=False)
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny")
     monkeypatch.setattr(
         server,
         "_settings",
         Settings(
             api_key="synthetic-key",
             tool_mode="discovery",
-            enable_connector_write=False,
             audit_log=str(path),
             audit_log_format="json",
         ),
@@ -160,32 +163,30 @@ async def test_area_opted_out_write_through_call_read_tool_and_direct_each_audit
 ):
     app = await _app()
     app.add_middleware(
-        AreaOptOutMiddleware(
-            app, lambda: server.get_settings().enable_connector_write, audit=server._audit_refusal
-        )
+        AreaOptOutMiddleware(app, switches.connector_writes_enabled, audit=server._audit_refusal)
     )
     name = "fabric_connector_put"
     args = {"host": "console", "path": "/proxy/network/api/s/default/rest/user/x"}
     async with server.lifespan(app), Client(app) as client:
-        with pytest.raises(Exception, match="UNIFI_ENABLE_CONNECTOR_WRITE"):
+        with pytest.raises(Exception, match="family:connector=deny"):
             await client.call_tool("call_read_tool", {"name": name, "arguments": args})
         discovery = _records(area_audit_file)
         assert [(r["tool"], r["outcome"], r["reason"]) for r in discovery] == [
-            (name, "refused", "UNIFI_ENABLE_CONNECTOR_WRITE")
+            (name, "refused", "family:connector=deny")
         ]
 
-        with pytest.raises(Exception, match="UNIFI_ENABLE_CONNECTOR_WRITE"):
+        with pytest.raises(Exception, match="family:connector=deny"):
             await client.call_tool(name, args)
         direct = _records(area_audit_file)[1:]
         assert [(r["tool"], r["outcome"], r["reason"]) for r in direct] == [
-            (name, "refused", "UNIFI_ENABLE_CONNECTOR_WRITE")
+            (name, "refused", "family:connector=deny")
         ]
 
 
 async def test_without_an_audit_helper_the_call_read_tool_refusals_are_unchanged(monkeypatch):
     # apply_tool_mode's default (audit=None): each refusal still raises its own message.
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny")
     app = FastMCP("discovery-no-audit")
     for tool in await server.mcp.list_tools():
         app.add_tool(tool)
@@ -197,10 +198,10 @@ async def test_without_an_audit_helper_the_call_read_tool_refusals_are_unchanged
     try:
         name = sorted(hidden - {"fabric_connector_get"})[0]
         async with Client(app) as client:
-            with pytest.raises(Exception, match="UNIFI_READ_ONLY") as error:
+            with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
                 await client.call_tool("call_read_tool", {"name": name, "arguments": {}})
             assert read_only_message(name, tool=True) in str(error.value)
-            with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+            with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
                 await client.call_tool(
                     "call_read_tool",
                     {

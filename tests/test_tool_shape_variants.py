@@ -25,7 +25,13 @@ def _literal(token: str) -> str | None:
 
 
 def _read_outline(
-    text: str, path: Path, required: set[Path], enums: set[Constraint], definitions=None
+    text: str,
+    path: Path,
+    required: set[Path],
+    enums: set[Constraint],
+    definitions=None,
+    aliases=None,
+    bare_strings: bool = False,
 ) -> None:
     """Read property paths from the advertised grammar, independently of its renderer."""
     text, _, declarations = text.partition(" where ")
@@ -48,7 +54,7 @@ def _read_outline(
                         pos += 1
                     assert tokens[pos] == ":", (text, tokens[pos:])
                     pos += 1
-                    child = (*at, name)
+                    child = (*at, (aliases or {}).get(name, name))
                     if not optional:
                         required.add(child)
                     expression(child, {",", "}"})
@@ -60,9 +66,32 @@ def _read_outline(
                 assert tokens[pos] == ")", text
                 pos += 1
             elif token in definitions:
-                _read_outline(definitions[token], at, required, enums, definitions)
+                _read_outline(
+                    definitions[token], at, required, enums, definitions, aliases, bare_strings
+                )
             else:
                 literal = _literal(token)
+                if (
+                    literal is None
+                    and bare_strings
+                    and token
+                    not in {
+                        "string",
+                        "number",
+                        "integer",
+                        "boolean",
+                        "object",
+                        "array",
+                        "null",
+                        "unknown",
+                        "any",
+                        "|",
+                        "&",
+                        "[",
+                        "]",
+                    }
+                ):
+                    literal = json.dumps(token)
                 if literal is not None:
                     enums.add((at, literal))
 
@@ -82,8 +111,18 @@ def _advertised_constraints(schema: dict[str, Any], path: Path = ()):
             literal = _literal(token)
             if literal is not None:
                 enums.add((path, literal))
-    if "Shape: " in description:
-        _read_outline(description.split("Shape: ", 1)[1], path, required, enums)
+    shape = re.search(r"Shape(?: \(([^)]*)\))?: ", description)
+    if shape:
+        legend = shape.group(1) or ""
+        aliases = dict(re.findall(r"\b([A-Za-z][A-Za-z0-9_]*)=([A-Za-z][A-Za-z0-9_]*)", legend))
+        _read_outline(
+            description[shape.end() :],
+            path,
+            required,
+            enums,
+            aliases=aliases,
+            bare_strings="bare enum values are strings" in legend,
+        )
     for name, child in schema.get("properties", {}).items():
         r, e = _advertised_constraints(child, (*path, name))
         required |= r
@@ -349,3 +388,15 @@ def test_partial_enum_factoring_preserves_every_path_and_literal() -> None:
     _read_outline(compact, (), after_required, after_enums)
     assert (after_required, after_enums) == (before_required, before_enums)
     assert all(len(body) >= 16 for body in compact.split(" where ")[1].split(";"))
+
+
+def test_outline_legend_expands_aliases_and_bare_strings() -> None:
+    schema = {
+        "description": (
+            "Shape (bare enum values are strings; P=protocolFilter): "
+            "{P:{name:tcp|udp},other?:string}"
+        )
+    }
+    required, enums = _advertised_constraints(schema)
+    assert required == {("protocolFilter",), ("protocolFilter", "name")}
+    assert enums == {(("protocolFilter", "name"), '"tcp"'), (("protocolFilter", "name"), '"udp"')}

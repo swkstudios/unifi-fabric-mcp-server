@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-exclude-family-meta",
+  "description": "family:meta is reserved and invalid.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:meta"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_EXCLUDE",
+    "upstream_calls": 0
+  }
+}

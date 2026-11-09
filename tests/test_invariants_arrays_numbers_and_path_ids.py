@@ -100,6 +100,8 @@ def test_ea_array_argument_set_is_complete():
 _EMPTY_IS_LOCAL = {
     ("compare_site_performance", "sites"): "compares no site",
     ("batch_delete_firewall_policies", "ids"): "accepted empty batch, zero DELETEs",
+    ("batch_delete_acl_rules", "ids"): "accepted empty batch, zero POSTs",
+    ("batch_delete_firewall_zones", "ids"): "accepted empty batch, zero POSTs",
 }
 
 
@@ -124,6 +126,13 @@ async def test_ea_explicit_empty_list_reaches_upstream_or_is_a_registered_refusa
             assert result["deleted"] is True
             assert result["response"] == []
             assert result["message"] == "No firewall policy ids supplied; no writes sent."
+        elif name in ("batch_delete_acl_rules", "batch_delete_firewall_zones"):
+            label = "ACL rule" if name == "batch_delete_acl_rules" else "firewall zone"
+            assert uh.result_payload(result) == {
+                "deleted": False,
+                "message": f"Empty {label} batch; no write was sent.",
+                "response": None,
+            }
         return
     assert any(not s.resolution for s in up.served), f"{name}.{arg}=[]: no upstream request"
 
@@ -231,7 +240,7 @@ async def test_eb_pos_amount_non_finite_is_refused_in_the_tool_too(amount):
 
 # =========================================================================== (ec)
 def _spec_device_families() -> set[str]:
-    spec = json.loads((_OPENAPI / "protect-7.3.70.json").read_text())
+    spec = json.loads((_OPENAPI / "protect-7.3.74.json").read_text())
     out: set[str] = set()
     for route, ops in spec["paths"].items():
         get = ops.get("get")
@@ -463,8 +472,9 @@ async def _check_path_id_case(monkeypatch, name, arg, schema):
             await _call(monkeypatch, name, up, _args(name, **{arg: probe}))
         except ToolError as exc:
             msg = str(exc)
-            assert not re.search(
-                rf"Invalid {re.escape(repr(arg))}|expected alphanumeric|must not contain", msg
+            assert (
+                any(not request.resolution for request in up.served)
+                or refusals.classify(msg) is None
             ), f"{name}.{arg}={probe!r}: a spec-valid path id was refused: {msg}"
         encoded = quote(probe, safe="")
         primary = [s for s in up.served if not s.resolution]
@@ -695,7 +705,9 @@ async def test_protect_camera_casefold_twins_are_ambiguous_and_unknown_lists_exa
             _CamsUp(),
             _args("list_protect_events", start=1700000000, end=1700003600, cameras="Missing"),
         )
-    assert repr(sorted(c["name"] for c in _CAMS)) in str(exc.value)
+    # Error values use JSON; compare the decoded names without changing Unicode or spaces.
+    names = str(exc.value).split("Pass a camera ID or one of these names: ", 1)[1]
+    assert json.loads(names) == sorted(c["name"] for c in _CAMS)
 
 
 # =========================================================================== item 8: charset

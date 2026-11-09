@@ -1,0 +1,14 @@
+== compose.yaml (compose)
+line 5: environment:
+  - UNIFI_READ_ONLY
+  - UNIFI_ENABLE_NETWORK_WRITE
+  + UNIFI_WRITE_POLICY=deny
+  + UNIFI_WRITE_EXCEPTIONS=family:vpn=deny;family:network=deny
+  # MANUAL: UNIFI_DISABLE_API_SOURCES names a selector 0.7.1 does not accept, such as app/source/access; see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+line 15: environment:
+  - UNIFI_PROTECT_MUTATIONS_ENABLED
+  - UNIFI_TOOL_FAMILIES
+  + UNIFI_WRITE_EXCEPTIONS=family:protect=deny
+  + UNIFI_FAMILY_ALLOW=protect
+Dry run: nothing written. Run again with --write to save (keeps a .bak copy).
+Some settings need a decision (# MANUAL above); see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md

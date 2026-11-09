@@ -116,7 +116,7 @@ secret_env = _additional_suites[-1].secret_env
 
 @pytest.fixture(autouse=True)
 def _quiet_logs(request):
-    # Mirror the originating suite's logging posture rather than imposing the main
+    # Match the originating suite's logging posture rather than imposing the main
     # suite's quiet fixture on extensions that capture audit handlers themselves.
     # Explicit capture fixtures always keep logs enabled, regardless of the origin.
     origin = sys.modules.get(request.node.obj.__module__)

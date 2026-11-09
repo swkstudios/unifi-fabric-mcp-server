@@ -14,8 +14,8 @@ dc. Required array query parameters: for every published operation whose require
     parameter is an array with minItems 1, the tool that serves it refuses an empty list
     before ANY upstream request, and its dry-run preview carries exactly the query it
     would send (the list given, as sent).
-dd. Every write tool's description states its dry-run result: it names UNIFI_DRY_RUN,
-    and every top-level key of its UNIFI_DRY_RUN result (``"dry_run"`` when the result
+dd. Every write tool's description states its dry-run result: it names dry-run policy,
+    and every top-level key of its dry-run policy result (``"dry_run"`` when the result
     carries ``status: "dry_run"``; ``dryRun`` / ``message`` / ``preview`` for a bare
     preview).
 de. Relay placeholders: a connector path carrying any placeholder other than ``{site}``
@@ -268,7 +268,7 @@ def _required_array_query_params() -> set[tuple[str, str, str, str]]:
 #: Every published required array query parameter -> (tool, argument). A new one in a
 #: vendored spec fails test_dc_every_required_array_query_param_is_mapped until it is mapped.
 REQUIRED_ARRAY_QUERY: dict[tuple[str, str, str, str], tuple[str, str]] = {
-    ("protect-7.3.70.json", "DELETE", "/v1/cameras/{id}/rtsps-stream", "qualities"): (
+    ("protect-7.3.74.json", "DELETE", "/v1/cameras/{id}/rtsps-stream", "qualities"): (
         "delete_rtsps_stream",
         "qualities",
     ),
@@ -293,12 +293,12 @@ async def test_dc_dry_run_preview_shows_the_exact_query(monkeypatch, tool, arg):
     args = {**tool_args.generated_args(TOOLS[tool]), arg: ["high", "low"]}
     up = uh.FakeUpstream()
     payload = uh.result_payload(
-        await _call(monkeypatch, tool, up, args, env={"UNIFI_DRY_RUN": "1"})
+        await _call(monkeypatch, tool, up, args, env={"UNIFI_WRITE_POLICY": "dry-run"})
     )
     previews = [n for n in cti._nested_objects(payload) if is_dry_run_preview(n)]
     assert [p["preview"]["params"] for p in previews] == [{arg: ["high", "low"]}], previews
     live = uh.FakeUpstream()
-    await _call(monkeypatch, tool, live, args, env={"UNIFI_DRY_RUN": "0"})
+    await _call(monkeypatch, tool, live, args, env={"UNIFI_WRITE_POLICY": "allow"})
     assert [w.query for w in live.writes()] == [f"{arg}=high&{arg}=low"], live.writes()
 
 
@@ -314,9 +314,11 @@ async def test_dc_create_rtsps_stream_empty_qualities_fails_before_any_request(m
 @tool_batches("name", lambda: cti.WRITE_TOOLS)
 async def test_dd_every_write_description_states_its_dry_run_result(monkeypatch, name):
     desc = TOOLS[name].description or ""
-    assert "UNIFI_DRY_RUN" in desc, f"{name}: the description does not state its dry-run result"
+    assert "dry-run policy" in desc, f"{name}: the description does not state its dry-run result"
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     if not isinstance(payload, dict):
         return
     if payload.get("status") == "dry_run":
@@ -336,7 +338,9 @@ async def test_dd_every_write_description_states_its_dry_run_result(monkeypatch,
 @pytest.mark.parametrize("name", ["create_hotspot_operator", "update_hotspot_operator"])
 async def test_dd_hotspot_operator_dry_run_is_the_uniform_shape(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     assert payload["status"] == "dry_run" and set(payload) == {"status", "response"}, payload
     assert is_dry_run_preview(payload["response"]), payload
 

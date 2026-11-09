@@ -57,7 +57,11 @@ HINT_RE = re.compile(
     r"|read_only_hint|destructive_hint|idempotent_hint|open_world_hint)\b"
 )
 HINT_CONSTANT_RE = re.compile(r"\bannotations\s*=\s*([A-Z_]+)\b")
-STRING_RE = re.compile(r"""(?<![\w"'])(?:[rbfu]|rb|br|fr|rf)?(["'])((?:\\.|(?!\1).)*)\1""", re.I)
+#: A backslash always starts an escape pair, so the two alternatives never overlap and a
+#: long run of backslash pairs cannot backtrack exponentially (CodeQL py/redos).
+STRING_RE = re.compile(
+    r"""(?<![\w"'])(?:[rbfu]|rb|br|fr|rf)?(["'])((?:\\.|(?!\1)[^\\])*)\1""", re.I
+)
 PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}|%[-#0 +]*\d*(?:\.\d+)?[sdrif]|\\[nrt]")
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 MIN_NAME_LENGTH = 5

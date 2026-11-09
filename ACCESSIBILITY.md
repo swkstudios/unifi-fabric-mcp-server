@@ -11,13 +11,13 @@ UniFi Fabric MCP Server has no graphical user interface, no web pages and no ter
 
 ## Supported clients
 
-Claude Code, Claude Desktop, OpenAI Codex, Google Antigravity, Gemini CLI, ChatGPT (self-hosted HTTPS with OAuth), and any other MCP client. See [Choose your client](README.md#choose-your-client). Each client has its own accessibility features and limits, which this project does not control. Check that client's documentation.
+Claude Code, Claude Desktop, OpenAI Codex, Google Antigravity, Gemini CLI, ChatGPT (self-hosted HTTPS with OAuth), and any other MCP client. See [Choose your client](README.md#2-connect-your-assistant). Each client has its own accessibility features and limits, which this project does not control. Check that client's documentation.
 
 ## Known limitations
 
 - Some Protect tools return images, such as `get_camera_snapshot` and `get_thumbnail`. The server does not add text descriptions of image content, so a client or user who cannot view images needs another way to inspect them.
 - Some results are long JSON documents. Ask your AI client to summarize or filter them.
-- The README demo animation is a screen recording without audio or captions. The same kinds of requests appear as text under Example prompts.
+- The README demo is a scripted animation with descriptive alt text, without audio or captions. The same kinds of requests appear as text under Example prompts.
 
 ## Report an accessibility barrier
 

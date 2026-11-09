@@ -1,7 +1,7 @@
 """Per-area write opt-outs hide their write tools from the catalog and discovery.
 
 Each switch in ``switches.AREA_WRITE_SWITCHES`` and the connector relay's
-``UNIFI_ENABLE_CONNECTOR_WRITE`` removes its area's annotated write tools at startup, so
+``family:connector=deny`` removes its area's annotated write tools at startup, so
 ``tools/list`` (full mode) and discovery search, describe and family counts offer only tools
 that can run. A hidden name called by a client is still refused with the area's reason and
 audited (``AreaOptOutMiddleware``). The expected counts are the README opt-out table, which
@@ -33,17 +33,29 @@ AREA_ENVS = [s.env for s in switches.AREA_WRITE_SWITCHES]
 ALL_ENVS = [*AREA_ENVS, CONNECTOR_WRITE_ENV]
 
 
-def readme_counts() -> dict[str | None, tuple[int, int]]:
-    """The README opt-out table: setting -> (write tools hidden, tools listed)."""
-    text = (ROOT / "README.md").read_text()
-    rows = re.findall(r"^\| (none \(default\)|`([A-Z_]+)=[01]`) \| (\d+) \| (\d+) \|$", text, re.M)
-    return {env or None: (int(hidden), int(listed)) for _label, env, hidden, listed in rows}
+def switch_table_counts() -> dict[str | None, tuple[int, int]]:
+    """The docs/CONFIGURATION.md opt-out table: setting -> (write tools hidden, tools listed)."""
+    text = (ROOT / "docs" / "CONFIGURATION.md").read_text()
+    rows = re.findall(
+        r"^\| (none \(default\)|`(UNIFI_WRITE_EXCEPTIONS|UNIFI_WRITE_POLICY)=([a-z:=-]+)`)"
+        r" \| (\d+) \| (\d+) \|$",
+        text,
+        re.M,
+    )
+    # A write-exception row is keyed by its entry, the write-policy row by its setting.
+    return {
+        (value if setting == "UNIFI_WRITE_EXCEPTIONS" else setting) or None: (
+            int(hidden),
+            int(listed),
+        )
+        for _label, setting, value, hidden, listed in rows
+    }
 
 
 def connector_scope() -> set[str]:
     """The typed write tools docs/CONFIGURATION.md says the connector switch governs."""
     text = (ROOT / "docs" / "CONFIGURATION.md").read_text()
-    sentence = text[text.index("**Scope.** `UNIFI_ENABLE_CONNECTOR_WRITE` governs") :]
+    sentence = text[text.index("**Scope of `family:connector=deny`.** It governs") :]
     sentence = sentence[: sentence.index("All are enabled by default")]
     sentence = sentence[sentence.index("these typed tools") :]
     return set(re.findall(r"`([a-z_]+)`", sentence))
@@ -65,9 +77,7 @@ async def clone_app() -> FastMCP:
     app.add_middleware(RefusedWriteAuditMiddleware(app, lambda: True, server._audit_refusal))
     app.add_middleware(ReadOnlyToolMiddleware(app, audit=server._audit_refusal))
     app.add_middleware(
-        AreaOptOutMiddleware(
-            app, lambda: server.get_settings().enable_connector_write, server._audit_refusal
-        )
+        AreaOptOutMiddleware(app, switches.connector_writes_enabled, server._audit_refusal)
     )
     return app
 
@@ -81,10 +91,15 @@ def no_upstream(monkeypatch):
 
 
 def configure(monkeypatch, tmp_path, mode, env=None, **settings):
-    for var in [*ALL_ENVS, switches.READ_ONLY_ENV]:
+    for var in (
+        "UNIFI_WRITE_POLICY",
+        "UNIFI_WRITE_EXCEPTIONS",
+        "UNIFI_FAMILY_ALLOW",
+        "UNIFI_EXCLUDE",
+    ):
         monkeypatch.delenv(var, raising=False)
     if env is not None:
-        monkeypatch.setenv(env, "0")
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env)
     audit_file = tmp_path / "audit.jsonl"
     monkeypatch.setattr(
         server,
@@ -103,12 +118,16 @@ def configure(monkeypatch, tmp_path, mode, env=None, **settings):
 def audit_rows(audit_file: Path) -> list[tuple[str, str, str]]:
     if not audit_file.exists():
         return []
-    rows = [json.loads(line) for line in audit_file.read_text().splitlines()]
+    rows = [
+        r
+        for r in (json.loads(line) for line in audit_file.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
     return [(row["tool"], row["outcome"], row["reason"]) for row in rows]
 
 
-def test_readme_table_has_every_switch():
-    counts = readme_counts()
+def test_switch_table_has_every_switch():
+    counts = switch_table_counts()
     assert list(counts) == [None, *ALL_ENVS, switches.READ_ONLY_ENV]
     assert counts[None][0] == 0
     total = counts[None][1]
@@ -129,11 +148,11 @@ async def test_opt_out_hides_its_area_writes(monkeypatch, tmp_path, no_upstream,
         and governed(env, name, index.get(name))
     }
     expected = set(before) - hidden
-    readme_hidden, readme_listed = readme_counts()[env]
+    doc_hidden, doc_listed = switch_table_counts()[env]
     assert (len(before), len(hidden), len(expected)) == (
-        readme_counts()[None][1],
-        readme_hidden,
-        readme_listed,
+        switch_table_counts()[None][1],
+        doc_hidden,
+        doc_listed,
     )
     assert hidden, f"{env} governs no write tool"
 
@@ -219,12 +238,11 @@ async def test_opt_outs_compose_with_read_only_and_family_lists(
         tmp_path,
         mode,
         CONNECTOR_WRITE_ENV,
-        tool_families="Network, FIREWALL\tdevices",
-        disabled_tool_families="DEVICES",
-        read_only=read_only,
     )
+    monkeypatch.setenv("UNIFI_FAMILY_ALLOW", "network,firewall,devices")
+    monkeypatch.setenv("UNIFI_EXCLUDE", "family:devices")
     if read_only:
-        monkeypatch.setenv(switches.READ_ONLY_ENV, "1")
+        monkeypatch.setenv(switches.READ_ONLY_ENV, "deny")
     index = build_family_index()
     tools = {tool.name: tool for tool in await server.mcp.list_tools()}
     selected = {n for n in tools if index.get(n) in {"network", "firewall"}}
@@ -235,6 +253,8 @@ async def test_opt_outs_compose_with_read_only_and_family_lists(
         or (not read_only and not governed(CONNECTOR_WRITE_ENV, n, index.get(n)))
     }
     assert expected < selected
+    # The local key list is a meta tool: listed whatever the selection.
+    expected = expected | {"list_configured_api_keys"}
     hidden_by_connector = sorted(
         n
         for n in selected
@@ -250,7 +270,7 @@ async def test_opt_outs_compose_with_read_only_and_family_lists(
             rows = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
             assert {row["name"] for row in rows} == expected
             families = (await client.call_tool("list_tool_families", {})).data
-            assert {row["family"] for row in families} == {"network", "firewall"}
+            assert {row["family"] for row in families} == {"network", "firewall", "site_manager"}
             assert sum(row["tools"] for row in families) == len(expected)
         name = hidden_by_connector[0]
         # Read-only mode is checked first, so its refusal wins when both apply.
@@ -269,8 +289,8 @@ async def test_switches_set_on_keep_the_default_catalog(monkeypatch, tmp_path, m
     configure(monkeypatch, tmp_path, mode)
     baseline = await clone_app()
     restore = await apply_tool_mode(baseline, mode)
-    for env in ALL_ENVS:
-        monkeypatch.setenv(env, "1")
+    # No deny exception set (writes allowed): the default catalog.
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=dry-run")
     monkeypatch.setattr(server, "_settings", Settings(api_key="synthetic-key", tool_mode=mode))
     app = await clone_app()
     try:

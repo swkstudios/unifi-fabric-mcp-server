@@ -1,7 +1,7 @@
 """The catalog runbook tools/list size table matches what the server actually sends.
 
 Each row of the "Catalog size" table is re-measured over stdio: the server is started
-with that ``UNIFI_TOOL_FAMILIES`` value, sent ``initialize`` and ``tools/list``, and the
+with that ``UNIFI_FAMILY_ALLOW`` value, sent ``initialize`` and ``tools/list``, and the
 UTF-8 JSON-RPC response line to ``tools/list`` is counted (1 KB = 1000 bytes, as the
 catalog runbook states). The tool count must match exactly and the size within 2%, so a
 description change that grows the catalog cannot leave the catalog runbook stale.
@@ -9,6 +9,7 @@ description change that grows the catalog cannot leave the catalog runbook stale
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -19,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.changelog_section import current_release
+from tests.changelog_section import current_release, undated_in_flight
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
@@ -33,7 +34,7 @@ _ROW_RE = re.compile(r"^\| (unset \(all families\)|`([a-z_,]+)`) \| (\d+) \| ~(\
 
 def _table() -> list[tuple[str | None, int, int]]:
     text = CATALOG.read_text()
-    start = text.index("| `UNIFI_TOOL_FAMILIES` | Tools | `tools/list` size |")
+    start = text.index("| `UNIFI_FAMILY_ALLOW` | Tools | `tools/list` size |")
     end = text.find("\n\n", start)
     block = text[start : len(text) if end == -1 else end]
     rows = [(m.group(2), int(m.group(3)), int(m.group(4))) for m in _ROW_RE.finditer(block)]
@@ -49,7 +50,7 @@ def _measure(
     env["UNIFI_API_KEY"] = "readme-size-test-key"
     env["UNIFI_TOOL_MODE"] = mode
     if families is not None:
-        env["UNIFI_TOOL_FAMILIES"] = families
+        env["UNIFI_FAMILY_ALLOW"] = families
     messages = [
         {
             "jsonrpc": "2.0",
@@ -114,21 +115,24 @@ def _measure(
 
 def test_readme_prose_matches_the_table() -> None:
     text = README.read_text()
-    _families, tools, kb = _table()[0]
-    assert f"full mode advertises {tools} tools and its" in text
-    assert f"`tools/list` response is roughly {kb} KB of JSON" in text
+    _families, tools, _kb = _table()[0]
+    assert f"loading the entire {tools}-tool catalog" in text
 
 
 def test_changelog_catalog_size_matches_the_readme() -> None:
-    section = current_release(CHANGELOG.read_text())[1]
+    section = current_release()[1]
     _families, tools, kb = _table()[0]
+    # Every release states its tool count in the Highlights lead (non-vacuous); a release
+    # whose entries restate the full-mode size must state the README's size.
+    lead = re.match(r"\s*Highlights: (\d+) tools \(", section)
+    assert lead, "the CHANGELOG section states no catalog size (vacuous)"
+    assert int(lead.group(1)) == tools
     found = re.findall(r"\((\d+) tools, about (\d+) KB of `tools/list`\)", section)
-    assert found, "the CHANGELOG section states no catalog size (vacuous)"
     for found_tools, found_kb in found:
         assert (int(found_tools), int(found_kb)) == (tools, kb)
 
 
-def test_changelog_body_shape_size_matches_the_generated_shapes() -> None:
+def test_migrating_body_shape_size_matches_the_generated_shapes() -> None:
     from tests.test_docs_currency import shape_totals
 
     section = " ".join((ROOT / "docs" / "MIGRATING-0.7.md").read_text().split())
@@ -136,7 +140,7 @@ def test_changelog_body_shape_size_matches_the_generated_shapes() -> None:
     assert f"describe {shaped} pinned-spec body shapes" in section
     assert f"The other {free} object parameters" in section
     found = re.findall(r"The shapes are ([\d,]+) bytes of compact JSON", section)
-    assert found, "the CHANGELOG section states no body-shape size (vacuous)"
+    assert found, "the migration guide states no body-shape size (vacuous)"
     assert {int(n.replace(",", "")) for n in found} == {size}
 
 
@@ -222,6 +226,12 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
     """Synthetic figures replace every stated count and size; none is left hand-edited."""
     gen = _generator()
     readme, changelog = README.read_text(), CHANGELOG.read_text()
+    # render_changelog leaves a DATED first section verbatim by design, which
+    # test_generator_leaves_a_dated_first_section_untouched covers. This test is about the
+    # IN-FLIGHT section, so exercise it undated whether or not the tree has been dated yet.
+    # Without this the test passes only until the release is dated and then fails the
+    # release itself: the 0.7.1 dating commit hit exactly that (CA-20261107-291).
+    changelog = undated_in_flight(changelog)
     catalog = CATALOG.read_text()
     families = gen.listed_families(catalog)
     fig = gen.Figures(
@@ -242,9 +252,12 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
                 gen._FAMILY_COUNT_ROW_RE.finditer(_block(CONFIGURATION_TEXT, gen, "family"))
             )
         },
+        # The opt-out table lives in docs/CONFIGURATION.md (the README links to it).
         hidden={
             m.group(2): 40 + i
-            for i, m in enumerate(gen._SWITCH_ROW_RE.finditer(_block(readme, gen, "switch")))
+            for i, m in enumerate(
+                gen._SWITCH_ROW_RE.finditer(_block(CONFIGURATION_TEXT, gen, "switch"))
+            )
         },
     )
     new_readme = gen.render_readme(readme, fig)
@@ -252,7 +265,7 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
     new_catalog = gen.render_catalog(catalog, fig)
     new_coverage = gen.render_coverage(gen.COVERAGE.read_text(), fig)
     assert "19 write and action tools accept an optional `confirm`" in new_coverage
-    assert "** 987 tools across Site Manager, Network, Protect, InnerSpace and more" in new_readme
+    assert "loading the entire 987-tool catalog" in new_readme
     for path in (gen.DOCKER, gen.BUNDLE_README):
         source = path.read_text()
         stale, count = re.subn(
@@ -266,34 +279,47 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
         gen.render_install_versions("ghcr.io/example/unifi-fabric-mcp-server:0.0.0", "9.8.7")
         == "ghcr.io/example/unifi-fabric-mcp-server:9.8.7"
     )
-    rows = _ROW_RE.findall(new_catalog[new_catalog.index("| `UNIFI_TOOL_FAMILIES` |") :])
+    rows = _ROW_RE.findall(new_catalog[new_catalog.index("| `UNIFI_FAMILY_ALLOW` |") :])
     assert [int(r[2]) for r in rows[: len(families)]] == [900 + i for i in range(len(families))]
-    assert "full mode advertises 987 tools and its" in new_readme
-    domain_rows = re.findall(r"^\| \*\*([^|]+)\*\* \| (\d+) \|", new_readme, re.M)
-    assert domain_rows == [(d.label, str(11 + i)) for i, d in enumerate(gen.DOMAINS)]
-    assert "`tools/list` response is roughly 654 KB of JSON" in new_readme
     assert "| `full` | 987 | 987 | 654321 | ~654 KB |" in new_catalog
     assert "| `discovery` (default) | 7 | 987 | 4321 | ~4 KB |" in new_catalog
-    family_block = _block(gen.render_configuration(CONFIGURATION_TEXT, fig), gen, "family")
+    new_configuration = gen.render_configuration(CONFIGURATION_TEXT, fig)
+    switch_rows = list(gen._SWITCH_ROW_RE.finditer(_block(new_configuration, gen, "switch")))
+    assert [row.group(2) for row in switch_rows] == list(fig.hidden)
+    for i, row in enumerate(switch_rows):
+        assert row.group(0).endswith(f" | {40 + i} | {987 - 40 - i} |")
+    family_block = _block(new_configuration, gen, "family")
     family_rows = gen._FAMILY_COUNT_ROW_RE.findall(family_block)
     assert [row[0] for row in family_rows] == sorted(fig.family_counts)
     for i, row in enumerate(gen._FAMILY_COUNT_ROW_RE.finditer(family_block)):
         assert row.group(0).startswith(f"| `{row.group(1)}` | {500 + i} | {50 + i} | ")
-    switch_rows = [
-        m.group(0) for m in gen._SWITCH_ROW_RE.finditer(_block(new_readme, gen, "switch"))
-    ]
-    assert switch_rows[0] == "| none (default) | 40 | 947 |"
-    assert len(switch_rows) == len(fig.hidden) == 8
-    assert "the 77 pinned-spec request bodies" in " ".join(new_readme.split())
     count_re = re.compile(r"(?<![\w.-])(\d{2,3}) (?:MCP )?tools\b|(\d{2,3}) tool names\b")
     stated = {int(m.group(1) or m.group(2)) for m in count_re.finditer(new_readme)}
     assert _table()[0][1] not in stated, stated
     assert 987 in stated
     section = " ".join(current_release(new_changelog)[1].split())
     assert section.startswith("Highlights: 987 tools")
+    # Only the in-flight section is rewritten; released sections keep their figures.
+    released = changelog[changelog.index("\n## [", changelog.index("Highlights: ")) :]
+    assert new_changelog.endswith(released)
+    # The size and annotation figures are rewritten wherever an in-flight section states
+    # them (a release that changes the catalog does), and are not required otherwise.
+    full = (
+        "# Changelog\n\n## [Unreleased]\n\n## [9.9.9]\n\nHighlights: 1 tools (1 added, 0 "
+        "removed).\n\n### Changed\n\n- Full mode serves the catalog (1 tools, about 1 KB of "
+        "`tools/list`).\n- Tool annotations: the 1 read-only tools advertise it; the 1 write "
+        "tools advertise it.\n\n## [9.9.8] - 2026-01-01\n\nHighlights: 5 tools (5 added, 0 "
+        "removed).\n"
+    )
+    section = " ".join(current_release(gen.render_changelog(full, fig))[1].split())
+    assert section.startswith("Highlights: 987 tools")
     assert "(987 tools, about 654 KB of `tools/list`)" in section
     assert "Tool annotations: the 321 read-only tools" in section
     assert "the 666 write tools advertise" in section
+    assert gen.render_changelog(full, fig).endswith("Highlights: 5 tools (5 added, 0 removed).\n")
+    # Every release states its tool count: a section without it fails the generator.
+    with pytest.raises(RuntimeError, match="Highlights"):
+        gen.render_changelog(full.replace("Highlights: 1 tools", "Highlights: one tool"), fig)
     # The body-shape figures live in the migration guide (render_migrating).
     migrating = " ".join(gen.render_migrating(MIGRATING.read_text(), fig).split())
     assert "Tool annotations: the 321 read-only tools" in migrating
@@ -301,51 +327,66 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
     assert "describe 77 pinned-spec body shapes" in migrating
     assert "The other 66 object parameters" in migrating
     assert "The shapes are 55,555 bytes of compact JSON" in migrating
-    quick_start = readme.index("### Choose your client")
-    key_section = readme.index("### Get Your API Key", quick_start)
-    stale_table = readme[quick_start:key_section].replace("0.7.0", "0.0.0")
+    quick_start = readme.index("### 2. Connect your assistant")
+    key_section = readme.index("### 3. Ask your first question", quick_start)
+    stale_table = re.sub(
+        r"(unifi-fabric-mcp-server[:=]+)\d+\.\d+\.\d+",
+        r"\g<1>0.0.0",
+        readme[quick_start:key_section],
+    )
     stale_readme = readme[:quick_start] + stale_table + readme[key_section:]
     regenerated = gen.render_readme(stale_readme, fig)
-    assert "0.0.0" not in regenerated[quick_start : regenerated.index("### Get Your API Key")]
-    assert "full mode uses about 654 KB" in regenerated
-    assert "Discovery mode advertises 7 tools in about 4 KB" in regenerated
-    assert "By default the client sees 7 discovery meta-tools" in regenerated
-    assert "| Site Manager and fleet | 23 |" in new_readme
     assert (
-        f"| Protect | {sum(v for k, v in fig.domains.items() if k.startswith('Protect'))} |"
-        in new_readme
+        "0.0.0"
+        not in regenerated[quick_start : regenerated.index("### 3. Ask your first question")]
     )
-    assert (
-        f"| InnerSpace | {fig.domains['InnerSpace'] + fig.domains['Placement Snapshot']} |"
-        in new_readme
-    )
-    assert "| Generic connector relay |" in new_readme
-    evidence_marker = re.search(
-        r"<!-- live-evidence: passed=(\d+) writes=(\d+) total=(\d+) "
-        r"build=([0-9a-f]+) date=(\d{4}-\d{2}-\d{2}) -->",
-        gen.COVERAGE.read_text(),
-    )
-    assert evidence_marker is not None
-    passed, writes, total, build, date = evidence_marker.groups()
-    assert (
-        f"| Live-tested on a real console | {passed} of {total} passed on build `{build}`, {date} |"
-        in new_readme
-    )
-    assert f"| Live write tools passed | {writes} on that build and date |" in new_readme
-    assert "| Every tool runs in CI against a simulated upstream | 987 tools |" in new_readme
-    evidence = tmp_path / "COVERAGE.md"
-    evidence.write_text(
-        "<!-- live-evidence: passed=42 writes=7 total=700 build=abcdef date=2026-01-02 -->"
-    )
-    with monkeypatch.context() as patch:
-        patch.setattr(gen, "COVERAGE", evidence)
-        changed = gen.render_readme(new_readme, fig)
-    assert "42 of 700 passed on build `abcdef`, 2026-01-02" in changed
-    assert "| Live write tools passed | 7 on that build and date |" in changed
     # Idempotent: rendering the generated text again changes nothing.
     assert gen.render_readme(new_readme, fig) == new_readme
     assert gen.render_catalog(new_catalog, fig) == new_catalog
     assert gen.render_changelog(new_changelog, fig) == new_changelog
+
+
+def test_generator_repins_the_encoded_install_badge_versions() -> None:
+    """The VS Code (URL-encoded) and Cursor (base64 config) badge pins follow the version."""
+    gen = _generator()
+    readme = README.read_text()
+    current = gen.PUBLISHED_VERSION
+    cursor = re.compile(r"cursor\.com/en/install-mcp\?[^\"\s)]*?config=([A-Za-z0-9_+/-]+=*)")
+    payloads = cursor.findall(readme)
+    assert payloads, "README must keep the Cursor install badge"
+    assert f"unifi-fabric-mcp-server%3D%3D{current}" in readme
+    assert gen.render_install_versions(readme, current) == readme
+    updated = gen.render_install_versions(readme, "9.8.7")
+    assert "unifi-fabric-mcp-server%3D%3D9.8.7" in updated
+    assert f"%3D%3D{current}" not in updated
+    new_payloads = cursor.findall(updated)
+    assert len(new_payloads) == len(payloads)
+    for old, new in zip(payloads, new_payloads, strict=True):
+        config = json.loads(base64.urlsafe_b64decode(new + "=" * (-len(new) % 4)))
+        assert "unifi-fabric-mcp-server==9.8.7" in config["command"]
+        assert old.endswith("=") == new.endswith("=")
+    assert gen.render_install_versions(updated, current) == readme
+
+
+@pytest.mark.parametrize("suffix", ["rc1", ".post1", ".1", "-dev.1"])
+def test_suffixed_encoded_pins_are_rerendered_so_check_fails(suffix: str) -> None:
+    """A hand-edited suffix on either encoded pin is replaced, never silently kept."""
+    gen = _generator()
+    readme = README.read_text()
+    current = gen.PUBLISHED_VERSION
+    vscode = f"unifi-fabric-mcp-server%3D%3D{current}"
+    assert vscode in readme
+    stale_vscode = readme.replace(vscode, vscode + suffix)
+    assert gen.render_install_versions(stale_vscode, current) == readme
+    cursor = re.compile(r"(cursor\.com/en/install-mcp\?[^\"\s)]*?config=)([A-Za-z0-9_+/-]+=*)")
+    match = cursor.search(readme)
+    assert match
+    config = base64.b64decode(match[2]).decode()
+    stale_config = config.replace(f"=={current}", f"=={current}{suffix}")
+    assert stale_config != config
+    stale_payload = base64.b64encode(stale_config.encode()).decode()
+    stale_cursor = readme.replace(match[2], stale_payload)
+    assert gen.render_install_versions(stale_cursor, current) == readme
 
 
 def test_domain_table_is_generated_and_counts_every_tool_once() -> None:
@@ -355,8 +396,9 @@ def test_domain_table_is_generated_and_counts_every_tool_once() -> None:
     counts = gen.domain_counts(inventory)
     assert sum(counts.values()) == len(inventory) == len({name for name, _m, _f in inventory})
     readme = README.read_text()
-    rows = re.findall(r"^\| \*\*([^|]+)\*\* \| (\d+) \|", readme, re.M)
-    assert [(label, int(n)) for label, n in rows] == list(counts.items())
+    if gen.DOMAIN_TABLE_HEADER in readme:
+        rows = re.findall(r"^\| \*\*([^|]+)\*\* \| (\d+) \|", readme, re.M)
+        assert [(label, int(n)) for label, n in rows] == list(counts.items())
 
 
 def test_domain_counts_refuse_an_unclassified_or_stale_rule() -> None:
@@ -434,3 +476,52 @@ def test_annotation_figures_match_the_registered_catalog():
     assert gen.confirm_parameter_count() == sum(
         "confirm" in (tool.parameters.get("properties") or {}) for tool in catalog
     )
+
+
+def test_generator_leaves_a_dated_first_section_untouched() -> None:
+    """A first numbered CHANGELOG section with a date has shipped: its figures stay verbatim."""
+    gen = _generator()
+    fig = gen.Figures(
+        tools=987,
+        read_only=321,
+        writes=666,
+        full_kb=654,
+        families={},
+        modes={},
+        shaped=0,
+        free=0,
+        shape_bytes=0,
+        domains={},
+        family_counts={},
+        hidden={},
+    )
+    released = (
+        "# Changelog\n\n## [Unreleased]\n\n## [9.9.9] - 2026-02-02\n\nHighlights: 1 tools "
+        "(1 added, 0 removed).\n\n### Changed\n\n- Full mode serves the catalog (1 tools, "
+        "about 1 KB of `tools/list`).\n\n## [9.9.8] - 2026-01-01\n\nHighlights: 5 tools "
+        "(5 added, 0 removed).\n"
+    )
+    assert gen.render_changelog(released, fig) == released
+    in_flight = released.replace("## [9.9.9] - 2026-02-02", "## [9.9.9]")
+    assert "Highlights: 987 tools" in gen.render_changelog(in_flight, fig)
+
+
+def test_changelog_regenerates_added_and_removed_counts():
+    gen = _generator()
+    fig = gen.Figures(
+        tools=987,
+        read_only=321,
+        writes=666,
+        full_kb=654,
+        families={},
+        modes={},
+        shaped=0,
+        free=0,
+        shape_bytes=0,
+        domains={},
+        family_counts={},
+        hidden={},
+        catalog_delta=(2, 1),
+    )
+    text = "# Changelog\n\n## [9.9.9]\n\nHighlights: 1 tools (0 added, 0 removed).\n"
+    assert "Highlights: 987 tools (2 added, 1 removed)" in gen.render_changelog(text, fig)

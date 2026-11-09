@@ -13,7 +13,7 @@ import pytest
 from unifi_fabric.tools import network
 from unifi_fabric.tools._payload import integration_update_body
 
-SPEC = json.loads((Path(__file__).parent / "fixtures/openapi/network-10.6.106.json").read_text())
+SPEC = json.loads((Path(__file__).parent / "fixtures/openapi/network-11.0.97.json").read_text())
 
 
 def _branches(schema, seen=frozenset()):
@@ -67,6 +67,7 @@ def test_network_body_paths_match_spec(tool, path, method):
     function_names = {"get_network", "get_wifi_broadcast"}
     doc = inspect.getdoc(tool)
     tokens = re.findall(r"``([a-z][A-Za-z0-9_.]*)``", doc)
+    assert tokens, tool.__name__
     for token in tokens:
         if token not in response_keys | function_names:
             assert _path_schemas(body, token.split(".")), (tool.__name__, token)

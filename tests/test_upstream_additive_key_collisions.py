@@ -131,12 +131,72 @@ async def _payload(monkeypatch, name: str, up: uh.FakeUpstream, scenario: str) -
     return uh.result_payload(await cti._call(monkeypatch, name, up, keys=keys))
 
 
+def _pairs(scenario: str, *tools: str) -> set[tuple[str, str]]:
+    return {(tool, scenario) for tool in tools}
+
+
+#: The (tool, scenario) pairs that end in a tool error, so have no result object to
+#: compare. Each is a deliberate refusal; every other pair must return a result, and a
+#: listed pair that stops refusing fails too, so a change to this set is reviewed here.
+TOOL_ERROR_PAIRS = frozenset(
+    # The repeated page never ends the client list: no write target is chosen from it.
+    _pairs(
+        "incomplete",
+        "authorize_guest",
+        "report_incorrect_wifi_experience",
+        "revoke_guest_access",
+        "set_client_fingerprint_override",
+        "set_client_icon",
+    )
+    # Every repeated page lists the probe device again: its name is ambiguous.
+    | _pairs(
+        "incomplete",
+        "clear_switch_counters",
+        "clone_device_config",
+        "control_device_battery",
+        "locate_switch_port",
+        "recover_switch_port",
+        "replace_device",
+        "run_device_self_test",
+        "set_device_alignment_mode",
+        "set_device_rearrange_mode",
+        "set_outlet_power",
+        "set_priority_uplink",
+        "unpair_building_bridge",
+        "update_device_battery_settings",
+    )
+    # The read-before of a settings write is incomplete: the write is not sent.
+    | _pairs(
+        "incomplete",
+        "update_global_network_config",
+        "update_my_admin_profile",
+        "update_ssl_inspection_settings",
+        "update_system_log_settings",
+    )
+    # Each key sees a "Default" site (or carrier organization): the name is ambiguous.
+    | _pairs(
+        "two-keys",
+        "compare_site_performance",
+        "create_carrier_subscriber",
+        "get_site_health_summary",
+        "get_site_inventory",
+    )
+)
+
+
+def test_tool_error_pairs_name_real_tools_and_scenarios():
+    assert {tool for tool, _ in TOOL_ERROR_PAIRS} <= set(cti._lz_TOOLS())
+    assert {scenario for _, scenario in TOOL_ERROR_PAIRS} <= set(SCENARIOS)
+
+
 @class_axis("name", lambda: sorted(cti._lz_TOOLS()), scenario=lambda: sorted(SCENARIOS))
 async def test_upstream_additive_keys_survive_server_metadata(monkeypatch, name, scenario):
-    try:
-        first = await _payload(monkeypatch, name, _upstream(uh.FakeUpstream, scenario), scenario)
-    except ToolError:
-        return  # this scenario ends in a tool error: no result object to compare
+    first_up = _upstream(uh.FakeUpstream, scenario)
+    if (name, scenario) in TOOL_ERROR_PAIRS:
+        with pytest.raises(ToolError):
+            await _payload(monkeypatch, name, first_up, scenario)
+        return  # a listed refusal: no result object to compare
+    first = await _payload(monkeypatch, name, first_up, scenario)
     keys = _additive_keys(first, set())
     up = _upstream(SeededUpstream, scenario)
     assert isinstance(up, SeededUpstream)

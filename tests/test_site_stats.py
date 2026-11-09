@@ -52,6 +52,7 @@ def test_render_follows_the_contract() -> None:
         "tools": 3,
         "live_verified": 2,
         "unit_tested": 1,
+        "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
     }
     assert site_stats.validate(data, "9.9.9") == []
 
@@ -70,27 +71,69 @@ def test_write_then_check(tmp_path: Path) -> None:
         ("{not json", "not valid JSON"),
         ([1], "not a JSON object"),
         (
-            {"schema": 1, "version": "v9.9.8", "tools": 3, "live_verified": 2, "unit_tested": 1},
+            {
+                "schema": 1,
+                "version": "v9.9.8",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "is not the release tag v9.9.9",
         ),
         (
-            {"schema": 1, "version": "9.9.9", "tools": 3, "live_verified": 2, "unit_tested": 1},
+            {
+                "schema": 1,
+                "version": "9.9.9",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "is not a vX.Y.Z tag",
         ),
         (
-            {"schema": 1, "version": "v9.9.9", "tools": 3, "live_verified": 2, "unit_tested": 2},
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 2,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "must equal tools",
         ),
         (
-            {"schema": 1, "version": "v9.9.9", "tools": 3, "live_verified": "2", "unit_tested": 1},
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": "2",
+                "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "non-negative integers",
         ),
         (
-            {"schema": 1, "version": "v9.9.9", "tools": 3, "live_verified": True, "unit_tested": 2},
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": True,
+                "unit_tested": 2,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "non-negative integers",
         ),
         (
-            {"schema": 2, "version": "v9.9.9", "tools": 3, "live_verified": 2, "unit_tested": 1},
+            {
+                "schema": 2,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "schema is 2",
         ),
         (
@@ -100,13 +143,42 @@ def test_write_then_check(tmp_path: Path) -> None:
                 "tools": 3,
                 "live_verified": 2,
                 "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
                 "extra": 0,
             },
             "keys are",
         ),
         (
-            {"schema": 1, "version": "v9.9.9", "tools": 4, "live_verified": 3, "unit_tested": 1},
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 4,
+                "live_verified": 3,
+                "unit_tested": 1,
+                "live_verified_note": "historical: 2 of 3 passed on build abc123, 2026-01-02",
+            },
             "is stale",
+        ),
+        (
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 1,
+            },
+            "keys are",
+        ),
+        (
+            {
+                "schema": 1,
+                "version": "v9.9.9",
+                "tools": 3,
+                "live_verified": 2,
+                "unit_tested": 1,
+                "live_verified_note": "2 of 3 passed",
+            },
+            "does not start with 'historical: '",
         ),
     ],
     ids=[
@@ -121,6 +193,8 @@ def test_write_then_check(tmp_path: Path) -> None:
         "schema",
         "extra-key",
         "stale",
+        "no-historical-note",
+        "unqualified-note",
     ],
 )
 def test_check_failures(tmp_path: Path, stats: object | None, problem: str) -> None:
@@ -136,3 +210,17 @@ def test_missing_coverage_marker_is_an_error() -> None:
 def test_live_count_above_catalog_is_an_error() -> None:
     with pytest.raises(ValueError, match="outside"):
         site_stats.render("9.9.9", 1, COVERAGE)
+
+
+def test_committed_live_figure_carries_its_historical_run() -> None:
+    """0.7.1 gate S4: the live figure never ships under a release label without its run,
+    worded as the README verification block and docs/COVERAGE.md word it."""
+    data = json.loads((ROOT / "docs" / "site-stats.json").read_text())
+    coverage = (ROOT / "docs" / "COVERAGE.md").read_text()
+    readme = (ROOT / "README.md").read_text()
+    note = data["live_verified_note"]
+    assert note == site_stats.live_verified_note(coverage)
+    assert note.startswith("historical: ")
+    assert "## Live evidence (historical: build" in coverage
+    run = note.removeprefix("historical: ").replace("build ", "build `").replace(", 20", "`, 20")
+    assert run in readme, run

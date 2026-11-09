@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-header-allow-under-deny-exception",
+  "description": "X-UniFi-Write-Policy: allow cannot lift the UNIFI_WRITE_EXCEPTIONS entry tool:create_network=deny: the call refuses with write_denied",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_EXCEPTIONS": "tool:create_network=deny",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "allow"
+      ]
+    ],
+    "route": "create_network",
+    "arguments": {
+      "host": "host-a1",
+      "site": "default",
+      "network_config": {
+        "name": "synthetic-net"
+      }
+    }
+  },
+  "expected": {
+    "code": "write_denied",
+    "upstream_calls": 0
+  }
+}

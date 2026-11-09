@@ -848,6 +848,37 @@ class TestContentLengthParsing:
         assert headers == [(b"x-kept", b"1")]
         assert b"MCP_ALLOWED_HOSTS" in messages[1]["body"]
 
+    async def test_host_hint_is_appended_once_to_streamed_refusal(self, monkeypatch):
+        import unifi_fabric.transport_security as security
+
+        class FakeGuard:
+            def __init__(self, app, **options):
+                pass
+
+            async def __call__(self, scope, receive, send):
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 421,
+                        "headers": [(b"content-length", b"11")],
+                    }
+                )
+                await send({"type": "http.response.body", "body": b"Mis", "more_body": True})
+                await send({"type": "http.response.body", "body": b"directed", "more_body": False})
+
+        monkeypatch.setattr(security, "HostOriginGuardMiddleware", FakeGuard)
+        messages = []
+
+        async def send(message):
+            messages.append(message)
+
+        guard = security.HostRefusalHintMiddleware(lambda *a: None)
+        await guard({"type": "http", "headers": []}, AsyncMock(), send)
+        body = b"".join(m["body"] for m in messages[1:])
+        assert messages[1]["body"] == b"Mis"
+        assert body.count(b"MCP_ALLOWED_HOSTS") == 1
+        assert int(dict(messages[0]["headers"])[b"content-length"]) == len(body)
+
     async def test_host_hint_grows_a_zero_padded_content_length(self, monkeypatch):
         import unifi_fabric.transport_security as security
 

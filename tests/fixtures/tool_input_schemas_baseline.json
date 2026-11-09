@@ -78,7 +78,7 @@
       "additionalProperties": false,
       "properties": {
         "certificate_id": {
-          "description": "Required certificate id, e.g. \"65f0c0ffee0000000000aa01\".",
+          "description": "Required certificate id, e.g. \"000000000000000000000105\".",
           "type": "string"
         },
         "host": {
@@ -106,11 +106,11 @@
           "type": "string"
         },
         "camera_id": {
-          "description": "Camera id (an event's camera field); for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id (an event's camera field); for example \"000000000000000000000103\".",
           "type": "string"
         },
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "confirm": {
@@ -233,7 +233,7 @@
       "additionalProperties": false,
       "properties": {
         "device_id": {
-          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"66d025b301ebc903e80003ea\", or an unambiguous device name such as\n\"Front Door\".",
+          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"00000000000000000000010b\", or an unambiguous device name such as\n\"Front Door\".",
           "type": "string"
         },
         "device_type": {
@@ -409,7 +409,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is\nsent upstream and a preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is\nsent upstream and a preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -441,7 +441,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id (24-hex) from list_cameras; for example\n\"66d025b301ebc903e80003ea\".",
+          "description": "Camera id (24-hex) from list_cameras; for example\n\"00000000000000000000010b\".",
           "type": "string"
         },
         "channel": {
@@ -471,7 +471,7 @@
             }
           ],
           "default": null,
-          "description": "Event id from list_protect_events; for example \"6acc281301811e03e42beafc\"."
+          "description": "Event id from list_protect_events; for example \"000000000000000000000e01\"."
         },
         "host": {
           "description": "Console name or id from list_hosts (reportedState.hostname or name,\ncase-insensitive, or the long data[].id); for example \"my-console\".",
@@ -593,7 +593,7 @@
           "type": "string"
         },
         "test_config_id": {
-          "description": "Test-config id from list_test_configs, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Test-config id from list_test_configs, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -609,7 +609,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to UNIFI_DRY_RUN (then nothing\nis sent upstream and a preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to dry-run policy (then nothing\nis sent upstream and a preview of the request is returned).",
           "type": "boolean"
         },
         "device_id": {
@@ -693,7 +693,7 @@
             }
           ],
           "default": null,
-          "description": "Shape: string[]. Ids of the detections to move, from\nlist_recognition_detections, e.g. [\"66f1a2b3c4d5e6f7a8b9c0d5\"]."
+          "description": "Shape: string[]. Ids of the detections to move, from\nlist_recognition_detections, e.g. [\"000000000000000000000116\"]."
         },
         "group_id": {
           "anyOf": [
@@ -712,7 +712,7 @@
           "type": "string"
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -726,7 +726,7 @@
       "additionalProperties": false,
       "properties": {
         "bridge_id": {
-          "description": "Bridge id (24-hex) from list_bridges, sent as assignedBridge; for\nexample \"66d025b301ebc903e80003ed\".",
+          "description": "Bridge id (24-hex) from list_bridges, sent as assignedBridge; for\nexample \"00000000000000000000010e\".",
           "type": "string"
         },
         "confirm": {
@@ -739,7 +739,7 @@
           "type": "string"
         },
         "sensor_id": {
-          "description": "Sensor id (24-hex) from list_sensors; for example\n\"66d025b301ebc903e80003ec\".",
+          "description": "Sensor id (24-hex) from list_sensors; for example\n\"00000000000000000000010d\".",
           "type": "string"
         }
       },
@@ -1043,12 +1043,12 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is\nsent upstream and a preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is\nsent upstream and a preview of the request is returned).",
           "type": "boolean"
         },
         "filter_params": {
           "additionalProperties": true,
-          "description": "Query parameters sent with the DELETE; must contain `filter`, which selects\nthe vouchers to delete (Network 10.6.106 DELETE /v1/sites/{siteId}/hotspot/vouchers),\ne.g. {\"filter\": \"name.eq('Conference')\"}. Filter syntax as list_hotspot_vouchers.\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Query parameters sent with the DELETE; must contain `filter`, which selects\nthe vouchers to delete (Network 11.0.97 DELETE /v1/sites/{siteId}/hotspot/vouchers),\ne.g. {\"filter\": \"name.eq('Conference')\"}. Filter syntax as list_hotspot_vouchers.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "host": {
@@ -1156,7 +1156,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -1184,7 +1184,7 @@
           "type": "boolean"
         },
         "doorlock_id": {
-          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"66d025b301ebc903e80003f0\".",
+          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"000000000000000000000111\".",
           "type": "string"
         },
         "host": {
@@ -1215,7 +1215,7 @@
       "additionalProperties": false,
       "properties": {
         "archive_id": {
-          "description": "Archive task id from start_cloud_video_archive,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d4\".",
+          "description": "Archive task id from start_cloud_video_archive,\ne.g. \"000000000000000000000115\".",
           "type": "string"
         },
         "confirm": {
@@ -1238,7 +1238,7 @@
       "additionalProperties": false,
       "properties": {
         "backup_id": {
-          "description": "Id of the running backup the controller reported, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Id of the running backup the controller reported, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -1337,7 +1337,7 @@
           "type": "string"
         },
         "sensor_id": {
-          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"66d025b301ebc903e80003eb\", or an unambiguous sensor name such as\n\"Back Door\".",
+          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"00000000000000000000010c\", or an unambiguous sensor name such as\n\"Back Door\".",
           "type": "string"
         }
       },
@@ -1548,7 +1548,7 @@
             }
           ],
           "default": null,
-          "description": "optional epoch SECONDS lower bound; defaults to the moment the call starts, so only\nevents at/after the call are collected. A negative or millisecond-magnitude value\n(>= 1e11) is sent as given and the result carries a _warnings entry saying so."
+          "description": "optional epoch SECONDS lower bound; defaults to the moment the call starts, so only\nevents at/after the call are collected. A negative or millisecond-magnitude value\n(>= 1e11) is not refused: it is converted to milliseconds like any time, and the result\ncarries a _warnings entry."
         },
         "smart_detect_types": {
           "anyOf": [
@@ -1642,7 +1642,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -2208,7 +2208,7 @@
                 },
                 {}
               ],
-              "description": "ACL rule index."
+              "description": "ACL rule index. This property is deprecated and has no effect. Use the dedicated ACL rule reordering endpoint."
             },
             "name": {
               "anyOf": [
@@ -2314,7 +2314,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Rest of the body (Protect 7.3.70 POST /v1/arm-profiles). Required: automations,\nschedules, recordEverything, activationDelay (0|60000|300000|600000). Leave name out; it\ncomes from the name argument.\nAdvisory spec fields; any JSON passes. Required: activationDelay, automations, name, recordEverything, schedules.",
+          "description": "Rest of the body (Protect 7.3.74 POST /v1/arm-profiles). Required: automations,\nschedules, recordEverything, activationDelay (0|60000|300000|600000). Leave name out; it\ncomes from the name argument.\nAdvisory spec fields; any JSON passes. Required: activationDelay, automations, name, recordEverything, schedules.",
           "properties": {
             "activationDelay": {
               "anyOf": [
@@ -2423,7 +2423,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -2979,7 +2979,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             },
             "enabled": {
               "anyOf": [
@@ -2997,7 +2997,7 @@
                 },
                 {}
               ],
-              "description": "Defines rules for matching by IP version and protocol. Shape: {ipVersion:'IPV4',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmp',typenameFilter?:'ADDRESS_MASK_REPLY'|'ADDRESS_MASK_REQUEST'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FRAGMENTATION_NEEDED'|'HOST_PRECEDENCE_VIOLATION'|'HOST_PROHIBITED'|'HOST_REDIRECT'|'HOST_UNKNOWN'|'HOST_UNREACHABLE'|'IP_HEADER_BAD'|'NETWORK_PROHIBITED'|'NETWORK_REDIRECT'|'NETWORK_UNKNOWN'|'NETWORK_UNREACHABLE'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'PRECEDENCE_CUTOFF'|'PROTOCOL_UNREACHABLE'|'REDIRECT'|'REQUIRED_OPTION_MISSING'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'SOURCE_QUENCH'|'SOURCE_ROUTE_FAILED'|'TIME_EXCEEDED'|'TIMESTAMP_REPLY'|'TIMESTAMP_REQUEST'|'TOS_HOST_REDIRECT'|'TOS_HOST_UNREACHABLE'|'TOS_NETWORK_REDIRECT'|'TOS_NETWORK_UNREACHABLE'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'}|{name:'ah'|'ax.25'|'dccp'|'ddp'|'egp'|'eigrp'|'encap'|'esp'|'etherip'|'fc'|'ggp'|'gre'|'hip'|'hmp'|'idpr-cmtp'|'idrp'|'igmp'|'igp'|'ip'|'ipcomp'|'ipencap'|'ipip'|'isis'|'iso-tp4'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'pup'|'rdp'|'rohc'|'rspf'|'rsvp'|'sctp'|'shim6'|'skip'|'st'|'tcp'|'udp'|'udplite'|'vmtp'|'vrrp'|'wesp'|'xns-idp'|'xtp'}}|T3|T1}|{ipVersion:'IPV4_AND_IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:T4|T2}}|T3|T1}|{ipVersion:'IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmpv6',typenameFilter?:'ADDRESS_UNREACHABLE'|'BAD_HEADER'|'BEYOND_SCOPE'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FAILED_POLICY'|'NEIGHBOR_ADVERTISEMENT'|'NEIGHBOR_SOLICITATION'|'NO_ROUTE'|'PACKET_TOO_BIG'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'REDIRECT'|'REJECT_ROUTE'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'TIME_EXCEEDED'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'|'UNKNOWN_HEADER_TYPE'|'UNKNOWN_OPTION'}|{name:T4|'ipv6'|'ipv6-frag'|'ipv6-nonxt'|'ipv6-opts'|'ipv6-route'|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',matchOpposite:boolean,protocolNumber:integer};T2='isis'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'rsvp'|'sctp'|'shim6'|'tcp'|'udp'|'vrrp';T3={type:'PRESET',preset:{name:'TCP_UDP'}};T4='ah'|'dccp'|'eigrp'|'esp'|'gre'|'ipcomp'"
+              "description": "Defines rules for matching by IP version and protocol. Shape (bare enum values are strings; P=protocolFilter, M=matchOpposite, V=ipVersion, T=typenameFilter): {V:IPV4,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmp,T?:ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT}|{name:ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|tcp|udp|udplite|vmtp|vrrp|wesp|xns-idp|xtp}}|T3|T1}|{V:IPV4_AND_IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:T4|T2}}|T3|T1}|{V:IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmpv6,T?:ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION}|{name:T4|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',M:boolean,protocolNumber:integer};T2=isis|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|rsvp|sctp|shim6|tcp|udp|vrrp;T3={type:'PRESET',preset:{name:TCP_UDP}};T4=ah|dccp|eigrp|esp|gre|ipcomp"
             },
             "ipsecFilter": {
               "anyOf": [
@@ -3026,6 +3026,15 @@
               ],
               "description": "Policy name."
             },
+            "reportFlowEnabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {}
+              ],
+              "description": "Report traffic matched by this policy in Insights Flows."
+            },
             "schedule": {
               "anyOf": [
                 {
@@ -3042,7 +3051,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             }
           },
           "type": "object"
@@ -3056,6 +3065,35 @@
         "host",
         "site",
         "policy"
+      ],
+      "type": "object"
+    },
+    "create_firewall_rule": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "default": false,
+          "description": "Accepted and ignored. The write always runs. Example: false.",
+          "type": "boolean"
+        },
+        "host": {
+          "description": "Console name or id: the short name from list_hosts\n(data[].reportedState.hostname or reportedState.name, case-insensitive,\ne.g. \"my-console\") or the long data[].id (MAC:numericId composite).",
+          "type": "string"
+        },
+        "rule": {
+          "additionalProperties": true,
+          "description": "Free-form classic firewall-rule request body, forwarded unchanged for the\ncontroller to validate. Observed fields include name, action, enabled,\nruleset, rule_index, protocol, src_address, dst_address,\nsrc_networkconf_id, dst_networkconf_id and dst_port.",
+          "type": "object"
+        },
+        "site": {
+          "description": "Site Manager site name or ObjectId, scoped to host. Get names and ids from\nlist_sites (data[].meta.name or data[].siteId).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "rule"
       ],
       "type": "object"
     },
@@ -3404,7 +3442,7 @@
             }
           ],
           "default": null,
-          "description": "Rest of the body (Protect 7.3.70 POST /v1/liveviews), merged with name. Provide\nlayout, slots, id, modelKey, isDefault, isGlobal and owner, all required by the\npublished schema. Leave name out; it comes from the name argument.\nShape: {layout:number,slots:{cameras:string[],cycleMode:'motion'|'time',\ncycleInterval:number}[],id:string,modelKey:string,isDefault:boolean,\nisGlobal:boolean,owner:string}\nAdvisory spec fields; any JSON passes. Required: id, isDefault, isGlobal, layout, modelKey, name, owner, slots."
+          "description": "Rest of the body (Protect 7.3.74 POST /v1/liveviews), merged with name. Provide\nlayout, slots, id, modelKey, isDefault, isGlobal and owner, all required by the\npublished schema. Leave name out; it comes from the name argument.\nShape: {layout:number,slots:{cameras:string[],cycleMode:'motion'|'time',\ncycleInterval:number}[],id:string,modelKey:string,isDefault:boolean,\nisGlobal:boolean,owner:string}\nAdvisory spec fields; any JSON passes. Required: id, isDefault, isGlobal, layout, modelKey, name, owner, slots."
         }
       },
       "required": [
@@ -3733,7 +3771,7 @@
         },
         "link": {
           "additionalProperties": true,
-          "description": "Link object, e.g. {\"supervisor_id\": \"65f1c0ffee0123456789abcd\",\n\"enabled\": false}. Free-form object.",
+          "description": "Link object, e.g. {\"supervisor_id\": \"000000000000000000000107\",\n\"enabled\": false}. Free-form object.",
           "type": "object"
         },
         "site": {
@@ -3876,7 +3914,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -3900,7 +3938,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "group": {
@@ -3923,7 +3961,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -3952,7 +3990,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -4142,7 +4180,7 @@
           "type": "string"
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -4161,7 +4199,7 @@
           "type": "string"
         },
         "object_ids": {
-          "description": "Ids of the recognized objects to group, as the console reports\nthem, e.g. [\"66f1a2b3c4d5e6f7a8b9c0d5\", \"66f1a2b3c4d5e6f7a8b9c0d6\"].",
+          "description": "Ids of the recognized objects to group, as the console reports\nthem, e.g. [\"000000000000000000000116\", \"000000000000000000000117\"].",
           "items": {
             "type": "string"
           },
@@ -4305,7 +4343,7 @@
       "properties": {
         "certificate": {
           "additionalProperties": true,
-          "description": "Required free-form JSON object sent as the request body, as the\nNetwork UI builds it, e.g. {\"name\": \"mcp-gs3-n11-ca\"}.",
+          "description": "Required free-form JSON object sent as the request body, as the\nNetwork UI builds it, e.g. {\"name\": \"example-ca\"}.",
           "type": "object"
         },
         "host": {
@@ -4342,7 +4380,7 @@
         },
         "profile": {
           "additionalProperties": true,
-          "description": "Required free-form profile object, shaped like the profile-defaults\ncatalog, e.g. {\"name\": \"mcp-gs3-n11-profile\"}.",
+          "description": "Required free-form profile object, shaped like the profile-defaults\ncatalog, e.g. {\"name\": \"example-profile\"}.",
           "type": "object"
         },
         "site": {
@@ -4698,7 +4736,7 @@
             }
           ],
           "default": null,
-          "description": "Client address pool as gateway-IP/prefix, e.g. 192.168.13.1/24; sent as\nip_subnet, omitted when unset."
+          "description": "Client address pool as gateway-IP/prefix, e.g. 192.0.2.1/24; sent as\nip_subnet, omitted when unset."
         },
         "vpn_type": {
           "description": "wireguard, openvpn, l2tp or pptp (case-insensitive; sent as the controller's\nwireguard-server, openvpn-server, l2tp-server, pptp-server). Any other value is sent\nunchanged as vpn_type.",
@@ -5024,7 +5062,7 @@
           "type": "string"
         },
         "server_id": {
-          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5121,7 +5159,7 @@
       "additionalProperties": false,
       "properties": {
         "config_id": {
-          "description": "Configuration _id or id from get_bgp_status, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Configuration _id or id from get_bgp_status, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -5144,7 +5182,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -5157,7 +5195,7 @@
           "type": "string"
         },
         "shortcut_ids": {
-          "description": "Non-empty list of shortcut ids (the camera's shortcuts[].id); for example\n[\"66a1b2c3d4e5f60718293a4b\"].",
+          "description": "Non-empty list of shortcut ids (the camera's shortcuts[].id); for example\n[\"000000000000000000000109\"].",
           "items": {
             "type": "string"
           },
@@ -5175,7 +5213,7 @@
       "additionalProperties": false,
       "properties": {
         "filter_id": {
-          "description": "Required profile _id from list_content_filters,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Required profile _id from list_content_filters,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -5207,7 +5245,7 @@
             }
           ],
           "default": null,
-          "description": "Optional console device id the backup belongs to, e.g.\n\"65f1c0ffee0123456789abcd\"."
+          "description": "Optional console device id the backup belongs to, e.g.\n\"000000000000000000000107\"."
         },
         "filename": {
           "description": "Backup file name as the controller lists it, e.g.\n\"autobackup_11.0.81_20261001_0000_1759276800000.unf\".",
@@ -5265,7 +5303,7 @@
           "type": "string"
         },
         "option_id": {
-          "description": "DHCP option _id from list_dhcp_options, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "DHCP option _id from list_dhcp_options, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5325,7 +5363,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Doorbell camera id from list_cameras; for example\n\"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Doorbell camera id from list_cameras; for example\n\"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -5334,7 +5372,7 @@
           "type": "boolean"
         },
         "credential_id": {
-          "description": "The enrolled card or fingerprint id; for example\n\"66b2c3d4e5f60718293a4b5c\".",
+          "description": "The enrolled card or fingerprint id; for example\n\"00000000000000000000010a\".",
           "type": "string"
         },
         "credential_type": {
@@ -5389,7 +5427,7 @@
           "type": "string"
         },
         "policy_id": {
-          "description": "Policy _id or id from list_energy_saving_policies, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Policy _id or id from list_energy_saving_policies, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5459,7 +5497,7 @@
           "type": "boolean"
         },
         "file_id": {
-          "description": "Portal file _id from the Classic rest/portalfile list, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Portal file _id from the Classic rest/portalfile list, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -5514,7 +5552,7 @@
           "type": "string"
         },
         "package_id": {
-          "description": "Package _id from list_hotspot_packages, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Package _id from list_hotspot_packages, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5580,7 +5618,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -5588,7 +5626,7 @@
           "type": "string"
         },
         "liveview_id": {
-          "description": "Required liveview id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required liveview id, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -5606,7 +5644,7 @@
           "type": "string"
         },
         "rule_id": {
-          "description": "Required NAT rule _id from list_nat_rules,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Required NAT rule _id from list_nat_rules,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5687,7 +5725,7 @@
           "type": "string"
         },
         "router_id": {
-          "description": "Router _id or id from get_ospf_status, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Router _id or id from get_ospf_status, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5783,7 +5821,7 @@
           "type": "string"
         },
         "supervisor_id": {
-          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -5802,7 +5840,7 @@
           "type": "string"
         },
         "link_id": {
-          "description": "Link _id or id from GET .../power-supervisors/links, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Link _id or id from fabric_connector_get with path\nnetwork/v2/api/site/{site}/power-supervisors/links, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -5821,7 +5859,7 @@
       "additionalProperties": false,
       "properties": {
         "group_id": {
-          "description": "Group id, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Group id, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -5853,7 +5891,7 @@
       "additionalProperties": false,
       "properties": {
         "automation_id": {
-          "description": "Automation id from list_protect_automations,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d1\".",
+          "description": "Automation id from list_protect_automations,\ne.g. \"000000000000000000000112\".",
           "type": "string"
         },
         "confirm": {
@@ -5899,7 +5937,7 @@
       "additionalProperties": false,
       "properties": {
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "confirm": {
@@ -5923,7 +5961,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -5931,7 +5969,7 @@
           "type": "string"
         },
         "tag_id": {
-          "description": "Required device-tag id from list_protect_device_tags, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required device-tag id from list_protect_device_tags, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -5945,16 +5983,16 @@
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "description": "Required asset id, for example \"65d4f1e2a1b2c3d4e5f60719\".",
+          "description": "Required asset id, for example \"000000000000000000000104\".",
           "type": "string"
         },
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "file_id": {
-          "description": "Required file collection id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required file collection id, for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -5979,11 +6017,11 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "group_id": {
-          "description": "Required user-group id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required user-group id, for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -6001,7 +6039,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -6029,7 +6067,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -6077,7 +6115,7 @@
               "type": "array"
             }
           ],
-          "description": "Required free-form batch-delete body (an empty list fails before any\nrequest), e.g. [\"65f1c0ffee0123456789abcd\"]."
+          "description": "Required free-form batch-delete body (an empty list fails before any\nrequest), e.g. [\"000000000000000000000107\"]."
         },
         "host": {
           "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
@@ -6153,7 +6191,7 @@
           "type": "string"
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -6168,7 +6206,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras, sent as camera; for example\n\"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras, sent as camera; for example\n\"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -6202,7 +6240,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -6210,7 +6248,7 @@
           "type": "string"
         },
         "ringtone_id": {
-          "description": "Required ringtone id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required ringtone id, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -6359,7 +6397,7 @@
       "additionalProperties": false,
       "properties": {
         "certificate_id": {
-          "description": "Required certificate id, e.g. \"65f0c0ffee0000000000aa01\".",
+          "description": "Required certificate id, e.g. \"000000000000000000000105\".",
           "type": "string"
         },
         "host": {
@@ -6386,7 +6424,7 @@
           "type": "string"
         },
         "profile_id": {
-          "description": "Required profile id, e.g. \"65f0c0ffee0000000000bb01\".",
+          "description": "Required profile id, e.g. \"000000000000000000000106\".",
           "type": "string"
         },
         "site": {
@@ -6414,7 +6452,7 @@
           "type": "string"
         },
         "record_id": {
-          "description": "Record _id from list_static_dns_records, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Record _id from list_static_dns_records, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -6464,7 +6502,7 @@
           "type": "string"
         },
         "test_config_id": {
-          "description": "Test-config id from list_test_configs, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Test-config id from list_test_configs, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -6689,7 +6727,7 @@
           "type": "string"
         },
         "server_id": {
-          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -6697,7 +6735,7 @@
           "type": "string"
         },
         "users": {
-          "description": "Non-empty list of user _ids or objects with _id (an empty list fails before\nany request), e.g. [\"65f1c0ffee0123456789abce\"].\nShape: (string|{_id:string,...})[]; each entry is sent as given",
+          "description": "Non-empty list of user _ids or objects with _id (an empty list fails before\nany request), e.g. [\"000000000000000000000108\"].\nShape: (string|{_id:string,...})[]; each entry is sent as given",
           "items": {
             "anyOf": [
               {
@@ -6758,7 +6796,7 @@
           "type": "string"
         },
         "object_id": {
-          "description": "Network id (target network) or orchestration id (target\nsettings), e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Network id (target network) or orchestration id (target\nsettings), e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -6827,7 +6865,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id from list_cameras, e.g. \"66d025b301ebc903e80003ea\";\npass the full id, not a camera name or Network device UUID.",
+          "description": "Protect camera id from list_cameras, e.g. \"00000000000000000000010b\";\npass the full id, not a camera name or Network device UUID.",
           "type": "string"
         },
         "host": {
@@ -6878,7 +6916,7 @@
         },
         "params": {
           "additionalProperties": true,
-          "description": "Body keys identifying the session, sent as given; for example\n{\"user_id\": \"65f1c0ffee0123456789abcd\"}. Free-form object.",
+          "description": "Body keys identifying the session, sent as given; for example\n{\"user_id\": \"000000000000000000000107\"}. Free-form object.",
           "type": "object"
         },
         "site": {
@@ -6915,7 +6953,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id from list_cameras, e.g. \"66d025b301ebc903e80003ea\";\npass the full id, not a camera name or Network device UUID.",
+          "description": "Protect camera id from list_cameras, e.g. \"00000000000000000000010b\";\npass the full id, not a camera name or Network device UUID.",
           "type": "string"
         },
         "host": {
@@ -6933,7 +6971,7 @@
       "additionalProperties": false,
       "properties": {
         "detection_id": {
-          "description": "Detection id from list_recognition_detections,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d5\".",
+          "description": "Detection id from list_recognition_detections,\ne.g. \"000000000000000000000116\".",
           "type": "string"
         },
         "host": {
@@ -6951,7 +6989,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Doorbell camera id from list_cameras; for example\n\"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Doorbell camera id from list_cameras; for example\n\"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -7031,7 +7069,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is\nsent upstream and a preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is\nsent upstream and a preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7120,7 +7158,7 @@
         },
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to UNIFI_DRY_RUN (then nothing\nis sent upstream and a preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to dry-run policy (then nothing\nis sent upstream and a preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7239,7 +7277,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"66d025b301ebc903e80003ea\", or an unambiguous camera name such as \"Front Door\".",
+          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"00000000000000000000010b\", or an unambiguous camera name such as \"Front Door\".",
           "type": "string"
         },
         "channel": {
@@ -7292,7 +7330,7 @@
           "type": "string"
         },
         "camera_id": {
-          "description": "Id of the camera whose storage holds the recording, from\nlist_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Id of the camera whose storage holds the recording, from\nlist_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "end": {
@@ -7387,7 +7425,7 @@
             }
           ],
           "default": null,
-          "description": "Case id from list_protect_cases, for prepare only (with download it fails\nbefore any request); for example\n\"6acc2a9002b21e03e42bf4ce\"."
+          "description": "Case id from list_protect_cases, for prepare only (with download it fails\nbefore any request); for example\n\"000000000000000000000c01\"."
         },
         "export_id": {
           "anyOf": [
@@ -7399,7 +7437,7 @@
             }
           ],
           "default": null,
-          "description": "Export job id returned by prepare, for download only (with prepare it\nfails before any request); for example\n\"6acc2a97013c1e03e42bf532\"."
+          "description": "Export job id returned by prepare, for download only (with prepare it\nfails before any request); for example\n\"000000000000000000000d01\"."
         },
         "host": {
           "description": "Protect console name, MAC or id from list_hosts: reportedState.hostname/name (for example \"Home NVR\") or data[].id.",
@@ -7465,7 +7503,7 @@
       "additionalProperties": false,
       "properties": {
         "guest": {
-          "description": "The guest authorization _id from list_guests (data[]._id, e.g.\n\"6523f0c1e4b0a1b2c3d4e5f6\") or the guest's MAC (any separator style).",
+          "description": "The guest authorization _id from list_guests (data[]._id, e.g.\n\"000000000000000000000102\") or the guest's MAC (any separator style).",
           "type": "string"
         },
         "host": {
@@ -7498,11 +7536,11 @@
             }
           ],
           "default": null,
-          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 10.6.106 for network/integration/v1). Optional for DELETE.\nOmit to send no body; an explicit null is sent as the JSON body null.\nFree-form JSON object; the caller-chosen route determines its shape."
+          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Optional for DELETE.\nOmit to send no body; an explicit null is sent as the JSON body null.\nFree-form JSON object; the caller-chosen route determines its shape."
         },
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and\na preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7523,7 +7561,7 @@
           "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
         },
         "path": {
-          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
+          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
           "type": "string"
         },
         "scope": {
@@ -7637,11 +7675,11 @@
             }
           ],
           "default": null,
-          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 10.6.106 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
         },
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and\na preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7662,7 +7700,7 @@
           "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
         },
         "path": {
-          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
+          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
           "type": "string"
         },
         "scope": {
@@ -7721,11 +7759,11 @@
             }
           ],
           "default": null,
-          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 10.6.106 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
         },
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and\na preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7746,7 +7784,7 @@
           "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
         },
         "path": {
-          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
+          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
           "type": "string"
         },
         "scope": {
@@ -7805,11 +7843,11 @@
             }
           ],
           "default": null,
-          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 10.6.106 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+          "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
         },
         "confirm": {
           "default": false,
-          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to UNIFI_DRY_RUN (then nothing is sent upstream and\na preview of the request is returned).",
+          "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned).",
           "type": "boolean"
         },
         "host": {
@@ -7830,7 +7868,7 @@
           "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
         },
         "path": {
-          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, UNIFI_ENABLE_CONNECTOR_WRITE, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
+          "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected.",
           "type": "string"
         },
         "scope": {
@@ -8280,7 +8318,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "end": {
@@ -8325,7 +8363,7 @@
             }
           ],
           "default": null,
-          "description": "Bucket size for detections, sent as step; for example 3600000."
+          "description": "Detection bucket width in MILLISECONDS (the unit start and end are sent\nin), sent as given without conversion; for example 3600000 (1 hour)."
         }
       },
       "required": [
@@ -8341,7 +8379,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -8359,7 +8397,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "end": {
@@ -8380,7 +8418,7 @@
             }
           ],
           "default": null,
-          "description": "Timeline resolution, sent as resolution; for example 3600000."
+          "description": "Recording quality channel whose segments to list, sent as given:\n0 = high quality (HQ), 2 = low quality (LQ), the values the Protect web app\nsends (its enum also has 1 = AUTO); not a time span; for example 0."
         },
         "start": {
           "description": "Window start, epoch SECONDS; for example 1760227200.",
@@ -8399,7 +8437,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"66d025b301ebc903e80003ea\", or an unambiguous camera name such as \"Front Door\".",
+          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"00000000000000000000010b\", or an unambiguous camera name such as \"Front Door\".",
           "type": "string"
         },
         "host": {
@@ -8417,7 +8455,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id from list_cameras, e.g. \"66d025b301ebc903e80003ea\";\npass the full id, not a camera name or Network device UUID.",
+          "description": "Protect camera id from list_cameras, e.g. \"00000000000000000000010b\";\npass the full id, not a camera name or Network device UUID.",
           "type": "string"
         },
         "host": {
@@ -8489,7 +8527,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -9257,7 +9295,7 @@
       "additionalProperties": false,
       "properties": {
         "device_id": {
-          "description": "Device id, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Device id, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -10669,7 +10707,7 @@
           "type": "string"
         },
         "server_id": {
-          "description": "VPN server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "VPN server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -10823,7 +10861,7 @@
             }
           ],
           "default": null,
-          "description": "Optional device id, e.g. \"65f1c0ffee0123456789abcd\"; omit for every\ndevice of the site."
+          "description": "Optional device id, e.g. \"000000000000000000000107\"; omit for every\ndevice of the site."
         },
         "host": {
           "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
@@ -10903,7 +10941,7 @@
           "type": "string"
         },
         "snapshot_id": {
-          "description": "Snapshot identifier (letters, digits, - and _), e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Snapshot identifier (letters, digits, - and _), e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -10931,7 +10969,7 @@
       "additionalProperties": false,
       "properties": {
         "automation_id": {
-          "description": "Automation id from list_protect_automations,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d1\".",
+          "description": "Automation id from list_protect_automations,\ne.g. \"000000000000000000000112\".",
           "type": "string"
         },
         "host": {
@@ -10974,7 +11012,7 @@
       "additionalProperties": false,
       "properties": {
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "host": {
@@ -11016,11 +11054,11 @@
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "description": "Asset id from list_protect_case_assets; for example\n\"6acc2a9500461e03e42bf50d\".",
+          "description": "Asset id from list_protect_case_assets; for example\n\"000000000000000000000a01\".",
           "type": "string"
         },
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "host": {
@@ -11051,7 +11089,7 @@
           "description": "Bucket aggregate sent as aggregateFunc: \"AVG\", \"MAX\", \"MIN\" or\n\"SUM\" (the web app sends \"MAX\"); for example \"MAX\"."
         },
         "device_id": {
-          "description": "Protect device id (24-hex) of any device type; for example\n\"66d025b301ebc903e80003ea\".",
+          "description": "Protect device id (24-hex) of any device type; for example\n\"00000000000000000000010b\".",
           "type": "string"
         },
         "host": {
@@ -11087,7 +11125,7 @@
       "additionalProperties": false,
       "properties": {
         "event_id": {
-          "description": "Event id from list_protect_events (24-hex or UUID); for example\n\"6acc281301811e03e42beafc\".",
+          "description": "Event id from list_protect_events (24-hex or UUID); for example\n\"000000000000000000000e01\".",
           "type": "string"
         },
         "host": {
@@ -11114,7 +11152,7 @@
             }
           ],
           "default": null,
-          "description": "Camera id of the event, required by transcriptions; for example\n\"65d4f1e2a1b2c3d4e5f60718\"."
+          "description": "Camera id of the event, required by transcriptions; for example\n\"000000000000000000000103\"."
         },
         "end": {
           "anyOf": [
@@ -11129,7 +11167,7 @@
           "description": "GIF window end, epoch SECONDS (sent as ms); for example 1760227260."
         },
         "event_id": {
-          "description": "Event id from list_protect_events; for example \"6acc281301811e03e42beafc\".",
+          "description": "Event id from list_protect_events; for example \"000000000000000000000e01\".",
           "type": "string"
         },
         "full_fov": {
@@ -11231,11 +11269,11 @@
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "description": "Required asset id, for example \"65d4f1e2a1b2c3d4e5f60719\".",
+          "description": "Required asset id, for example \"000000000000000000000104\".",
           "type": "string"
         },
         "file_id": {
-          "description": "Required file collection id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required file collection id, for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -11254,7 +11292,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "channel": {
@@ -11622,7 +11660,7 @@
           "type": "string"
         },
         "ringtone_id": {
-          "description": "Required ringtone id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required ringtone id, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -11825,7 +11863,7 @@
           "type": "string"
         },
         "sensor_id": {
-          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"66d025b301ebc903e80003eb\", or an unambiguous sensor name such as\n\"Back Door\".",
+          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"00000000000000000000010c\", or an unambiguous sensor name such as\n\"Back Door\".",
           "type": "string"
         }
       },
@@ -11855,7 +11893,7 @@
           "type": "string"
         },
         "sensor_id": {
-          "description": "Sensor id (24-hex) from list_sensors; for example\n\"66d025b301ebc903e80003ec\".",
+          "description": "Sensor id (24-hex) from list_sensors; for example\n\"00000000000000000000010d\".",
           "type": "string"
         },
         "start": {
@@ -12731,7 +12769,7 @@
             }
           ],
           "default": null,
-          "description": "History period sent as period; for example \"DAY\"."
+          "description": "History period: HOUR, DAY, WEEK or MONTH; for example \"DAY\"."
         },
         "site": {
           "description": "Network site name or id from list_local_sites; for example \"Default\".",
@@ -13079,7 +13117,7 @@
       "additionalProperties": false,
       "properties": {
         "detection_id": {
-          "description": "Face detection id from list_recognition_detections,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d5\".",
+          "description": "Face detection id from list_recognition_detections,\ne.g. \"000000000000000000000116\".",
           "type": "string"
         },
         "hide": {
@@ -13207,7 +13245,7 @@
             }
           ],
           "default": null,
-          "description": "Optional request body, sent as given, e.g. {\"shapes\": []}. Free-form object."
+          "description": "Optional free-form request body, e.g. {\"shapes\": []}; additive keys and\nmasked credential fields are removed before sending."
         },
         "confirm": {
           "default": false,
@@ -13285,7 +13323,7 @@
       "additionalProperties": false,
       "properties": {
         "backup_id": {
-          "description": "Id of the uploaded site export, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Id of the uploaded site export, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -13473,6 +13511,60 @@
         },
         "site": {
           "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites (name or\nid). Names like \"Default\" work.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site"
+      ],
+      "type": "object"
+    },
+    "list_active_clients": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        },
+        "include_matter_thread_clients": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional v2 flag (query includeMatterThreadClients):\ntrue also lists Matter/Thread clients. Example: `true`."
+        },
+        "include_traffic_usage": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional v2 flag (query includeTrafficUsage): true asks the\ncontroller to include traffic usage. Example: `true`."
+        },
+        "include_unifi_devices": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional v2 flag (query includeUnifiDevices): true asks the\ncontroller to include UniFi devices. Example: `false`."
+        },
+        "site": {
+          "description": "Network site name or slug; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work.",
           "type": "string"
         }
       },
@@ -13889,42 +13981,6 @@
           "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
           "type": "string"
         },
-        "include_matter_thread_clients": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional v2 flag (query includeMatterThreadClients):\ntrue also lists Matter/Thread clients. Selects source \"v2\".\nExample: `true`."
-        },
-        "include_traffic_usage": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional v2 flag (query includeTrafficUsage): true asks the\ncontroller to include traffic usage. Selects source \"v2\". Example: `true`."
-        },
-        "include_unifi_devices": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional v2 flag (query includeUnifiDevices): true asks the\ncontroller to include UniFi devices. Selects source \"v2\". Example: `false`."
-        },
         "limit": {
           "anyOf": [
             {
@@ -13952,18 +14008,6 @@
         "site": {
           "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work.",
           "type": "string"
-        },
-        "source": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional route: \"integration\" (default, the published API) or \"v2\"\n(the controller's v2 active-client list). offset, limit, client_type and\nfilter apply only to \"integration\"; the include_* flags only to \"v2\".\nExample: `v2`."
         }
       },
       "required": [
@@ -14010,6 +14054,19 @@
       "required": [
         "host",
         "site"
+      ],
+      "type": "object"
+    },
+    "list_controller_stat_schemas": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host"
       ],
       "type": "object"
     },
@@ -14234,7 +14291,7 @@
             }
           ],
           "default": null,
-          "description": "Optional network _id or Integration network id to scope the list,\ne.g. \"65f1c0ffee0123456789abce\"."
+          "description": "Optional Classic networkconf _id to scope the list, e.g.\n\"000000000000000000000108\". It is sent untranslated in the v2 path, so the\nIntegration id from list_networks (data[].id) is not a substitute."
         },
         "site": {
           "description": "Network site name or UUID, e.g. \"Default\".",
@@ -14264,7 +14321,7 @@
             }
           ],
           "default": null,
-          "description": "Optional network _id (list_networks / Classic networkconf _id) to\nlist that network's leases only, e.g. \"65f1c0ffee0123456789abce\"."
+          "description": "Optional Classic networkconf _id to list that network's leases only,\ne.g. \"000000000000000000000108\". It is sent untranslated in the v2 path, so\nthe Integration id from list_networks (data[].id) is not a substitute."
         },
         "site": {
           "description": "Network site name or UUID, e.g. \"Default\".",
@@ -15145,6 +15202,60 @@
       ],
       "type": "object"
     },
+    "list_integration_device_tags": {
+      "additionalProperties": false,
+      "properties": {
+        "filter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional upstream filter expression. Filterable properties are id (eq,\nne, in, notIn), name (eq, ne, in, notIn, like), and deviceIds (contains,\ncontainsAny, containsAll, containsExactly). Example: `name.eq('Guest')`."
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name or data[].id.",
+          "type": "string"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is sent\nunchanged as one page. The console clamps that page to 200, so fewer can\nreturn while more exist (compare _pageSize requested and returned). Omit\noffset and limit to drain all.\nExample: `25`."
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional zero-based offset for one native page. Example: `25`."
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site"
+      ],
+      "type": "object"
+    },
     "list_ips_categories": {
       "additionalProperties": false,
       "properties": {
@@ -15841,7 +15952,7 @@
             }
           ],
           "default": null,
-          "description": "Optional VPN user id: reads that user's VPN connection log (query\nvpnUserId, a GET) instead of a class; start, end and view do not apply.\nExample: `65f1c0ffee0123456789abcd`."
+          "description": "Optional VPN user id: reads that user's VPN connection log (query\nvpnUserId, a GET) instead of a class; start, end and view do not apply.\nExample: `000000000000000000000107`."
         }
       },
       "required": [
@@ -15951,7 +16062,7 @@
             }
           ],
           "default": null,
-          "description": "Optional page size for fetching one page manually. Omit both offset and limit to\ndrain every page and get the complete list.\nExample: `25`."
+          "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is sent\nunchanged as one page. The console clamps that page to 200, so fewer can\nreturn while more exist (compare _pageSize requested and returned). Omit\noffset and limit to drain every page.\nExample: `25`."
         },
         "offset": {
           "anyOf": [
@@ -15963,7 +16074,7 @@
             }
           ],
           "default": null,
-          "description": "Optional zero-based offset for fetching one page manually. Omit both offset and\nlimit to drain every page and get the complete list.\nExample: `25`."
+          "description": "Optional zero-based offset for fetching one page manually (limit, if given, is\nits page size). Omit both offset and limit to drain every page.\nExample: `25`."
         }
       },
       "required": [
@@ -16091,7 +16202,7 @@
       "additionalProperties": false,
       "properties": {
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "host": {
@@ -16171,7 +16282,7 @@
           "description": "filter by event category; single value or list. Verified values: motion, smart,\niot, admin. Unknown values are silently ignored by the upstream API.\nShape: string|string[]"
         },
         "end": {
-          "description": "REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally. Ranges\nare inclusive on both ends. History depth is bounded by the NVR's retention. (Contrast\nquery_isp_metrics, which wants ISO 8601 strings.)",
+          "description": "REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally. Ranges\nare exact millisecond instants; end excludes the remainder of its second.\nHistory depth is bounded by the NVR's retention. (Contrast\nquery_isp_metrics, which wants ISO 8601 strings.)",
           "type": "integer"
         },
         "host": {
@@ -16233,7 +16344,7 @@
           "description": "filter by the smart-detect SUBTYPE \u2014 person, vehicle, animal, package,\nface, licensePlate (on smartDetectZone events) and the audio alarms alrmSpeak,\nalrmSiren, alrmBark, alrmCarHorn (on smartAudioDetect events). This is a distinct\nupstream parameter from types. The API only honours it when types is also set to the\nrelevant event type(s); passing smart_detect_types alone is a silent no-op upstream:\nit is still sent, and the result carries a _warnings entry\n(SMART_DETECT_TYPES_WITHOUT_TYPES). Example: types=\"smartDetectZone\",\nsmart_detect_types=\"person\" for just person detections; types=\"smartAudioDetect\",\nsmart_detect_types=\"alrmSpeak\" to isolate the dominant audio-alarm noise.\nShape: string|string[]"
         },
         "start": {
-          "description": "REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally.\nRanges are inclusive on both ends. History depth is bounded by the NVR's retention.\n(Contrast query_isp_metrics, which wants ISO 8601 strings.)",
+          "description": "REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally.\nBounds are exact millisecond instants; end excludes the remainder of its second.\nHistory depth is bounded by the NVR's retention.\n(Contrast query_isp_metrics, which wants ISO 8601 strings.)",
           "type": "integer"
         },
         "types": {
@@ -16278,7 +16389,7 @@
       "additionalProperties": false,
       "properties": {
         "file_type": {
-          "description": "Protect asset category (path fileType). Protect 7.3.70 documents one value,\n'animations'; the value is passed through as given. The GET\nendpoint does NOT validate this value \u2014 an unrecognised category returns HTTP 200 with\nan empty list rather than an error, so a wrong value is indistinguishable from a\ngenuinely empty category. Pass a known category exactly. Letters, digits, '-' and\n'_' only; anything else is rejected before any request.",
+          "description": "Protect asset category (path fileType). Protect 7.3.74 documents one value,\n'animations'; the value is passed through as given. The GET\nendpoint does NOT validate this value \u2014 an unrecognised category returns HTTP 200 with\nan empty list rather than an error, so a wrong value is indistinguishable from a\ngenuinely empty category. Pass a known category exactly. Letters, digits, '-' and\n'_' only; anything else is rejected before any request.",
           "type": "string"
         },
         "host": {
@@ -16322,7 +16433,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"66d025b301ebc903e80003ea\", or an unambiguous camera name such as \"Front Door\".",
+          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"00000000000000000000010b\", or an unambiguous camera name such as \"Front Door\".",
           "type": "string"
         },
         "host": {
@@ -16340,7 +16451,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"66d025b301ebc903e80003ea\", or an unambiguous camera name such as \"Front Door\".",
+          "description": "Protect camera id (24-hex) from list_cameras (id), e.g.\n\"00000000000000000000010b\", or an unambiguous camera name such as \"Front Door\".",
           "type": "string"
         },
         "host": {
@@ -16750,7 +16861,7 @@
             }
           ],
           "default": null,
-          "description": "fetch a single page manually (the API's totalCount is surfaced so you can\nadvance).\nExample: `25`."
+          "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is sent\nunchanged as one page. The console clamps that page to 200, so fewer can\nreturn while more exist (compare _pageSize requested and returned). Omit\noffset and limit to drain every page.\nExample: `25`."
         },
         "offset": {
           "anyOf": [
@@ -16762,7 +16873,7 @@
             }
           ],
           "default": null,
-          "description": "fetch a single page manually (the API's totalCount is surfaced so you can\nadvance).\nExample: `25`."
+          "description": "Optional zero-based starting record; alone, fetch one page manually (the\nAPI's totalCount is surfaced so you can advance).\nExample: `25`."
         },
         "site": {
           "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work.",
@@ -16951,6 +17062,34 @@
       },
       "required": [
         "host"
+      ],
+      "type": "object"
+    },
+    "list_speedtest_results": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "description": "Inclusive window end as an integer epoch-seconds timestamp. The tool\nconverts it to the route's required epoch milliseconds.",
+          "type": "integer"
+        },
+        "host": {
+          "description": "Console name or id: the short name from list_hosts\n(data[].reportedState.hostname or reportedState.name, case-insensitive,\ne.g. \"my-console\") or the long data[].id (MAC:numericId composite).",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID; resolved server-side. Get it from\nlist_local_sites (name or id). Names like \"Default\" work.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Inclusive window start as an integer epoch-seconds timestamp. The tool\nconverts it to the route's required epoch milliseconds.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "start",
+        "end"
       ],
       "type": "object"
     },
@@ -17635,7 +17774,7 @@
             }
           ],
           "default": null,
-          "description": "Optional WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\"."
+          "description": "Optional WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\"."
         },
         "site": {
           "description": "Network site name or UUID, e.g. \"Default\".",
@@ -17661,7 +17800,7 @@
             }
           ],
           "default": null,
-          "description": "Optional device id, e.g. \"65f1c0ffee0123456789abcd\"; omit for every\ndevice of the site."
+          "description": "Optional device id, e.g. \"000000000000000000000107\"; omit for every\ndevice of the site."
         },
         "host": {
           "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
@@ -17756,7 +17895,7 @@
           "type": "boolean"
         },
         "device_id": {
-          "description": "Protect device id (24-hex); for example \"66d025b301ebc903e80003ea\".",
+          "description": "Protect device id (24-hex); for example \"00000000000000000000010b\".",
           "type": "string"
         },
         "device_type": {
@@ -17983,7 +18122,7 @@
             }
           ],
           "default": null,
-          "description": "Group _id or id, e.g. \"65f1c0ffee0123456789abcd\"."
+          "description": "Group _id or id, e.g. \"000000000000000000000107\"."
         },
         "host": {
           "description": "Console name or id: the short name from list_hosts\n(data[].reportedState.hostname or reportedState.name, case-insensitive,\ne.g. \"my-console\") or the long data[].id (MAC:numericId composite).",
@@ -18035,7 +18174,7 @@
             }
           ],
           "default": null,
-          "description": "Required for update, omitted for create, e.g.\n\"65f1c0ffee0123456789abcd\"."
+          "description": "Required for update, omitted for create, e.g.\n\"000000000000000000000107\"."
         }
       },
       "required": [
@@ -18117,7 +18256,7 @@
           "description": "Id of the group that is kept, from list_recognition_groups,\ne.g. \"face_90\"."
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\".",
+          "description": "Recognition type, singular; plural forms return HTTP 400 upstream, e.g. \"face\".",
           "type": "string"
         }
       },
@@ -18163,7 +18302,7 @@
           "type": "string"
         },
         "network_id": {
-          "description": "Network Integration id or Classic _id from list_networks, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Network Integration id or Classic _id from list_networks, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "request": {
@@ -18188,7 +18327,7 @@
       "additionalProperties": false,
       "properties": {
         "destination_site_id": {
-          "description": "Destination Classic site _id from the controller self/sites\nendpoint, typically 24 hexadecimal characters. This is not an Integration UUID\nor site slug.",
+          "description": "Destination Classic site _id from the controller self/sites\nendpoint, typically 24 hexadecimal characters. This is not an Integration UUID\nor site slug. Read it with fabric_connector_get, path\n\"network/api/self/sites\" (data[]._id).",
           "type": "string"
         },
         "device_id": {
@@ -18216,7 +18355,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -18246,7 +18385,7 @@
       "properties": {
         "fields": {
           "additionalProperties": true,
-          "description": "Partial update. Spec \"Patch firewall policy\" defines ONLY loggingEnabled (boolean).\nFor any other change use update_firewall_policy.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update. Spec \"Patch firewall policy\" defines ONLY loggingEnabled and\nreportFlowEnabled (booleans). For any other change use update_firewall_policy.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "loggingEnabled": {
               "anyOf": [
@@ -18256,6 +18395,15 @@
                 {}
               ],
               "description": "Generate syslog entries when traffic is matched."
+            },
+            "reportFlowEnabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {}
+              ],
+              "description": "Report traffic matched by this policy in Insights Flows."
             }
           },
           "type": "object"
@@ -18285,7 +18433,7 @@
       "additionalProperties": false,
       "properties": {
         "chime_id": {
-          "description": "Chime id (24-hex) from list_chimes; for example\n\"66d025b301ebc903e80003ef\".",
+          "description": "Chime id (24-hex) from list_chimes; for example\n\"000000000000000000000110\".",
           "type": "string"
         },
         "confirm": {
@@ -18344,7 +18492,7 @@
         },
         "transaction": {
           "additionalProperties": true,
-          "description": "posTransactionRequest (Protect 7.3.70). Required: type ('sale'|'refund'),\nexternalId (per-camera unique dedup key), amount. Never auto-retried.\nAdvisory spec fields; any JSON passes. A POS transaction to overlay on camera footage Required: amount, externalId, type.",
+          "description": "posTransactionRequest (Protect 7.3.74). Required: type ('sale'|'refund'),\nexternalId (per-camera unique dedup key), amount. Never auto-retried.\nAdvisory spec fields; any JSON passes. A POS transaction to overlay on camera footage Required: amount, externalId, type.",
           "properties": {
             "amount": {
               "anyOf": [
@@ -18362,7 +18510,7 @@
                 },
                 {}
               ],
-              "description": "Uppercase ISO 4217 currency code, e.g."
+              "description": "Uppercase ISO 4217 currency code, e.g. USD"
             },
             "externalId": {
               "anyOf": [
@@ -18407,7 +18555,7 @@
                 },
                 {}
               ],
-              "description": "Transaction time in epoch milliseconds."
+              "description": "Transaction time in epoch milliseconds; within the past 24 hours and no more than 5 minutes in the future."
             },
             "type": {
               "anyOf": [
@@ -18574,7 +18722,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -18817,7 +18965,7 @@
           "type": "string"
         },
         "supervisor_id": {
-          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -18854,7 +19002,7 @@
         },
         "query": {
           "additionalProperties": true,
-          "description": "Legacy free-form object sent verbatim, taking precedence over queries.\nShape: {mac:string,ports:integer[]}, e.g.\n{\"mac\": \"02:00:5e:00:53:01\", \"ports\": [1, 2]}. Use queries for the UI array.",
+          "description": "Legacy free-form object, taking precedence over queries; a {mac, ports}\nobject is sent as [query]. Shape: {mac:string,ports:integer[]}, e.g.\n{\"mac\": \"02:00:5e:00:53:01\", \"ports\": [1, 2]}. Use queries for the UI array.",
           "type": "object"
         },
         "site": {
@@ -18934,7 +19082,7 @@
             }
           ],
           "default": null,
-          "description": "Shape: a string or an array of strings; sent as an array.\nObserved values allowed, blocked (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"blocked\"."
+          "description": "Shape: string|string[]; sent as an array.\nObserved values allowed, blocked (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"blocked\"."
         },
         "body": {
           "anyOf": [
@@ -18965,7 +19113,7 @@
             }
           ],
           "default": null,
-          "description": "Shape: a string or an array of strings; sent as an array.\nObserved values local, outgoing, incoming (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"outgoing\"."
+          "description": "Shape: string|string[]; sent as an array.\nObserved values local, outgoing, incoming (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"outgoing\"."
         },
         "host": {
           "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
@@ -18987,7 +19135,7 @@
             }
           ],
           "default": null,
-          "description": "Shape: a string or an array of strings; sent as an array.\nObserved values low, medium, high (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"high\"."
+          "description": "Shape: string|string[]; sent as an array.\nObserved values low, medium, high (2026-10-26).\nAny value is forwarded for the console to validate, e.g. \"high\"."
         },
         "site": {
           "description": "Required Network site name or UUID from list_local_sites, e.g. \"Default\".",
@@ -19021,7 +19169,7 @@
           "type": "boolean"
         },
         "device_id": {
-          "description": "Protect device id (24-hex) from the device's list tool or\nget_protect_bootstrap; for example \"66d025b301ebc903e80003ea\".",
+          "description": "Protect device id (24-hex) from the device's list tool or\nget_protect_bootstrap; for example \"00000000000000000000010b\".",
           "type": "string"
         },
         "device_type": {
@@ -19081,7 +19229,7 @@
       "additionalProperties": false,
       "properties": {
         "device_id": {
-          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"66d025b301ebc903e80003ea\", or an unambiguous device name such as\n\"Front Door\".",
+          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"00000000000000000000010b\", or an unambiguous device name such as\n\"Front Door\".",
           "type": "string"
         },
         "device_type": {
@@ -19101,6 +19249,24 @@
         "host",
         "device_type",
         "device_id"
+      ],
+      "type": "object"
+    },
+    "reboot_unifi_os_console": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "default": false,
+          "description": "Accepted and ignored for compatibility; e.g. false.",
+          "type": "boolean"
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host"
       ],
       "type": "object"
     },
@@ -19239,7 +19405,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Id of the camera whose storage to reformat, from list_cameras;\nfor example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Id of the camera whose storage to reformat, from list_cameras;\nfor example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -19450,11 +19616,11 @@
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "description": "Asset id from list_protect_case_assets; for example\n\"6acc2a9500461e03e42bf50d\".",
+          "description": "Asset id from list_protect_case_assets; for example\n\"000000000000000000000a01\".",
           "type": "string"
         },
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "confirm": {
@@ -19491,7 +19657,7 @@
           "description": "Optional free-form request body, e.g. {\"name\": \"guest-laptop\"}."
         },
         "client_id": {
-          "description": "Teleport client id from list_vpn_connections,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Teleport client id from list_vpn_connections,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "confirm": {
@@ -19622,7 +19788,7 @@
               "type": "array"
             }
           ],
-          "description": "Required free-form reorder body (an empty list fails before any request),\ne.g. [\"65f1c0ffee0123456789abce\", \"65f1c0ffee0123456789abcd\"]."
+          "description": "Required free-form reorder body (an empty list fails before any request),\ne.g. [\"000000000000000000000108\", \"000000000000000000000107\"]."
         },
         "host": {
           "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
@@ -19702,7 +19868,7 @@
       "additionalProperties": false,
       "properties": {
         "event_id": {
-          "description": "Event id from list_protect_events, e.g. \"66f1a2b3c4d5e6f7a8b9c0d6\".",
+          "description": "Event id from list_protect_events, e.g. \"000000000000000000000117\".",
           "type": "string"
         },
         "host": {
@@ -19710,7 +19876,7 @@
           "type": "string"
         },
         "reported_thumbnails": {
-          "description": "Non-empty list of thumbnails of the event being reported, sent\nas given (an empty list fails before any request), for example\n[\"e-66f1a2b3c4d5e6f7a8b9c0d6\"].\nShape: (string|object)[]; keys the server reads: none, each entry is sent as given",
+          "description": "Non-empty list of thumbnails of the event being reported, sent\nas given (an empty list fails before any request), for example\n[\"e-000000000000000000000117\"].\nShape: (string|object)[]; keys the server reads: none, each entry is sent as given",
           "items": {
             "anyOf": [
               {
@@ -19826,7 +19992,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -20082,7 +20248,7 @@
           "type": "string"
         },
         "server_id": {
-          "description": "VPN server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "VPN server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -20284,7 +20450,7 @@
           "type": "string"
         },
         "invitation_id": {
-          "description": "Invitation id from query_teleport_invitations,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Invitation id from query_teleport_invitations,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -20374,7 +20540,7 @@
             }
           ],
           "default": null,
-          "description": "Camera ids or names, e.g. [\"66f1a2b3c4d5e6f7a8b9c0d3\"].\nShape: string[]"
+          "description": "Camera ids or names, e.g. [\"000000000000000000000114\"].\nShape: string[]"
         },
         "end": {
           "anyOf": [
@@ -20521,7 +20687,7 @@
           "description": "Free-form query parameters, e.g. {\"groupId\": \"face_90\"}. Omit for none."
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -20689,11 +20855,11 @@
       "additionalProperties": false,
       "properties": {
         "aiport_id": {
-          "description": "AI Port id (24-hex) from get_protect_bootstrap aiports; for example\n\"66d025b301ebc903e80003eb\".",
+          "description": "AI Port id (24-hex) from get_protect_bootstrap aiports; for example\n\"00000000000000000000010c\".",
           "type": "string"
         },
         "camera_ids": {
-          "description": "Non-empty list of camera ids sent as cameraIds (an empty list fails\nbefore any request); for example [\"66d025b301ebc903e80003ea\"].",
+          "description": "Non-empty list of camera ids sent as cameraIds (an empty list fails\nbefore any request); for example [\"00000000000000000000010b\"].",
           "items": {
             "type": "string"
           },
@@ -20725,7 +20891,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -20753,7 +20919,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -20781,7 +20947,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -20809,7 +20975,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "codec": {
@@ -21251,7 +21417,7 @@
         },
         "body": {
           "additionalProperties": true,
-          "description": "Request body sent as given; for example {\"device_tag_additions\":\n[\"65f1c0ffee0123456789abcd\"], \"device_tag_removals\": []}. Arrays contain tag\n_ids; the object remains free-form.",
+          "description": "Request body sent as given; for example {\"device_tag_additions\":\n[\"000000000000000000000107\"], \"device_tag_removals\": []}. Arrays contain tag\n_ids; the object remains free-form.",
           "type": "object"
         },
         "confirm": {
@@ -21285,7 +21451,7 @@
           "type": "boolean"
         },
         "doorlock_id": {
-          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"66d025b301ebc903e80003f0\".",
+          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"000000000000000000000111\".",
           "type": "string"
         },
         "host": {
@@ -21329,7 +21495,7 @@
           "type": "boolean"
         },
         "doorlock_id": {
-          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"66d025b301ebc903e80003f0\".",
+          "description": "Door lock id (24-hex) from list_door_locks; for example\n\"000000000000000000000111\".",
           "type": "string"
         },
         "host": {
@@ -21348,7 +21514,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Id of the camera whose storage to mount or unmount, from\nlist_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Id of the camera whose storage to mount or unmount, from\nlist_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -21361,7 +21527,7 @@
           "type": "string"
         },
         "mount_state": {
-          "description": "Value sent as mountState; for example \"unmounted\".",
+          "description": "Value sent as mountState: \"unmounted\" unmounts the storage and \"mounted\"\nmounts it again (the console judges the value); for example \"unmounted\".",
           "type": "string"
         }
       },
@@ -21565,7 +21731,7 @@
             }
           ],
           "default": null,
-          "description": "Delay before power off, sent as given; for example 0."
+          "description": "Delay before power off in seconds, sent as given; for example 0."
         },
         "device": {
           "description": "PDU MAC, Classic _id or exact name; for example \"02:00:5e:00:53:01\".",
@@ -21682,7 +21848,7 @@
               "type": "array"
             }
           ],
-          "description": "One event id, or a non-empty list of ids for the batch route (an empty\nlist fails before any request); for example\n\"6acc281301811e03e42beafc\".\nShape: string|string[]"
+          "description": "One event id, or a non-empty list of ids for the batch route (an empty\nlist fails before any request); for example\n\"000000000000000000000e01\".\nShape: string|string[]"
         },
         "favorite": {
           "description": "true to favorite, false to unfavorite; for example true.",
@@ -21702,7 +21868,7 @@
             }
           ],
           "default": null,
-          "description": "Single-id form only (with a list it fails before any request): favorite\none detected object of the event\n(metadata.detectedThumbnails[].objectId); for example\n\"1d4432d2-7eb8-47e4-acb0-3f3e62b01d8f\"."
+          "description": "Single-id form only (with a list it fails before any request): favorite\none detected object of the event\n(metadata.detectedThumbnails[].objectId); for example\n\"00000000-0000-4000-8000-000000000e02\"."
         },
         "objects": {
           "anyOf": [
@@ -21732,7 +21898,7 @@
             }
           ],
           "default": null,
-          "description": "List form only (with one event id it fails before any request): per-object\nmarks sent as idsWithObject, each\n{eventId, objectId}; for example [{\"eventId\": \"6acc...\", \"objectId\": \"1d44...\"}].\nShape: {eventId:string,objectId:string}[]"
+          "description": "List form only (with one event id it fails before any request): per-object\nmarks sent as idsWithObject, each\n{eventId, objectId}; for example [{\"eventId\": \"0000...\", \"objectId\": \"0000...\"}].\nShape: {eventId:string,objectId:string}[]"
         }
       },
       "required": [
@@ -21756,7 +21922,7 @@
         },
         "receivers": {
           "additionalProperties": true,
-          "description": "Native receivers object, e.g.\n{\"userIds\": [\"66f1a2b3c4d5e6f7a8b9c0d2\"]}. Free-form object.",
+          "description": "Native receivers object, e.g.\n{\"userIds\": [\"000000000000000000000113\"]}. Free-form object.",
           "type": "object"
         }
       },
@@ -21771,7 +21937,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -21783,7 +21949,7 @@
           "type": "boolean"
         },
         "user_id": {
-          "description": "Required id from list_protect_users, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required id from list_protect_users, for example \"000000000000000000000103\".",
           "type": "string"
         },
         "valid_until": {
@@ -21810,7 +21976,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -21871,7 +22037,7 @@
           "type": "string"
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -22125,7 +22291,7 @@
       "properties": {
         "archive": {
           "additionalProperties": true,
-          "description": "Native archive request object, e.g.\n{\"cameraIds\": [\"66f1a2b3c4d5e6f7a8b9c0d3\"], \"start\": 1718000000000,\n\"end\": 1718003600000}. Free-form object.",
+          "description": "Native archive request object, e.g.\n{\"cameraIds\": [\"000000000000000000000114\"], \"start\": 1718000000000,\n\"end\": 1718003600000}. Free-form object.",
           "type": "object"
         },
         "confirm": {
@@ -22241,7 +22407,7 @@
           "type": "string"
         },
         "radio_band": {
-          "description": "Required radio band, e.g. \"na\".",
+          "description": "Required radio band: ng (2.4 GHz), na (5 GHz) or 6e (6 GHz), e.g. \"na\".",
           "type": "string"
         },
         "site": {
@@ -22269,7 +22435,7 @@
           "type": "string"
         },
         "speaker_id": {
-          "description": "Speaker id (24-hex) from list_speakers; for example\n\"66d025b301ebc903e80003ee\".",
+          "description": "Speaker id (24-hex) from list_speakers; for example\n\"00000000000000000000010f\".",
           "type": "string"
         }
       },
@@ -22343,7 +22509,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Doorbell camera id from list_cameras; for example\n\"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Doorbell camera id from list_cameras; for example\n\"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -22366,7 +22532,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -22465,7 +22631,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -22478,7 +22644,7 @@
           "type": "string"
         },
         "shortcut_id": {
-          "description": "Shortcut id (the camera's shortcuts[].id); for example\n\"66a1b2c3d4e5f60718293a4b\".",
+          "description": "Shortcut id (the camera's shortcuts[].id); for example\n\"000000000000000000000109\".",
           "type": "string"
         }
       },
@@ -22493,7 +22659,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -22544,7 +22710,7 @@
       "additionalProperties": false,
       "properties": {
         "device_id": {
-          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"66d025b301ebc903e80003ea\", or an unambiguous device name such as\n\"Front Door\".",
+          "description": "Protect device id (24-hex) from list_cameras / list_sensors (id),\ne.g. \"00000000000000000000010b\", or an unambiguous device name such as\n\"Front Door\".",
           "type": "string"
         },
         "device_type": {
@@ -22688,7 +22854,7 @@
                 },
                 {}
               ],
-              "description": "ACL rule index."
+              "description": "ACL rule index. This property is deprecated and has no effect. Use the dedicated ACL rule reordering endpoint."
             },
             "name": {
               "anyOf": [
@@ -22775,7 +22941,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/alarm-hubs/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/alarm-hubs/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "name": {
               "anyOf": [
@@ -22839,7 +23005,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/arm-profiles/{id} body. Keys: name, automations, schedules, recordEverything,\nactivationDelay.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/arm-profiles/{id} body. Keys: name, automations, schedules, recordEverything,\nactivationDelay.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "activationDelay": {
               "anyOf": [
@@ -22924,7 +23090,7 @@
           "type": "object"
         },
         "config_id": {
-          "description": "Configuration _id or id from get_bgp_status, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Configuration _id or id from get_bgp_status, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -22957,7 +23123,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/bridges/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/bridges/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "name": {
               "anyOf": [
@@ -22992,7 +23158,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/cameras/{id} body. Keys: name, osdSettings, ledSettings, lcdMessage, micVolume\n(number 1-100), videoMode, hdrType, smartDetectSettings (nested keys in the\nparameter schema and\ndocs/TOOL-USAGE.md#update_camera).\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/cameras/{id} body. Keys: name, osdSettings, ledSettings, lcdMessage, micVolume\n(number 1-100), videoMode, hdrType, smartDetectSettings (nested keys in the\nparameter schema and\ndocs/TOOL-USAGE.md#update_camera).\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "hdrType": {
               "anyOf": [
@@ -23028,7 +23194,7 @@
                 },
                 {}
               ],
-              "description": "Mic volume: a number from 0-100."
+              "description": "Mic volume: a number from 0-100. This route narrows it: minimum 1."
             },
             "name": {
               "anyOf": [
@@ -23760,11 +23926,11 @@
       "properties": {
         "body": {
           "additionalProperties": true,
-          "description": "One shortcut update, sent inside an array (free-form): the shortcut's id plus\nthe parts to change; for example {\"id\": \"66a1b2c3d4e5f60718293a4b\",\n\"placement\": {\"x\": 0, \"y\": 0}}. Protect 7.3.70 rejected anything but an\narray of {id, placement?, shortcut?} with an AJV 400.",
+          "description": "One shortcut update, sent inside an array (free-form): the shortcut's id plus\nthe parts to change; for example {\"id\": \"000000000000000000000109\",\n\"placement\": {\"x\": 0, \"y\": 0}}. Protect 7.3.74 rejected anything but an\narray of {id, placement?, shortcut?} with an AJV 400.",
           "type": "object"
         },
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -23926,7 +24092,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/chimes/{id} body. Keys: name, cameraIds, ringSettings.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/chimes/{id} body. Keys: name, cameraIds, ringSettings.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "cameraIds": {
               "anyOf": [
@@ -23975,7 +24141,7 @@
           "type": "object"
         },
         "filter_id": {
-          "description": "Required profile _id from list_content_filters,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Required profile _id from list_content_filters,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -24045,7 +24211,7 @@
         },
         "dry_run": {
           "default": false,
-          "description": "Preview the exact full-table PUT body and diff without writing, e.g. true.\nUNIFI_DRY_RUN also previews; read-only and write opt-outs still apply.",
+          "description": "Preview the exact full-table PUT body and diff without writing, e.g. true.\ndry-run policy also previews; read-only and write opt-outs still apply.",
           "type": "boolean"
         },
         "host": {
@@ -24175,7 +24341,7 @@
           "type": "string"
         },
         "option_id": {
-          "description": "DHCP option _id from list_dhcp_options, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "DHCP option _id from list_dhcp_options, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -24403,7 +24569,7 @@
         },
         "payload": {
           "additionalProperties": true,
-          "description": "spec: free-form (classic REST dynamicdns). Fields to change; read current via\nget_dynamic_dns.\nFree-form JSON object; no fixed body shape is published.",
+          "description": "spec: free-form (classic REST dynamicdns). Native fields: service (e.g.\ndyndns, cloudflare, custom), host_name, login, x_password, server (for custom),\ninterface (wan, wan2). Read the current object via get_dynamic_dns and send it\nback edited.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "site": {
@@ -24423,7 +24589,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "Camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -24461,7 +24627,7 @@
           "type": "object"
         },
         "policy_id": {
-          "description": "Policy _id or id from list_energy_saving_policies, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Policy _id or id from list_energy_saving_policies, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -24522,7 +24688,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             },
             "enabled": {
               "anyOf": [
@@ -24540,7 +24706,7 @@
                 },
                 {}
               ],
-              "description": "Defines rules for matching by IP version and protocol. Shape: {ipVersion:'IPV4',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmp',typenameFilter?:'ADDRESS_MASK_REPLY'|'ADDRESS_MASK_REQUEST'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FRAGMENTATION_NEEDED'|'HOST_PRECEDENCE_VIOLATION'|'HOST_PROHIBITED'|'HOST_REDIRECT'|'HOST_UNKNOWN'|'HOST_UNREACHABLE'|'IP_HEADER_BAD'|'NETWORK_PROHIBITED'|'NETWORK_REDIRECT'|'NETWORK_UNKNOWN'|'NETWORK_UNREACHABLE'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'PRECEDENCE_CUTOFF'|'PROTOCOL_UNREACHABLE'|'REDIRECT'|'REQUIRED_OPTION_MISSING'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'SOURCE_QUENCH'|'SOURCE_ROUTE_FAILED'|'TIME_EXCEEDED'|'TIMESTAMP_REPLY'|'TIMESTAMP_REQUEST'|'TOS_HOST_REDIRECT'|'TOS_HOST_UNREACHABLE'|'TOS_NETWORK_REDIRECT'|'TOS_NETWORK_UNREACHABLE'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'}|{name:'ah'|'ax.25'|'dccp'|'ddp'|'egp'|'eigrp'|'encap'|'esp'|'etherip'|'fc'|'ggp'|'gre'|'hip'|'hmp'|'idpr-cmtp'|'idrp'|'igmp'|'igp'|'ip'|'ipcomp'|'ipencap'|'ipip'|'isis'|'iso-tp4'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'pup'|'rdp'|'rohc'|'rspf'|'rsvp'|'sctp'|'shim6'|'skip'|'st'|'tcp'|'udp'|'udplite'|'vmtp'|'vrrp'|'wesp'|'xns-idp'|'xtp'}}|T3|T1}|{ipVersion:'IPV4_AND_IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:T4|T2}}|T3|T1}|{ipVersion:'IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmpv6',typenameFilter?:'ADDRESS_UNREACHABLE'|'BAD_HEADER'|'BEYOND_SCOPE'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FAILED_POLICY'|'NEIGHBOR_ADVERTISEMENT'|'NEIGHBOR_SOLICITATION'|'NO_ROUTE'|'PACKET_TOO_BIG'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'REDIRECT'|'REJECT_ROUTE'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'TIME_EXCEEDED'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'|'UNKNOWN_HEADER_TYPE'|'UNKNOWN_OPTION'}|{name:T4|'ipv6'|'ipv6-frag'|'ipv6-nonxt'|'ipv6-opts'|'ipv6-route'|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',matchOpposite:boolean,protocolNumber:integer};T2='isis'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'rsvp'|'sctp'|'shim6'|'tcp'|'udp'|'vrrp';T3={type:'PRESET',preset:{name:'TCP_UDP'}};T4='ah'|'dccp'|'eigrp'|'esp'|'gre'|'ipcomp'"
+              "description": "Defines rules for matching by IP version and protocol. Shape (bare enum values are strings; P=protocolFilter, M=matchOpposite, V=ipVersion, T=typenameFilter): {V:IPV4,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmp,T?:ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT}|{name:ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|tcp|udp|udplite|vmtp|vrrp|wesp|xns-idp|xtp}}|T3|T1}|{V:IPV4_AND_IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:T4|T2}}|T3|T1}|{V:IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmpv6,T?:ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION}|{name:T4|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',M:boolean,protocolNumber:integer};T2=isis|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|rsvp|sctp|shim6|tcp|udp|vrrp;T3={type:'PRESET',preset:{name:TCP_UDP}};T4=ah|dccp|eigrp|esp|gre|ipcomp"
             },
             "ipsecFilter": {
               "anyOf": [
@@ -24569,6 +24735,15 @@
               ],
               "description": "Policy name."
             },
+            "reportFlowEnabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {}
+              ],
+              "description": "Report traffic matched by this policy in Insights Flows."
+            },
             "schedule": {
               "anyOf": [
                 {
@@ -24585,7 +24760,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             }
           },
           "type": "object"
@@ -24669,7 +24844,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/fobs/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/fobs/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "name": {
               "anyOf": [
@@ -24762,7 +24937,7 @@
           "type": "string"
         },
         "package_id": {
-          "description": "Package _id from list_hotspot_packages, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Package _id from list_hotspot_packages, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -24968,7 +25143,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/lights/{id} body. Keys: name, isLightForceEnabled, lightModeSettings,\nlightDeviceSettings.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/lights/{id} body. Keys: name, isLightForceEnabled, lightModeSettings,\nlightDeviceSettings.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "isLightForceEnabled": {
               "anyOf": [
@@ -25030,7 +25205,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/link-stations/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/link-stations/{id} body. Keys: name.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "name": {
               "anyOf": [
@@ -25065,7 +25240,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/liveviews/{id} body. Required: id, modelKey, name, isDefault, isGlobal, owner,\nlayout, slots. Spec list, not checked here: partial settings are sent as given.\nAdvisory spec fields; any JSON passes. Required: id, isDefault, isGlobal, layout, modelKey, name, owner, slots.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/liveviews/{id} body. Required: id, modelKey, name, isDefault, isGlobal, owner,\nlayout, slots. Spec list, not checked here: partial settings are sent as given.\nAdvisory spec fields; any JSON passes. Required: id, isDefault, isGlobal, layout, modelKey, name, owner, slots.",
           "properties": {
             "id": {
               "anyOf": [
@@ -25386,7 +25561,7 @@
           "type": "object"
         },
         "rule_id": {
-          "description": "Required NAT rule _id from list_nat_rules,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Required NAT rule _id from list_nat_rules,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -25699,7 +25874,7 @@
           "type": "object"
         },
         "router_id": {
-          "description": "Router _id or id from get_ospf_status, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Router _id or id from get_ospf_status, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -25819,7 +25994,7 @@
           "type": "object"
         },
         "supervisor_id": {
-          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Supervisor _id or id from list_power_supervisors, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -25844,7 +26019,7 @@
           "type": "object"
         },
         "link_id": {
-          "description": "Link _id or id from GET .../power-supervisors/links, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Link _id or id from fabric_connector_get with path\nnetwork/v2/api/site/{site}/power-supervisors/links, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -25869,7 +26044,7 @@
         },
         "policy": {
           "additionalProperties": true,
-          "description": "Nonempty partial official policy object, for example {'enabled': False}.\nFields use the published Network 10.6.106 shape; see its properties.\nRead-only id, index and metadata are not sent; all unrequested\nwritable fields are preserved.\nAdvisory spec fields; any JSON passes. Required: action, destination, enabled, ipProtocolScope, loggingEnabled, name, source.",
+          "description": "Nonempty partial official policy object, for example {'enabled': False}.\nFields use the published Network 11.0.97 shape; see its properties.\nRead-only id, index and metadata are not sent; all unrequested\nwritable fields are preserved.\nAdvisory spec fields; any JSON passes. Required: action, destination, enabled, ipProtocolScope, loggingEnabled, name, source.",
           "properties": {
             "action": {
               "anyOf": [
@@ -25905,7 +26080,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'APPLICATION',applicationFilter:{applicationIds:integer[]}}|{type:'APPLICATION_CATEGORY',applicationCategoryFilter:{applicationCategoryIds:integer[]}}|{type:'DOMAIN',domainFilter:{type:'DOMAINS',domains:string[]}}|{type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean}}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1)}|{type:'NETWORK',networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             },
             "enabled": {
               "anyOf": [
@@ -25923,7 +26098,7 @@
                 },
                 {}
               ],
-              "description": "Defines rules for matching by IP version and protocol. Shape: {ipVersion:'IPV4',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmp',typenameFilter?:'ADDRESS_MASK_REPLY'|'ADDRESS_MASK_REQUEST'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FRAGMENTATION_NEEDED'|'HOST_PRECEDENCE_VIOLATION'|'HOST_PROHIBITED'|'HOST_REDIRECT'|'HOST_UNKNOWN'|'HOST_UNREACHABLE'|'IP_HEADER_BAD'|'NETWORK_PROHIBITED'|'NETWORK_REDIRECT'|'NETWORK_UNKNOWN'|'NETWORK_UNREACHABLE'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'PRECEDENCE_CUTOFF'|'PROTOCOL_UNREACHABLE'|'REDIRECT'|'REQUIRED_OPTION_MISSING'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'SOURCE_QUENCH'|'SOURCE_ROUTE_FAILED'|'TIME_EXCEEDED'|'TIMESTAMP_REPLY'|'TIMESTAMP_REQUEST'|'TOS_HOST_REDIRECT'|'TOS_HOST_UNREACHABLE'|'TOS_NETWORK_REDIRECT'|'TOS_NETWORK_UNREACHABLE'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'}|{name:'ah'|'ax.25'|'dccp'|'ddp'|'egp'|'eigrp'|'encap'|'esp'|'etherip'|'fc'|'ggp'|'gre'|'hip'|'hmp'|'idpr-cmtp'|'idrp'|'igmp'|'igp'|'ip'|'ipcomp'|'ipencap'|'ipip'|'isis'|'iso-tp4'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'pup'|'rdp'|'rohc'|'rspf'|'rsvp'|'sctp'|'shim6'|'skip'|'st'|'tcp'|'udp'|'udplite'|'vmtp'|'vrrp'|'wesp'|'xns-idp'|'xtp'}}|T3|T1}|{ipVersion:'IPV4_AND_IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:T4|T2}}|T3|T1}|{ipVersion:'IPV6',protocolFilter?:{type:'NAMED_PROTOCOL',matchOpposite:boolean,protocol:{name:'icmpv6',typenameFilter?:'ADDRESS_UNREACHABLE'|'BAD_HEADER'|'BEYOND_SCOPE'|'COMMUNICATION_PROHIBITED'|'DESTINATION_UNREACHABLE'|'ECHO_REPLY'|'ECHO_REQUEST'|'FAILED_POLICY'|'NEIGHBOR_ADVERTISEMENT'|'NEIGHBOR_SOLICITATION'|'NO_ROUTE'|'PACKET_TOO_BIG'|'PARAMETER_PROBLEM'|'PORT_UNREACHABLE'|'REDIRECT'|'REJECT_ROUTE'|'ROUTER_ADVERTISEMENT'|'ROUTER_SOLICITATION'|'TIME_EXCEEDED'|'TTL_ZERO_DURING_REASSEMBLY'|'TTL_ZERO_DURING_TRANSIT'|'UNKNOWN_HEADER_TYPE'|'UNKNOWN_OPTION'}|{name:T4|'ipv6'|'ipv6-frag'|'ipv6-nonxt'|'ipv6-opts'|'ipv6-route'|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',matchOpposite:boolean,protocolNumber:integer};T2='isis'|'l2tp'|'manet'|'mobility-header'|'mpls-in-ip'|'ospf'|'pim'|'rsvp'|'sctp'|'shim6'|'tcp'|'udp'|'vrrp';T3={type:'PRESET',preset:{name:'TCP_UDP'}};T4='ah'|'dccp'|'eigrp'|'esp'|'gre'|'ipcomp'"
+              "description": "Defines rules for matching by IP version and protocol. Shape (bare enum values are strings; P=protocolFilter, M=matchOpposite, V=ipVersion, T=typenameFilter): {V:IPV4,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmp,T?:ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT}|{name:ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|tcp|udp|udplite|vmtp|vrrp|wesp|xns-idp|xtp}}|T3|T1}|{V:IPV4_AND_IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:T4|T2}}|T3|T1}|{V:IPV6,P?:{type:'NAMED_PROTOCOL',M:boolean,protocol:{name:icmpv6,T?:ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION}|{name:T4|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|T2}}|T3|T1} where T1={type:'PROTOCOL_NUMBER',M:boolean,protocolNumber:integer};T2=isis|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|rsvp|sctp|shim6|tcp|udp|vrrp;T3={type:'PRESET',preset:{name:TCP_UDP}};T4=ah|dccp|eigrp|esp|gre|ipcomp"
             },
             "ipsecFilter": {
               "anyOf": [
@@ -25952,6 +26127,15 @@
               ],
               "description": "Policy name."
             },
+            "reportFlowEnabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {}
+              ],
+              "description": "Report traffic matched by this policy in Insights Flows."
+            },
             "schedule": {
               "anyOf": [
                 {
@@ -25968,7 +26152,7 @@
                 },
                 {}
               ],
-              "description": "Shape: {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:('AD'|'AE'|'AF'|'AG'|'AI'|'AL'|'AM'|'AO'|'AQ'|'AR'|'AS'|'AT'|'AU'|'AW'|'AX'|'AZ'|'BA'|'BB'|'BD'|'BE'|'BF'|'BG'|'BH'|'BI'|'BJ'|'BL'|'BM'|'BN'|'BO'|'BQ'|'BR'|'BS'|'BT'|'BW'|'BY'|'BZ'|'CA'|'CC'|'CD'|'CF'|'CG'|'CH'|'CI'|'CK'|'CL'|'CM'|'CN'|'CO'|'CR'|'CU'|'CV'|'CW'|'CX'|'CY'|'CZ'|'DE'|'DJ'|'DK'|'DM'|'DO'|'DZ'|'EC'|'EE'|'EG'|'EH'|'ER'|'ES'|'ET'|'FI'|'FJ'|'FK'|'FM'|'FO'|'FR'|'GA'|'GB'|'GD'|'GE'|'GF'|'GG'|'GH'|'GI'|'GL'|'GM'|'GN'|'GP'|'GQ'|'GR'|'GS'|'GT'|'GU'|'GW'|'GY'|'HK'|'HN'|'HR'|'HT'|'HU'|'ID'|'IE'|'IL'|'IM'|'IN'|'IO'|'IQ'|'IR'|'IS'|'IT'|'JE'|'JM'|'JO'|'JP'|'KE'|'KG'|'KH'|'KI'|'KM'|'KN'|'KP'|'KR'|'KW'|'KY'|'KZ'|'LA'|'LB'|'LC'|'LI'|'LK'|'LR'|'LS'|'LT'|'LU'|'LV'|'LY'|'MA'|'MC'|'MD'|'ME'|'MF'|'MG'|'MH'|'MK'|'ML'|'MM'|'MN'|'MO'|'MP'|'MQ'|'MR'|'MS'|'MT'|'MU'|'MV'|'MW'|'MX'|'MY'|'MZ'|'NA'|'NC'|'NE'|'NF'|'NG'|'NI'|'NL'|'NO'|'NP'|'NR'|'NU'|'NZ'|'OM'|'PA'|'PE'|'PF'|'PG'|'PH'|'PK'|'PL'|'PM'|'PN'|'PR'|'PS'|'PT'|'PW'|'PY'|'QA'|'RE'|'RO'|'RS'|'RU'|'RW'|'SA'|'SB'|'SC'|'SD'|'SE'|'SG'|'SH'|'SI'|'SJ'|'SK'|'SL'|'SM'|'SN'|'SO'|'SR'|'SS'|'ST'|'SV'|'SX'|'SY'|'SZ'|'TC'|'TD'|'TF'|'TG'|'TH'|'TJ'|'TK'|'TL'|'TM'|'TN'|'TO'|'TR'|'TT'|'TV'|'TW'|'TZ'|'UA'|'UG'|'UM'|'US'|'UY'|'UZ'|'VA'|'VC'|'VE'|'VG'|'VI'|'VN'|'VU'|'WF'|'WS'|'XK'|'YE'|'YT'|'ZA'|'ZM'|'ZW')[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
+              "description": "Shape (bare enum values are strings): {trafficFilter?:{portFilter?:T2&({type:'PORTS',items:({type:'PORT_NUMBER',value:integer}|{type:'PORT_NUMBER_RANGE',start:integer,stop:integer})[]}|T1)}&({type:'IPV6_IID',ipv6IidFilter:{ipv6Iid:string,matchOpposite:boolean},macAddressFilter?:string}|{type:'IP_ADDRESS',ipAddressFilter:T2&({type:'IP_ADDRESSES',items:({type:'IP_ADDRESS',value:string}|{type:'IP_ADDRESS_RANGE',start:string,stop:string}|{type:'SUBNET',value:string})[]}|T1),macAddressFilter?:string}|{type:'MAC_ADDRESS',macAddressFilter:{macAddresses:string[]}}|{type:'NETWORK',macAddressFilter?:string,networkFilter:{matchOpposite:boolean,networkIds:string(uuid)[]}}|{type:'PORT',portFilter:(required)}|{type:'REGION',regionFilter:{regions:(AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XK|YE|YT|ZA|ZM|ZW)[]}}|{type:'SITE_TO_SITE_VPN_TUNNEL',siteToSiteVpnTunnelFilter:{siteToSiteVpnTunnelId:string(uuid)}}|{type:'VPN_SERVER',vpnServerFilter:{matchOpposite:boolean,vpnServerIds:string(uuid)[]}}),zoneId:string(uuid)} where T1={type:'TRAFFIC_MATCHING_LIST',trafficMatchingListId:string(uuid)};T2={matchOpposite:boolean}"
             }
           },
           "type": "object"
@@ -25999,7 +26183,7 @@
           "type": "object"
         },
         "group_id": {
-          "description": "Group id, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Group id, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "host": {
@@ -26032,7 +26216,7 @@
       "additionalProperties": false,
       "properties": {
         "automation_id": {
-          "description": "Automation id from list_protect_automations,\ne.g. \"66f1a2b3c4d5e6f7a8b9c0d1\".",
+          "description": "Automation id from list_protect_automations,\ne.g. \"000000000000000000000112\".",
           "type": "string"
         },
         "changes": {
@@ -26073,7 +26257,7 @@
           "description": "false closes the case, true reopens it; for example false."
         },
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "confirm": {
@@ -26133,7 +26317,7 @@
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "description": "Asset id from list_protect_case_assets; for example\n\"6acc2a9500461e03e42bf50d\".",
+          "description": "Asset id from list_protect_case_assets; for example\n\"000000000000000000000a01\".",
           "type": "string"
         },
         "asset_type": {
@@ -26149,7 +26333,7 @@
           "description": "Type discriminator to send (clip, externalFile, pdfReport,\npresentation); for example \"clip\"."
         },
         "case_id": {
-          "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\".",
+          "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\".",
           "type": "string"
         },
         "confirm": {
@@ -26223,7 +26407,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "device_password": {
@@ -26259,7 +26443,7 @@
             }
           ],
           "default": null,
-          "description": "Protect device id (24-hex), required for every type but nvr; for\nexample \"66d025b301ebc903e80003ea\"."
+          "description": "Protect device id (24-hex), required for every type but nvr; for\nexample \"00000000000000000000010b\"."
         },
         "device_type": {
           "description": "aiport, aiprocessor, bridge, camera, chime, doorlock, light,\nlinkstation, sensor, speaker, viewer or nvr; for example \"chime\".",
@@ -26306,7 +26490,7 @@
         },
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -26314,7 +26498,7 @@
           "type": "string"
         },
         "tag_id": {
-          "description": "Required device-tag id from list_protect_device_tags, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required device-tag id from list_protect_device_tags, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -26335,7 +26519,7 @@
         },
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -26343,7 +26527,7 @@
           "type": "string"
         },
         "user_id": {
-          "description": "Required id from list_protect_users, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required id from list_protect_users, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -26364,11 +26548,11 @@
         },
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "group_id": {
-          "description": "Required user-group id, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required user-group id, for example \"000000000000000000000103\".",
           "type": "string"
         },
         "host": {
@@ -26393,7 +26577,7 @@
         },
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "host": {
@@ -26401,7 +26585,7 @@
           "type": "string"
         },
         "user_id": {
-          "description": "Required id from list_protect_users, for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "Required id from list_protect_users, for example \"000000000000000000000103\".",
           "type": "string"
         }
       },
@@ -26416,7 +26600,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -26450,7 +26634,7 @@
       "additionalProperties": false,
       "properties": {
         "camera_id": {
-          "description": "PTZ camera id from list_cameras; for example \"65d4f1e2a1b2c3d4e5f60718\".",
+          "description": "PTZ camera id from list_cameras; for example \"000000000000000000000103\".",
           "type": "string"
         },
         "confirm": {
@@ -26493,7 +26677,7 @@
           "type": "object"
         },
         "rule_id": {
-          "description": "Required QoS rule _id from list_qos_rules,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Required QoS rule _id from list_qos_rules,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -26584,7 +26768,7 @@
           "type": "string"
         },
         "type": {
-          "description": "Recognition type, singular, e.g. \"face\" or \"vehicle\".",
+          "description": "Use \"face\" or \"vehicle\" (singular; plural forms return HTTP 400 upstream).",
           "type": "string"
         }
       },
@@ -26609,7 +26793,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/relays/{id} body. Keys: name, ledSettings.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/relays/{id} body. Keys: name, ledSettings.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "ledSettings": {
               "anyOf": [
@@ -26682,7 +26866,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/sensors/{id} body.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/sensors/{id} body.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "alarmSettings": {
               "anyOf": [
@@ -26796,7 +26980,7 @@
           "type": "string"
         },
         "sensor_id": {
-          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"66d025b301ebc903e80003eb\", or an unambiguous sensor name such as\n\"Back Door\".",
+          "description": "Protect sensor id (24-hex) from list_sensors (id), e.g.\n\"00000000000000000000010c\", or an unambiguous sensor name such as\n\"Back Door\".",
           "type": "string"
         },
         "settings": {
@@ -26898,7 +27082,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/sirens/{id} body. Keys: name, volume, ledSettings.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/sirens/{id} body. Keys: name, volume, ledSettings.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "ledSettings": {
               "anyOf": [
@@ -26955,7 +27139,7 @@
         },
         "tunnel": {
           "additionalProperties": true,
-          "description": "Native Classic networkconf fields to change, e.g. enabled, name. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nsite-vpn, another is sent as given (an upstream error then gets a hint).\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Native Classic networkconf fields to change, e.g. enabled, name. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nsite-vpn, another is sent as given (an upstream error then gets a hint).\nA purpose-only update is refused.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "tunnel_id": {
@@ -26980,7 +27164,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/speakers/{id} body. Keys: name, volume, micVolume, isMicEnabled.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/speakers/{id} body. Keys: name, volume, micVolume, isMicEnabled.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "isMicEnabled": {
               "anyOf": [
@@ -26998,7 +27182,7 @@
                 },
                 {}
               ],
-              "description": "Mic volume: a number from 0-100."
+              "description": "Mic volume: 1-100; mute with isMicEnabled."
             },
             "name": {
               "anyOf": [
@@ -27038,7 +27222,7 @@
       "properties": {
         "changes": {
           "additionalProperties": true,
-          "description": "Required fields to change, e.g. {\"name\": \"mcp-gs3-n11-profile-2\"}.\nFree-form object.",
+          "description": "Required fields to change, e.g. {\"name\": \"example-profile-2\"}.\nFree-form object.",
           "type": "object"
         },
         "host": {
@@ -27046,7 +27230,7 @@
           "type": "string"
         },
         "profile_id": {
-          "description": "Required profile id, e.g. \"65f0c0ffee0000000000bb01\".",
+          "description": "Required profile id, e.g. \"000000000000000000000106\".",
           "type": "string"
         },
         "site": {
@@ -27104,7 +27288,7 @@
           "type": "object"
         },
         "record_id": {
-          "description": "Record _id from list_static_dns_records, e.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "Record _id from list_static_dns_records, e.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -27166,7 +27350,7 @@
           "type": "object"
         },
         "stack_id": {
-          "description": "Stack _id or id from GET .../stacking, e.g.\n\"65f1c0ffee0123456789abcd\".",
+          "description": "Stack _id or id from GET .../stacking, e.g.\n\"000000000000000000000107\".",
           "type": "string"
         }
       },
@@ -27298,7 +27482,7 @@
         },
         "payload": {
           "additionalProperties": true,
-          "description": "spec: free-form (Network v2 trafficrules). Fields to change; read current via\nlist_traffic_rules.\nFree-form JSON object; no fixed body shape is published.",
+          "description": "spec: free-form (Network v2 trafficrules). Fields to change, merged into the\nlisted rule before the PUT, e.g. {\"enabled\": false}.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "rule_id": {
@@ -27385,7 +27569,7 @@
         },
         "settings": {
           "additionalProperties": true,
-          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.70 PATCH\n/v1/viewers/{id} body. Keys: name, liveview.\nAdvisory spec fields; any JSON passes.",
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH\n/v1/viewers/{id} body. Keys: name, liveview.\nAdvisory spec fields; any JSON passes.",
           "properties": {
             "liveview": {
               "anyOf": [
@@ -27428,7 +27612,7 @@
       "properties": {
         "fields": {
           "additionalProperties": true,
-          "description": "Native Classic networkconf fields to change, e.g. enabled, name,\nwireguard_client_peer_ip. Sent unchanged (empty-string list placeholders\ndropped); an absent or null purpose is sent as vpn-client, another is sent as\ngiven (an upstream error then gets a hint).\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Native Classic networkconf fields to change, e.g. enabled, name,\nwireguard_client_peer_ip. Sent unchanged (empty-string list placeholders\ndropped); an absent or null purpose is sent as vpn-client, another is sent as\ngiven (an upstream error then gets a hint). A purpose-only update is refused.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "host": {
@@ -27457,7 +27641,7 @@
       "properties": {
         "fields": {
           "additionalProperties": true,
-          "description": "Native Classic networkconf fields to change, e.g. enabled, name, ip_subnet,\nlocal_port. Sent unchanged (empty-string list placeholders dropped); an absent or\nnull purpose is sent as remote-user-vpn, another is sent as given (an upstream\nerror then gets a hint).\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Native Classic networkconf fields to change, e.g. enabled, name, ip_subnet,\nlocal_port. Sent unchanged (empty-string list placeholders dropped); an absent or\nnull purpose is sent as remote-user-vpn, another is sent as given (an upstream\nerror then gets a hint). A purpose-only update is refused.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "host": {
@@ -27494,7 +27678,7 @@
         },
         "wan": {
           "additionalProperties": true,
-          "description": "Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1,\nwan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nwan, another is sent as given (an upstream error then gets a hint).\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1,\nwan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nwan, another is sent as given (an upstream error then gets a hint).\nA purpose-only update is refused.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "wan_id": {
@@ -27872,7 +28056,7 @@
           "type": "string"
         },
         "server_id": {
-          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"65f1c0ffee0123456789abcd\".",
+          "description": "WireGuard server id from list_vpn_servers or its Classic _id,\ne.g. \"000000000000000000000107\".",
           "type": "string"
         },
         "site": {
@@ -27880,7 +28064,7 @@
           "type": "string"
         },
         "users": {
-          "description": "Non-empty array of _id plus fields to change (an empty list fails before any\nrequest), e.g. [{\"_id\": \"65f1c0ffee0123456789abce\", \"name\": \"laptop-02\"}].\nShape: {_id:string,...}[]; the other keys of each entry are the fields to change",
+          "description": "Non-empty array of _id plus fields to change (an empty list fails before any\nrequest), e.g. [{\"_id\": \"000000000000000000000108\", \"name\": \"laptop-02\"}].\nShape: {_id:string,...}[]; the other keys of each entry are the fields to change",
           "items": {
             "additionalProperties": true,
             "type": "object"
@@ -28015,7 +28199,7 @@
           "type": "boolean"
         },
         "device_id": {
-          "description": "Protect device id (24-hex); for example \"66d025b301ebc903e80003ea\".",
+          "description": "Protect device id (24-hex); for example \"00000000000000000000010b\".",
           "type": "string"
         },
         "device_type": {
@@ -28110,7 +28294,7 @@
           "type": "string"
         },
         "file_type": {
-          "description": "Protect asset category (path fileType); Protect 7.3.70 documents one value,\n'animations'. Letters, digits, '-' and '_' only; anything else is rejected before\nany request.",
+          "description": "Protect asset category (path fileType); Protect 7.3.74 documents one value,\n'animations'. Letters, digits, '-' and '_' only; anything else is rejected before\nany request.",
           "type": "string"
         },
         "filename": {
@@ -28135,7 +28319,7 @@
       "properties": {
         "confirm": {
           "default": false,
-          "description": "Accepted and ignored, for example true (kept for backward compatibility); the",
+          "description": "Accepted and ignored, for example true (kept for backward compatibility); the\ncall executes immediately.",
           "type": "boolean"
         },
         "content_base64": {
@@ -28226,5 +28410,5 @@
       "type": "object"
     }
   },
-  "tool_count": 786
+  "tool_count": 792
 }

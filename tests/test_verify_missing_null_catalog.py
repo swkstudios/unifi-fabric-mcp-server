@@ -49,7 +49,7 @@ def test_shared_missing_null_at_every_depth(depth):
 @pytest.mark.parametrize("after_present", [False, True])
 @pytest.mark.asyncio
 async def test_every_protect_verifying_caller(tool_name, nested, after_present, monkeypatch):
-    monkeypatch.setenv(protect.PROTECT_MUTATIONS_ENV, "1")
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)  # protect writes allowed
     monkeypatch.setattr(protect, "_resolve", AsyncMock(return_value=(None, "host-synthetic")))
     fields = {"futureField": {"leaf": None} if nested else None}
     before = {"id": "profile-synthetic", **({"futureField": {}} if nested else {})}
@@ -121,7 +121,7 @@ async def test_network_setting_missing_null_caller(nested, after_present):
 
 @pytest.mark.asyncio
 async def test_carrier_detach_missing_host_neither_noop_nor_verified(monkeypatch):
-    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda: None)
+    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda method: None)
     before = {"id": "subscriber-synthetic"}
     client = AsyncMock()
     client.dry_run = False
@@ -138,7 +138,7 @@ async def test_carrier_detach_missing_host_neither_noop_nor_verified(monkeypatch
 @pytest.mark.parametrize("after_present", [False, True])
 @pytest.mark.asyncio
 async def test_carrier_nullable_update_fields(field, after_present, monkeypatch):
-    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda: None)
+    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda method: None)
     wire = {"service_address": "serviceAddress", "plan_id": "planId"}.get(field, field)
     before = {"id": "subscriber-synthetic", wire: "old"}
     after = {"id": "subscriber-synthetic"}
@@ -159,7 +159,7 @@ async def test_carrier_nullable_update_fields(field, after_present, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_carrier_omitted_service_address_is_already_cleared(monkeypatch):
-    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda: None)
+    monkeypatch.setattr(carrier_fabric, "_require_writes", lambda method: None)
     client = AsyncMock()
     client.dry_run = False
     client.list_key_labels = Mock(return_value=["synthetic"])
@@ -281,7 +281,7 @@ def test_spec_omitted_null_property(entry, present):
     assert not _results.requested_leaves_match({field: "set"}, actual, spec=spec, schema=schema)
     assert not _results.requested_leaves_match({"unknown": None}, {}, spec=spec, schema=schema)
     assert not _results.requested_leaves_match(
-        {field: None}, {}, spec="protect-7.3.70.json", schema=schema
+        {field: None}, {}, spec="protect-7.3.74.json", schema=schema
     )
     assert not _results.requested_leaves_match(
         {"nested": {field: None}}, {"nested": {}}, spec=spec, schema=schema

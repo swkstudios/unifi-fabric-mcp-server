@@ -1,35 +1,79 @@
-"""The CHANGELOG's input-schema comparison with 0.6.2 is recomputed, never hand-counted.
+"""Each CHANGELOG release section's catalog comparison is recomputed, never hand-counted.
 
-``tests/fixtures/tool_input_schemas_v0_6_2.json`` holds every tool's ``tools/list``
-input schema as the v0.6.2 release served it (FastMCP 3.2.4), with the ``description``
-keywords removed. The in-flight section's "input schemas compared with 0.6.2" entry must
-state the catalog sizes, the number of tools in both catalogs whose schema changed and
-the exact list of those tools, as computed here from the registered tools, and how many
-gain `confirm` and how many the other new parameters; and every parameter a tool gained
-must be named, with that tool, in an Added bullet (`confirm`, `ignore_device_limit` and
-`fields`: in the Changed bullet that describes them).
+``tests/fixtures/tool_input_schemas_v<version>.json`` holds every tool's ``tools/list``
+input schema as that release served it, with the ``description`` keywords removed
+(v0.6.2: FastMCP 3.2.4; v0.7.0: FastMCP 4.1.4, dumped with ``_tools()`` and
+``_strip_descriptions`` from the tree of the v0.7.0 tag in that release's locked
+environment). Each release is compared with the release before it:
 
-A branch that adds, removes or changes a parameter fails this test until the entry says
-so, which is how the number stays true when several branches are integrated.
+* the released 0.7.0 section with the 0.6.2 snapshot, from the two snapshots, so a later
+  catalog change never reopens published text. Its "input schemas compared with 0.6.2"
+  entry (docs/MIGRATING-0.7.md) must state the catalog sizes, the number of tools in both
+  catalogs whose schema changed and the exact list of those tools, and how many gain
+  `confirm` and how many the other new parameters; every parameter a tool gained is named,
+  with that tool, in an Added bullet (`confirm`, `ignore_device_limit` and `fields`: in the
+  Changed bullet that describes them);
+* the in-flight section (with every pending fragment folded) with the snapshot of the
+  release before it, from the registered tools: its Highlights state the recomputed
+  counts, every added tool is named or counted, every removed tool has a Removed entry
+  and every gained parameter is named with its tool.
+
+A branch that adds, removes or changes a tool or parameter fails this test until the
+in-flight section says so, which is how the numbers stay true when several branches are
+integrated. Opening the next release section requires the snapshot of the release it
+follows (test_every_compared_release_has_a_schema_snapshot).
 """
 
 from __future__ import annotations
 
 import json
 import re
+from functools import cache
 from pathlib import Path
 from typing import Any
 
-from tests.changelog_section import current_release
+import pytest
+
+from tests.changelog_section import current_release, previous_release, section
 from tests.test_tool_schema_contract import _strip_descriptions, _tools
 
 ROOT = Path(__file__).resolve().parents[1]
-V062 = Path(__file__).parent / "fixtures" / "tool_input_schemas_v0_6_2.json"
+FIXTURES = Path(__file__).parent / "fixtures"
+V062 = FIXTURES / "tool_input_schemas_v0_6_2.json"
 ENTRY_TITLE = "**Breaking (tool inputs): input schemas compared with 0.6.2.**"
+#: The released section whose migration guide carries the 0.6.2 comparison entry.
+RELEASED = "0.7.0"
+IN_FLIGHT = "in-flight"
 
 
-def _section() -> str:
-    return current_release()[1]
+def _snapshot_path(version: str) -> Path:
+    return FIXTURES / f"tool_input_schemas_v{version.replace('.', '_')}.json"
+
+
+@cache
+def _snapshot(version: str) -> dict[str, Any]:
+    data = json.loads(_snapshot_path(version).read_text())
+    assert len(data["schemas"]) == data["tool_count"], version
+    return data["schemas"]
+
+
+@cache
+def _live() -> dict[str, Any]:
+    return {tool.name: _strip_descriptions(tool.parameters) for tool in _tools()}
+
+
+@cache
+def _compared(release: str) -> tuple[str, dict[str, Any], dict[str, Any], str]:
+    """``(version, old schemas, new schemas, section body)`` of one compared release."""
+    if release == IN_FLIGHT:
+        version, body = current_release()
+        return version, _snapshot(previous_release()), _live(), body
+    assert release == RELEASED
+    return release, _snapshot("0.6.2"), _snapshot(release), section(release)
+
+
+def _section(release: str = RELEASED) -> str:
+    return _compared(release)[3]
 
 
 def _bullets(section: str) -> list[str]:
@@ -57,14 +101,23 @@ def _entry() -> str:
     return entry
 
 
-def _diff() -> tuple[dict[str, Any], dict[str, Any], list[str], list[str]]:
-    old = json.loads(V062.read_text())
-    schemas_old = old["schemas"]
-    assert len(schemas_old) == old["tool_count"]
-    schemas_new = {tool.name: _strip_descriptions(tool.parameters) for tool in _tools()}
+def _diff(
+    release: str = RELEASED,
+) -> tuple[dict[str, Any], dict[str, Any], list[str], list[str]]:
+    _version, schemas_old, schemas_new, _body = _compared(release)
     common = sorted(set(schemas_old) & set(schemas_new))
     changed = [name for name in common if schemas_old[name] != schemas_new[name]]
     return schemas_old, schemas_new, common, changed
+
+
+def test_every_compared_release_has_a_schema_snapshot() -> None:
+    """The in-flight section is compared with the release before it, never an older one."""
+    baseline = previous_release()
+    assert _snapshot_path(baseline).is_file(), (
+        f"the in-flight section follows {baseline}: add {_snapshot_path(baseline).name}, "
+        "the tools/list input schemas of that release"
+    )
+    assert _snapshot(RELEASED) and _snapshot("0.6.2")
 
 
 def test_entry_states_the_recomputed_catalog_sizes_and_added_removed_tools() -> None:
@@ -111,16 +164,28 @@ DESCRIBED_IN_CHANGED = {"confirm", "ignore_device_limit", "fields"}
 
 
 def _added_bullets(section: str) -> list[str]:
+    if "\n### Added\n" not in section:
+        return []
     added = section.split("\n### Added\n", 1)[1].split("\n### ", 1)[0]
     return _bullets(added)
 
 
-TOOLS_DOC_URL = "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/docs/TOOLS.md"
+def _tools_doc_url(version: str) -> str:
+    return f"https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v{version}/docs/TOOLS.md"
+
+
 # A family bullet counts the added tools Added does not name that sit under one
-# docs/TOOLS.md category heading, and links that heading.
-FAMILY_RE = re.compile(
-    r"\((\d+) tools?\): see \[tool list\]\(" + re.escape(TOOLS_DOC_URL) + r"#([a-z0-9-]+)\)\.$"
-)
+# docs/TOOLS.md category heading, and links that heading at the release's tag.
+def _family_re(version: str) -> re.Pattern[str]:
+    return re.compile(
+        r"\((\d+) tools?\): see \[tool list\]\("
+        + re.escape(_tools_doc_url(version))
+        + r"#([a-z0-9-]+)\)\.$"
+    )
+
+
+TOOLS_DOC_URL = _tools_doc_url(RELEASED)
+FAMILY_RE = _family_re(RELEASED)
 # A count stated before a bullet's first colon, e.g. "Thread and Matter (5 tools):".
 LEAD_COUNT_RE = re.compile(r"^[^:]*?\((\d+) tools?\b")
 
@@ -145,7 +210,9 @@ def _tools_doc_categories() -> tuple[dict[str, str], dict[str, str]]:
     return anchors, category
 
 
-def _added_partition(section: str, additions: set[str]) -> tuple[set[str], list[tuple[str, int]]]:
+def _added_partition(
+    section: str, additions: set[str], version: str = RELEASED
+) -> tuple[set[str], list[tuple[str, int]]]:
     """``(added tools named in Added, [(family anchor, count), ...])``.
 
     Family bullets name no tool themselves; every other bullet that states a tool count
@@ -154,9 +221,10 @@ def _added_partition(section: str, additions: set[str]) -> tuple[set[str], list[
     """
     named: set[str] = set()
     families: list[tuple[str, int]] = []
+    family_re = _family_re(version)
     for bullet in _added_bullets(section):
         tools = set(re.findall(r"`(\w+)`", bullet))
-        if match := FAMILY_RE.search(bullet):
+        if match := family_re.search(bullet):
             assert not tools, f"a family bullet names tools: {bullet}"
             families.append((match.group(2), int(match.group(1))))
             continue
@@ -168,24 +236,30 @@ def _added_partition(section: str, additions: set[str]) -> tuple[set[str], list[
     return named, families
 
 
-def test_every_new_tool_is_named_or_counted_by_exactly_one_family_bullet() -> None:
+@pytest.mark.parametrize("release", [RELEASED, IN_FLIGHT])
+def test_every_new_tool_is_named_or_counted_by_exactly_one_family_bullet(release: str) -> None:
     """Every added tool is named in Added or counted by exactly one family bullet.
 
     Each family bullet links one docs/TOOLS.md category heading and its count is exactly
     the number of added tools Added does not name under that heading; every unnamed
     added tool sits under a heading a family bullet links.
     """
-    schemas_old, schemas_new, _common, _changed = _diff()
+    schemas_old, schemas_new, _common, _changed = _diff(release)
+    version = _compared(release)[0]
     additions = set(schemas_new) - set(schemas_old)
     anchors, category = _tools_doc_categories()
-    assert set(category) == set(schemas_new), "docs/TOOLS.md is stale"
-    named, families = _added_partition(_section(), additions)
+    if release == IN_FLIGHT:
+        assert set(category) == set(_live()), "docs/TOOLS.md is stale"
+    named, families = _added_partition(_section(release), additions, version)
     linked = [anchor for anchor, _count in families]
     assert len(linked) == len(set(linked)), f"two family bullets link one heading: {linked}"
     assert set(linked) <= set(anchors), sorted(set(linked) - set(anchors))
     unnamed: dict[str, set[str]] = {}
     for name in additions - named:
-        unnamed.setdefault(category[name], set()).add(name)
+        # A released addition the catalog has since dropped has no heading left to count it.
+        unnamed.setdefault(category.get(name, f"(no docs/TOOLS.md heading: {name})"), set()).add(
+            name
+        )
     outside = {
         heading: sorted(tools)
         for heading, tools in unnamed.items()
@@ -201,12 +275,17 @@ def test_every_new_tool_is_named_or_counted_by_exactly_one_family_bullet() -> No
     assert len(named) + sum(count for _anchor, count in families) == len(additions)
 
 
-def test_every_gained_parameter_is_named_with_its_tool() -> None:
-    schemas_old, schemas_new, common, _changed = _diff()
-    section = _section()
-    guide = (ROOT / "docs" / "MIGRATING-0.7.md").read_text()
-    others = [b for b in _bullets(guide) if not b.startswith(ENTRY_TITLE)]
-    added = _added_bullets(section)
+@pytest.mark.parametrize("release", [RELEASED, IN_FLIGHT])
+def test_every_gained_parameter_is_named_with_its_tool(release: str) -> None:
+    schemas_old, schemas_new, common, _changed = _diff(release)
+    section = _section(release)
+    if release == RELEASED:
+        guide = (ROOT / "docs" / "MIGRATING-0.7.md").read_text()
+        others = [b for b in _bullets(guide) if not b.startswith(ENTRY_TITLE)]
+        added = _added_bullets(section)
+    else:
+        # The in-flight section names a gained parameter with its tool in any bullet.
+        others = added = _bullets(section)
     missing = []
     for name in common:
         gained = set(schemas_new[name].get("properties") or {}) - set(
@@ -248,27 +327,29 @@ def _subsections(section: str) -> dict[str, str]:
     return dict(zip(names, parts[2::2], strict=True))
 
 
-def test_subsections_follow_keep_a_changelog_order() -> None:
-    names = list(_subsections(_section()))
+@pytest.mark.parametrize("release", [RELEASED, IN_FLIGHT])
+def test_subsections_follow_keep_a_changelog_order(release: str) -> None:
+    names = list(_subsections(_section(release)))
     assert set(names) <= set(KEEP_A_CHANGELOG), names
     assert names == [name for name in KEEP_A_CHANGELOG if name in names], names
 
 
-def test_every_removed_tool_is_listed_under_removed_with_its_replacement() -> None:
-    """A tool 0.6.2 shipped that this release no longer registers is a Removed entry.
+@pytest.mark.parametrize("release", [RELEASED, IN_FLIGHT])
+def test_every_removed_tool_is_listed_under_removed_with_its_replacement(release: str) -> None:
+    """A tool the previous release shipped that this one no longer registers is Removed.
 
     Each removed tool gets exactly one ``**Breaking (tool removed): `name`.**`` bullet
     under ``### Removed`` naming a registered tool that replaces it; no other subsection
     carries a tool-removed entry, and Changed, Deprecated, Fixed and Security do not
-    mention a removed tool at all. The highlights line states the recomputed counts.
+    mention a removed tool at all. The highlights lead states the recomputed counts.
     """
-    schemas_old, schemas_new, _common, _changed = _diff()
+    schemas_old, schemas_new, _common, _changed = _diff(release)
     removed = set(schemas_old) - set(schemas_new)
     added = set(schemas_new) - set(schemas_old)
-    section = _section()
+    section = _section(release)
     subsections = _subsections(section)
 
-    highlights = re.search(r"(\d+) tools \((\d+) added, (\d+) removed\)", section)
+    highlights = re.match(r"\s*Highlights: (\d+) tools \((\d+) added, (\d+) removed\)", section)
     assert highlights, "highlights line must state the tool count with added and removed"
     assert tuple(map(int, highlights.groups())) == (len(schemas_new), len(added), len(removed)), (
         f"{highlights.group(0)}; recomputed: {len(schemas_new)} tools "
@@ -280,7 +361,7 @@ def test_every_removed_tool_is_listed_under_removed_with_its_replacement() -> No
             REMOVED_TITLE.match(b) for b in _bullets(subsections["Removed"])
         )
         return
-    assert "Removed" in subsections, f"removed since 0.6.2 but no Removed section: {removed}"
+    assert "Removed" in subsections, f"removed tools but no Removed section: {removed}"
     entries: dict[str, list[str]] = {}
     for bullet in _bullets(subsections["Removed"]):
         if match := REMOVED_TITLE.match(bullet):

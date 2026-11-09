@@ -169,6 +169,10 @@ SPEC_LIMITS: dict[str, dict[str, dict[str, Any]]] = {
         "offset": {"minimum": 0},
     },
     "list_hotspot_vouchers": {"limit": {"minimum": 0, "maximum": 1000}, "offset": {"minimum": 0}},
+    "list_integration_device_tags": {
+        "limit": {"minimum": 0, "maximum": 200},
+        "offset": {"minimum": 0},
+    },
     "list_lags": {"limit": {"minimum": 0, "maximum": 200}, "offset": {"minimum": 0}},
     "list_local_sites": {"limit": {"minimum": 0, "maximum": 200}, "offset": {"minimum": 0}},
     "list_mc_lag_domains": {"limit": {"minimum": 0, "maximum": 200}, "offset": {"minimum": 0}},

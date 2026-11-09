@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-exclude-source-relay-header",
+  "description": "X-UniFi-Exclude source:relay removes the generic relays for the request",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "headers": [
+      [
+        "X-UniFi-Exclude",
+        "source:relay"
+      ]
+    ],
+    "route": "fabric_connector_get",
+    "arguments": {
+      "host": "host-a1",
+      "path": "/proxy/network/integration/v1/sites"
+    }
+  },
+  "expected": {
+    "code": "tool_not_exposed",
+    "upstream_calls": 0
+  }
+}

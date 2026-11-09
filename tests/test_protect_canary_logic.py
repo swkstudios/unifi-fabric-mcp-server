@@ -40,10 +40,13 @@ async def test_canary_uses_host_key_and_rejects_unrelated_error():
 @pytest.mark.parametrize(
     "control, status, body, expected",
     [
-        (401, 400, "websocket not supported", "control"),
+        (401, 404, "Entity 'endpoint' not found", "control"),
         (200, 101, "", "accepted"),
+        (200, 404, '{"code":"not_found","message":"Entity \'endpoint\' not found"}', None),
+        (200, 404, "", "inconclusive"),
         (200, 400, "bad request", "inconclusive"),
-        (200, 400, "websocket not supported", None),
+        (200, 400, "websocket not supported", "inconclusive"),
+        (200, 501, "websocket unsupported", "inconclusive"),
     ],
 )
 async def test_canary_requires_control_and_explicit_rejection(control, status, body, expected):

@@ -4,7 +4,7 @@ Route choice: the official published API when it can do the job, else the newer 
 else the Classic API. Per tool:
 
 * ``authorize_guest`` / ``revoke_guest_access``: the official client actions
-  ``AUTHORIZE_GUEST_ACCESS`` / ``UNAUTHORIZE_GUEST_ACCESS`` (Network 10.6.106
+  ``AUTHORIZE_GUEST_ACCESS`` / ``UNAUTHORIZE_GUEST_ACCESS`` (Network 11.0.97
   ``executeConnectedClientAction``) for a CONNECTED client. The official action exists only
   for connected clients, so a MAC that is not connected (pre-authorizing a guest that has
   not joined yet, or revoking an offline one) uses Classic ``cmd/stamgr``
@@ -22,7 +22,7 @@ commands go through ``tools._classic_cmd.classic_command``, which requires
 ``meta.rc == "ok"``. Validation before any request uses only the server's registered
 refusals (MAC-or-id selectors, path-safe ids, integer epoch seconds, Classic command
 grammar, the empty-update guard and pydantic choice validation); every other value is the
-upstream's to judge. Under ``UNIFI_DRY_RUN`` every write returns the client's dry-run
+upstream's to judge. Under ``dry-run policy`` every write returns the client's dry-run
 preview and sends nothing.
 """
 
@@ -40,6 +40,7 @@ from ..client import (
     is_dry_run_preview,
     object_records,
     path_segment,
+    upstream_error_value,
     validate_id,
 )
 from ..macs import colon_mac as _colon_mac
@@ -138,9 +139,18 @@ async def _write_client_target(
         if len(ids) != 1 and mac is not None:
             return None, mac
         if len(ids) != 1:
-            raise ValueError(f"Ambiguous client; valid choices: {_describe_clients(matches)}")
+            raise ValueError(
+                f"Ambiguous client; valid choices: {_describe_clients(matches, client)}"
+            )
         native_id = next(iter(ids))
-        _assert_uuid(native_id)
+        try:
+            _assert_uuid(native_id)
+        except ValueError:
+            raise ValueError(
+                f"site_id {upstream_error_value(native_id, client)!r} is not a UUID — "
+                "proxy endpoints require UUID site IDs. "
+                "Pass the site name or UUID as returned by the console's /sites endpoint."
+            ) from None
         return native_id, mac or _record_mac(matches[0])
     if mac is not None:
         path = _classic_stat(host_id, site_slug, "/alluser")
@@ -152,7 +162,7 @@ async def _write_client_target(
             return None, mac
         rows += records
     raise ValueError(
-        f"Unknown client {ref!r}; valid choices: {_describe_clients(rows) or '(none)'}. "
+        f"Unknown client {ref!r}; valid choices: {_describe_clients(rows, client) or '(none)'}. "
         "No write was sent."
     )
 
@@ -742,6 +752,7 @@ async def update_dhcp_option(
             upstream_id,
             key=key,
             kind="Updated record",
+            read_after=True,
             list_tool="the collection list",
         )
     )
@@ -873,6 +884,7 @@ async def update_hotspot_package(
             upstream_id,
             key=key,
             kind="Updated record",
+            read_after=True,
             list_tool="the collection list",
         )
     )
@@ -963,7 +975,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         limits sent (or the site's guest defaults) until they expire or the guest is revoked.
 
         Route: a CONNECTED client uses the official client action AUTHORIZE_GUEST_ACCESS
-        (Network 10.6.106 POST /v1/sites/{siteId}/clients/{clientId}/actions); a MAC that
+        (Network 11.0.97 POST /v1/sites/{siteId}/clients/{clientId}/actions); a MAC that
         is not connected (pre-authorizing a guest before it joins) or a call with ap_mac
         uses Classic cmd/stamgr authorize-guest (minutes, bytes, down, up, ap_mac), because
         the official action needs a connected client and has no ap_mac. Limits map 1:1:
@@ -975,7 +987,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns the upstream body verbatim, with _route and _reason added to object
         responses. Bare arrays and scalars remain unchanged. Classic requires rc "ok".
-        Under UNIFI_DRY_RUN nothing is sent and the dry-run preview remains unchanged.
+        Under dry-run policy nothing is sent and the dry-run preview remains unchanged.
 
         Undo with revoke_guest_access.
 
@@ -1037,7 +1049,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty). Classic requires rc "ok".
 
-        Under UNIFI_DRY_RUN the tool returns {status: "dry_run", deleted: false, message, response},
+        Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
+        response},
         where response is {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
@@ -1235,9 +1248,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Request body: no published schema; the web app sends its icon generator's object
         {icon_id, icon_set_id, request_id, selected_index, assets: [{url, width, height}]} as
         the body; an empty body answers HTTP 400
-        "Validation failure". A MAC with no client record answers HTTP 404 api.err.ClientNotFound.
+        "Validation failure". A MAC that is neither a connected client nor a known client
+        (stat/alluser) is refused before any request, listing the valid clients; the upstream
+        answers HTTP 404 api.err.ClientNotFound only for a known MAC with no v2 client record.
 
-        Under UNIFI_DRY_RUN nothing is sent: the dry-run preview (method, path, params,
+        Under dry-run policy nothing is sent: the dry-run preview (method, path, params,
         body) is returned unchanged for a PUT; a DELETE (icon removal) returns {status: "dry_run",
         deleted: false, message, response} with the preview as response.
 
@@ -1284,7 +1299,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         dev_id_override in list_dhcp_leases or get_local_client. Route: v2 only (no official
         route).
 
-        Under UNIFI_DRY_RUN nothing is sent: a PUT returns the dry-run preview unchanged; a DELETE
+        Under dry-run policy nothing is sent: a PUT returns the dry-run preview unchanged; a DELETE
         (restore detection) returns {status: "dry_run", deleted: false, message, response}
         with the preview as response.
 
@@ -1326,7 +1341,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         device/{mac}/wifi_experience/incorrect (target_type ap) with {reason, comment}.
         The web app offers the reasons DROPPED_CONNECTIVITY, POOR_LATENCY and
         POOR_THROUGHPUT; reason is sent as given. Route: v2 only (no official route).
-        Returns the upstream body verbatim; under UNIFI_DRY_RUN the dry-run preview.
+        Returns the upstream body verbatim; under dry-run policy the dry-run preview.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}; nothing is sent.
@@ -1368,8 +1383,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
-            network_id: Optional network _id (list_networks / Classic networkconf _id) to
-                list that network's leases only, e.g. "65f1c0ffee0123456789abce".
+            network_id: Optional Classic networkconf _id to list that network's leases only,
+                e.g. "000000000000000000000108". It is sent untranslated in the v2 path, so
+                the Integration id from list_networks (data[].id) is not a substitute.
         """
         c, registry = deps_fn()
         return await list_dhcp_leases(c, registry, host, site, network_id)
@@ -1390,8 +1406,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
-            network_id: Optional network _id or Integration network id to scope the list,
-                e.g. "65f1c0ffee0123456789abce".
+            network_id: Optional Classic networkconf _id to scope the list, e.g.
+                "000000000000000000000108". It is sent untranslated in the v2 path, so the
+                Integration id from list_networks (data[].id) is not a substitute.
         """
         c, registry = deps_fn()
         return await list_dhcp_excluded_ips(c, registry, host, site, network_id)
@@ -1430,7 +1447,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         option by name. Route: Classic only.
 
         Returns the Classic envelope {meta: {rc}, data: [option]} verbatim; the new _id is
-        data[0]._id. Under UNIFI_DRY_RUN the dry-run preview is returned and nothing sent.
+        data[0]._id. Under dry-run policy the dry-run preview is returned and nothing sent.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}; nothing is sent.
@@ -1463,7 +1480,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         dropped. An empty update fails before any request. Route: Classic only.
 
         Returns the Classic envelope {meta: {rc}, data: [option]} verbatim. Under
-        UNIFI_DRY_RUN the dry-run preview is returned and nothing is sent.
+        dry-run policy the dry-run preview is returned and nothing is sent.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}; nothing is sent.
@@ -1474,13 +1491,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Example call (update_dhcp_option):
             {"host": "my-console", "site": "Default",
-             "option_id": "65f1c0ffee0123456789abcd", "fields": {"name": "tftp-backup"}}
+             "option_id": "000000000000000000000107", "fields": {"name": "tftp-backup"}}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             option_id: DHCP option _id from list_dhcp_options, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             fields: Free-form fields to change, e.g. {"name": "tftp-backup"}.
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -1502,18 +1519,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN the tool returns {status: "dry_run", deleted: false, message, response},
+        Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
+        response},
         where response is {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
         Example call (delete_dhcp_option):
-            {"host": "my-console", "site": "Default", "option_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "option_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             option_id: DHCP option _id from list_dhcp_options, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         c, registry = deps_fn()
@@ -1577,7 +1595,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Route: Classic only (community-documented route, served on Network 11.0.81). start
         / end are epoch SECONDS, sent as given; only the parameters you pass are sent.
-        Returns the Classic envelope {meta: {rc}, data: [authorization...]} verbatim.
+        Returns the Classic envelope {meta: {rc}, data: [authorization...]} verbatim,
+        plus _warnings when a time is negative or looks like milliseconds.
 
         Example call (list_hotspot_authorizations):
             {"host": "my-console", "site": "Default", "start": 1757000000, "end": 1760000000}
@@ -1607,7 +1626,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         payments enabled (get_hotspot_settings payment_enabled). Route: Classic only.
 
         Returns the Classic envelope {meta: {rc}, data: [package]} verbatim; the new _id is
-        data[0]._id (list them with list_hotspot_packages). Under UNIFI_DRY_RUN the
+        data[0]._id (list them with list_hotspot_packages). Under dry-run policy the
         dry-run preview is returned and nothing is sent.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
@@ -1642,7 +1661,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         request. Route: Classic only.
 
         Returns the Classic envelope {meta: {rc}, data: [package]} verbatim. Under
-        UNIFI_DRY_RUN the dry-run preview is returned and nothing is sent.
+        dry-run policy the dry-run preview is returned and nothing is sent.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}; nothing is sent.
@@ -1653,13 +1672,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Example call (update_hotspot_package):
             {"host": "my-console", "site": "Default",
-             "package_id": "65f1c0ffee0123456789abcd", "fields": {"amount": 6}}
+             "package_id": "000000000000000000000107", "fields": {"amount": 6}}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             package_id: Package _id from list_hotspot_packages, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             fields: Free-form fields to change, e.g. {"amount": 6}.
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -1681,18 +1700,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN the tool returns {status: "dry_run", deleted: false, message, response},
+        Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
+        response},
         where response is {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
         Example call (delete_hotspot_package):
-            {"host": "my-console", "site": "Default", "package_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "package_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             package_id: Package _id from list_hotspot_packages, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         c, registry = deps_fn()
@@ -1714,18 +1734,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN the tool returns {status: "dry_run", deleted: false, message, response},
+        Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
+        response},
         where response is {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
         Example call (delete_guest_portal_file):
-            {"host": "my-console", "site": "Default", "file_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "file_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             file_id: Portal file _id from the Classic rest/portalfile list, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         c, registry = deps_fn()
@@ -1743,7 +1764,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         get_hotspot_settings first if you may want to restore them. Request body: none
         published; the web app sends {} (sent when body is omitted). Route: v2 only.
 
-        Returns the upstream body verbatim; under UNIFI_DRY_RUN the dry-run preview.
+        Returns the upstream body verbatim; under dry-run policy the dry-run preview.
 
         Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}; nothing is sent.

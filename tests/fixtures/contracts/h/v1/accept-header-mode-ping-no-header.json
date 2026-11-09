@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-header-mode-ping-no-header",
+  "description": "Header-mode ping needs no key header and makes no upstream call",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "route": "ping"
+  },
+  "expected": {
+    "upstream_calls": 0
+  }
+}

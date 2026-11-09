@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/swkstudios/unifi-fabric-mcp-server/tests/fixtures/contracts/fixture.schema.json",
+  "title": "Header, policy and tightening contract fixture envelope, schema_version 1",
+  "description": "One header, policy or tightening contract fixture (tests/fixtures/contracts/<h|s|t>/v1/<name>.json). A new field, inner key, code or schema_version changes the contract. tests/test_contract_c0.py also checks name == file stem, contract == directory and unique names.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract",
+    "name",
+    "description",
+    "kind",
+    "input",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "kind": {
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
+    "contract": {
+      "enum": [
+        "h",
+        "s",
+        "t"
+      ]
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2,
+            "items": false
+          }
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "route": {
+          "type": "string",
+          "minLength": 1,
+          "description": "initialize, ping, tools/list or a public tool name"
+        },
+        "transport": {
+          "enum": [
+            "http",
+            "stdio"
+          ],
+          "default": "http"
+        },
+        "upstream": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "consoles"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "ok",
+                  "list_failed",
+                  "page_cap"
+                ]
+              },
+              "consoles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "accept"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "effective_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "write_policy",
+                "write_exceptions",
+                "exposed_families",
+                "exclusions"
+              ],
+              "properties": {
+                "write_policy": {
+                  "enum": [
+                    "allow",
+                    "dry-run",
+                    "deny"
+                  ]
+                },
+                "write_exceptions": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "enum": [
+                          "deny",
+                          "dry-run"
+                        ]
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": false
+                  }
+                },
+                "exposed_families": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "not": {
+                      "const": "meta"
+                    }
+                  },
+                  "uniqueItems": true
+                },
+                "exclusions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "ignored_loosening": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "selected_labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "listed_tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "upstream_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "upstream_mutations": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "reject"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "upstream_calls"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^(invalid_api_key_header|invalid_policy_header|missing_api_key_header|key_label_not_allowed|tool_not_exposed|write_denied|code_mode_invalid_source|code_mode_busy|credential_cache_saturated|startup:[A-Z_]+|startup:retired:[A-Z_]+|startup:catalog:(invalid_spec|unclassified_source|annotation_mismatch|unbumped_version|missing_fixture|duplicate_key|duplicate_emitted_name|missing_handler|invalid_signature))$"
+            },
+            "upstream_calls": {
+              "const": 0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

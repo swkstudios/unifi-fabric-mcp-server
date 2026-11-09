@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -15,6 +16,7 @@ from unifi_fabric.tools.placement_snapshot import (
     DEVICE_TYPES,
     FRESHNESS_TTL_SECONDS,
     PLACEMENT_SNAPSHOT_CAPABILITY_SCHEMA_VERSION,
+    REDACTION_REASONS,
     SCHEMA_VERSION,
     _capability_outcome,
     _derive_device_type,
@@ -422,7 +424,9 @@ class TestBuildSnapshot:
             "aa:bb:cc:00:00:02",
             "aa:bb:cc:00:00:03",
         ]
-        # the same ids with redaction on: source_id does not depend on the setting
+        # With redaction on, the unkeyed MAC-derived id would let anyone recover the
+        # withheld MAC by hashing the candidates of one OUI (2^24), so the MAC-only
+        # records are left out and counted rather than emitted under that id.
         redacted = build_snapshot(
             project_result=payloads["project"],
             cameras_result=payloads["cameras"],
@@ -431,8 +435,19 @@ class TestBuildSnapshot:
             generated_at=datetime(2026, 8, 20, 15, 0, tzinfo=UTC),
             redact_secrets=True,
         )
-        assert [n["source_id"] for n in redacted["topology"]] == source_ids
+        redacted_ids = [n["source_id"] for n in redacted["topology"]]
+        assert redacted_ids == [sid for sid in source_ids if not sid.startswith("smdev-")]
+        assert redacted["_withheld"]["topology.record"] == {"hardware_address": 3}
+        assert "topology.record" in redacted["_withheld_how_to_obtain"]
+        assert "topology.record" not in redacted.get("_unprojected", {})
         assert "aa:bb:cc" not in repr(redacted).casefold()
+        # No emitted string is a MAC-derived digest of any upstream MAC, under any kind.
+        kinds = ("protect_camera", "protect_sensor", "network_device")
+        redacted_text = repr(redacted).casefold()
+        for mac in [f"aa:bb:cc:00:00:0{i}" for i in range(1, 6)]:
+            for kind in kinds:
+                digest = hashlib.sha256(f"{kind}\x00{mac}".encode()).hexdigest()
+                assert digest[:24] not in redacted_text
         serialized = repr(result).casefold()
         assert "console-uuid" not in serialized
 
@@ -502,6 +517,106 @@ class TestBuildSnapshot:
         "private-key-marker",
     )
 
+    def test_mac_only_relisting_of_protect_hardware_is_not_counted_as_withheld(self):
+        """A Site Manager MAC-only re-listing of Protect hardware is a duplicate in either
+        mode, so under redaction it is dropped uncounted: only the real MAC-only switch is
+        a withheld topology.record (unsetting UNIFI_REDACT_SECRETS returns exactly it)."""
+        payloads = _source_payloads()
+        cameras = {
+            "result": [{"id": "cam-1", "name": "Cam", "type": "UVC G4", "mac": "aa:bb:cc:00:00:10"}]
+        }
+        devices = {
+            "data": [
+                {"name": "Cam (Site Manager)", "model": "UVC G4", "mac": "AA:BB:CC:00:00:10"},
+                {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:00:11"},
+            ]
+        }
+
+        def build(redact):
+            return build_snapshot(
+                project_result=payloads["project"],
+                cameras_result=cameras,
+                sensors_result={"result": []},
+                devices_result=devices,
+                redact_secrets=redact,
+            )
+
+        plain, redacted = build(False), build(True)
+        plain_ids = [n["source_id"] for n in plain["topology"]]
+        assert len(plain_ids) == 2
+        assert plain_ids[0] == "cam-1"
+        assert plain_ids[1].startswith("smdev-")
+        assert [n["source_id"] for n in redacted["topology"]] == ["cam-1"]
+        # the camera's own MAC, plus the one MAC-only record the redacted snapshot lacks
+        assert redacted["_withheld"]["topology.record"] == {"hardware_address": 1}
+        assert redacted["_withheld"]["topology.mac"] == {"hardware_address": 1}
+        assert len(plain_ids) - len(redacted["topology"]) == 1
+        assert "topology.record" not in redacted.get("_unprojected", {})
+
+    def test_repeated_mac_only_listing_is_one_withheld_record(self):
+        """Site Manager listing one MAC-only device twice (in two host wrappers) gives one
+        record with redaction off, so under redaction it is one withheld topology.record,
+        not two. The same holds for a Protect MAC re-listed twice, which makes the
+        unique-MAC match fail and leaves only the id-based dedup."""
+        payloads = _source_payloads()
+        cameras = {
+            "result": [{"id": "cam-1", "name": "Cam", "type": "UVC G4", "mac": "aa:bb:cc:00:00:20"}]
+        }
+        devices = {
+            "data": [
+                {
+                    "hostId": "host-a",
+                    "devices": [
+                        {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:00:21"},
+                        {"name": "Cam (SM)", "model": "UVC G4", "mac": "aa:bb:cc:00:00:20"},
+                    ],
+                },
+                {
+                    "hostId": "host-b",
+                    "devices": [
+                        {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:00:21"},
+                        {"name": "Cam (SM)", "model": "UVC G4", "mac": "aa:bb:cc:00:00:20"},
+                    ],
+                },
+            ]
+        }
+
+        def build(redact):
+            return build_snapshot(
+                project_result=payloads["project"],
+                cameras_result=cameras,
+                sensors_result={"result": []},
+                devices_result=devices,
+                redact_secrets=redact,
+            )
+
+        plain, redacted = build(False), build(True)
+        plain_ids = [n["source_id"] for n in plain["topology"]]
+        # cam-1, the switch once, and the Site Manager camera listing once (its MAC
+        # appears twice in Site Manager, so it is not matched to the Protect camera)
+        assert plain_ids[0] == "cam-1"
+        assert len(plain_ids) == 3
+        assert all(sid.startswith("smdev-") for sid in plain_ids[1:])
+        assert len(set(plain_ids)) == 3
+        assert [n["source_id"] for n in redacted["topology"]] == ["cam-1"]
+        assert redacted["_withheld"]["topology.record"] == {"hardware_address": 2}
+        assert len(plain_ids) - len(redacted["topology"]) == 2
+        assert "topology.record" not in redacted.get("_unprojected", {})
+
+        # the minimal case from review: one MAC-only device listed twice, nothing else
+        devices = {
+            "data": [
+                {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:00:21"},
+                {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:00:21"},
+            ]
+        }
+        cameras = {"result": []}
+        plain, redacted = build(False), build(True)
+        assert len(plain["topology"]) == 1
+        assert plain["topology"][0]["source_id"].startswith("smdev-")
+        assert redacted["topology"] == []
+        assert redacted["_withheld"]["topology.record"] == {"hardware_address": 1}
+
     def test_sensitive_looking_values_are_verbatim_by_default(self):
         """Withholding is opt-in (UNIFI_REDACT_SECRETS); the default is verbatim."""
         payloads = self._adversarial_payloads()
@@ -561,7 +676,13 @@ class TestBuildSnapshot:
         assert withheld["placed_devices.display_name"] == {"credential_marker": 1}
         assert withheld["placed_devices.product_id"] == {"url": 1}
         assert withheld["placed_devices.mount"] == {"network_address": 1}
-        assert withheld["topology.display_name"]["credential_marker"] == 3
+        # The camera (id is an IP) and the Site Manager device (id is a bare MAC) carry a
+        # MAC and no other usable id, so each is withheld whole under topology.record (its
+        # MAC-derived id would reveal the MAC); only the sensor's own fields are counted.
+        assert withheld["topology.record"] == {"hardware_address": 2}
+        assert withheld["topology.source_id"] == {"credential_marker": 1}
+        assert withheld["topology.display_name"] == {"credential_marker": 1}
+        assert withheld["topology.model"] == {"credential_marker": 1}
         assert "access_token_marker" not in json.dumps(withheld)
         assert "192.0.2.91" not in json.dumps(withheld)
         how = result["_withheld_how_to_obtain"]
@@ -911,7 +1032,7 @@ class TestDeviceTypeAndIcon:
         resolve from ``type`` and the camera must gain an ``icon``, not just a
         ``device_type``."""
         payloads = _source_payloads()
-        # Mirror the live raw Protect camera object: model under ``type``, no ``model``.
+        # Match the live raw Protect camera object: model under ``type``, no ``model``.
         payloads["cameras"]["result"] = [
             {
                 "id": "protect-cam-live",
@@ -1011,3 +1132,125 @@ def test_capability_body_text_preserves_non_connection_error_outcome(message):
         "outcome": "error",
         "error": f"ValueError: {message}",
     }
+
+
+# Every duplicate path of ``_topology_inventory``. For each case: the redaction-on topology
+# plus its ``topology.record`` counts (the records left out whole) accounts for exactly the
+# records the redaction-off topology has, and the full redaction-on ``_withheld`` is pinned,
+# so a dropped duplicate's field counts can neither leak in nor go missing.
+_CAM = {"id": "cam-1", "name": "Cam", "type": "UVC G4", "mac": "aa:bb:cc:00:01:01"}
+_SWITCH = {"name": "Switch", "model": "USW Pro 24", "mac": "aa:bb:cc:00:01:21"}
+_TOPOLOGY_DUPLICATE_CASES = {
+    "seen_plain_id": (
+        [_CAM],
+        {"data": [{"id": "cam-1", "name": "Cam (SM)", "mac": "aa:bb:cc:00:01:99"}]},
+        1,
+        {"topology.mac": {"hardware_address": 1}},
+    ),
+    "unique_mac_protect_match": (
+        [_CAM],
+        {"data": [{"id": "dev-9", "name": "Cam (SM)", "mac": "AA:BB:CC:00:01:01"}]},
+        1,
+        {"topology.mac": {"hardware_address": 1}},
+    ),
+    # present with redaction off; its deviceId fallback collides with an emitted id
+    "emitted_id_only_collision": (
+        [_CAM],
+        {"data": [{"id": "192.0.2.5", "deviceId": "cam-1", "mac": "aa:bb:cc:00:01:02"}]},
+        2,
+        {"topology.mac": {"hardware_address": 1}, "topology.record": {"network_address": 1}},
+    ),
+    # its own id is kept, but another record's fallback took it under redaction: counted
+    # with the reason that record's id is withheld
+    "kept_id_taken_by_fallback": (
+        [],
+        {
+            "data": [
+                {"id": "192.0.2.6", "deviceId": "dev-7", "name": "A"},
+                {"id": "dev-7", "name": "B"},
+            ]
+        },
+        2,
+        {
+            "topology.source_id": {"network_address": 1},
+            "topology.record": {"network_address": 1},
+        },
+    ),
+    # a later listing of a collision-dropped record is the same record in both modes
+    "collision_dropped_then_relisted": (
+        [_CAM],
+        {
+            "data": [
+                {"id": "192.0.2.5", "deviceId": "cam-1", "name": "X"},
+                {"id": "192.0.2.5", "deviceId": "cam-1", "name": "X"},
+            ]
+        },
+        2,
+        {"topology.mac": {"hardware_address": 1}, "topology.record": {"network_address": 1}},
+    ),
+    "withheld_id_without_fallback": (
+        [],
+        {"data": [{"id": "192.0.2.8", "name": "No fallback"}]},
+        1,
+        {"topology.record": {"network_address": 1}},
+    ),
+    "mac_only_twice_in_one_list": (
+        [],
+        {"data": [dict(_SWITCH), dict(_SWITCH)]},
+        1,
+        {"topology.record": {"hardware_address": 1}},
+    ),
+    "mac_only_across_two_host_wrappers": (
+        [],
+        {
+            "data": [
+                {"hostId": "host-a", "devices": [dict(_SWITCH)]},
+                {"hostId": "host-b", "devices": [dict(_SWITCH)]},
+            ]
+        },
+        1,
+        {"topology.record": {"hardware_address": 1}},
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("cameras", "devices", "plain_count", "withheld"),
+    list(_TOPOLOGY_DUPLICATE_CASES.values()),
+    ids=list(_TOPOLOGY_DUPLICATE_CASES),
+)
+def test_topology_duplicates_are_accounted_for_under_redaction(
+    cameras, devices, plain_count, withheld
+):
+    def build(redact):
+        return build_snapshot(
+            project_result={"project": {}},
+            cameras_result={"result": cameras},
+            sensors_result={"result": []},
+            devices_result=devices,
+            redact_secrets=redact,
+        )
+
+    def record_counts(snapshot, key):
+        return sum(snapshot.get(key, {}).get("topology.record", {}).values())
+
+    plain, redacted = build(False), build(True)
+    assert len(plain["topology"]) == plain_count
+    # records(redaction on) + records left out whole == records(redaction off); a record
+    # unprojected in both modes (no source id at all) is on both sides
+    assert len(redacted["topology"]) + record_counts(redacted, "_withheld") + record_counts(
+        redacted, "_unprojected"
+    ) == len(plain["topology"]) + record_counts(plain, "_unprojected")
+    assert redacted.get("_withheld", {}) == withheld
+    for reasons in redacted.get("_withheld", {}).values():
+        assert set(reasons) <= REDACTION_REASONS
+    assert set(redacted.get("_withheld_how_to_obtain", {})) == set(withheld)
+    assert redacted.get("_unprojected", {}) == plain.get("_unprojected", {})
+    # schema v1: source_id is present and unique in both modes
+    for snapshot in (plain, redacted):
+        ids = [node["source_id"] for node in snapshot["topology"]]
+        assert all(isinstance(i, str) for i in ids)
+        assert len(ids) == len(set(ids))
+    # every redaction-on record is one of the redaction-off records (same kind and name)
+    plain_nodes = {(n["kind"], n.get("display_name")) for n in plain["topology"]}
+    assert {(n["kind"], n.get("display_name")) for n in redacted["topology"]} <= plain_nodes

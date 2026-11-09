@@ -3,7 +3,7 @@
 Route choice (official published API > private v2 API > Classic API), recorded per tool in
 :data:`ROUTE_CHOICES`:
 
-* The official Network Integration API (pinned 10.6.106) has no LTE, SIM, eSIM, WAN SLA,
+* The official Network Integration API (pinned 11.0.97) has no LTE, SIM, eSIM, WAN SLA,
   load-balancing, WAN insight, enriched-configuration or route-table operation; its only
   WAN route, ``GET /v1/sites/{siteId}/wans``, lists WAN ids and names (``list_wan_interfaces``).
   Site Manager ``isp-metrics`` reports per-site ISP latency and loss, not per-WAN-group
@@ -28,7 +28,7 @@ results and dry-run previews carry them verbatim unless the operator sets
 
 Every response body is passed through verbatim (server pass-through invariant); results
 add only ``_``-prefixed keys. Every argument is checked before the first request
-(resolution reads included). Under ``UNIFI_DRY_RUN`` every write returns the client's
+(resolution reads included). Under ``dry-run policy`` every write returns the client's
 dry-run preview ``{status, dryRun, sent: false, message, preview}`` and sends nothing.
 """
 
@@ -49,6 +49,7 @@ from ..client import (
     object_records,
     path_segment,
     strip_additive_keys,
+    upstream_error_value,
     validate_selector,
 )
 from ..config import APIKeyConfig
@@ -280,7 +281,9 @@ async def _device_macs(
     for mac in macs:
         if record_mac(mac) not in known:
             choices = "; ".join(
-                f"{r.get('name')!r} ({r.get('mac')}, {r.get('model')})" for r in rows
+                f"{upstream_error_value(r.get('name'))!r} ({upstream_error_value(r.get('mac'))}, "
+                f"{upstream_error_value(r.get('model'))})"
+                for r in rows
             )
             raise ValueError(
                 f"Device MAC {mac!r} not found on this site; valid: {choices or '(none)'}. "
@@ -663,7 +666,11 @@ async def _find_sla(
     records = _sla_records(await client.get(path, key=key), path)
     record = find_by_id(records, sla_id, "_id", "id")
     if record is None:
-        valid = "; ".join(f"{r.get('name')!r} (_id={r.get('_id', r.get('id'))})" for r in records)
+        valid = "; ".join(
+            f"{upstream_error_value(r.get('name'))!r} "
+            f"(_id={upstream_error_value(r.get('_id', r.get('id')))})"
+            for r in records
+        )
         raise ValueError(
             f"WAN SLA {sla_id!r} not found; valid: {valid or '(none)'}. Pass an _id from "
             "list_wan_slas. No write was sent."
@@ -775,7 +782,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Classic envelope {meta, data} verbatim; success requires meta.rc "ok". Consequence:
         none; it changes nothing, but it is a POST, so read-only mode refuses it. The
         password and token are credentials: masked in errors and results only under
-        UNIFI_REDACT_SECRETS. With UNIFI_DRY_RUN returns a dry-run preview
+        UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -811,7 +818,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         activate-trial. The Network 11.0.81 web app builds the rest of this body
         dynamically, so params is free-form and sent as given beside cmd (none by
         default); the controller reports a missing or unknown key. Returns the Classic
-        envelope {meta, data} verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN
+        envelope {meta, data} verbatim; success requires meta.rc "ok". With dry-run policy
         returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}} and sends nothing.
 
@@ -845,7 +852,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         ubic_password) and ubic_2fa_token; only the arguments you pass are sent. Returns
         the Classic envelope {meta, data} verbatim; success requires meta.rc "ok". The
         password and token are credentials: masked in errors and results only under
-        UNIFI_REDACT_SECRETS. With UNIFI_DRY_RUN returns a dry-run preview
+        UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -885,7 +892,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         profile is free-form and sent as given (a mac key inside it fails before any request: the
         device is the mac argument). APN credentials in it are masked in errors and results
         only under UNIFI_REDACT_SECRETS. Returns the Classic envelope {meta, data} verbatim;
-        success requires meta.rc "ok". With UNIFI_DRY_RUN returns a dry-run preview {status:
+        success requires meta.rc "ok". With dry-run policy returns a dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
 
@@ -922,7 +929,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         request). mac, when given, must be a device of the site (from list_devices). Returns
         the Classic envelope {meta, data} verbatim; success requires meta.rc "ok". The PIN
         is a credential: masked in errors and results only under
-        UNIFI_REDACT_SECRETS. With UNIFI_DRY_RUN returns a dry-run preview
+        UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -953,7 +960,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         update-device. The Network 11.0.81 web app builds this body dynamically, so params
         is free-form and sent as given beside cmd; the controller reports a missing or
         unknown key. Returns the Classic envelope {meta, data} verbatim; success requires
-        meta.rc "ok". With UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run",
+        meta.rc "ok". With dry-run policy returns a dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
         Consequence: the device applies the new cellular settings and may reconnect.
@@ -979,7 +986,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         free-form and sent as given beside cmd. eSIM activation codes in it are masked in
         errors and results only under UNIFI_REDACT_SECRETS. Returns the
         Classic envelope {meta, data} verbatim; success requires meta.rc "ok". With
-        UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
+        dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
         preview: {method, path, params, body}} and sends nothing.
 
         Consequence: delete erases the eSIM profile from the device; a carrier profile
@@ -1006,7 +1013,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body dynamically, so params is free-form and sent as given beside cmd. Returns the
         Classic envelope {meta, data} verbatim; success requires meta.rc "ok". Consequence:
         none intended; the command reads the SIM and switches no slot, but it is a POST, so
-        read-only mode refuses it. With UNIFI_DRY_RUN returns a dry-run preview
+        read-only mode refuses it. With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -1028,7 +1035,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host and site. Sends Classic POST api/s/{site}/cmd/mbb with cmd
         reset-usage. The Network 11.0.81 web app builds the rest of the body dynamically,
         so params is free-form and sent as given beside cmd. Returns the Classic envelope
-        {meta, data} verbatim; success requires meta.rc "ok". With UNIFI_DRY_RUN returns a
+        {meta, data} verbatim; success requires meta.rc "ok". With dry-run policy returns a
         dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}} and sends nothing.
 
@@ -1053,7 +1060,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         /v2/api/site/{site}/lan/enable-lte-failover with body as given: the Network
         11.0.81 web app builds it dynamically, so it is free-form and the controller
         reports a missing or unknown key. Returns the upstream body verbatim (an object,
-        or an array body as result). With UNIFI_DRY_RUN returns a dry-run preview
+        or an array body as result). With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -1105,7 +1112,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response) plus _verified (true, false, or null when the read-back failed),
         _unverifiedFields when false, _readAfterError and _redactedFieldsNotSent (with
         UNIFI_REDACT_SECRETS on, the fields that held the redaction mask, left out of the PUT).
-        An empty configuration is refused before any request. With UNIFI_DRY_RUN returns a
+        An empty configuration is refused before any request. With dry-run policy returns a
         dry-run preview {status: "dry_run", dryRun, sent:
         false, message, preview: {method, path, params, body}} and sends nothing.
 
@@ -1162,7 +1169,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             site: Network site name or id from list_local_sites; for example "Default".
             wan_group: WAN network group; for example "WAN".
             view: overview, history or speed_tests; for example "speed_tests".
-            period: History period sent as period; for example "DAY".
+            period: History period: HOUR, DAY, WEEK or MONTH; for example "DAY".
         """
         client, registry = deps_fn()
         return await _impl_insights(
@@ -1193,7 +1200,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and sla. Sends POST /v2/api/site/{site}/wan-slas with sla as
         given: the Network 11.0.81 web app builds this body dynamically, so it is
         free-form; copy the shape of a list_wan_slas record. Returns the upstream body
-        verbatim (an object, or an array body as result). With UNIFI_DRY_RUN returns a
+        verbatim (an object, or an array body as result). With dry-run policy returns a
         dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}} and sends nothing.
 
@@ -1220,7 +1227,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the read-back failed), _unverifiedFields when false, _readAfterError and
         _redactedFieldsNotSent (with UNIFI_REDACT_SECRETS on, the fields that held the
         redaction mask, left out of the PUT). An empty changes
-        object is refused before any request. With UNIFI_DRY_RUN returns a dry-run preview
+        object is refused before any request. With dry-run policy returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -1241,7 +1248,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and sla_id (an _id from list_wan_slas). The list is read
         first, so an unknown id fails listing the SLAs and sends no DELETE. Sends
         DELETE /v2/api/site/{site}/wan-slas/{_id}. Returns {deleted, message, response}
-        with the upstream body verbatim under response. With UNIFI_DRY_RUN returns
+        with the upstream body verbatim under response. With dry-run policy returns
         {status: "dry_run", deleted: false, message, response}, where response is the dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}, and sends nothing.

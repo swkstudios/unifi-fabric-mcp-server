@@ -80,14 +80,25 @@ OBJECT_DEFAULT: dict[str, Any] = {"name": "probe-renamed"}
 # Per-tool overrides (merged over the generated arguments).
 _SITE_SCOPED = {"host": HOST, "site": SITE}
 OVERRIDES: dict[str, dict[str, Any]] = {
+    # The private active-client route has no empty-query recording. Its documented
+    # Matter/Thread flag selects the committed capture used by every catalog-wide sweep.
+    "list_active_clients": {"include_matter_thread_clients": True},
+    "create_firewall_rule": {"rule": {"name": "probe-firewall-rule", "action": "accept"}},
     "get_poe_info": {"params": {"mac": ARG_MAC}},
     # Private Protect routes use native 24hex object ids, unlike Integration UUIDs.
     "get_camera_private": {"camera_id": ARG_HEX},
-    "update_camera_private": {"camera_id": ARG_HEX},
+    "update_camera_private": {
+        "camera_id": ARG_HEX,
+        "settings": {"isMicEnabled": True},
+    },
     "list_ptz_presets": {"camera_id": ARG_HEX},
     "list_ptz_patrols": {"camera_id": ARG_HEX},
     "get_sensor_private": {"sensor_id": ARG_HEX},
-    "update_sensor_private": {"sensor_id": ARG_HEX},
+    "update_sensor_private": {
+        "sensor_id": ARG_HEX,
+        "settings": {"mountType": "door"},
+    },
+    "update_nvr": {"settings": {"isInsightsEnabled": True}},
     "clear_sensor_tamper": {"sensor_id": ARG_HEX},
     "export_camera_video": {"camera_id": ARG_HEX},
     "reboot_protect_device": {"device_type": "camera", "device_id": ARG_HEX},
@@ -395,10 +406,21 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Environment a tool needs to be served at all (documented capability flags).
-TOOL_ENV: dict[str, dict[str, str]] = {
-    "get_unifi_placement_snapshot": {"UNIFI_ENABLE_CONNECTOR_WRITE": "0"},
-}
+
+def optout_env(*tokens: str) -> dict[str, str]:
+    """The environment that opts areas out: the ``UNIFI_WRITE_EXCEPTIONS`` entries.
+
+    A token is ``family:<area>=deny`` (see ``switches.deny_token``); several share one
+    semicolon-separated list, as the policy grammar requires.
+    """
+    return {"UNIFI_WRITE_EXCEPTIONS": ";".join(tokens)}
+
+
+# Environment a tool cannot be served without (documented capability flags). Every
+# TOOL_ENV-driven sweep runs a listed tool under this environment only, so an entry
+# hides the shipped default from them; tests/test_tool_env.py fails an entry the tool
+# does not need. Every tool is currently served in the default environment.
+TOOL_ENV: dict[str, dict[str, str]] = {}
 
 
 # Per-family selectors come from captures, never from an appended universal object.
@@ -654,7 +676,7 @@ def _recorded_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
                 ):
                     out[parameter] = selector
 
-    def first_record(fixture: str) -> dict[str, Any]:
+    def first_record(fixture: str, *, switch: bool = False) -> dict[str, Any]:
         capture = next(
             (
                 e
@@ -666,7 +688,12 @@ def _recorded_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if capture is None:
             return {}
         return next(
-            (row for row in uh.upstream_records(capture.get("body")) if isinstance(row, dict)), {}
+            (
+                row
+                for row in uh.upstream_records(capture.get("body"))
+                if isinstance(row, dict) and (not switch or row.get("type") in {"usw", "udm"})
+            ),
+            {},
         )
 
     if name == "get_client_link_diagnostics":
@@ -674,7 +701,7 @@ def _recorded_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if row.get("mac"):
             out["client_id"] = row["mac"]
     if name in {"get_device_port_state", "get_device_stp_state", "get_device_link_diagnostics"}:
-        row = first_record("network_api_s_SITE_stat_device")
+        row = first_record("network_api_s_SITE_stat_device", switch=True)
         if row.get("mac"):
             out["device_id"] = row["mac"]
     if name in {"get_vpn_server", "update_vpn_server", "delete_vpn_server"}:

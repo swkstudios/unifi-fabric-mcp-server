@@ -1,6 +1,8 @@
-"""API-source classification of every tool (app / source / access) and its disable switch.
+"""API-source metadata and source selectors for UNIFI_EXCLUDE.
 
-Every tool is classified on three levels, written as one id ``<app>/<source>/<access>``:
+Each tool carries an internal metadata ID ``<app>/<source>/<access>``. Exclusion
+configuration uses ``source:<app>`` or ``source:<app>/<source>``; the access
+component is metadata, not accepted exclusion syntax. The components are:
 
 * **app** - the product surface: ``network``, ``protect``, ``innerspace``,
   ``site_manager``, ``mobility``, ``carrier_fabric``, ``console`` (any other console
@@ -17,8 +19,10 @@ Every tool is classified on three levels, written as one id ``<app>/<source>/<ac
   - ``protect``: ``official`` (``/proxy/protect/integration``), ``private``
     (``/proxy/protect/api`` and every other non-integration Protect route);
   - ``innerspace``: ``official`` (``/proxy/innerspace/integration``), ``private``;
-  - ``site_manager``, ``mobility``, ``carrier_fabric``: ``official`` (``api.ui.com``
-    ``/v1/...``; Mobility under ``/v1/mobility``, Carrier Fabric under ``/v1/carrier``);
+  - ``site_manager``: ``official`` for published ``api.ui.com/v1/...`` routes and
+    ``private`` for the unpublished Early Access ``api.ui.com/ea/...`` surface;
+  - ``mobility``, ``carrier_fabric``: ``official`` (Mobility under ``/v1/mobility``,
+    Carrier Fabric under ``/v1/carrier``);
   - ``console``: ``private``; ``relay``: ``generic``; ``server``: ``local``.
 
 * **access** - ``read`` or ``write``, taken from the tool's ``readOnlyHint`` annotation,
@@ -40,26 +44,21 @@ A tool's single class (:func:`primary_pair`) is the most private pair it touches
 prefers the tool's own app over ``site_manager`` (console-id resolution through Site
 Manager is shared infrastructure, not the tool's surface).
 
-``UNIFI_DISABLE_API_SOURCES`` (opt-in; default unset, every source enabled) is a
-comma-separated list of selectors at any level: ``network`` (a whole app),
-``network/private`` (an app's private group), ``network/private.classic`` (one
-sub-surface), ``network/private/write``, ``protect/write`` (all Protect writes),
-``*/write`` (every write tool), ``*/private`` (every private surface). A tool is not
-registered when its class matches a selector, or when any PRIVATE pair or explicitly
-tracked substantive official dependency matches (with the tool's access); an official pair
-touched only for shared resolution never disables a tool. ``UNIFI_READ_ONLY`` is independent
-and unchanged. The grouping lets a deployment switch off private APIs (or writes, or a whole
-app); the default is unchanged (everything enabled).
+``UNIFI_EXCLUDE`` (opt-in; default unset) accepts comma-separated selectors:
+``family:<id>``, ``tool:<name>``, ``source:<selector>`` and ``unofficial``.
+Source selectors identify an app or app/source pair, for example ``source:network``
+or ``source:network/private``; access-level selectors are not accepted. A matching
+private pair or tracked substantive official dependency can also exclude a tool.
+Use ``UNIFI_WRITE_POLICY`` or ``UNIFI_WRITE_EXCEPTIONS`` to control writes.
+The helper filter functions in this module are test oracles; production uses policy.is_exposed.
 
 The generic ``fabric_connector_*`` relay tools are ``relay/generic``. They can reach
-any route, including private APIs, and are not disabled by ``*/private``. Disable the
-relay tools explicitly with ``relay`` or ``*/generic`` when private-route reach through
-the generic relay must also be excluded; API-source selection does not filter relay
-paths or change the default. ``fabric_connector_get`` is ``relay/generic/read``, so
-``*/read`` and ``relay/read`` also remove it, and ``*/write`` keeps it. A write selector
-(``*/write``, ``protect/write``) therefore leaves the Protect camera ``enable-control`` and
-``disable-control`` GET routes reachable through ``fabric_connector_get``; to block them,
-use ``UNIFI_READ_ONLY``, ``UNIFI_ENABLE_CONNECTOR_WRITE=0`` or the ``relay`` selector.
+any route, including private APIs, and are not removed by ``unofficial`` or private
+source selectors. To exclude relay access too, use ``source:relay`` or
+``source:relay/generic``. ``fabric_connector_get`` is selected as a read tool even
+though its state-changing GET routes require write permission; use
+``UNIFI_WRITE_POLICY=deny`` or ``UNIFI_WRITE_EXCEPTIONS=family:connector=deny``
+to refuse those routes.
 """
 
 from __future__ import annotations
@@ -76,7 +75,7 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 #: The opt-in environment variable naming selectors to disable.
-DISABLE_ENV = "UNIFI_DISABLE_API_SOURCES"
+DISABLE_ENV = "UNIFI_EXCLUDE"
 
 OFFICIAL = "official"
 PRIVATE = "private"
@@ -90,7 +89,7 @@ APP_SOURCES: Mapping[str, tuple[str, ...]] = {
     "network": (OFFICIAL, "private.v2", "private.classic", "private.other"),
     "protect": (OFFICIAL, PRIVATE),
     "innerspace": (OFFICIAL, PRIVATE),
-    "site_manager": (OFFICIAL,),
+    "site_manager": (OFFICIAL, PRIVATE),
     "mobility": (OFFICIAL,),
     "carrier_fabric": (OFFICIAL,),
     "console": (PRIVATE,),
@@ -135,6 +134,8 @@ def route_source(path: str) -> str:
     bare = path.split("?", 1)[0]
     match = _CONSOLE_RE.match(bare)
     if match is None:
+        if bare == "/ea" or bare.startswith("/ea/"):
+            return "site_manager/private"
         if bare == "/v1/mobility" or bare.startswith("/v1/mobility/"):
             return "mobility/official"
         if bare == "/v1/carrier" or bare.startswith("/v1/carrier/"):
@@ -191,7 +192,7 @@ def class_id(pairs: Iterable[str], access: str) -> str:
 
 @dataclass(frozen=True)
 class Selector:
-    """One ``UNIFI_DISABLE_API_SOURCES`` entry: app (or ``*``), optional source, optional access."""
+    """One ``UNIFI_EXCLUDE`` entry: app (or ``*``), optional source, optional access."""
 
     app: str
     source: str | None = None
@@ -252,7 +253,7 @@ def _parse_selector(text: str) -> Selector | None:
 
 
 def disabled_sources_problem(value: str | None) -> str | None:
-    """Why a ``UNIFI_DISABLE_API_SOURCES`` value is invalid, or None.
+    """Why a ``UNIFI_EXCLUDE`` value is invalid, or None.
 
     Entries are counted by position (from 0); their text is never shown, because a value
     set in the wrong variable may be a credential.
@@ -289,7 +290,7 @@ def disabled_sources_problem(value: str | None) -> str | None:
 
 
 def parse_disabled_sources(value: str | None) -> tuple[Selector, ...]:
-    """The selectors in ``UNIFI_DISABLE_API_SOURCES`` (empty/whitespace means none).
+    """The selectors in ``UNIFI_EXCLUDE`` (empty/whitespace means none).
 
     Raises ``ValueError`` (never echoing the value) on an unknown or repeated selector,
     listing the valid selectors.
@@ -322,7 +323,8 @@ def is_disabled(
     tool that calls a disabled private surface is disabled). Official pairs touched for
     shared identity resolution do not count; explicitly tracked substantive dependencies do.
     The mixed GET relay is selected as a read. Action GETs through that relay are refused
-    per call, and only by ``UNIFI_READ_ONLY`` or the area opt-outs, not by a source selector.
+    per call, and only by ``UNIFI_WRITE_POLICY=deny`` or the area opt-outs, not by a source
+    selector.
     """
     if tool_name in SELECTED_AS_READ:
         access = READ
@@ -416,7 +418,7 @@ def install_api_sources(mcp: Any) -> int:
 
 
 async def apply_api_source_filter(mcp: FastMCP, value: str | None) -> list[str]:
-    """De-register every tool covered by ``UNIFI_DISABLE_API_SOURCES`` (see :func:`is_disabled`).
+    """De-register every tool covered by ``UNIFI_EXCLUDE`` (see :func:`is_disabled`).
 
     No-op when unset or blank (every source enabled, the default). Returns the removed
     tool names. A tool missing from the table logs a classification error and is treated

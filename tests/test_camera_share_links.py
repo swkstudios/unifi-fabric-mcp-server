@@ -69,8 +69,8 @@ async def test_invalid_camera_precedes_resolution(name, bad, registry):
 
 @pytest.mark.parametrize("name", NAMES[1:])
 async def test_protect_opt_out_before_resolution(name, registry, monkeypatch):
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")
-    with pytest.raises(ValueError, match="UNIFI_PROTECT_MUTATIONS_ENABLED"):
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
+    with pytest.raises(ValueError, match="family:protect=deny"):
         await getattr(protect, name)(AsyncMock(), registry, "console", CAM)
     registry.resolve_key_for_host.assert_not_awaited()
 
@@ -90,23 +90,25 @@ async def test_owning_key_is_threaded(name, registry):
 @pytest.mark.parametrize("name", NAMES[1:])
 @pytest.mark.parametrize("mode", ["dry_run", "read_only", "429"])
 async def test_real_client_safety(name, mode, registry, monkeypatch):
-    monkeypatch.delenv("UNIFI_READ_ONLY", raising=False)
-    monkeypatch.delenv("UNIFI_PROTECT_MUTATIONS_ENABLED", raising=False)
+    monkeypatch.delenv("UNIFI_WRITE_POLICY", raising=False)
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
+    if mode == "dry_run":
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     if mode == "read_only":
-        monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     calls = []
 
     def upstream(request):
         calls.append(request)
         return httpx.Response(429 if mode == "429" else 200, json={"enabled": True})
 
-    client = UniFiClient(Settings(api_key="synthetic-share-key", dry_run=mode == "dry_run"))
+    client = UniFiClient(Settings(api_key="synthetic-share-key"))
     # Inject a mock transport through the client's normal key-client seam.
     http = httpx.AsyncClient(base_url="https://api.ui.com", transport=httpx.MockTransport(upstream))
     client._get_client = AsyncMock(return_value=http)
     try:
         if mode == "read_only":
-            with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+            with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
                 await getattr(protect, name)(client, registry, "console", CAM)
             assert calls == []
         elif mode == "dry_run":

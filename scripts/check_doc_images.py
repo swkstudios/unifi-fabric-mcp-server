@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Fail obsolete server image tags in public documentation (offline).
 
-Version tags must match project.version. The documented moving latest channel and
-content-addressed digests intentionally remain valid; published-tag existence is a
-post-publication release check, not a prerequisite for documenting an upcoming tag.
+Version tags match the published release, which can lag the development version.
+The documented moving latest channel and content-addressed digests remain valid.
+
+The ``MIGRATING-*`` guides are version history, as for the pin flip
+(``scripts/prepare_release.py``): an example there names the release it migrates to, and
+``scripts/check_launcher_settings.py`` checks that release accepts the settings it passes.
 """
 
 from __future__ import annotations
@@ -19,9 +22,16 @@ IMAGE = re.compile(r"ghcr\.io/[\w-]+/unifi-fabric-mcp-server:([\w.+-]+)")
 
 
 def check(root: Path = ROOT) -> list[str]:
-    version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    pin = root / "scripts" / "published-version.txt"
+    version = (
+        pin.read_text().strip()
+        if pin.exists()
+        else tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    )
     failures = []
     for path in public_reference_docs(root):
+        if path.name.startswith("MIGRATING-"):
+            continue
         for number, line in enumerate(path.read_text().splitlines(), 1):
             for match in IMAGE.finditer(line):
                 if match.group(1) not in {version, ".".join(version.split(".")[:2]), "latest"}:

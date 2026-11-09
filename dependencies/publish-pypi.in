@@ -1,0 +1,4 @@
+# Inputs for .github/publish-pypi-requirements.txt (see dependencies/manifest.toml).
+build
+twine
+hatchling

@@ -71,7 +71,7 @@ async def test_preflight_reports_both_inner_space_paths_denied(monkeypatch):
 
 def test_augmented_integration_namespace_error_keeps_status():
     upstream = UniFiConnectionError("HTTP 403 from GET /devices: host not found")
-    error = innerspace._integration_namespace_error("host", "/devices", upstream)
+    error = innerspace._integration_namespace_error("/devices", upstream)
     assert error.status_code == 403
     assert str(error).startswith(str(upstream))
     assert placement_snapshot._capability_outcome(error)["outcome"] == "auth_denied"

@@ -2,7 +2,7 @@
 
 Properties:
 
-* every listed (route, command) pair is a read: under UNIFI_DRY_RUN, under UNIFI_READ_ONLY
+* every listed (route, command) pair is a read: under dry-run policy, under UNIFI_WRITE_POLICY
   and under both it is sent exactly once and its result is returned verbatim, at the client
   chokepoint and through the registered tool (read-only and dry-run agree on every entry);
 * every other command on the same routes, every other body (an extra key, a changed
@@ -16,6 +16,7 @@ Properties:
 from __future__ import annotations
 
 import json
+import os
 from collections import OrderedDict
 from typing import Any
 from unittest.mock import AsyncMock
@@ -132,7 +133,29 @@ def _path_variants(sample: str) -> list[str]:
     ]
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def _client(received: list, envelope: Any, **settings: Any) -> UniFiClient:
+    settings = _modes(settings)
+
     async def upstream(request: httpx.Request) -> httpx.Response:
         received.append(request)
         return httpx.Response(200, json=envelope)
@@ -145,17 +168,16 @@ def _client(received: list, envelope: Any, **settings: Any) -> UniFiClient:
     return client
 
 
-#: The safety modes a read command must pass: dry-run, read-only, and both at once.
+#: The safety modes a read command must pass: dry-run and read-only.
 MODES = [
     pytest.param({"dry_run": True}, False, id="dry-run"),
     pytest.param({}, True, id="read-only"),
-    pytest.param({"dry_run": True}, True, id="dry-run+read-only"),
 ]
 
 
 def _set_read_only(monkeypatch: pytest.MonkeyPatch, on: bool) -> None:
     if on:
-        monkeypatch.setenv(read_only.ENV_VAR, "1")
+        monkeypatch.setenv(read_only.ENV_VAR, "deny")
     else:
         monkeypatch.delenv(read_only.ENV_VAR, raising=False)
 
@@ -203,7 +225,7 @@ def test_entries_are_lowercase_tokens(route, command):
 
 @pytest.mark.parametrize("command", rp.READ_COMMANDS, ids=IDS)
 def test_listed_command_is_a_read_and_passes_read_only(command, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     for path in (command.sample, command.sample + "?x=1", command.sample + "?a=%3F#b"):
         assert rp.read_command("POST", path, command.body) is command
         assert rp.read_command("post", path, dict(command.body)) is command
@@ -252,7 +274,7 @@ async def _assert_write_everywhere(path: str, body: Any, monkeypatch) -> None:
     client = _client(received, {"meta": {"rc": "ok"}}, dry_run=True)
     preview = await client.post(path, json=body)
     assert is_dry_run_preview(preview) and preview["preview"]["method"] == "POST", preview
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     with pytest.raises(read_only.ReadOnlyModeError):
         read_only.guard_request("POST", path, body=body)
     with pytest.raises(read_only.ReadOnlyModeError):
@@ -279,7 +301,7 @@ async def test_every_other_body_of_a_listed_command_previews_and_is_refused(comm
 
 @pytest.mark.parametrize("command", rp.READ_COMMANDS, ids=IDS)
 def test_every_other_spelling_of_a_listed_route_is_a_refused_write(command, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     variants = _path_variants(command.sample)
     assert len(variants) >= 20
     for path in variants:
@@ -303,7 +325,7 @@ def test_only_an_exact_listed_body_is_a_read(route, body):
 
 def test_relayed_read_command_stays_a_write(monkeypatch):
     # the relay passes always_write: its caller picks the path and the body
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     for command in rp.READ_COMMANDS:
         with pytest.raises(read_only.ReadOnlyModeError):
             read_only.guard_request("POST", command.sample, always_write=True, body=command.body)
@@ -391,9 +413,10 @@ async def test_registered_read_command_tool_runs_in_every_mode(
 
 @pytest.mark.parametrize("name", ["run_speedtest", "create_backup", "export_site"])
 async def test_registered_write_command_tool_on_a_read_route_is_refused(name, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    # deny wins over a dry-run exception: the strictest policy refuses, it does not preview.
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     received: list[httpx.Request] = []
-    client = _client(received, {"meta": {"rc": "ok"}}, dry_run=True)
+    client = _client(received, {"meta": {"rc": "ok"}})
     async with Client(_tool_app(client)) as mcp:
         result = await mcp.call_tool(name, {"host": "h", "site": "s"}, raise_on_error=False)
     assert result.is_error

@@ -10,8 +10,8 @@ baseline.
 
 | Surface | Audited version | Audit date | Notes |
 |---------|-----------------|------------|-------|
-| Network Integration API | 10.6.106 | 2026-10-07 | All implemented endpoints verified against spec |
-| Protect | 7.3.70 | 2026-10-07 | All implemented endpoints verified against spec |
+| Network Integration API | 11.0.97 | 2026-11-03 | All implemented endpoints verified against spec |
+| Protect | 7.3.74 | 2026-11-03 | All implemented endpoints verified against spec |
 | InnerSpace | 1.3.23 | 2026-10-07 | GET surface fully covered; write surface absent from published spec |
 | Carrier Fabric | 1.0.0 | 2026-10-07 | Spec-conformance only — not testable against live hardware |
 | Site Manager | 1.0.0 | 2026-10-07 | Stable `/v1/` surface; EA (`/ea/`) endpoints listed below as unaudited |

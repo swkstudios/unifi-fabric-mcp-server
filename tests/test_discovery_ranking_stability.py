@@ -47,3 +47,22 @@ async def test_search_ranking_is_stable_when_catalog_registration_order_changes(
     reversed_order = await _search_order(("charlie_status", "bravo_status", "alpha_status"))
 
     assert forward == reversed_order == ["alpha_status", "bravo_status", "charlie_status"]
+
+
+@pytest.mark.parametrize("prefix", ["I need to", "Help me", "i NEED to", " HELP me "])
+async def test_request_framing_does_not_introduce_unrelated_help_tools(prefix: str) -> None:
+    app = FastMCP("request-framing")
+    app.tool(name="alpha_status")(_alpha_status)
+
+    @app.tool()
+    async def assistance() -> None:
+        """Help people who need assistance."""
+
+    restore = await apply_tool_mode(app, "discovery")
+    try:
+        async with Client(app) as client:
+            for query in ("synthetic", f"{prefix} synthetic"):
+                rows = (await client.call_tool("search_tools", {"query": query})).data
+                assert [row["name"] for row in rows] == ["alpha_status"]
+    finally:
+        restore()

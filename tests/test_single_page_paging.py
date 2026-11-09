@@ -93,6 +93,7 @@ async def test_limit_alone_gathers_total_and_probes_continuation(tool):
         "data": ITEMS[:5],
         "_pageSize": {"requested": 5, "sent": [5, 1], "effective": 5, "returned": 5},
         "_nextOffset": 5,
+        **({"_count": 5} if tool == "list_mobility_devices" else {}),
     }
 
 

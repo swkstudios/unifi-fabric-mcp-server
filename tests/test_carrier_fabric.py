@@ -9,10 +9,10 @@ flow, the write gate, and upstream-error pass-through are all asserted
 against the spec, NOT against a live console (never claim live-verified: all
 assertions are against mock shapes, not a production console).
 
-The write gate (``UNIFI_ENABLE_CARRIER_FABRIC_WRITE``) is ON by default
-(opt out with ``UNIFI_ENABLE_CARRIER_FABRIC_WRITE=0``); the autouse hermetic-env
-fixture strips ``UNIFI_*`` so tests that exercise a real (mocked) write re-assert
-ON via the ``enable_writes`` fixture.
+Carrier writes are enabled by default (opt out with the ``UNIFI_WRITE_EXCEPTIONS``
+entry ``family:carrier=deny``); the autouse hermetic-env fixture strips ``UNIFI_*``
+so tests that exercise a real (mocked) write re-assert the default via the
+``enable_writes`` fixture.
 All ids are synthetic and no real value appears here.
 """
 
@@ -29,7 +29,6 @@ from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.tools import carrier_fabric
 from unifi_fabric.tools.carrier_fabric import (
     CARRIER_BASE,
-    WRITE_ENABLED_ENV,
     assign_carrier_subscriber_plan,
     attach_carrier_subscriber_host,
     create_carrier_subscriber,
@@ -41,6 +40,9 @@ from unifi_fabric.tools.carrier_fabric import (
     resume_carrier_subscriber,
     suspend_carrier_subscriber,
     update_carrier_subscriber,
+)
+from unifi_fabric.tools.carrier_fabric import (
+    WRITE_ENABLED_ENV as WRITE_DENIED_ENV,
 )
 
 BASE = "https://api.ui.com"
@@ -58,14 +60,14 @@ def client():
 
 @pytest.fixture()
 def enable_writes(monkeypatch):
-    """Writes are enabled by default; this keeps the opt-out explicitly on."""
-    monkeypatch.setenv(WRITE_ENABLED_ENV, "1")
+    """Writes are enabled by default; this clears any opt-out entry."""
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
 
 
 @pytest.fixture()
 def disable_writes(monkeypatch):
-    """Explicitly opt OUT of writes (set the env var to a falsey value)."""
-    monkeypatch.setenv(WRITE_ENABLED_ENV, "0")
+    """Explicitly opt OUT of writes (the UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny)."""
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", WRITE_DENIED_ENV)
 
 
 @pytest.fixture()
@@ -315,21 +317,25 @@ class TestValidation:
             await assign_carrier_subscriber_plan(client, SID, "bad/../plan", confirm=True)
 
 
-# --- Write gate is ON by default (opt out UNIFI_ENABLE_CARRIER_FABRIC_WRITE=0)
+# --- Writes are enabled by default (opt out: UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny)
 
 
 class TestWriteGate:
     def test_writes_enabled_by_default(self):
         assert carrier_fabric.writes_enabled() is True
 
-    @pytest.mark.parametrize("val", ["1", "true", "TRUE", "yes", "on", "", "   "])
-    def test_truthy_or_unset_enables(self, monkeypatch, val):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, val)
+    @pytest.mark.parametrize(
+        "val", [WRITE_DENIED_ENV.replace("=deny", "=dry-run"), "family:network=deny"]
+    )
+    def test_other_exceptions_leave_writes_enabled(self, monkeypatch, val):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", val)
         assert carrier_fabric.writes_enabled() is True
 
-    @pytest.mark.parametrize("val", ["0", "false", "no", "off"])
-    def test_explicit_falsey_disables(self, monkeypatch, val):
-        monkeypatch.setenv(WRITE_ENABLED_ENV, val)
+    @pytest.mark.parametrize(
+        "val", [WRITE_DENIED_ENV, f"family:network=dry-run;{WRITE_DENIED_ENV}"]
+    )
+    def test_area_deny_exception_disables(self, monkeypatch, val):
+        monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", val)
         assert carrier_fabric.writes_enabled() is False
 
     @respx.mock
@@ -701,7 +707,7 @@ class TestErrorPassthrough:
 
 
 class TestGateOffAllWrites:
-    """Opt-out retained: writes refuse when UNIFI_ENABLE_CARRIER_FABRIC_WRITE is set off."""
+    """Opt-out retained: writes refuse when family:carrier=deny is set off."""
 
     @respx.mock
     async def test_attach_disabled_when_gate_off(self, client, disable_writes):
@@ -1051,7 +1057,7 @@ _INVALID_WRITE_CALLS = [
 @pytest.mark.parametrize("fn,args,kwargs", _INVALID_WRITE_CALLS)
 async def test_gate_is_checked_before_field_validation(client, disable_writes, fn, args, kwargs):
     with respx.mock(assert_all_called=False) as router:
-        with pytest.raises(ValueError, match=WRITE_ENABLED_ENV):
+        with pytest.raises(ValueError, match=WRITE_DENIED_ENV):
             await fn(client, *args, **kwargs)
         assert not router.calls
 
@@ -1292,3 +1298,30 @@ class TestWriteResultEnvelope:
 async def test_subscriber_invalid_limit_rejected_before_request(client, limit):
     with pytest.raises(ValueError):
         await list_carrier_subscribers(client, limit=limit)
+
+
+@respx.mock
+async def test_limited_subscriber_result_has_count(client):
+    respx.get(SUBS).mock(
+        return_value=Response(200, json={"data": [{"id": SID}], "meta": {"hasMore": False}})
+    )
+    result = await list_carrier_subscribers(client, limit=1)
+    assert result["_count"] == 1
+
+
+@respx.mock
+async def test_subscriber_limit_mode_carries_the_documented_count(client):
+    # The description promises {data, _count} in every mode; limit mode once omitted _count.
+    respx.get(SUBS).mock(
+        return_value=Response(
+            200,
+            json={
+                "data": [_subscriber(id="s-0"), _subscriber(id="s-1")],
+                "meta": {"nextCursor": None, "limit": 2, "hasMore": False},
+                "traceId": "t",
+            },
+        )
+    )
+    result = await list_carrier_subscribers(client, limit=2)
+    assert result["_count"] == 2
+    assert [s["id"] for s in result["data"]] == ["s-0", "s-1"]

@@ -118,15 +118,19 @@ def test_release_body_and_pypi_readme_links_are_both_discovered(project):
 def test_rendered_release_and_pypi_docs_have_valid_current_release_links():
     """Audit both rendered entry points using their actual packaging/release inputs."""
     config = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    version = config["project"]["version"]
     assert config["project"]["readme"] == "README.md"
     texts = links.reference_texts(ROOT)
     assert (ROOT / "README.md").read_text() in texts
-    release = next(
-        body.removeprefix("\n")
+    # The release body is the package version's section once it is open, else the
+    # published release's: the same choice reference_texts makes.
+    changelog = {
+        name: body.removeprefix("\n")
         for name, _heading, body in sections((ROOT / "CHANGELOG.md").read_text())
-        if name == version
-    )
+    }
+    version = config["project"]["version"]
+    if version not in changelog:
+        version = (ROOT / "scripts/published-version.txt").read_text().strip()
+    release = changelog[version]
     assert release in texts
     rendered = [
         text.replace("swkstudios/unifi-fabric-mcp-server", "swkstudios/unifi-fabric-mcp-server")
@@ -141,3 +145,53 @@ def test_rendered_release_and_pypi_docs_have_valid_current_release_links():
     ]
     assert checked, "the current release must retain absolute, tag-pinned documentation links"
     assert all(result["ok"] for result in checked), checked
+
+
+def _http_error(url: str, code: int):
+    from urllib.error import HTTPError
+
+    return HTTPError(url, code, "status", {}, None)
+
+
+def test_rate_limit_on_every_attempt_is_not_tested_rather_than_passed(capsys):
+    url = "https://example.invalid/page"
+    with (
+        patch.object(links, "urlopen", side_effect=_http_error(url, 429)) as opener,
+        patch.object(links.time, "sleep"),
+    ):
+        result = links.probe(url, retries=2)
+    assert opener.call_count == 3
+    assert result["ok"] is False
+    assert result["not_tested"] == "rate limited (HTTP 429) on all 3 attempts"
+
+    broken = {"url": "https://example.invalid/gone", "status": 404, "ok": False, "moved": False}
+    with (
+        patch.object(links, "discovery", return_value=([url, broken["url"]], [])),
+        patch.object(links, "check", return_value=[result, broken]),
+    ):
+        assert links.main(["--external"]) == 1
+    out = capsys.readouterr().out
+    assert f"NOT-TESTED: {url}: rate limited" in out
+    assert f"broken external link: {url}" not in out
+    assert "external links: 1 checked, 1 failed, 1 not tested" in out
+
+    with (
+        patch.object(links, "discovery", return_value=([url], [])),
+        patch.object(links, "check", return_value=[result]),
+    ):
+        assert links.main(["--external"]) == 0
+
+
+def test_community_documents_and_issue_templates_are_discovered(project):
+    issue_dir = project / ".github" / "ISSUE_TEMPLATE"
+    issue_dir.mkdir(parents=True)
+    (project / "CONTRIBUTING.md").write_text("[contribute](https://example.com/contribute)")
+    (issue_dir / "bug.md").write_text("[bug](https://example.com/bug)")
+    assert "https://example.com/contribute" in links.urls(project)
+    assert "https://example.com/bug" in links.urls(project)
+
+
+def test_markdown_link_followed_by_colon_is_discovered_once(project):
+    url = "https://www.conventionalcommits.org/"
+    (project / "CONTRIBUTING.md").write_text(f"See [conventions]({url}): details.\n")
+    assert links.urls(project) == [url]

@@ -59,15 +59,19 @@ class TestPlacementSnapshotNoWriteFence:
     """The GET-only placement collector runs under every connector-write setting: no
     refusal gate; writes are on by default."""
 
-    @pytest.mark.parametrize("write_enabled", [True, False])
-    async def test_uses_snapshot_collector_whatever_the_write_setting(self, write_enabled):
+    @pytest.mark.parametrize("exceptions", [None, "family:connector=deny"])
+    async def test_uses_snapshot_collector_whatever_the_write_setting(
+        self, exceptions, monkeypatch
+    ):
+        if exceptions is not None:
+            monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", exceptions)
         client = MagicMock()
         registry = MagicMock()
         expected = {"schema_version": "unifi.placement-snapshot/v1"}
         with (
             patch(
                 "unifi_fabric.server.get_settings",
-                return_value=SimpleNamespace(enable_connector_write=write_enabled),
+                return_value=SimpleNamespace(api_key="synthetic"),
             ),
             patch("unifi_fabric.server._require", return_value=(client, registry)),
             patch(
@@ -571,7 +575,7 @@ class TestQueryIspMetricsWrapper:
         mock_client, mock_registry = mock_globals
         mock_registry.resolve_key_for_host.return_value = None
         mock_registry.resolve_host_id.return_value = "hid"
-        object_id = "661900ae6aec8f548d49fd54"
+        object_id = "000000000000000000000501"
         mock_registry.resolve_ea_site_id.return_value = object_id
         with patch(
             "unifi_fabric.server.site_manager.query_isp_metrics", new_callable=AsyncMock

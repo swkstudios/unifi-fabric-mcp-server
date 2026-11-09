@@ -12,8 +12,7 @@ from unifi_fabric import server
 @pytest.mark.parametrize(
     "failing",
     [
-        "apply_tool_family_filter",
-        "apply_api_source_filter",
+        "policy.apply_exposure",
         "apply_read_only_tool_filter",
         "apply_area_opt_out_tool_filter",
         "apply_tool_mode",

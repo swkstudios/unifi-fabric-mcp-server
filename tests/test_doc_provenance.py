@@ -528,6 +528,20 @@ class DocumentationMutations(unittest.TestCase):
         (self.root / "pyproject.toml").write_text('[project]\nversion = "0.7.0"\n')
         self.doc.write_text("docker run ghcr.io/example/unifi-fabric-mcp-server:0.6.4\n")
         self.assertTrue(images.check(self.root))
+        (self.root / "scripts").mkdir(exist_ok=True)
+        (self.root / "scripts/published-version.txt").write_text("0.6.4\n")
+        self.assertEqual(images.check(self.root), [])
+
+    def test_migration_guide_image_tag_names_the_release_it_migrates_to(self):
+        """A migration guide is version history: its example runs the release it migrates
+        to (check_launcher_settings.py checks that release accepts what it passes)."""
+        guide = self.root / "docs/MIGRATING-0.7.md"
+        guide.write_text("docker run ghcr.io/example/unifi-fabric-mcp-server:0.7.0\n")
+        self.assertEqual(images.check(self.root), [])
+        self.doc.write_text("docker run ghcr.io/example/unifi-fabric-mcp-server:0.7.0\n")
+        self.assertTrue(
+            any("docs/INSTALL.md:1: stale image tag" in f for f in images.check(self.root))
+        )
 
     def test_break_external_link_and_report_redirect(self):
         class Handler(BaseHTTPRequestHandler):

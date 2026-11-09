@@ -636,6 +636,27 @@ def _schema_descriptions(schema: Any, path: str, out: list[tuple[str, str]]) -> 
             _schema_descriptions(item, path, out)
 
 
+def _oversized_descriptions(schema: Any, path: str) -> list[str]:
+    descriptions: list[tuple[str, str]] = []
+    _schema_descriptions(schema, path, descriptions)
+    return [where for where, description in descriptions if len(description) > 2048]
+
+
+def test_runtime_input_schema_description_limit() -> None:
+    tools = _tools()
+    assert len(tools) == _catalog_count()
+    assert [
+        where for tool in tools for where in _oversized_descriptions(tool.parameters, tool.name)
+    ] == []
+
+
+def test_description_limit_detects_nested_oversized_text() -> None:
+    schema = {"properties": {"body": {"items": {"anyOf": [{"description": "x" * 2049}]}}}}
+    assert _oversized_descriptions(schema, "tool") == ["tool.body"]
+    schema["properties"]["body"]["items"]["anyOf"][0]["description"] = "x" * 2048
+    assert _oversized_descriptions(schema, "tool") == []
+
+
 def test_no_description_contains_markup() -> None:
     tools = _tools()
     assert len(tools) == _catalog_count()
@@ -670,7 +691,246 @@ def test_markup_pattern_catches_placeholders() -> None:
 # the nearest description at or above it (its own, else its enclosing property's) when that
 # description carries a ``Shape:`` clause (a TypeScript-like outline, the form the generated
 # body shapes use) or says the value is free-form.
-_SHAPE_STATED = re.compile(r"Shape:|free-form", re.IGNORECASE)
+#
+# A shape clause may carry a parenthesised legend, ``Shape (K=keyName, ...): {...}``. The
+# generator emits that form where abbreviating repeated field names is what keeps a
+# description under the 2,048-character client limit, so the legend expands the aliases used
+# inside the outline. Both spellings state the shape and both must be recognised here.
+#
+# Parse a TypeScript-like expression rather than accepting an opener: prose can start
+# with parentheses or a type word too.
+_SHAPE_MARKER = re.compile(r"Shape\s*(?:\([^)]*\))?:\s*", re.IGNORECASE)
+_SHAPE_TOKEN = re.compile(
+    r"\s*(?:(?P<word>[A-Za-z_][\w-]*(?:\.[\w-]+)*)|(?P<number>-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|(?P<quoted>'[^'\n]*')|(?P<punct>\.\.\.|[{}\[\]():?,|&]))"
+)
+_SHAPE_TYPES = {
+    "string",
+    "integer",
+    "boolean",
+    "number",
+    "any",
+    "null",
+    "object",
+    "array",
+    "true",
+    "false",
+}
+
+
+# JSON Schema and OpenAPI format names accepted in generated outlines.
+_SHAPE_FORMATS = frozenset(
+    (
+        "date-time date time duration email idn-email hostname idn-hostname ipv4 ipv6 "
+        "uri uri-reference uri-template iri iri-reference uuid json-pointer "
+        "relative-json-pointer regex binary byte password int32 int64 float double"
+    ).split()
+)
+
+
+def _shape_expression_end(text: str, start: int, *, bare_enums: bool = False) -> int | None:
+    """Return the end of a complete outline, or None for prose/malformed outlines."""
+    pos = start
+
+    def token() -> re.Match[str] | None:
+        return _SHAPE_TOKEN.match(text, pos)
+
+    def take(value: str) -> bool:
+        nonlocal pos
+        match = token()
+        if match and match.group().strip() == value:
+            pos = match.end()
+            return True
+        return False
+
+    def expression(*, aliases: bool = False) -> bool:
+        nonlocal pos
+        # Structured constants use json.dumps; leave scalar and outline parsing unchanged.
+        literal_start = pos + len(text[pos:]) - len(text[pos:].lstrip())
+        json_end = None
+        if text[literal_start : literal_start + 1] in ("{", "["):
+            try:
+                _, json_end = json.JSONDecoder().raw_decode(text, literal_start)
+            except json.JSONDecodeError:
+                pass
+        if json_end is not None:
+            pos = json_end
+        elif take("{"):
+            if not take("}"):
+                while True:
+                    if take("..."):
+                        if not take("}"):
+                            return False
+                        break
+                    match = token()
+                    if not match or not (
+                        match.group("word") or match.group("quoted") or match.group("number")
+                    ):
+                        return False
+                    pos = match.end()
+                    take("?")
+                    if not take(":") or not expression(aliases=True):
+                        return False
+                    if take("}"):
+                        break
+                    if not take(","):
+                        return False
+        elif take("("):
+            if aliases and take("required"):
+                if not take(")"):
+                    return False
+            elif not expression(aliases=aliases) or not take(")"):
+                return False
+        else:
+            match = token()
+            if not match:
+                return False
+            word = match.group("word")
+            if not (
+                match.group("number")
+                or match.group("quoted")
+                or word
+                and (word.lower() in _SHAPE_TYPES or aliases and (word.isupper() or bare_enums))
+            ):
+                return False
+            pos = match.end()
+            if word and take("("):
+                annotation = token()
+                if not annotation or annotation.group("word") not in _SHAPE_FORMATS:
+                    return False
+                pos = annotation.end()
+                if not take(")"):
+                    return False
+        while take("["):
+            if not take("]"):
+                return False
+        if (take("|") or take("&")) and not expression(aliases=aliases):
+            return False
+        return True
+
+    if not expression():
+        return None
+    definition = re.match(r"[ \t]*where[ \t]+T\d+=", text[pos:])
+    if definition:
+        pos += definition.end()
+        if not expression(aliases=True):
+            return None
+        while next_definition := re.match(r"[ \t]*;[ \t]*T\d+=", text[pos:]):
+            pos += next_definition.end()
+            if not expression(aliases=True):
+                return None
+    remainder = text[pos:]
+    if remainder and not re.match(r"[ \t]*(?:$|[.;,\n])", remainder):
+        return None
+    return pos
+
+
+def _shape_stated(description: str) -> bool:
+    if re.search(r"free-form", description, re.IGNORECASE):
+        return True
+    return any(
+        _shape_expression_end(
+            description, m.end(), bare_enums="bare enum values are strings" in m.group().lower()
+        )
+        is not None
+        for m in _SHAPE_MARKER.finditer(description)
+    )
+
+
+# Regression controls for the shape recognizer. Reviews showed two ways to get this
+# wrong: accepting the bare marker, then accepting prose that merely mentions a type word.
+# These pin both directions, so neither a widening nor a tightening can regress unnoticed.
+_SHAPE_CLAUSE_REJECTS = (
+    "Shape (K=keyName): Accept controller data.",
+    "Shape (): unspecified.",
+    "Shape (K={weird}): no outline",
+    "Shape: (unspecified).",
+    "Shape: object details are unavailable.",
+    "Shape: (string details are unavailable).",
+    "Shape: {field: unspecified}.",
+    "Shape: see the string documentation",
+    "Shape: unspecified (ask later).",
+    "Shape: don't know yet.",
+    "Shape: nothing stated here",
+    "Shaped like a tree",
+    "no shape clause at all",
+    "Shape: string(this is prose).",
+    "Shape: string(pending).",
+    "Shape: {a:T1} where T1=",
+    "Shape: {a:T1} where T1=prose without outline",
+    "Shape: {a:T1} where T1={b:string",
+)
+_SHAPE_CLAUSE_ACCEPTS = (
+    "Shape: {a:string}",
+    'Shape: {value?:{"key": 1}}',
+    "Shape: {value?:[1, 2]}",
+    "Shape: {a:T1} where T1={b:string}",
+    "Shape: {a:T1,c:T2} where T1={b:string};T2='X'|'Y'",
+    "Shape (K=key): {K:string}",
+    "Shape: string[]",
+    "Shape: ('TCP'|'UDP')[]",
+    "Shape: 0|60000",
+    "Shape: any|{b:1}",
+    "Shape:\n{a:string}",
+    "the value is free-form",
+)
+
+
+def test_shape_clause_recognizer_requires_an_outline_not_just_the_marker() -> None:
+    for sample in _SHAPE_CLAUSE_REJECTS:
+        assert not _shape_stated(sample), f"should not count as a stated shape: {sample}"
+    for sample in _SHAPE_CLAUSE_ACCEPTS:
+        assert _shape_stated(sample), f"should count as a stated shape: {sample}"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        False,
+        -1,
+        -1.5,
+        -1e-20,
+        1e20,
+        "",
+        None,
+        {"key": 1},
+        [1, 2],
+        {"nested": [True, None, {"x": "y"}]},
+        [1, {"x": [2, 3]}],
+    ],
+)
+@pytest.mark.parametrize("keyword", ["const", "enum"])
+def test_shape_clause_accepts_generator_literals(value: Any, keyword: str) -> None:
+    from tests import tool_shapes_gen as gen
+
+    spec = gen.sc.Spec("test", {}, "urn:test:shape-literals")
+    literal = {keyword: [value] if keyword == "enum" else value}
+    node = {"type": "object", "properties": {"value": literal}}
+    generated = gen.advisory(spec, node, "body", depth=gen.PROPERTY_DEPTH)
+    description = generated["description"]
+    assert "Shape:" in description
+    assert gen.lit(value) in description
+    assert _shape_stated(description), description
+
+
+@pytest.mark.parametrize(
+    "schema_format",
+    ["uuid", "date", "date-time", "ipv4", "ipv6", "email", "uri", "hostname", "binary"],
+)
+def test_shape_clause_accepts_generator_formats(schema_format: str) -> None:
+    from tests import tool_shapes_gen as gen
+
+    spec = gen.sc.Spec("test", {}, "urn:test:shape-formats")
+    node = {
+        "type": "object",
+        "properties": {"value": {"type": "string", "format": schema_format}},
+    }
+    generated = gen.advisory(spec, node, "body", depth=gen.PROPERTY_DEPTH)
+    description = generated["description"]
+    assert f"string({schema_format})" in description
+    assert _shape_stated(description), description
+
+
 _STRUCTURED = {"object", "array"}
 
 
@@ -707,7 +967,7 @@ def _unstated_shapes(schema: Any, path: str, description: str = "") -> list[str]
     own = schema.get("description")
     description = own if isinstance(own, str) and own.strip() else description
     out = []
-    if _structure_is_open(schema) and not _SHAPE_STATED.search(description):
+    if _structure_is_open(schema) and not _shape_stated(description):
         out.append(path)
     for name, sub in (schema.get("properties") or {}).items():
         # A property starts a new scope: only its own description can state its shape.
@@ -747,6 +1007,11 @@ def test_shape_statement_check_reaches_nested_and_union_nodes() -> None:
             "stated": {"description": "x. Shape: string|string[]", "anyOf": [{"type": "string"}]},
             "union": {"description": "x", "anyOf": [{"type": "string"}, {"type": "array"}]},
             "free": {"description": "Free-form body.", "type": "object"},
+            "prose_parens": {"description": "Shape: (unspecified).", "type": "object"},
+            "prose_type": {
+                "description": "Shape: object details are unavailable.",
+                "type": "object",
+            },
             "dict_items": {"description": "x", "type": "array", "items": bare_obj},
             "nested": {
                 "description": "x. Shape: {inner:string[]}",
@@ -765,6 +1030,8 @@ def test_shape_statement_check_reaches_nested_and_union_nodes() -> None:
         "t.nullable",
         "t.union",
         "t.union/anyOf[1]",
+        "t.prose_parens",
+        "t.prose_type",
         "t.dict_items/items",
         "t.nested.inner",
         "t.nested.inner/anyOf[0]",

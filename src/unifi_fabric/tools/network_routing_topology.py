@@ -16,7 +16,7 @@ site's short name (``default``), resolved from the caller's site name or UUID.
 * Updates and deletes resolve the id in its collection first (the controller answers a
   write on an unknown id without an error), failing with every valid id listed.
 * POST actions are not on the read-POST allowlist, so they are writes:
-  ``UNIFI_READ_ONLY`` refuses them and ``UNIFI_DRY_RUN`` previews them.
+  ``UNIFI_WRITE_POLICY=deny`` refuses them and ``dry-run policy`` previews them.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from ..client import (
     UniFiConnectionError,
     describe_shape,
     is_dry_run_preview,
+    upstream_error_value,
     validate_id,
 )
 from ..config import APIKeyConfig
@@ -148,6 +149,8 @@ async def _listed_record(
     identifier: str,
     label: str,
     fields: tuple[str, ...] = ("_id", "id"),
+    *,
+    read_after: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """``(record, upstream id)`` of the row of collection ``path`` that ``identifier`` names.
 
@@ -164,14 +167,19 @@ async def _listed_record(
                 validate_id(resolved, "id")
                 return row, resolved
     choices = sorted(
-        f"{row.get('name')!r} ({field}={row[field]})"
+        f"{upstream_error_value(row.get('name'), client)!r} "
+        f"({field}={upstream_error_value(row[field], client)})"
         for row in rows
         for field in fields[:1] + tuple(f for f in fields[1:] if fields[0] not in row)
         if isinstance(row.get(field), str) and row[field]
     )
     raise ValueError(
         f"{label} {identifier!r} not found; valid: {'; '.join(choices) or '(none)'}. "
-        "No write was sent."
+        + (
+            "The write was sent; read-back could not find the record."
+            if read_after
+            else "No write was sent."
+        )
     )
 
 
@@ -236,7 +244,7 @@ async def _verified_collection_update(
         return response
 
     async def read_after() -> dict[str, Any]:
-        record, _ = await _listed_record(client, list_path, key, resolved, label)
+        record, _ = await _listed_record(client, list_path, key, resolved, label, read_after=True)
         return record
 
     after, error = await safe_read_after(read_after)
@@ -702,7 +710,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         object get_bgp_status (view "config") returns for an existing configuration.
         Never auto-retried; on a timeout, read get_bgp_status before retrying.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, config.
@@ -734,7 +742,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         before any request.
         An unknown id fails listing every valid id. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, config_id, config.
@@ -745,7 +753,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             config_id: Configuration _id or id from get_bgp_status, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             config: Free-form object of leaves to change, e.g. {"enabled": true}.
         """
         client, registry = deps_fn()
@@ -762,7 +770,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty). Irreversible: the configuration is removed.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -774,7 +782,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             config_id: Configuration _id or id from get_bgp_status, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_bgp_config(client, registry, host, site, config_id)
@@ -810,7 +818,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         object get_ospf_status (view "config") returns for an existing router. Never
         auto-retried; on a timeout, read get_ospf_status before retrying.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, router.
@@ -840,7 +848,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         it. id, _id and site_id in the object are ignored; an object with nothing else to change
         fails before any request. An unknown id fails listing every valid id. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, router_id, router.
@@ -851,7 +859,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             router_id: Router _id or id from get_ospf_status, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             router: Free-form object of leaves to change, e.g. {"enabled": true}.
         """
         client, registry = deps_fn()
@@ -863,11 +871,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Resolves the id in GET .../ospf/router first (an unknown id fails listing every valid id),
         then DELETE /proxy/network/v2/api/site/{site}/ospf/router/{id}.
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
+        Returns {deleted, message, response}: deleted is true only when absence is confirmed;
+        message summarizes the delete, and
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty). Irreversible: the router is removed.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -879,7 +888,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             router_id: Router _id or id from get_ospf_status, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_ospf_router(client, registry, host, site, router_id)
@@ -916,7 +925,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         a non-object body (array or scalar) is returned whole under response with those keys beside
         it. An object with nothing to change fails before any request. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, config.
@@ -964,7 +973,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         UI sends the keys cmd, gateway_device and name; their values are not published, so
         nothing is filled in. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, network_id, request.
@@ -975,7 +984,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             network_id: Network Integration id or Classic _id from list_networks, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             request: Free-form migration body, sent verbatim, e.g.
                 {"gateway_device": "02:00:5e:00:00:a1", "name": "Office L3"}.
         """
@@ -1013,9 +1022,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (JSON object or array) verbatim. The Network 11.0.81 web UI sends no body keys the inventory
         records, so request is free-form and optional: omit it to send no body. This
         POST is not on the read-POST allowlist, so it is classified as a write
-        (UNIFI_READ_ONLY refuses it).
+        (UNIFI_WRITE_POLICY=deny refuses it).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site.
@@ -1042,7 +1051,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the upstream body (JSON object or array) verbatim. Never auto-retried; on a timeout, check
         the clients' fixed IPs before retrying.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, reservations.
@@ -1071,7 +1080,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         "settings": POST .../orchestration/{object_id}/settings/detach. No body is sent.
         Returns the upstream body (JSON object or array) verbatim. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, target, object_id.
@@ -1083,7 +1092,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             target: "network" or "settings", e.g. "network".
             object_id: Network id (target network) or orchestration id (target
-                settings), e.g. "65f1c0ffee0123456789abcd".
+                settings), e.g. "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await detach_from_orchestration(client, registry, host, site, target, object_id)
@@ -1106,7 +1115,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         merged or read back: send the complete object. An object with no field fails
         before any request. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, action, virtual_network.
@@ -1119,7 +1128,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             action: "create" or "update", e.g. "create".
             virtual_network: Free-form virtual network object, e.g. {"name": "lab-segment"}.
             virtual_network_id: Required for update, omitted for create, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await manage_virtual_network(
@@ -1154,7 +1163,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns the upstream body (JSON object or array) verbatim. Never auto-retried. Read
         get_loop_detection_status first.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site.
@@ -1193,7 +1202,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         text, or null when the body is empty).
         Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body); for
         action "delete" that preview is the response of {status: "dry_run", deleted: false, message,
         response}.
@@ -1206,7 +1215,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             action: "create", "update" or "delete", e.g. "update".
-            group_id: Group _id or id, e.g. "65f1c0ffee0123456789abcd".
+            group_id: Group _id or id, e.g. "000000000000000000000107".
             group: Free-form group object (create) or leaves to change (update), e.g.
                 {"name": "core-pair"}.
         """
@@ -1228,7 +1237,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         nothing else to change fails before any request. An unknown id fails listing every valid id.
         Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, stack_id, stack.
@@ -1239,7 +1248,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 e.g. "my-console") or the long data[].id (MAC:numericId composite).
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             stack_id: Stack _id or id from GET .../stacking, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             stack: Free-form object of leaves to change, e.g. {"unit_order": ["02:00:5e:00:00:a1",
                 "02:00:5e:00:00:a2"]}.
         """

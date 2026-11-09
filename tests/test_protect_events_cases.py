@@ -684,7 +684,7 @@ async def test_stream_url_routes_and_only_given_params(kind, path, kwargs, query
 
 
 def _livestream_needs_channel(request: httpx.Request) -> httpx.Response:
-    """Protect 7.3.70 as observed live (2026-10-28): GET ws/livestream without channel
+    """Protect 7.3.74 as observed live (2026-10-28): GET ws/livestream without channel
     answers 400 {"error": "Channel is not defined"}; with channel=0 it answers 200."""
     if "channel" not in request.url.params:
         return httpx.Response(400, json={"error": "Channel is not defined"})
@@ -774,10 +774,11 @@ async def test_every_tool_valid_call_reaches_upstream(name):
 
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
-async def test_dry_run_previews_every_write_and_sends_none(name):
+async def test_dry_run_previews_every_write_and_sends_none(name, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     fn, args, kwargs = CALLS[name]
     up = generic_upstream()
-    result = await run(up, fn, *args, settings={"dry_run": True}, **kwargs)
+    result = await run(up, fn, *args, **kwargs)
     assert up.writes() == [], name
     assert result["status"] == "dry_run", result
     assert result.get("deleted") in (None, False)
@@ -786,17 +787,17 @@ async def test_dry_run_previews_every_write_and_sends_none(name):
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_protect_write_opt_out_refuses_with_zero_requests(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "false")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
     fn, args, kwargs = CALLS[name]
     up = generic_upstream()
-    with pytest.raises(ValueError, match="UNIFI_PROTECT_MUTATIONS_ENABLED"):
+    with pytest.raises(ValueError, match="family:protect=deny"):
         await run(up, fn, *args, **kwargs)
     assert up.seen == []
 
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_read_only_mode_refuses_every_write_before_any_request(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = generic_upstream()
     with pytest.raises(Exception, match="read-only mode"):
@@ -808,7 +809,7 @@ async def test_read_only_mode_refuses_every_write_before_any_request(name, monke
 
 @pytest.mark.parametrize("name", sorted(READ_TOOLS))
 async def test_read_only_mode_leaves_reads_working(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = generic_upstream()
     await run(up, fn, *args, **kwargs)
@@ -1119,7 +1120,7 @@ async def test_review_every_tool_uses_real_catalog_and_registry(name, monkeypatc
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 @pytest.mark.parametrize("catalog", [False, True])
 async def test_review_read_only_cold_registry_has_zero_requests(name, catalog, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = generic_upstream()
     c, reg = await _review_real(up, cold=True)
@@ -1555,8 +1556,9 @@ async def test_favorite_object_verification_matches_hex_id_case(favorite):
 @pytest.mark.parametrize("caller_asset_uppercase", [False, True])
 @pytest.mark.parametrize("dry_run", [False, True])
 async def test_asset_patch_resolves_parent_case_independently_of_asset_spelling(
-    upstream_parent_uppercase, caller_asset_uppercase, dry_run
+    upstream_parent_uppercase, caller_asset_uppercase, dry_run, monkeypatch
 ):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run" if dry_run else "allow")
     parent_id = CASE.upper() if upstream_parent_uppercase else CASE
     caller_parent = CASE if upstream_parent_uppercase else CASE.upper()
     caller_asset = ASSET.upper() if caller_asset_uppercase else ASSET
@@ -1578,7 +1580,6 @@ async def test_asset_patch_resolves_parent_case_independently_of_asset_spelling(
         caller_parent,
         caller_asset,
         fields={"note": "after"},
-        settings={"dry_run": dry_run},
     )
     assert up.seen[0].url.path == f"{BASE}/cases"
     assert all(caller_parent not in req.url.path for req in up.seen)
@@ -1655,12 +1656,15 @@ async def test_asset_patch_parent_lookup_failure_falls_back_without_refusing(loo
 
 
 async def test_case_export_prepare_executes_in_read_only_and_dry_run(monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     path = f"{BASE}/cases/{CASE}/export/prepare"
     up = Upstream({("GET", path): {"id": EXPORT}})
-    result = await run(
-        up, pec.export_protect_case, "prepare", case_id=CASE, settings={"dry_run": True}
-    )
+    result = await run(up, pec.export_protect_case, "prepare", case_id=CASE)
+    assert result == {"id": EXPORT}
+    assert [req.url.path for req in up.seen] == [path]
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    up = Upstream({("GET", path): {"id": EXPORT}})
+    result = await run(up, pec.export_protect_case, "prepare", case_id=CASE)
     assert result == {"id": EXPORT}
     assert [req.url.path for req in up.seen] == [path]
 

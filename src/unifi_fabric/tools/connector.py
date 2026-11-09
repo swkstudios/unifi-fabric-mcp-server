@@ -38,14 +38,14 @@ Guard model (all enforced here, none optional):
   are rejected. This is the InnerSpace-allowlist lesson applied to the relay.
 * **Mutation gating (read + write on by default).** Ordinary GET reads are always available.
   POST/PUT/PATCH/DELETE and known state-changing GETs are gated by the
-  ``UNIFI_ENABLE_CONNECTOR_WRITE`` capability flag,
-  ENABLED by default; the ``confirm`` argument is accepted for compatibility and no longer
-  required. A mutation is refused only when the flag is explicitly set to a falsey value
-  (0/false/no/off/f/n) for a read-only deployment. A refused mutation is rejected before any
+  ``UNIFI_WRITE_EXCEPTIONS`` entry ``family:connector=deny``; writes are
+  ENABLED by default, and the ``confirm`` argument is accepted for compatibility and no longer
+  required. A mutation is refused only when that entry is set, or ``UNIFI_WRITE_POLICY=deny``,
+  for a read-only deployment. A refused mutation is rejected before any
   network call is made.
 * **Per-area opt-outs.** A mutation on a route class that belongs to an area with its
-  own write opt-out (``network-*`` routes: ``UNIFI_ENABLE_NETWORK_WRITE``;
-  ``protect-*`` routes: ``UNIFI_PROTECT_MUTATIONS_ENABLED``; the
+  own write opt-out (``network-*`` routes: ``family:network=deny``;
+  ``protect-*`` routes: ``family:protect=deny``; the
   Mobility and Carrier Fabric opt-outs likewise for any ``mobility-*`` / ``carrier-*``
   route class) is refused before any network call when that opt-out is set, exactly as
   the area's typed tools are. See :data:`_AREA_OPT_OUTS`. The client chokepoint
@@ -103,16 +103,17 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
 from contextvars import ContextVar
 from typing import Annotated, Any, overload
 
+from fastmcp import FastMCP
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from pydantic import WithJsonSchema
 
 from .. import switches
+from .._read_only_audit import state_changing_get
 from ..client import (
     RateLimitError,
     UniFiClient,
@@ -120,7 +121,6 @@ from ..client import (
     classic_rc_error,
     content_type_charset,
     decode_body,
-    is_dry_run_preview,
     object_records,
     strip_additive_keys,
     text_codec,
@@ -128,8 +128,16 @@ from ..client import (
 )
 from ..config import APIKeyConfig
 from ..matching import same_id
-from ..read_only import ReadOnlyModeError, guard_action, is_write_request, state_changing_get_route
+from ..read_only import (
+    ReadOnlyModeError,
+    decoded_path,
+    guard_action,
+    is_write_request,
+    mark_write_denied,
+    state_changing_get_route,
+)
 from ..registry import Registry
+from ..request_policy import request_dry_run_active
 from ..route_secrets import (
     mask_request_path,
     mask_response_body,
@@ -138,6 +146,7 @@ from ..route_secrets import (
     response_secrets,
 )
 from ..secret_scrub import configured_secrets, scrub, scrub_bytes, scrub_json_strings
+from ..tool_annotations import WRITE
 from ..write_body import require_unmasked_fields
 from . import carrier_fabric, mobility, protect
 from ._results import MISSING, leaf_equal, with_read_after_error
@@ -259,24 +268,8 @@ UNCLASSIFIED = "unclassified"
 
 
 def _area_opt_out_text(area: str, env: str) -> str:
-    """The refusal text of an area opt-out, in the form the Protect, Mobility and Carrier
-    Fabric texts use: the variable, that no request was sent, the accepted spellings,
-    where the knob lives and the README section. The current value is appended when the
-    refusal is raised (:func:`switches.current_value_note`)."""
-    return (
-        f"{area} writes are opted out: environment variable {env} is set to a false value "
-        f"({switches.FALSE_HINT}). No request was sent. Writes are enabled by default. To "
-        f"re-enable, set {env} to a true value ({switches.TRUE_HINT}) -- or remove the "
-        "override -- in the MCP client env block (and turn off the Claude Code plugin's "
-        "Read-only mode option if enabled), the environment of the shell that starts the "
-        "server (an export there works), or this service's 'environment:' block in the "
-        "deploy docker-compose.yml (a host shell export does not reach the container; never "
-        "the application source), then "
-        "recreate the container (restart the whole compose group if a sidecar shares its "
-        "network namespace). UNIFI_READ_ONLY must also be off. See the README "
-        '"Enabling / disabling connector writes" section; the same compose environment: '
-        "mechanism applies to every per-area write flag."
-    )
+    """The refusal text of a denied area (``switches.area_deny_text``)."""
+    return switches.area_deny_text(area, env)
 
 
 #: Per-area write opt-outs the relay honours. Each entry is
@@ -308,26 +301,14 @@ _AREA_OPT_OUTS: tuple[tuple[str, str, Callable[[], bool], str], ...] = tuple(
 )
 
 
-#: The connector relay's write opt-out (default on; a false spelling refuses mutations).
-CONNECTOR_WRITE_ENV = "UNIFI_ENABLE_CONNECTOR_WRITE"
+#: The connector relay's write opt-out: the ``family:connector=deny`` write exception.
+CONNECTOR_WRITE_ENV = switches.CONNECTOR_WRITE_TOKEN
 
 
 def connector_write_refusal(method: str) -> str:
-    """The refusal of a relayed mutation while ``UNIFI_ENABLE_CONNECTOR_WRITE`` opts out."""
-    env_value = os.environ.get(CONNECTOR_WRITE_ENV)
-    return (
-        f"{method} connector relay is refused: connector writes are opted out "
-        f"(UNIFI_ENABLE_CONNECTOR_WRITE={env_value}). Writes are enabled by default. "
-        f"To re-enable, set UNIFI_ENABLE_CONNECTOR_WRITE to a true value ({switches.TRUE_HINT}) "
-        "-- or remove the override -- in the MCP client env block "
-        "(and turn off the Claude Code plugin's Read-only mode option if enabled), "
-        "the environment of the shell that starts the server (an export there works), "
-        "or this service's "
-        "'environment:' block in the deploy docker-compose.yml (a host shell export does "
-        "not reach the container; never the application source), then recreate the "
-        "container (restart the whole "
-        "compose group if a sidecar shares its network namespace). See the README "
-        'section "Enabling / disabling connector writes".'
+    """The refusal of a relayed mutation while ``family:connector=deny`` is set."""
+    return f"{method} connector relay is refused. " + switches.area_deny_text(
+        "Connector relay", CONNECTOR_WRITE_ENV
     )
 
 
@@ -366,7 +347,7 @@ def relay_get_opt_out_env(path: Any, scope: Any) -> str | None:
 
     In the order :func:`fabric_connector_get` checks them: a path that is not a
     state-changing route, or that fails validation, has none; then
-    ``UNIFI_ENABLE_CONNECTOR_WRITE``, then the route's area switch. Read-only mode is not
+    ``family:connector=deny``, then the route's area switch. Read-only mode is not
     included (its refusal is audited where it is raised). Makes no network call.
     """
     if not isinstance(path, str) or not is_write_request("GET", path):
@@ -377,7 +358,7 @@ def relay_get_opt_out_env(path: Any, scope: Any) -> str | None:
         route_class = _validate_relay_path(path, scope)
     except ValueError:
         return None
-    if not switches.env_flag(CONNECTOR_WRITE_ENV, True):
+    if not switches.connector_writes_enabled():
         return CONNECTOR_WRITE_ENV
     return _opted_out_relay_env(route_class)
 
@@ -406,10 +387,12 @@ def _check_area_opt_out(method: str, route_class: str) -> None:
     """
     for prefix, env_var, enabled, reason in _AREA_OPT_OUTS:
         if route_class.startswith(prefix) and not enabled():
-            raise ValueError(
-                f"{method} connector relay to a {route_class} route is refused: {env_var} "
-                f"opts this area out of writes, and the relay honours it. {reason}"
-                f"{switches.current_value_note(env_var)}"
+            raise mark_write_denied(
+                ValueError(
+                    f"{method} connector relay to a {route_class} route is refused: {env_var} "
+                    f"opts this area out of writes, and the relay honours it. {reason}"
+                    f"{switches.current_value_note(env_var)}"
+                )
             )
 
 
@@ -424,12 +407,14 @@ def _check_unclassified_mutation(method: str, route_class: str) -> None:
         return
     active = _active_area_opt_outs()
     if active:
-        raise ValueError(
-            f"{method} connector relay to an unclassified route is refused while a per-area "
-            f"write opt-out is active ({', '.join(active)}): the path is in no mapped UniFi "
-            "application namespace, so it cannot be shown to be outside the opted-out "
-            "area(s). GET on this path relays; the mutation relays once the opt-out is "
-            "cleared, or use the area's typed tool."
+        raise mark_write_denied(
+            ValueError(
+                f"{method} connector relay to an unclassified route is refused while a per-area "
+                f"write opt-out is active ({', '.join(active)}): the path is in no mapped UniFi "
+                "application namespace, so it cannot be shown to be outside the opted-out "
+                "area(s). GET on this path relays; the mutation relays once the opt-out is "
+                "cleared, or use the area's typed tool."
+            )
         )
 
 
@@ -1059,6 +1044,14 @@ def _no_op_verdict(
     return leaf_equal(_body_identity(read_before), _body_identity(read_after)), None
 
 
+def _relay_dry_run(client: UniFiClient, url: str) -> bool:
+    return (
+        getattr(client, "dry_run", False) is True
+        or switches.dry_run_active(path=decoded_path(url))
+        or request_dry_run_active()
+    )
+
+
 async def _safe_get(
     client: UniFiClient,
     url: str,
@@ -1087,7 +1080,7 @@ async def _safe_get(
         return {
             "status": None,
             "error": scrub(
-                f"{type(exc).__name__}: {exc}",
+                f"{type(exc).__name__}: {upstream_error_text(exc, client)}",
                 configured_secrets(
                     getattr(client, "_settings", None),
                     include_call=bool(
@@ -1257,9 +1250,9 @@ async def connector_get(
         except ReadOnlyModeError:
             _audit_refusal(client, "GET", path, switches.READ_ONLY_ENV)
             raise
-        if not switches.env_flag(CONNECTOR_WRITE_ENV, True):
+        if not switches.connector_writes_enabled():
             _audit_refusal(client, "GET", path, CONNECTOR_WRITE_ENV)
-            raise ValueError(connector_write_refusal("GET"))
+            raise mark_write_denied(ValueError(connector_write_refusal("GET")))
         area_env = _opted_out_relay_env(route_class)
         if area_env is not None:
             _audit_refusal(client, "GET", path, area_env)
@@ -1275,10 +1268,11 @@ async def connector_get(
     status = resp.status_code
     if raise_on_error and status >= 400:
         raise UniFiConnectionError(
-            f"GET {final_path}: HTTP {status}: {upstream_error_text(resp.text, client)}"
+            f"GET {final_path}: HTTP {status}: {upstream_error_text(resp.text, client)}",
+            status=status,
         )
     relayed = _relay_body(resp)
-    dry_run = is_write_request("GET", path) and is_dry_run_preview(relayed.get("body"))
+    dry_run = is_write_request("GET", path) and _relay_dry_run(client, url)
     marker = {} if dry_run else _classic_rc_marker(url, status, relayed.get("body"))
     if is_write_request("GET", path):
         _audit_mutation(
@@ -1333,9 +1327,9 @@ async def connector_write(
 
     Capability gating: connector writes are enabled by default, so the mutation is
     refused — before any network call — only when it is explicitly opted out, i.e.
-    ``write_enabled`` (the ``UNIFI_ENABLE_CONNECTOR_WRITE`` env flag) is False, or when
-    the route class belongs to an area whose own write opt-out is set (a ``protect-*``
-    route under ``UNIFI_PROTECT_MUTATIONS_ENABLED=0``; see :data:`_AREA_OPT_OUTS`). The
+    ``write_enabled`` is False (``UNIFI_WRITE_EXCEPTIONS`` contains
+    ``family:connector=deny``), or when the route class belongs to an area whose own write opt-out is set (a ``protect-*``
+    route under ``family:protect=deny``; see :data:`_AREA_OPT_OUTS`). The
     write itself is never auto-retried on a 429.
     The ``confirm`` argument is accepted for backward compatibility and no longer
     required. For PUT/PATCH/DELETE the resource is read before and after the
@@ -1348,7 +1342,7 @@ async def connector_write(
     method_u = method.strip().upper()
     if method_u not in _MUTATION_METHODS:
         raise ValueError(f"connector_write does not handle {method_u!r}; use connector_get for GET")
-    # Global read-only switch (UNIFI_READ_ONLY): refuse the relayed mutation before
+    # Global read-only switch (UNIFI_WRITE_POLICY=deny): refuse the relayed mutation before
     # ANY upstream call — including the PUT/PATCH/DELETE read-before — so a read-only
     # server never touches the console through the generic write relay.
     # Every gate refusal is audited (outcome=refused, reason = the gate's variable).
@@ -1362,7 +1356,7 @@ async def connector_write(
     route_class = _validate_relay_path(path, scope)
     if not write_enabled:
         _audit_refusal(client, method_u, path, CONNECTOR_WRITE_ENV)
-        raise ValueError(connector_write_refusal(method_u))
+        raise mark_write_denied(ValueError(connector_write_refusal(method_u)))
     area_env = _opted_out_relay_env(route_class)
     if area_env is not None:
         _audit_refusal(client, method_u, path, area_env)
@@ -1449,9 +1443,9 @@ async def connector_write(
             {**_relay_body(resp), **_redirect_headers(client, resp, key)},
         )
 
-        # UNIFI_DRY_RUN: nothing was written, so a read-after (and a no-op verdict from
+        # dry-run policy: nothing was written, so a read-after (and a no-op verdict from
         # it) would describe a write that never happened; the preview is the result.
-        dry_run = is_dry_run_preview(resp_body.get("body"))
+        dry_run = _relay_dry_run(client, url)
         # A Classic write answered 2xx without meta.rc == "ok" was rejected: the body
         # stays verbatim, the marker says why, and no noOp/changed verdict is drawn.
         marker = {} if dry_run else _classic_rc_marker(url, status, resp_body.get("body"))
@@ -1513,12 +1507,21 @@ async def connector_write(
             return _failed_write_result(client, method_u, final_path, result)
         return result
     except Exception as exc:
-        # Under UNIFI_DRY_RUN the client answered with its preview and sent nothing.
-        previewed = getattr(client, "dry_run", False) is True
+        # Under dry-run policy the client answered with its preview and sent nothing.
+        previewed = _relay_dry_run(client, url)
         if previewed:
             audit("dry_run", None)
         else:
             audit(_outcome(status), status)
+        # Scrub complete bound route values before field masking can split a URL
+        # at a credential-shaped query parameter and leave its path token exposed.
+        error_secrets = configured_secrets(
+            getattr(client, "_settings", None),
+            include_call=bool(getattr(getattr(client, "_settings", None), "redact_secrets", False)),
+        )
+        # Keep exception formatting semantics after scrubbing bound values; a plain
+        # string would be parsed as a JSON body and skip embedded text masking.
+        error_text = upstream_error_text(RuntimeError(scrub(str(exc), error_secrets)), client)
         fallback: dict[str, Any] = {
             **base,
             "status": "dry_run" if previewed else status,
@@ -1526,15 +1529,7 @@ async def connector_write(
             "writeEnabled": write_enabled,
             # Configured server secrets are always scrubbed; bound route values follow
             # the same opt-in redaction policy as every other returned error body.
-            "postWriteError": scrub(
-                f"{type(exc).__name__}: {exc}",
-                configured_secrets(
-                    getattr(client, "_settings", None),
-                    include_call=bool(
-                        getattr(getattr(client, "_settings", None), "redact_secrets", False)
-                    ),
-                ),
-            ),
+            "postWriteError": scrub(f"{type(exc).__name__}: {error_text}", error_secrets),
         }
         if method_u in _TWIN_METHODS:
             fallback["readBefore"] = _route_response(client, "GET", final_path, read_before)
@@ -1543,3 +1538,455 @@ async def connector_write(
         return (
             fallback if previewed else _failed_write_result(client, method_u, final_path, fallback)
         )
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import connector  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the connector tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=WRITE)
+    @state_changing_get
+    async def fabric_connector_get(
+        host: str,
+        path: str,
+        site: str | None = None,
+        params: dict[str, Any] | None = None,
+        scope: str | None = None,
+    ) -> dict[str, Any]:
+        """Relay a GET through the Fabric connector to any console /proxy/{path} route.
+
+        Reaches private APIs too; official-only setups also exclude source:relay.
+
+        For routes without typed tools. GET needs no confirm. State-changing GET routes
+        (Protect enable-control/disable-control) require write authorization, obey connector/area
+        opt-outs, read-only mode and dry-run, and are sent once. In discovery mode use
+        call_write_tool for them. Ordinary GET reads remain available. A 4xx/5xx returns status,
+        so unknown-route probes expose reachability.
+
+        Consequence: Protect enable-control/disable-control changes camera controllability
+        until set back.
+
+        Under dry-run policy an action GET sends no action request: status is "dry_run"; body
+        previews method, path, params (query parameters), and body. Ordinary GETs still return
+        upstream responses.
+
+        Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body}; body is
+        the upstream body verbatim: decoded JSON, the exact text of a non-JSON body, or null when
+        the body is empty (masked only when the operator opts in with UNIFI_REDACT_SECRETS).
+        contentType is the upstream Content-Type (null when none). A text body is decoded with its
+        declared charset when that is a known codec (latin-1, windows-1252, utf-16 ...; UTF-8
+        otherwise), so non-UTF-8 text comes back as text under body. A binary body (a non-text
+        Content-Type such as image/jpeg, or bytes that do not decode in that charset) is returned
+        complete, with no size cap, base64-encoded as bodyBase64 plus sizeBytes, and body is null.
+        A 3xx (never followed) also returns its response headers (Location included; credentials
+        and cookies excluded) under headers.
+
+        HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
+        A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an upstream error
+        reported like a 4xx: status and body stay verbatim and _classicRcError gives the reason
+        (meta.msg included).
+
+        Required arguments: host, path (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts
+                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
+                "my-console") or the long data[].id (MAC:numericId composite).
+            path: the relay-relative application path AFTER ``/proxy/`` — e.g.
+                ``network/integration/v1/sites`` or ``network/api/s/{site}/stat/device``. Use the
+                ``{site}`` (slug) or ``{site_id}`` (UUID) placeholder for the site segment; the server
+                resolves and substitutes it, and resolvedPath reports the path as sent (the console id
+                and API key are never part of path or resolvedPath). Mapped application routes carry
+                their routeClass; unmapped routes relay as
+                routeClass "unclassified". Ordinary GET reads relay while an area write opt-out
+                is active. Mutations on unclassified routes are refused only while an area write
+                opt-out is active, with the refusal naming its variable. ``..``, ``%``-encoding,
+                and control characters are rejected.
+            site: site name or UUID — REQUIRED only when path contains a site placeholder.
+            params: optional query-string parameters.
+                Free-form JSON object; the caller-chosen route determines its shape.
+            scope: optional 'device' / 'site' / 'global' — cross-checked against the path so a device
+                route cannot be confused with a site-global setting route.
+        """
+        client, registry = deps_fn()
+        return await connector.connector_get(
+            client, registry, host, path, site=site, params=params, scope=scope
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def fabric_connector_post(
+        host: str,
+        path: str,
+        site: str | None = None,
+        body: connector.RelayBody = None,
+        confirm: bool = False,
+        scope: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Relay a POST (create/command) through the Fabric connector. Writes to the controller.
+
+        Reaches private APIs too.
+
+        Consequence: whatever the target route creates or does happens on the live controller
+        immediately.
+
+        POST targets a collection or command route (e.g. ``network/api/s/{site}/cmd/...``). See
+        fabric_connector_get for host/path/site/scope semantics; body is sent verbatim and confirm is
+        ignored. Every attempt is audit-logged (never the key value).
+
+        Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
+        writeEnabled}. status and body are the upstream's, verbatim (a 4xx/5xx is returned, not raised);
+        a binary body is bodyBase64 plus sizeBytes with body null; a 3xx (never followed) adds its
+        headers. POST has no GET twin: no read-before/after. Under dry-run policy nothing is sent:
+        status
+        is "dry_run" and body is the preview.
+
+        Refused before any request if family:connector=deny, UNIFI_WRITE_POLICY=deny is set, a
+        protect/ path meets family:protect=deny (every area write opt-out applies),
+        or an unclassified route meets any active area opt-out. Sent once: never auto-retried on 429
+        (raised with the upstream body).
+
+        Full request shapes are in the parameter schema; detailed examples and workflows:
+        docs/TOOL-USAGE.md#fabric_connector_post.
+
+        HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
+        A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an upstream error
+        reported like a 4xx: status and body stay verbatim and _classicRcError gives the reason
+        (meta.msg included).
+
+        Required arguments: host, path.
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            path: Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped
+                routes carry their routeClass; unmapped routes relay as routeClass "unclassified".
+                An ordinary GET relays even while an area write opt-out is active. A GET of a
+                state-changing route (protect/api/cameras/{id}/enable-control or
+                protect/api/cameras/{id}/disable-control) is a write: it follows the area write
+                opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
+                once. Mutations on
+                unclassified routes are refused only while an area write opt-out is active, with
+                the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
+                placeholder for the site segment; '..', %-encoding and control characters are
+                rejected.
+            site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
+                (UUID); the server substitutes it.
+            body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
+                Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
+                Free-form JSON value: object, array (e.g. []), string, number, boolean or null.
+                The caller-chosen route determines its shape.
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is sent upstream and
+                a preview of the request is returned).
+            scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
+                global-setting routes; 'site'/'global' reject /rest|/stat/device.
+            params: Optional query-string parameters sent with the write (and with the
+                read-before/read-after GET for PUT/PATCH/DELETE), e.g. the
+                sourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.
+                Free-form JSON object; the caller-chosen route determines its shape.
+        """
+        client, registry = deps_fn()
+        return await connector.connector_write(
+            client,
+            registry,
+            host,
+            "POST",
+            path,
+            site=site,
+            body=body,
+            params=params,
+            confirm=confirm,
+            scope=scope,
+            write_enabled=switches.connector_writes_enabled(),
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def fabric_connector_put(
+        host: str,
+        path: str,
+        site: str | None = None,
+        body: connector.RelayBody = None,
+        confirm: bool = False,
+        scope: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Relay a PUT (full replace) through the Fabric connector. Writes upstream.
+
+        Reaches private APIs too.
+
+        Consequence: replaces the resource immediately; omitted fields can be reset.
+
+        For ``network/api/s/{site}/rest/device/{id}``, pass scope='device' to reject site-global
+        setting routes; it has no GET, so reads use stat/device and noOp compares only sent fields
+        (noOpBasis). Undocumented routes are EXPERIMENTAL. fabric_connector_get defines
+        host/path/site/scope; body is verbatim; confirm is ignored.
+
+        Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
+        writeEnabled, readBefore, readAfter, noOp[, changed, noOpBasis]}. status/body are verbatim,
+        including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+        headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
+        readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
+        stat/device list as body, matched comparisonRecords, twin and twinError (why a device
+        was not compared). noOp is true only if the write and both reads are 2xx and every sent
+        leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
+        null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
+        present only when noOp is non-null. A Classic network/api/... 2xx lacking meta.rc "ok" is
+        rejected: _classicRcError includes meta.msg, noOp is null, reads carry the marker.
+        dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
+        preview, readAfter/noOp null.
+
+        Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
+        a protect/ path has family:protect=deny (all area write opt-outs apply), or
+        an unclassified route meets an active area opt-out. Sent once: never auto-retried on 429
+        (raised with the upstream body).
+
+        Details: docs/TOOL-USAGE.md#fabric_connector_put.
+
+        HTTP 401/403 adds _hint (key setup/permission advice);
+        readBefore/readAfter carry the same guidance for failed GET twins.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            path: Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped
+                routes carry their routeClass; unmapped routes relay as routeClass "unclassified".
+                An ordinary GET relays even while an area write opt-out is active. A GET of a
+                state-changing route (protect/api/cameras/{id}/enable-control or
+                protect/api/cameras/{id}/disable-control) is a write: it follows the area write
+                opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
+                once. Mutations on
+                unclassified routes are refused only while an area write opt-out is active, with
+                the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
+                placeholder for the site segment; '..', %-encoding and control characters are
+                rejected.
+            site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
+                (UUID); the server substitutes it.
+            body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
+                Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
+                Free-form JSON value: object, array (e.g. []), string, number, boolean or null.
+                The caller-chosen route determines its shape.
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is sent upstream and
+                a preview of the request is returned).
+            scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
+                global-setting routes; 'site'/'global' reject /rest|/stat/device.
+            params: Optional query-string parameters sent with the write (and with the
+                read-before/read-after GET for PUT/PATCH/DELETE), e.g. the
+                sourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.
+                Free-form JSON object; the caller-chosen route determines its shape.
+        """
+        client, registry = deps_fn()
+        return await connector.connector_write(
+            client,
+            registry,
+            host,
+            "PUT",
+            path,
+            site=site,
+            body=body,
+            params=params,
+            confirm=confirm,
+            scope=scope,
+            write_enabled=switches.connector_writes_enabled(),
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def fabric_connector_patch(
+        host: str,
+        path: str,
+        site: str | None = None,
+        body: connector.RelayBody = None,
+        confirm: bool = False,
+        scope: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Relay a PATCH (partial update) through the Fabric connector. Writes upstream.
+
+        Reaches private APIs too.
+
+        Consequence: the change is applied to the live controller immediately.
+
+        Classic rest/device/{id} reads use stat/device as for fabric_connector_put. For candidate
+        legacy InnerSpace ``innerspace/api/shapes/{id}``, first
+        probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop.
+        EXPERIMENTAL. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm is
+        ignored.
+
+        Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
+        writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim,
+        including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+        headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
+        readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
+        stat/device list as body, matched comparisonRecords, twin and twinError (why a device
+        was not compared). noOp is true only if the write and both reads are 2xx and every sent
+        leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
+        null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
+        present only when noOp is non-null. A Classic network/api/... 2xx lacking meta.rc "ok" is
+        rejected: _classicRcError includes meta.msg, noOp is null, reads carry the marker.
+        dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
+        preview, readAfter/noOp null.
+
+        Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
+        a protect/ path has family:protect=deny (all area write opt-outs apply), or
+        an unclassified route meets an active area opt-out. Sent once: never auto-retried on 429
+        (raised with the upstream body).
+
+        Details: docs/TOOL-USAGE.md#fabric_connector_patch.
+
+        HTTP 401/403 adds _hint (key setup/permission advice);
+        readBefore/readAfter carry the same guidance for failed GET twins.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            path: Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped
+                routes carry their routeClass; unmapped routes relay as routeClass "unclassified".
+                An ordinary GET relays even while an area write opt-out is active. A GET of a
+                state-changing route (protect/api/cameras/{id}/enable-control or
+                protect/api/cameras/{id}/disable-control) is a write: it follows the area write
+                opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
+                once. Mutations on
+                unclassified routes are refused only while an area write opt-out is active, with
+                the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
+                placeholder for the site segment; '..', %-encoding and control characters are
+                rejected.
+            site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
+                (UUID); the server substitutes it.
+            body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
+                Network 11.0.97 for network/integration/v1). Use the typed tool when one exists.
+                Free-form JSON value: object, array (e.g. []), string, number, boolean or null.
+                The caller-chosen route determines its shape.
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is sent upstream and
+                a preview of the request is returned).
+            scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
+                global-setting routes; 'site'/'global' reject /rest|/stat/device.
+            params: Optional query-string parameters sent with the write (and with the
+                read-before/read-after GET for PUT/PATCH/DELETE), e.g. the
+                sourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.
+                Free-form JSON object; the caller-chosen route determines its shape.
+        """
+        client, registry = deps_fn()
+        return await connector.connector_write(
+            client,
+            registry,
+            host,
+            "PATCH",
+            path,
+            site=site,
+            body=body,
+            params=params,
+            confirm=confirm,
+            scope=scope,
+            write_enabled=switches.connector_writes_enabled(),
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def fabric_connector_delete(
+        host: str,
+        path: str,
+        site: str | None = None,
+        body: dict[str, Any] | None = None,
+        confirm: bool = False,
+        scope: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Relay a DELETE through the Fabric connector. Irreversible write to the controller.
+
+        Reaches private APIs too.
+
+        Consequence: the target resource is removed from the controller; there is no undo.
+
+        DELETE reads its GET twin before/after; confirm the exact resource path first; body is
+        optional. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm is
+        ignored.
+
+        Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
+        writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim,
+        including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+        headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
+        readAfterError explains a failed or non-2xx read-after. DELETE is confirmed only by a
+        404 read-after following a 2xx read-before: noOp false, changed true. If read-after still
+        returns the resource, noOp is null with noOpReason "deletion not confirmed". Unknown is also
+        noOp null; changed (= not noOp) is present only when noOp is non-null.
+        A Classic network/api/... 2xx lacking meta.rc "ok" is rejected: status/body stay verbatim,
+        _classicRcError includes meta.msg, noOp is null with no changed, and reads carry the marker.
+        dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
+        preview, readAfter/noOp null, no changed.
+
+        Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
+        a protect/ path has family:protect=deny (all area write opt-outs apply), or
+        an unclassified route meets any active area opt-out. Sent once: never auto-retried on 429
+        (raised with the upstream body).
+
+        Details: docs/TOOL-USAGE.md#fabric_connector_delete.
+
+        HTTP 401/403 keeps body/status and adds _hint (key setup/permission advice);
+        readBefore/readAfter carry the same guidance for failed GET twins.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            path: Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped
+                routes carry their routeClass; unmapped routes relay as routeClass "unclassified".
+                An ordinary GET relays even while an area write opt-out is active. A GET of a
+                state-changing route (protect/api/cameras/{id}/enable-control or
+                protect/api/cameras/{id}/disable-control) is a write: it follows the area write
+                opt-outs, family:connector=deny, read-only mode and dry-run, and is sent
+                once. Mutations on
+                unclassified routes are refused only while an area write opt-out is active, with
+                the refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)
+                placeholder for the site segment; '..', %-encoding and control characters are
+                rejected.
+            site: Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'
+                (UUID); the server substitutes it.
+            body: JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.
+                Network 11.0.97 for network/integration/v1). Optional for DELETE.
+                Omit to send no body; an explicit null is sent as the JSON body null.
+                Free-form JSON object; the caller-chosen route determines its shape.
+            confirm: Ignored; accepted for backward compatibility. The call executes immediately when
+                made unless the operator opted in to dry-run policy (then nothing is sent upstream and
+                a preview of the request is returned).
+            scope: Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects
+                global-setting routes; 'site'/'global' reject /rest|/stat/device.
+            params: Optional query-string parameters sent with the write (and with the
+                read-before/read-after GET for PUT/PATCH/DELETE), e.g. the
+                sourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.
+                Free-form JSON object; the caller-chosen route determines its shape.
+        """
+        client, registry = deps_fn()
+        return await connector.connector_write(
+            client,
+            registry,
+            host,
+            "DELETE",
+            path,
+            site=site,
+            body=body,
+            params=params,
+            confirm=confirm,
+            scope=scope,
+            write_enabled=switches.connector_writes_enabled(),
+        )
+
+    return {
+        "fabric_connector_get": fabric_connector_get,
+        "fabric_connector_post": fabric_connector_post,
+        "fabric_connector_put": fabric_connector_put,
+        "fabric_connector_patch": fabric_connector_patch,
+        "fabric_connector_delete": fabric_connector_delete,
+    }

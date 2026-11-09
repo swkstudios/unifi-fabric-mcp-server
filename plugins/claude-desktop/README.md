@@ -4,17 +4,19 @@ This folder holds the manifest for a Claude Desktop extension bundle (`.mcpb`). 
 
 ## What it runs
 
-`uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp` over stdio, so [uv](https://docs.astral.sh/uv/) must be installed. The bundle contains the manifest and this README; uv downloads the pinned release from PyPI on first start.
+`uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` over stdio, so [uv](https://docs.astral.sh/uv/) must be installed. The bundle contains the manifest and this README; uv downloads the pinned release from PyPI on first start.
 
 ## Build and install
 
-<!-- doc-provenance: source=file:plugins/claude-desktop/manifest.json@sha256:c785203ce6d2cc9bee17187023af10f57adde2715f91225c0493e2dce8d8ab8f support=0.7.0 citation=file:plugins/claude-desktop/manifest.json@sha256:c785203ce6d2cc9bee17187023af10f57adde2715f91225c0493e2dce8d8ab8f -->
+<!-- doc-provenance: source=file:plugins/claude-desktop/manifest.json@sha256:3a0ee0e2b12aba88dd527255ad7304a5f3dc4b7e96233b01dc02f9952a2c40fd support=0.7.1 citation=file:plugins/claude-desktop/manifest.json@sha256:3a0ee0e2b12aba88dd527255ad7304a5f3dc4b7e96233b01dc02f9952a2c40fd -->
 <!-- install-case: claude-desktop-readme-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 npx -y @anthropic-ai/mcpb@2.1.2 pack plugins/claude-desktop unifi-fabric.mcpb
 ```
 
-Then double-click `unifi-fabric.mcpb`, drag it onto Claude Desktop, or use **Settings > Extensions > Advanced > Install Extension**. Enter your API key when asked. The optional **Read-only mode** switch hides every write and action tool and refuses any call to one before anything is sent to UniFi; writes are on by default. The optional **Tool mode** setting defaults to `discovery` (meta-tools that search, describe and call tools; the write dispatcher is hidden in read-only mode); enter `full` to advertise every tool.
+Then double-click `unifi-fabric.mcpb`, drag it onto Claude Desktop, or use **Settings > Extensions > Advanced > Install Extension**. Enter your API key when asked. The optional **Write policy** setting is `allow` by default (writes on); `deny` hides every write and action tool and refuses any call to one before anything is sent to UniFi, and `dry-run` previews every write without sending it. The optional **Tool mode** setting defaults to `discovery` (meta-tools that search, describe and call tools; the write dispatcher is hidden under the `deny` write policy); enter `full` to advertise every tool.
+
+Some tools depend on console-internal paths that Ubiquiti can restrict without notice. Set `UNIFI_EXCLUDE=unofficial,source:relay` for a published-API-only profile.
 
 The same bundle supports macOS and Windows. Install uv before opening the bundle, and ensure `uvx` is available to Claude Desktop.
 

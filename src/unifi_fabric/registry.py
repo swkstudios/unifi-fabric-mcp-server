@@ -18,9 +18,11 @@ from .client import (
     nullable_object_records,
     object_records,
     upstream_error_text,
+    upstream_error_value,
     validate_host_id,
     wrong_type_error,
 )
+from .header_credentials import cache_label, header_mode_enabled
 from .macs import is_mac, record_mac
 from .matching import id_key, name_keys, same_id, tiered_name_matches
 from .selector_args import check_selector
@@ -46,7 +48,7 @@ def _all_objects(items: Any) -> bool:
     return isinstance(items, list) and all(isinstance(item, dict) for item in items)
 
 
-def _assert_uuid(site_id: str) -> None:
+def _assert_uuid(site_id: str, *, client: Any = None) -> None:
     """Raise ValueError if site_id is not a valid UUID.
 
     Called at every proxy URL construction site as defense-in-depth so that
@@ -59,7 +61,8 @@ def _assert_uuid(site_id: str) -> None:
         raise wrong_type_error("site_id", site_id)
     if not _UUID_RE.match(site_id):
         raise ValueError(
-            f"site_id {site_id!r} is not a UUID — proxy endpoints require UUID site IDs. "
+            f"site_id {upstream_error_value(site_id, client)!r} is not a UUID — "
+            "proxy endpoints require UUID site IDs. "
             "Pass the site name or UUID as returned by the console's /sites endpoint."
         )
 
@@ -78,7 +81,9 @@ def ea_site_labels(site: dict[str, Any]) -> list[str]:
         meta = {}
     elif not isinstance(meta, dict):
         raise wrong_type_error(
-            f"meta of site {site.get('siteId')!r}", meta, "an object ({name, desc})"
+            f"meta of site {upstream_error_value(site.get('siteId'))!r}",
+            meta,
+            "an object ({name, desc})",
         )
     labels: list[str] = []
     for val in (
@@ -180,13 +185,13 @@ def _host_labels(host: dict[str, Any]) -> tuple[str, str, str, str]:
 
 def _describe_host(host: dict[str, Any]) -> str:
     host_id, hostname, name, display = _host_labels(host)
-    parts = [f"id={host_id}"]
+    parts = [f"id={upstream_error_value(host_id)}"]
     if hostname:
-        parts.append(f"hostname={hostname}")
+        parts.append(f"hostname={upstream_error_value(hostname)}")
     if display:
-        parts.append(f"name={display}")
+        parts.append(f"name={upstream_error_value(display)}")
     elif name:
-        parts.append(f"name={name}")
+        parts.append(f"name={upstream_error_value(name)}")
     return " ".join(parts)
 
 
@@ -289,7 +294,12 @@ def valid_host_choices(hosts: list[dict[str, Any]]) -> str:
             host_id, hostname, name, display = _host_labels(host)
             label = hostname or display or name or host_id
             extras = distinct_labels((label, display or name, host_id))[1:]
-            out.append(f"{label} ({', '.join(extras)})" if extras else label)
+            out.append(
+                f"{upstream_error_value(label)} "
+                f"({', '.join(str(upstream_error_value(extra)) for extra in extras)})"
+                if extras
+                else str(upstream_error_value(label))
+            )
     return ", ".join(out) if out else "(no consoles visible to the configured API key(s))"
 
 
@@ -330,7 +340,10 @@ def _match_proxy_site(sites: list[dict[str, Any]], name_or_id: str) -> dict[str,
         )[1]:
             found.setdefault(id_key(_require_native_id(site, "id", "_id")), site)
     if len(found) > 1:
-        choices = "; ".join(f"{_proxy_site_label(s)} ({sid})" for sid, s in found.items())
+        choices = "; ".join(
+            f"{upstream_error_value(_proxy_site_label(s))} ({upstream_error_value(sid)})"
+            for sid, s in found.items()
+        )
         raise ValueError(
             f"ambiguous site {name_or_id!r}: {len(found)} sites share that name "
             f"({choices}). Pass the site id instead."
@@ -345,9 +358,16 @@ def _valid_site_choices(sites: list[dict[str, Any]]) -> str:
         if not isinstance(site, dict):
             continue
         # Both aliases a site resolves by (description and name), once each (case-folded).
-        label = " / ".join(distinct_labels(_proxy_site_labels(site)[0]))
+        label = " / ".join(
+            str(upstream_error_value(value))
+            for value in distinct_labels(_proxy_site_labels(site)[0])
+        )
         site_id = _text(site.get("id")) or _text(site.get("_id"))
-        out.append(f"{label} ({site_id})" if label and site_id else (label or site_id))
+        out.append(
+            f"{upstream_error_value(label)} ({upstream_error_value(site_id)})"
+            if label and site_id
+            else upstream_error_value(label or site_id)
+        )
     return ", ".join(x for x in out if x) or "(no sites on this console)"
 
 
@@ -374,7 +394,7 @@ def incomplete_name_error(
         if isinstance(max_pages, int) and not isinstance(max_pages, bool)
         else "the list drain stopped short"
     )
-    detail = "; ".join(r for r in reasons if r)
+    detail = "; ".join(upstream_error_text(r) for r in reasons if r)
     return PartialListingError(
         f"cannot resolve {name!r} unambiguously: the {what} list is incomplete ({cap}), "
         f"so another {what} with that name may exist past the cap. Pass the exact "
@@ -419,7 +439,9 @@ def match_ea_site(
             labels[index] = ea_site_labels(site)
         except ValueError as exc:
             labels[index] = []
-            malformed.append(f"skipped site {_ea_site_id(site) or index!r}: {exc}")
+            malformed.append(
+                f"skipped site {upstream_error_value(_ea_site_id(site) or index)!r}: {exc}"
+            )
     indexed = list(enumerate(sites))
     _tier, matched = tiered_name_matches(indexed, name_or_id, lambda pair: [labels[pair[0]]])
     named: dict[str, tuple[int, dict[str, Any]]] = {}
@@ -427,7 +449,8 @@ def match_ea_site(
         named.setdefault(id_key(_require_native_id(site, "siteId", "id")), (index, site))
     if len(named) > 1:
         choices = "; ".join(
-            f"{(labels[i] or [sid])[0]} (siteId={sid}, hostId={_text(st.get('hostId'))})"
+            f"{upstream_error_value((labels[i] or [sid])[0])} (siteId={upstream_error_value(sid)}, "
+            f"hostId={upstream_error_value(_text(st.get('hostId')))})"
             for sid, (i, st) in named.items()
         )
         raise ValueError(
@@ -441,10 +464,10 @@ def match_ea_site(
             )
         return next(iter(named.values()))[1]
     valid_names = distinct_labels(sorted({label for found in labels.values() for label in found}))
+    valid_text = ", ".join(str(upstream_error_value(v)) for v in valid_names) or "(none)"
     failed = "".join(f"; {e}" for e in [*(failures or []), *malformed])
     raise (PartialListingError if partial else ValueError)(
-        f"Site {name_or_id!r} not found; valid: {', '.join(valid_names) or '(none)'}"
-        f"{failed}{partial_note}"
+        f"Site {name_or_id!r} not found; valid: {valid_text}{failed}{partial_note}"
     )
 
 
@@ -502,10 +525,17 @@ class Registry:
         self._ea_sites_full_warned = False
 
     def _key_label(self, key: APIKeyConfig | None) -> str | None:
+        # Cache/lock key of a per-key entry. Environment mode: the label (unchanged).
+        # Header mode: label plus the full key digest (header_credentials.cache_label),
+        # so one label sent with two different keys never shares an entry.
         if key is not None:
-            return key.label
+            return cache_label(key.label, key)
         labels = self._client.list_key_labels()
-        return labels[0] if labels else _DEFAULT_LABEL
+        if not labels:
+            return _DEFAULT_LABEL
+        if header_mode_enabled():
+            return cache_label(labels[0], self._client.get_key_by_label(labels[0]))
+        return labels[0]
 
     def _check_cache_pressure(self, cache: TTLCache, name: str, warned_attr: str) -> None:
         """Log WARNING once when cache first fills; log INFO when pressure drops below 50%."""

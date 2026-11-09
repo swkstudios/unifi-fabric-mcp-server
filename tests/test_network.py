@@ -20,6 +20,7 @@ from unifi_fabric.tools.network import (
     get_network_references,
     get_switch_stack,
     get_wifi_broadcast,
+    list_integration_device_tags,
     list_lags,
     list_local_sites,
     list_mc_lag_domains,
@@ -547,6 +548,8 @@ class TestCreateWifiBroadcast:
             await create_wifi_broadcast(client, registry, "h", "s", {"type": "STANDARD"})
         assert str(exc.value).startswith(upstream)
         assert "broadcastingDeviceFilter" in str(exc.value)
+        # Live 2026-11-08 (Network 11.0.97): an SSID created disabled was refused the same way.
+        assert "enabled: false" in str(exc.value)
         assert exc.value.status == 400 and exc.value.request_sent is True
         assert client.post.await_count == 1
 
@@ -860,7 +863,7 @@ async def test_list_switching_resource(function, resource, client, registry):
 
 
 @pytest.mark.parametrize("function", [list_lags, list_mc_lag_domains, list_switch_stacks])
-async def test_list_switching_resource_forwards_any_limit(function, client, registry):
+async def test_list_switching_resource_clamps_limit_to_200(function, client, registry):
     client.get.return_value = {"offset": 0, "limit": 201, "count": 0, "totalCount": 0, "data": []}
     await function(client, registry, "myhost", "mysite", limit=201)
     # The old offset=0 assertion encoded an invented control for a limit-only request.
@@ -933,7 +936,7 @@ async def test_get_switching_resource_rejects_unsafe_id(function, client, regist
 
 
 class TestCreateNetworkSpecKeys:
-    """The Network 10.6.106 spec key is ``ipv4Configuration`` (lower-case v)."""
+    """The Network 11.0.97 spec key is ``ipv4Configuration`` (lower-case v)."""
 
     async def test_ipv4_configuration_forwarded_verbatim(self, client, registry):
         payload = {
@@ -959,3 +962,36 @@ class TestCreateNetworkSpecKeys:
         assert "ipv4Configuration" in doc
         assert "ipV4Configuration:" not in doc
         assert "'dhcpMode'" not in doc
+
+
+class TestListIntegrationDeviceTags:
+    async def test_drain_and_filter(self, client, registry):
+        rows = [{"id": "tag-1", "name": "APs", "extra": {"unchanged": True}}]
+        client.get.side_effect = [rows, []]
+        result = await list_integration_device_tags(
+            client, registry, "h", "s", filter="name.eq('APs')"
+        )
+        assert result["data"] == rows
+        assert [c.args[0] for c in client.get.call_args_list] == [
+            f"{BASE}/sites/{SITE_ID}/device-tags",
+            f"{BASE}/sites/{SITE_ID}/device-tags",
+        ]
+        assert [c.kwargs["params"] for c in client.get.call_args_list] == [
+            {"filter": "name.eq('APs')", "offset": n, "limit": 200} for n in (0, 1)
+        ]
+
+    async def test_manual_page_passes_body_through(self, client, registry):
+        body = {"data": [{"name": "APs", "unknown": 42}], "totalCount": 8, "other": "keep"}
+        client.get.return_value = body
+        assert await list_integration_device_tags(client, registry, "h", "s", offset=3) == body
+
+    @pytest.mark.parametrize("resolver", ["resolve_key_for_host", "resolve_site_id"])
+    async def test_unknown_selector_stops_before_collection_request(
+        self, client, registry, resolver
+    ):
+        getattr(registry, resolver).side_effect = ValueError(
+            "Unknown selector; valid choices: example"
+        )
+        with pytest.raises(ValueError, match="valid choices"):
+            await list_integration_device_tags(client, registry, "h", "s")
+        client.get.assert_not_called()

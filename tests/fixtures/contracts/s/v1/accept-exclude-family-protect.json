@@ -1,0 +1,39 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "accept-exclude-family-protect",
+  "description": "UNIFI_EXCLUDE=family:protect removes protect from exposed_families and keeps the token in exclusions (net reading).",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:protect",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "write_policy": "allow",
+      "write_exceptions": [],
+      "exposed_families": [
+        "carrier",
+        "clients",
+        "connector",
+        "devices",
+        "firewall",
+        "hotspot",
+        "innerspace",
+        "mobility",
+        "network",
+        "site_manager",
+        "statistics",
+        "vpn"
+      ],
+      "exclusions": [
+        "family:protect"
+      ]
+    },
+    "upstream_calls": 0
+  }
+}

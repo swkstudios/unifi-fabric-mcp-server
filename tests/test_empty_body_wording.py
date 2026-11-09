@@ -1,6 +1,7 @@
 """The empty-body refusal is worded by tool kind and names what the body needs.
 
-Every write tool taking one object body refuses an empty body before any request
+Every write tool taking one object body refuses an empty body before any request,
+except a literal empty firewall rule whose unpublished schema is upstream-judged
 (``No fields provided``). An update asks for a field to change; a create or an action
 says there is nothing to create / no action to send and names every key its published
 request schema requires (``write_body.CREATE_ACTION_REQUIRED_KEYS``, pinned here to the
@@ -61,6 +62,11 @@ async def test_empty_body_message_by_kind(monkeypatch, name):
     arg = body_argument(TOOLS[name])
     args = {**tool_args.generated_args(TOOLS[name]), arg: {}}
     up = uh.FakeUpstream()
+    if name == "create_firewall_rule":
+        await cti._call(monkeypatch, name, up, args)
+        assert len(up.writes()) == 1
+        assert up.writes()[0].sent_json == {}
+        return
     with pytest.raises(ToolError) as exc:
         await cti._call(monkeypatch, name, up, args)
     text = str(exc.value)
@@ -77,6 +83,19 @@ async def test_empty_body_message_by_kind(monkeypatch, name):
         assert all(key in text for key in required), (required, text)
     else:
         assert "tool description" in text, text
+
+
+@pytest.mark.parametrize("rule", [{}, {"name": "synthetic"}])
+async def test_unspecced_firewall_body_reaches_controller_unchanged(monkeypatch, rule):
+    name = "create_firewall_rule"
+    args = {**tool_args.generated_args(TOOLS[name]), "rule": rule}
+    up = uh.FakeUpstream()
+    await cti._call(monkeypatch, name, up, args)
+    writes = up.writes()
+    assert len(writes) == 1
+    assert writes[0].method == "POST"
+    assert writes[0].path.endswith("/rest/firewallrule")
+    assert writes[0].sent_json == rule
 
 
 def _spec_required(tool: str) -> set[str] | None:
@@ -102,6 +121,12 @@ def _spec_required(tool: str) -> set[str] | None:
             for p in op.get("parameters") or ()
             if _deref(spec, p).get("in") == "query" and _deref(spec, p).get("required")
         }
+    if (
+        tool == "create_firewall_rule"
+        and req.method == "POST"
+        and req.path.endswith("/rest/firewallrule")
+    ):
+        return None  # This EA operation has no published request schema.
     raise AssertionError(f"{tool}: {req.method} {req.path} matches no spec operation")
 
 
@@ -116,3 +141,14 @@ def test_required_keys_are_the_vendored_specs(name):
 
 def test_query_dict_is_not_a_request_body() -> None:
     assert body_argument(TOOLS["bulk_delete_hotspot_vouchers"]) is None
+
+
+async def test_missing_provenance_preserves_empty_refusal(monkeypatch):
+    from unifi_fabric.write_body import CREATE_ACTION_BODY_PROVENANCE
+
+    monkeypatch.delitem(CREATE_ACTION_BODY_PROVENANCE, "create_firewall_rule")
+    args = {**tool_args.generated_args(TOOLS["create_firewall_rule"]), "rule": {}}
+    up = uh.FakeUpstream()
+    with pytest.raises(ToolError, match=NO_FIELDS):
+        await cti._call(monkeypatch, "create_firewall_rule", up, args)
+    assert up.served == []

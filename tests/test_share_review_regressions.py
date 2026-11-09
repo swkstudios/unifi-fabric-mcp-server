@@ -53,7 +53,12 @@ def encoded_wire(wire, monkeypatch):
 async def test_share_snapshots_follow_success_or_failure_policy(
     encoded_wire, charset, redact, dry_run, delete_status
 ):
-    encoded_wire({"DELETE": delete_status}, charset=charset, redact_secrets=redact, dry_run=dry_run)
+    encoded_wire(
+        {"DELETE": delete_status},
+        charset=charset,
+        redact_secrets=redact,
+        write_policy="dry-run" if dry_run else "allow",
+    )
     result = uh.result_payload(
         await server.mcp.call_tool("fabric_connector_delete", {"host": "console", "path": ROUTE})
     )
@@ -158,7 +163,7 @@ async def test_rtsps_errors_follow_opt_in(encoded_wire, redact, tool, method):
     "tool", ["fabric_connector_post", "fabric_connector_put", "fabric_connector_patch"]
 )
 async def test_dry_run_request_masking_follows_opt_in(encoded_wire, redact, tool):
-    encoded_wire({}, dry_run=True, redact_secrets=redact)
+    encoded_wire({}, write_policy="dry-run", redact_secrets=redact)
     payload = uh.result_payload(
         await server.mcp.call_tool(
             tool, {"host": "console", "path": ROUTE, "body": {"shareLink": LINK}}

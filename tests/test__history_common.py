@@ -45,10 +45,10 @@ def test_warning_boundaries_and_omitted_or_non_integer_arguments():
         ("boundary", MILLISECONDS_HINT_AT, "EPOCH_SECONDS_LOOKS_LIKE_MILLISECONDS"),
         ("above", MILLISECONDS_HINT_AT + 1, "EPOCH_SECONDS_LOOKS_LIKE_MILLISECONDS"),
     ]
-    assert all(
-        "sent as given" in w["message"] or "sent the value as given" in w["message"]
-        for w in warnings
-    )
+    # Most callers multiply seconds by 1000 before sending, so "sent as given" would be
+    # false: the message says the value was not rescaled and still took the usual unit.
+    assert all("multiplied by 1000" in w["message"] for w in warnings)
+    assert not any("as given" in w["message"] for w in warnings)
 
 
 @pytest.mark.parametrize("result", [{"data": []}, [], "upstream", None, 123])

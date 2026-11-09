@@ -12,6 +12,7 @@ import pytest
 
 from tests import tool_args
 from tests import upstream_harness as uh
+from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.tools.network import PROXY_BASE
@@ -23,6 +24,7 @@ from unifi_fabric.tools.network_services_proxy import (
     annotate_auto_exclusions,
     bulk_delete_hotspot_vouchers,
     create_dns_policy,
+    create_firewall_rule,
     create_hotspot_vouchers,
     create_port_forward,
     create_traffic_matching_list,
@@ -115,6 +117,7 @@ def registry():
     r.resolve_key_for_host = AsyncMock(return_value=None)
     r.resolve_host_id = AsyncMock(return_value=HOST_ID)
     r.resolve_site_id = AsyncMock(return_value=SITE_ID)
+    r.resolve_ea_site_id = AsyncMock(return_value="000000000000000000000123")
     r.resolve_site_slug = AsyncMock(return_value=SITE_SLUG)
     return r
 
@@ -671,16 +674,50 @@ class TestCreateTrafficRule:
         assert result["_id"] == "tr-new"
 
 
+_STORED_TRAFFIC_RULE: dict[str, Any] = {
+    "_id": "tr-1",
+    "description": "Block Social Media",
+    "action": "BLOCK",
+    "matching_target": "INTERNET",
+    "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff", "type": "CLIENT"}],
+    "schedule": {"mode": "CUSTOM", "repeat_on_days": ["mon"], "time_all_day": False},
+    "enabled": True,
+}
+
+
 class TestUpdateTrafficRule:
-    async def test_puts_to_v2_with_trailing_slash(self, client, registry):
-        client.get.return_value = [{"_id": "tr-1"}]
-        payload = {"enabled": False}
-        client.put.return_value = {"_id": "tr-1", **payload}
-        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
+    async def test_partial_payload_is_merged_into_the_listed_rule(self, client, registry):
+        """The v2 PUT replaces the whole rule: the documented partial payload
+        ({"enabled": false}) must not wipe matching_target / target_devices / schedule."""
+        stored = copy.deepcopy(_STORED_TRAFFIC_RULE)
+        client.get.side_effect = [[stored], [{**stored, "enabled": False}]]
+        client.put.return_value = {**stored, "enabled": False}
+        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", {"enabled": False})
         client.put.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/tr-1/", key=None, json=payload
+            f"{V2_API_BASE}/trafficrules/tr-1/",
+            key=None,
+            json={**_STORED_TRAFFIC_RULE, "enabled": False},
         )
-        assert result["_id"] == "tr-1"
+        assert result["enabled"] is False
+        assert result["_verified"] is True
+        assert stored == _STORED_TRAFFIC_RULE  # the listed record is not mutated
+
+    async def test_nested_change_keeps_unrequested_siblings(self, client, registry):
+        stored = copy.deepcopy(_STORED_TRAFFIC_RULE)
+        client.get.return_value = [stored]
+        client.put.return_value = {"_id": "tr-1"}
+        result = await update_traffic_rule(
+            client, registry, "h", "s", "tr-1", {"schedule": {"mode": "ALWAYS"}}
+        )
+        sent = client.put.call_args.kwargs["json"]
+        assert sent["schedule"] == {
+            "mode": "ALWAYS",
+            "repeat_on_days": ["mon"],
+            "time_all_day": False,
+        }
+        assert sent["target_devices"] == _STORED_TRAFFIC_RULE["target_devices"]
+        # The read-back still shows the old mode: the write is not reported verified.
+        assert result["_verified"] is False
 
     async def test_strips_empty_strings_from_list_fields(self, client, registry):
         """Padded list fields in a traffic-rule object are cleaned
@@ -692,8 +729,25 @@ class TestUpdateTrafficRule:
         client.put.assert_called_once_with(
             f"{V2_API_BASE}/trafficrules/tr-1/",
             key=None,
-            json={"enabled": True, "target_devices": ["dev-1"]},
+            json={"_id": "tr-1", "enabled": True, "target_devices": ["dev-1"]},
         )
+
+    async def test_read_back_failure_is_reported_not_raised(self, client, registry):
+        client.get.side_effect = [
+            [copy.deepcopy(_STORED_TRAFFIC_RULE)],
+            UniFiConnectionError("boom"),
+        ]
+        client.put.return_value = {"_id": "tr-1"}
+        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", {"enabled": False})
+        assert result["_verified"] is None
+        assert "boom" in result["_readAfterError"]
+
+    @pytest.mark.parametrize("payload", [{}, {"_id": "tr-1"}, {"_resolved": 1}])
+    async def test_payload_without_a_field_to_change_sends_nothing(self, client, registry, payload):
+        with pytest.raises(ValueError):
+            await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
+        client.get.assert_not_called()
+        client.put.assert_not_called()
 
 
 class TestDeleteTrafficRule:
@@ -1942,12 +1996,85 @@ class TestListFirewallRules:
         assert result["data"] == [{"_id": "fr-1", "name": "Block Telnet", "action": "drop"}]
 
 
+class TestCreateFirewallRule:
+    async def test_posts_to_ea_route_and_preserves_body_and_response(self, client, registry):
+        rule = {
+            "name": "Synthetic allow rule",
+            "action": "accept",
+            "protocol": "future-controller-value",
+            "synthetic_extension": {"survives": True},
+        }
+        response = {
+            "meta": {"rc": "ok"},
+            "data": [{**rule, "_id": "000000000000000000000321"}],
+        }
+        client.post.return_value = response
+        result = await create_firewall_rule(client, registry, "h", "s", rule)
+        client.post.assert_awaited_once_with(
+            "/ea/sites/000000000000000000000123/rest/firewallrule",
+            key=None,
+            json=rule,
+        )
+        registry.resolve_ea_site_id.assert_awaited_once_with("s", host_id=HOST_ID, key=None)
+        assert result is response
+        assert result["data"][0]["synthetic_extension"] == {"survives": True}
+
+    @pytest.mark.parametrize("rule", [{}, {"name": "Synthetic rule"}])
+    async def test_unspecced_payload_forwarded_unchanged(self, client, registry, rule):
+        response = {"meta": {"rc": "ok"}, "data": []}
+        client.post.return_value = response
+        result = await create_firewall_rule(client, registry, "h", "s", rule)
+        client.post.assert_awaited_once_with(
+            "/ea/sites/000000000000000000000123/rest/firewallrule", key=None, json=rule
+        )
+        assert result is response
+
+    async def test_non_object_refused_before_resolution_or_request(self, client, registry):
+        with pytest.raises(ValueError, match="JSON object"):
+            await create_firewall_rule(client, registry, "h", "s", [])
+        registry.resolve_key_for_host.assert_not_awaited()
+        client.post.assert_not_awaited()
+
+    async def test_unknown_site_error_keeps_valid_choices(self, client, registry):
+        registry.resolve_ea_site_id.side_effect = ValueError(
+            "Site 'missing' not found; valid: Default (000000000000000000000123)"
+        )
+        with pytest.raises(ValueError, match="valid: Default"):
+            await create_firewall_rule(
+                client,
+                registry,
+                "h",
+                "missing",
+                {"name": "Synthetic rule", "action": "accept"},
+            )
+        client.post.assert_not_awaited()
+
+
 class TestGetFirewallRule:
     async def test_uses_classic_rest_url_with_id(self, client, registry):
         client.get.return_value = {"meta": {"rc": "ok"}, "data": [{"_id": "fr-1"}]}
         result = await get_firewall_rule(client, registry, "h", "s", "fr-1")
         client.get.assert_called_once_with(f"{CLASSIC_REST_BASE}/firewallrule/fr-1", key=None)
         assert result["data"] == [{"_id": "fr-1"}]
+
+
+async def test_create_firewall_rule_routes_to_owning_key(multikey_client, multikey_registry):
+    for label, hosts in MULTIKEY_HOSTS_BY_LABEL.items():
+        await multikey_registry.set_hosts(hosts, key=multikey_client.get_key_by_label(label))
+    multikey_registry.resolve_host_id = AsyncMock(return_value="console-beta-1")
+    multikey_registry.resolve_ea_site_id = AsyncMock(return_value="000000000000000000000123")
+    captured: dict[str, object] = {}
+
+    async def _post(path, *, key=None, json=None, params=None):
+        captured.update(path=path, key=key, json=json, params=params)
+        return {"meta": {"rc": "ok"}, "data": []}
+
+    multikey_client.post = AsyncMock(side_effect=_post)
+    rule = {"name": "Synthetic beta rule", "action": "accept"}
+    await create_firewall_rule(multikey_client, multikey_registry, "Beta-Branch", "Default", rule)
+    assert captured["key"] is not None and captured["key"].label == "beta"
+    assert captured["path"] == "/ea/sites/000000000000000000000123/rest/firewallrule"
+    assert captured["json"] is rule
 
 
 # --- Firewall Groups (Classic REST) ---

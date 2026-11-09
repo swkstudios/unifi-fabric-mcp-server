@@ -405,7 +405,7 @@ async def test_sensor_readings_verbatim_array_or_object(body):
 
 
 async def test_metrics_sends_the_predefined_time_range_protect_7_3_requires():
-    """Protect 7.3.70 (live 2026-10-28) answers 400 "must have required property
+    """Protect 7.3.74 (live 2026-10-28) answers 400 "must have required property
     'predefinedTimeRange'" without it; the web app opens on "1day" and sends
     aggregateFunc "MAX". The default is sent; a given range and aggregate are forwarded."""
     up = Upstream({("GET", f"{PRIV}/devices/{DEV}/metrics"): []})
@@ -421,9 +421,8 @@ async def test_metrics_sends_the_predefined_time_range_protect_7_3_requires():
     assert "MAX" in props["aggregate_func"]["description"]
 
 
-async def test_sensor_readings_requires_start_protect_7_3_requires():
-    """Protect 7.3.70 (live 2026-10-28) answers 400 "must have required property 'start'"
-    without it, so start is a required argument."""
+async def test_sensor_readings_start_optional_with_upstream_hint():
+    """The schema makes start optional; upstream may require it for some versions."""
     tools = {t.name: t for t in await _registered_tools()}
     schema = tools["get_sensor_readings"].parameters
     assert "start" not in schema["required"] and "end" not in schema["required"]
@@ -466,6 +465,15 @@ async def test_alternate_branches_route_correctly(fn, args, path):
         assert body_of(up.seen[0]) == {"mac": MAC}  # reset is sent only when given
     if fn in (pdl.play_chime_sound, pdl.control_retroactive_ai_processing):
         assert up.seen[0].content == b""  # no body invented
+
+
+@pytest.mark.parametrize(
+    "member, expected", [(True, {"mac": MAC}), (False, {"mac": MAC, "reset": True})]
+)
+async def test_stack_reset_is_only_sent_for_removal(member, expected):
+    up = Upstream()
+    await run(up, pdl.set_nvr_stack_membership, MAC, member, reset=True)
+    assert body_of(up.seen[0]) == expected
 
 
 @pytest.mark.parametrize(
@@ -665,9 +673,10 @@ WRITE_IDS = [c[0] for c in WRITE_CALLS]
 
 
 @pytest.mark.parametrize("name,fn,args,kwargs", WRITE_CALLS, ids=WRITE_IDS)
-async def test_dry_run_previews_every_write_and_sends_none(name, fn, args, kwargs):
+async def test_dry_run_previews_every_write_and_sends_none(name, fn, args, kwargs, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     up = Upstream({("GET", f"{PRIV}/bootstrap"): {"nvr": {"name": "old"}}})
-    result = await run(up, fn, *args, settings={"dry_run": True}, **kwargs)
+    result = await run(up, fn, *args, **kwargs)
     assert up.writes() == [], name
     assert result["status"] == "dry_run", result
     preview = result["response"]
@@ -676,20 +685,18 @@ async def test_dry_run_previews_every_write_and_sends_none(name, fn, args, kwarg
     assert "verified" not in result
 
 
-async def test_dry_run_preview_carries_the_query_and_body():
+async def test_dry_run_preview_carries_the_query_and_body(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     result = await run(
         Upstream(),
         pdl.readopt_protect_device,
         "camera",
         CAM,
         reset=True,
-        settings={"dry_run": True},
     )
     detail = result["response"]["preview"]
     assert detail["method"] == "POST" and detail["params"] == {"reset": True}
-    result = await run(
-        Upstream(), pdl.assign_sensor_to_bridge, SENSOR, BRIDGE, settings={"dry_run": True}
-    )
+    result = await run(Upstream(), pdl.assign_sensor_to_bridge, SENSOR, BRIDGE)
     assert result["response"]["preview"]["body"] == {"assignedBridge": BRIDGE}
 
 
@@ -697,9 +704,9 @@ async def test_dry_run_preview_carries_the_query_and_body():
 async def test_protect_write_opt_out_refuses_with_zero_requests(
     name, fn, args, kwargs, monkeypatch
 ):
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "false")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
     up = Upstream()
-    with pytest.raises(ValueError, match="UNIFI_PROTECT_MUTATIONS_ENABLED"):
+    with pytest.raises(ValueError, match="family:protect=deny"):
         await run(up, fn, *args, **kwargs)
     assert up.seen == []
 
@@ -708,7 +715,7 @@ async def test_protect_write_opt_out_refuses_with_zero_requests(
 async def test_read_only_mode_refuses_every_write_before_any_request(
     name, fn, args, kwargs, monkeypatch
 ):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     up = Upstream()
     with pytest.raises(Exception, match="read-only mode"):
         await run(up, fn, *args, **kwargs)
@@ -717,7 +724,7 @@ async def test_read_only_mode_refuses_every_write_before_any_request(
 
 @pytest.mark.parametrize("name", sorted(READ_TOOLS))
 async def test_read_only_mode_leaves_reads_working(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs, *_ = CALLS[name]
     up = Upstream()
     await run(up, fn, *args, **kwargs)
@@ -852,7 +859,8 @@ async def test_failed_read_after_reports_null_verdict_with_reason():
     assert "boom" in result["readAfterError"]
 
 
-async def test_settings_dry_run_keeps_before_and_skips_read_after():
+async def test_settings_dry_run_keeps_before_and_skips_read_after(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     up = Upstream({("GET", f"{PRIV}/doorlocks/{LOCK}"): {"id": LOCK, "name": "same"}})
     result = await run(
         up,
@@ -860,7 +868,6 @@ async def test_settings_dry_run_keeps_before_and_skips_read_after():
         "doorlock",
         {"name": "same"},
         LOCK,
-        settings={"dry_run": True},
     )
     # Under dry-run the no-op short-circuit never stands in for the preview.
     assert result["status"] == "dry_run" and result["before"]["name"] == "same"
@@ -977,7 +984,7 @@ def test_writes_accept_confirm_and_state_their_consequence():
         assert "confirm" in tools[name].parameters["properties"], name
         if name != "update_protect_device_settings":
             assert "Consequence:" in tools[name].description, name
-        assert "UNIFI_DRY_RUN" in tools[name].description, name
+        assert "dry-run policy" in tools[name].description, name
     for name in READ_TOOLS:
         assert "confirm" not in tools[name].parameters["properties"], name
 
@@ -992,8 +999,10 @@ def test_closed_choices_are_schema_enums():
 
 def test_module_raises_only_through_registered_helpers():
     """No ``raise`` in this module: every refusal comes from a registered helper."""
+    import ast
+
     source = inspect.getsource(pdl)
-    assert "\n    raise " not in source and "\n        raise " not in source
+    assert not any(isinstance(node, ast.Raise) for node in ast.walk(ast.parse(source)))
 
 
 @pytest.mark.parametrize("kind,identity", [("doorlock", LOCK), ("aiport", AIPORT), ("nvr", DEV)])

@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-pair-1-2",
+  "description": "Adjacent pair (1,2): X-UniFi-Api-Key sent twice wins over a malformed X-UniFi-Write-Policy",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ],
+      [
+        "X-UniFi-Api-Key",
+        "{\"beta\":\"synthetic-key-b\"}"
+      ],
+      [
+        "X-UniFi-Write-Policy",
+        "loud"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_api_key_header",
+    "upstream_calls": 0
+  }
+}

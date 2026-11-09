@@ -64,9 +64,12 @@ separate concern. Do not conflate committed-fixture hygiene with runtime respons
 3. Create a virtual environment and install the package with dev dependencies:
 
    ```bash
-   python3 -m venv .venv && source .venv/bin/activate
-   pip install -e ".[dev]"
+   python3.12 -m venv .venv
+   .venv/bin/python -m pip install --require-hashes -r requirements.lock
+   .venv/bin/python -m pip install --no-deps -e .
    ```
+
+   These are the same hash-locked commands CI and [AGENTS.md](AGENTS.md#setup) use.
 
 4. Verify the setup with a targeted run (the full suite and its coverage gate run in CI):
 
@@ -144,19 +147,20 @@ in GitHub. The `changelog-check` CI job will pass without requiring a
 ### Format
 
 Add one Markdown file to `changelog.d/` with a unique, sortable filename ending in
-`.added.md`, `.changed.md`, `.fixed.md`, or `.security.md`, for example
+`.added.md`, `.changed.md`, `.removed.md`, `.fixed.md`, or `.security.md`, for example
 `changelog.d/site-default.fixed.md`. It contains one or more release-note bullets, each
 beginning with `- `, and no heading, release-version heading or HTML comment. See
-`changelog.d/README.md` for the full fragment format.
+`changelog.d/README.md` for the full fragment format and `changelog.d/TEMPLATE.md` for the
+shape of a breaking entry.
 
 ```markdown
 - `some_tool` no longer returns a 500 when `site` is omitted.
 ```
 
-While a release is being prepared, its section (`## [0.7.0]` for this release, undated
+While a release is being prepared, its section (`## [X.Y.Z]`, undated
 until it ships) is the in-flight version section. When preparing the release, the
 maintainers append each fragment's bullets to its
-category (`### Added`, `### Changed`, `### Fixed`, `### Security`) in that section and
+category (`### Added`, `### Changed`, `### Removed`, `### Fixed`, `### Security`) in that section and
 deletes the fragment. When the release ships, the maintainers date that version heading,
 and every released section stays verbatim.
 
@@ -174,9 +178,13 @@ let the description stand on its own.
 
 ## CI gates
 
-All of the following checks must pass before a PR can merge. Before pushing, run lint,
-types and the tests that cover your change (the local test rule is in
-[AGENTS.md](AGENTS.md), "Mandatory local test before push"); the full suite runs in CI:
+All of the following checks must pass before a PR can merge. Branch protection marks only
+some of them as required, so GitHub can show a PR as mergeable while a check it does not
+require is red; maintainers merge only when every check that ran is green. On every pull
+request, `test` and `test-locked` run the whole suite with the 97% coverage gate, not a
+subset. Before pushing, run lint, types and the tests that cover your change (the local
+test rule is in [AGENTS.md](AGENTS.md), "Mandatory local test before push"); the full
+suite runs in CI:
 
 ```bash
 ruff check src/ tests/ scripts/ .github/scripts/
@@ -246,20 +254,80 @@ unit tests.
 
 ## If you add or change tools
 
-If your PR adds, removes, or renames any `@mcp.tool()` function, regenerate
-`docs/TOOLS.md` and commit the result in the same PR:
+If your PR adds, removes, or renames any `@mcp.tool()` function, regenerate the files
+that derive from the runtime and commit the result in the same PR. The ordered recipe,
+the three invariants and the table of every generator are in
+[docs/AI-CHANGES.md](docs/AI-CHANGES.md). The short form:
 
 ```bash
-python3 scripts/gen_tools_doc.py
+.venv/bin/python scripts/gen_tools_doc.py
+.venv/bin/python scripts/gen_catalog_figures.py
+.venv/bin/python scripts/gen_reference_blocks.py
 ```
 
-Then run `python3 scripts/gen_catalog_figures.py` to refresh the catalog sizes and
-tool counts in the README and CHANGELOG. Never edit either generated figure by hand.
-The `docs` CI job runs both generators with `--check` and fails if either is out of
-sync with the runtime.
+`gen_catalog_figures.py` refreshes the catalog sizes and tool counts in the README and in
+the docs listed in its header. It also targets the first numbered section of
+`CHANGELOG.md` while that section is undated. Never commit a change to a released section:
+a section whose heading carries a date has shipped, and its figures stay verbatim. The
+generator leaves a dated first section untouched and the changelog fold refuses to add
+fragments to one; as a check, run `git diff --stat CHANGELOG.md` after the generator, and if
+it shows a change while the first numbered heading is dated, run `git restore CHANGELOG.md`.
+Never edit a generated figure by hand. The `docs`
+CI job runs each generator with `--check` and fails if any is out of sync with the runtime.
 
 **Do not remove or rename existing tools without a discussion.** External MCP
 clients depend on stable tool names. A rename is a breaking change.
+
+### Worked example: add a read tool
+
+This is the path a first contribution follows. The example adds a paged list read tool,
+list_example_widgets, to an existing module; use a real endpoint from the pinned
+specification instead.
+
+1. Read an existing paged tool such as `list_sites` in `src/unifi_fabric/tools/site_manager.py`
+   and copy its structure. A list tool takes optional `page_token` and `page_size`
+   arguments, and a paged read calls `_pagination.collect_cursor` (or `_pagination.collect_offset`) from
+   `src/unifi_fabric/tools/_pagination.py` rather than looping itself:
+
+   ```python
+   @mcp.tool(annotations=READ_ONLY)  # from ..tool_annotations; the final hints are derived
+   async def list_example_widgets(
+       page_token: str | None = None, page_size: int | None = None, widget_kind: str | None = None
+   ) -> Any:
+       """List example widgets.
+
+       Args:
+           page_token: Opaque continuation from a previous call.
+           page_size: Total records to gather; omit to drain every page.
+           widget_kind: Optional filter from the upstream specification; omitted when unset.
+       """
+       client, _ = deps_fn()
+       params = {"kind": widget_kind} if widget_kind is not None else None
+       collected = await collect_cursor(
+           client, "/v1/example-widgets", params=params, page_token=page_token,
+           page_size=page_size, one_page=page_token is not None or page_size is not None,
+       )
+       return mark_incomplete({"data": collected["items"]}, collected)
+   ```
+
+   This is a sketch of the shape, not code to paste: take the exact imports, annotation
+   constant and result handling from the sibling tool you copied.
+2. Add its row to `src/unifi_fabric/_api_source_table.py` by running
+   `.venv/bin/python -m tests.api_sources_gen --write`, then `ruff format` on that file.
+3. Write `tests/test_<module>.py` cases: a happy path with a mocked response, an error
+   path, a case where `widget_kind` is omitted and the key is absent from the request, and
+   a two-page drain that returns every record.
+4. Add `changelog.d/example-widgets.added.md` containing one `- ` bullet.
+5. Regenerate and check, then run the tests:
+
+   ```bash
+   .venv/bin/python scripts/gen_tools_doc.py
+   .venv/bin/python scripts/gen_catalog_figures.py
+   .venv/bin/python scripts/gen_reference_blocks.py
+   .venv/bin/python scripts/gen_tool_input_schemas.py --write
+   .venv/bin/python -m pytest tests/test_<module>.py tests/test_api_sources.py tests/test_tool_schema_contract.py -n 4 -q
+   ```
+6. Commit, then run `PREPUSH_PYTHON=.venv/bin/python scripts/prepush.sh` before pushing.
 
 ## Code style
 

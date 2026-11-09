@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-pair-5-6",
+  "description": "Adjacent pair (5,6): a network write tool excluded by family:network refuses as tool_not_exposed, not write_denied",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_POLICY": "deny",
+      "UNIFI_EXCLUDE": "family:network",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "create_network",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "tool_not_exposed",
+    "upstream_calls": 0
+  }
+}

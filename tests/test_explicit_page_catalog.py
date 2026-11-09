@@ -252,7 +252,7 @@ def test_page_size_drain_tools_take_page_size_and_a_page_number():
 
 
 @pytest.mark.parametrize("name", sorted(PAGE_SIZE_DRAINS))
-async def test_page_size_alone_drains_every_page_at_that_length(monkeypatch, name):
+async def test_page_size_alone_requests_a_page_at_that_length(monkeypatch, name):
     up = _FixedPages(replay_recordings=False)
     up.route = PAGE_SIZE_DRAINS[name]
     args = {**tool_args.generated_args(TOOLS[name]), "page_size": _DRAIN_PAGE_SIZE}

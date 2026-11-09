@@ -23,7 +23,7 @@ configured, and server settings such as read-only mode stay yours to set.
 
 | Client | How to install the skills |
 |---|---|
-| Claude Code | Included in the [plugin](../README.md#install-as-a-claude-code-plugin) under `plugins/claude/skills/`; they load with the plugin as `/unifi-fabric:<skill>`. Without the plugin, copy a skill folder into `~/.claude/skills/` or a project's `.claude/skills/`. |
+| Claude Code | Included in the [plugin](../README.md#2-connect-your-assistant) under `plugins/claude/skills/`; they load with the plugin as `/unifi-fabric:<skill>`. Without the plugin, copy a skill folder into `~/.claude/skills/` or a project's `.claude/skills/`. |
 | Claude Desktop and claude.ai | Zip one skill folder, with the folder itself at the root of the ZIP, and upload it under **Customize > Skills**. Code execution must be turned on. |
 | Codex | The Codex plugin does not include them. Copy a skill folder into `~/.agents/skills/` or a repository's `.agents/skills/`, and restart Codex if it does not appear. |
 | Gemini CLI | The extension installs from this repository's root, and Gemini CLI reads an extension's skills from its `skills/` folder, so the extension brings them; we have not run this in Gemini CLI. You can also copy a skill folder into `~/.gemini/skills/` or a project's `.gemini/skills/` and run `/skills reload`. |

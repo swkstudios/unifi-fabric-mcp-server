@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.client import ClassicApiError
+from unifi_fabric.client import ClassicApiError, UniFiConnectionError
 from unifi_fabric.tools import _classic_cmd, carrier_fabric, device_mgmt, mobility
 from unifi_fabric.tools import network_clients_guests as clients
 from unifi_fabric.tools import network_dpi_policy as dpi
@@ -20,11 +20,11 @@ async def test_classic_preserves_failure_metadata():
     assert error.value.request_sent and error.value.status == 503
 
 
-@pytest.mark.parametrize("module", [mobility, carrier_fabric])
-def test_direct_write_guard_respects_read_only(module, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+@pytest.mark.parametrize("module, args", [(mobility, ()), (carrier_fabric, ("POST",))])
+def test_direct_write_guard_respects_read_only(module, args, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     with pytest.raises(Exception, match="(?i)read.only"):
-        module._require_writes()
+        module._require_writes(*args)
 
 
 async def test_client_multicast_rejects_body_before_resolution():
@@ -47,12 +47,17 @@ async def test_connected_client_without_id_falls_back_to_mac(monkeypatch):
     ) == (None, "02:00:5e:00:00:a1")
 
 
-async def test_empty_batch_delete_posts_empty_array(monkeypatch):
+async def test_empty_batch_delete_makes_no_request(monkeypatch):
     client = SimpleNamespace(get=AsyncMock(return_value=[]), post=AsyncMock(return_value=[]))
     registry = SimpleNamespace()
-    monkeypatch.setattr(dpi, "_context", AsyncMock(return_value=("key", "/acl-rules")))
-    await dpi._batch_delete_acl_rules(client, registry, "host", "site", [])
-    client.post.assert_awaited_once_with("/acl-rules/batch-delete", key="key", json=[])
+    context = AsyncMock(return_value=("key", "/acl-rules"))
+    monkeypatch.setattr(dpi, "_context", context)
+    result = await dpi._batch_delete_acl_rules(client, registry, "host", "site", [])
+    assert result["deleted"] is False
+    assert result["response"] is None
+    context.assert_not_awaited()
+    client.get.assert_not_awaited()
+    client.post.assert_not_awaited()
 
 
 async def test_device_error_redacts_identifying_fields(monkeypatch):
@@ -69,7 +74,7 @@ async def test_device_error_redacts_identifying_fields(monkeypatch):
             }
         ),
     )
-    with pytest.raises(Exception) as error:
+    with pytest.raises(UniFiConnectionError) as error:
         await device_mgmt._resolve_device_id(
             SimpleNamespace(_settings=SimpleNamespace(cache_ttl_seconds=0)),
             "host",
@@ -134,3 +139,37 @@ async def test_delete_readback_success_and_error(monkeypatch, kind, readback):
         result = await vpn.delete_wireguard_users(client, None, "host", "site", "server", ["abc"])
     assert result["response"] == {"upstream": "kept"}
     assert result["deleted"] is (not isinstance(readback, Exception))
+
+
+async def test_batch_delete_rejects_missing_private_id(monkeypatch):
+    client = SimpleNamespace(post=AsyncMock())
+    monkeypatch.setattr(dpi, "_context", AsyncMock(return_value=("key", "/acl-rules")))
+    monkeypatch.setattr(dpi, "_v2_rows", AsyncMock(return_value=[{"external_id": "external"}]))
+    with pytest.raises(ValueError, match="ids"):
+        await dpi._batch_delete_acl_rules(client, None, "host", "site", ["external"])
+    client.post.assert_not_awaited()
+
+
+async def test_traffic_period_error_uses_supported_example():
+    from unifi_fabric.tools import network_nat_qos_traffic as qos
+
+    with pytest.raises(ValueError, match='e.g. "DAY"'):
+        await qos.get_latest_traffic_flow_stats(None, None, "host", "site", 1)
+
+
+async def test_wan_health_error_redacts_credentials(monkeypatch):
+    from unifi_fabric.tools import network
+
+    monkeypatch.setenv("UNIFI_REDACT_SECRETS", "true")
+    monkeypatch.setattr(network, "_assert_uuid", lambda _: None)
+    monkeypatch.setattr(network, "collect_offset", AsyncMock(return_value={}))
+    monkeypatch.setattr(network, "offset_list_result", lambda _: {"data": []})
+    client = SimpleNamespace(get=AsyncMock(side_effect=Exception('{"password":"syntheticsecret"}')))
+    registry = SimpleNamespace(
+        resolve_key_for_host=AsyncMock(return_value=None),
+        resolve_host_id=AsyncMock(return_value="host-id"),
+        resolve_site_id=AsyncMock(return_value="site-id"),
+        resolve_site_slug=AsyncMock(return_value="default"),
+    )
+    result = await network.list_wan_interfaces(client, registry, "host", "site")
+    assert "syntheticsecret" not in result["_wanHealthError"]

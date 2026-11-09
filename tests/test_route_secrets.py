@@ -11,6 +11,7 @@ Iterates every entry, so a new entry is covered automatically:
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -631,3 +632,48 @@ def test_error_formatter_masks_nested_upstream_objects_without_mutation():
     assert body["password"] == SENTINEL
     with write_redaction_scope(False):
         assert SENTINEL in upstream_error_text(body)
+
+
+# A bound secret is always scrubbed from logs and the audit log, but from returned errors
+# only under UNIFI_REDACT_SECRETS (UniFiClient._scrub and SecretScrubMiddleware add call
+# secrets only under the opt-in; test_matter_setup_code_sentinel_all_error_forms proves the
+# setup code reaches the default error). A description that names errors together with logs
+# ("errors/logs scrub it", "errors and logs never carry it") promises the log behaviour for
+# errors, so a caller forwards or stores an error believing the secret was removed.
+_SECRET_CLAIM = re.compile(r"scrub|mask|redact|never carr", re.IGNORECASE)
+_ERRORS = re.compile(r"\berrors?\b", re.IGNORECASE)
+_ERRORS_WITH_LOGS = re.compile(
+    r"\berrors?\s*(?:/|,|\band\b|\bor\b)\s*logs?\b|\blogs?\s*(?:/|,|\band\b|\bor\b)\s*errors?\b",
+    re.IGNORECASE,
+)
+
+
+def test_tool_descriptions_state_error_masking_is_opt_in():
+    from tests.test_tool_schema_contract import _tools
+
+    wrong: dict[str, list[str]] = {}
+    for tool in _tools():
+        text = " ".join((tool.description or "").split())
+        for sentence in re.split(r"(?<=[.;])\s+", text):
+            if not (_ERRORS.search(sentence) and _SECRET_CLAIM.search(sentence)):
+                continue
+            if _ERRORS_WITH_LOGS.search(sentence) or "UNIFI_REDACT_SECRETS" not in sentence:
+                wrong.setdefault(tool.name, []).append(sentence)
+    assert not wrong, wrong
+
+
+@pytest.mark.parametrize(
+    ("tool", "secret"),
+    [
+        ("commission_matter_node", "setup code"),
+        ("create_ssl_inspection_certificate", "Private key and passphrase"),
+        ("get_camera_adoption_qr", "wifi_password"),
+    ],
+)
+def test_route_secret_tools_describe_log_and_error_handling(tool, secret):
+    from tests.test_tool_schema_contract import _tools
+
+    (described,) = [t.description or "" for t in _tools() if t.name == tool]
+    text = " ".join(described.split())
+    assert secret in text and re.search(r"always scrub", text), text
+    assert re.search(r"errors?\b[^.;]*only (?:with|under) UNIFI_REDACT_SECRETS", text), text

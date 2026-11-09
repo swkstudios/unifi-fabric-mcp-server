@@ -388,7 +388,7 @@ class TestDeleteRtspsStream:
         call_params = client.delete.call_args[1]["params"]
         assert call_params["qualities"] == ["medium"]
 
-    async def test_qualities_sent_in_body(self, client, registry):
+    async def test_qualities_sent_in_query(self, client, registry):
         client.delete.return_value = None
         await delete_rtsps_stream(client, registry, "h", "cam-1", ["low"])
         call_params = client.delete.call_args[1]["params"]
