@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-env-mode-tools-list-ignores-header",
+  "description": "Environment-mode tools/list ignores X-UniFi-Api-Key and lists the discovery catalog",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "environment",
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "listed_tools": [
+      "call_read_tool",
+      "call_write_tool",
+      "describe_tool",
+      "list_tool_families",
+      "search_tools"
+    ],
+    "upstream_calls": 0
+  }
+}

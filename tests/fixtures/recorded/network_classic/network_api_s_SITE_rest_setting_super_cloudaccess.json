@@ -17,7 +17,7 @@
     "key": "super_cloudaccess",
     "enabled": true,
     "device_auth": "xxxxxxxx",
-    "device_id": "00000000-0000-4000-a000-000000fa00f4:836938255",
+    "device_id": "00000000-0000-4000-a000-000000fa00f4:000000001",
     "ubic_uuid": "00000000-0000-4000-a000-000000fa00f5",
     "x_certificate_arn": "xxxxxxxx",
     "x_private_key": "xxxxxxxx",

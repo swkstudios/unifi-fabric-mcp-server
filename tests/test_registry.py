@@ -48,7 +48,7 @@ def mock_client():
     client.list_key_labels = MagicMock(return_value=["default"])
     client.paginate = AsyncMock(side_effect=_paginate_side_effect)
     client.get = AsyncMock(side_effect=_get_side_effect)
-    # get_sites drains the offset-paginated proxy sites endpoint; mirror the
+    # get_sites drains the offset-paginated proxy sites endpoint; match the
     # get side-effect's payload as the drained (unwrapped) item list.
     client.paginate_offset = AsyncMock(side_effect=_make_offset_from_get(_get_side_effect))
     return client
@@ -454,7 +454,7 @@ class TestAssertUuid:
 
     def test_invalid_objectid_raises(self):
         with pytest.raises(ValueError, match="not a UUID"):
-            _assert_uuid("5f4dcc3b5aa765d61d8327de")
+            _assert_uuid("000000000000000000000503")
 
     def test_empty_string_raises(self):
         with pytest.raises(ValueError):

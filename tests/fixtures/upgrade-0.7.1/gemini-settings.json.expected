@@ -1,0 +1,19 @@
+{
+  "theme": "Default",
+  "mcpServers": {
+    "unifi-fabric": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp"
+      ],
+      "env": {
+        "UNIFI_API_KEY": "your-api-key-here",
+        "UNIFI_WRITE_POLICY": "deny",
+        "UNIFI_WRITE_EXCEPTIONS": "family:mobility=deny",
+        "UNIFI_DRY_RUN": "${UNIFI_DRY_RUN_FROM_SHELL}"
+      }
+    }
+  }
+}

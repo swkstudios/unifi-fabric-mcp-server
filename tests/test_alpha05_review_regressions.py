@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient
@@ -187,7 +188,7 @@ async def test_n05_capped_client_resolution_never_selects_a_write_target(monkeyp
 async def test_n05_invalid_ap_mac_refuses_before_any_request(monkeypatch, ap_mac):
     up = Upstream()
     async with session(monkeypatch, up) as client:
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError, match="ap_mac must be a MAC address"):
             await call(client, "authorize_guest", client=MAC, ap_mac=ap_mac)
     assert up.seen == []
 
@@ -214,7 +215,7 @@ async def test_n05_non_json_body_refuses_before_any_resolution(monkeypatch, name
     async with session(monkeypatch, up):
         # A non-JSON object cannot cross MCP's JSON wire. Invoke its REAL catalog path
         # directly to exercise server-side validation rather than client serialization.
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError, match="write body must be JSON-serialisable"):
             await server.mcp.call_tool(name, {"host": HOST, "site": SITE, **body_args})
     assert up.seen == []
 

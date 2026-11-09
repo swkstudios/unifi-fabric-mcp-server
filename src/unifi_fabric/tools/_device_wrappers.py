@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..client import UniFiConnectionError, describe_shape
+from ..client import UniFiConnectionError, describe_shape, upstream_error_value
 
 #: Keys that identify a device record (the spec's device items); a wrapper has neither.
 DEVICE_IDENTITY_KEYS = ("id", "mac")
@@ -46,6 +46,7 @@ def wrapper_devices(item: Any) -> list[Any] | None:
     if not isinstance(inner, list):
         raise UniFiConnectionError(
             "Unexpected /v1/devices console wrapper: expected 'devices' to be an array or "
-            f"null, got {describe_shape(inner)} (hostId {item.get('hostId')!r})"
+            f"null, got {describe_shape(inner)} "
+            f"(hostId {upstream_error_value(item.get('hostId'))!r})"
         )
     return list(inner)

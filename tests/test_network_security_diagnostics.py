@@ -157,7 +157,7 @@ def test_every_tool_is_registered_with_derived_annotations() -> None:
         assert tools[name].annotations.destructive_hint is True, name
     for name in READS | WRITES:
         assert len(tools[name].description or "") <= 2048, name
-        assert "commission_matter_node" != name
+    assert "commission_matter_node" not in READS | WRITES
 
 
 # --------------------------------------------------------------------------- routes
@@ -425,7 +425,7 @@ async def test_unreadable_list_is_an_upstream_shape_error_without_write() -> Non
 
 @pytest.mark.parametrize("tool", sorted(WRITES))
 async def test_read_only_mode_refuses_every_write_before_any_request(monkeypatch, tool) -> None:
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     client, registry = Client(), Registry()
     args: dict[str, tuple[Any, ...]] = {
         "create_ssl_inspection_certificate": ("generate", {"a": 1}),
@@ -442,7 +442,7 @@ async def test_read_only_mode_refuses_every_write_before_any_request(monkeypatch
     with pytest.raises(ReadOnlyModeError):
         await getattr(nsd, tool)(client, registry, HOST, SITE, *args.get(tool, ()))
     assert client.calls == [] and registry.calls == 0
-    assert client.audited == [(tool, "UNIFI_READ_ONLY")]
+    assert client.audited == [(tool, "UNIFI_WRITE_POLICY")]
 
 
 # --------------------------------------------------------------------------- writes

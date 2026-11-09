@@ -7,6 +7,244 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-08
+
+Highlights: 792 tools (6 added, 0 removed); four settings replace the 0.7.0 write and exposure settings (`UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW`, `UNIFI_EXCLUDE`); opt-in header mode (`UNIFI_KEY_MODE=header`) takes UniFi API keys per request; request headers can tighten, never loosen, the operator policy; opt-in read-only Code Mode (experimental, may change without a deprecation cycle); audit log sink and file-mode hardening; opt-in `/health` route. Breaking (configuration): the 0.7.0 settings are retired with no aliases and the server refuses to start while one is set (see the Breaking items below and the migration guide).
+
+**Breaking:** a 0.7.1 server refuses to start while any 0.7.0 write or exposure setting is in its environment. **Upgrade note:** run the migrator on each configuration file, or follow [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md), then change the package pin or image tag to 0.7.1. Stay on `==0.7.0` until you have migrated.
+
+### Added
+
+- The 0.7.1 migrator merges the values a Compose service `env_file` sets into the new `environment:` entries it writes, because an `environment:` entry replaces the env_file's value. It rewrites a service only when it can resolve every source of that service's environment (its own `environment:` and an `env_file` of `NAME=value` lines). A service in a file that uses YAML anchors, aliases, `<<:` merge keys, tags, `extends:`, `include:` or an override file, has more than one YAML document, an explicit `? key` or an escaped quoted key, or a service with `build:`, or is read with `COMPOSE_FILE` (shell or `.env`) or `COMPOSE_ENV_FILES` set, or whose `env_file` it cannot read in full, or an `environment:` map entry with no value (filled from the shell), is left unchanged and marked `# MANUAL:` (exit status 3); so is `docker run -e` next to `--env-file`.
+
+- `list_integration_device_tags` discovers device tags used for WiFi broadcast assignments from the official Network Integration API (`GET /v1/sites/{siteId}/device-tags`).
+
+- A generated route manifest inventories tool requests and their availability baseline; `scripts/route_audit.py` audits representative integration, console-internal, Site Manager and local-only routes with GET requests only.
+
+- Header mode (`UNIFI_KEY_MODE=header`; the default `environment` is unchanged): the server stores no key, and each `tools/call` carries its keys in one `X-UniFi-Api-Key` header, a JSON object of label to key, which that call uses only for its own duration. A header that is repeated, not valid JSON, not an object, empty, or has an empty label or key is refused with `invalid_api_key_header`; a call without the header is refused with `missing_api_key_header`; `key_label` is refused with `key_label_not_allowed`; a full credential cache is refused with `credential_cache_saturated` (at most 256 key identities are held at once). Messages name labels and member positions, never a key. A repeated label is also `invalid_api_key_header`. A write refused at this ingress writes one `outcome=refused` audit record whose reason is the refusal code, never key material. Header mode needs an HTTP transport: with stdio it fails at startup with `startup:UNIFI_KEY_MODE`. In the default environment mode a call that sends `X-UniFi-Api-Key` is refused with `invalid_api_key_header`.
+
+- Request headers `X-UniFi-Write-Policy`, `X-UniFi-Family-Allow` and `X-UniFi-Exclude` use the same grammars as the settings and can only tighten the operator policy: the stricter write policy applies, family sets intersect, exclusions unite and a request adds no write exception; valid loosening is ignored. A blank, malformed or repeated policy header is refused with `invalid_policy_header`; a call to a tool the policy does not expose is refused with `tool_not_exposed`, and a write the policy denies is refused with `write_denied`, both before any console call. Each of these refusals writes one `policy.refusal` record. Under an effective `dry-run` a write returns its dry-run preview and sends no change. `tools/list` and `search_tools` list only the tools the request may call.
+
+- Opt-in `GET /health` route on the HTTP transports (`MCP_HEALTH_ROUTE=on`): answers `ok` or `degraded:<reason>` from local process state, with no console call and no metrics.
+
+- Experimental: opt-in, read-only Code Mode (`UNIFI_TOOL_MODE=codemode`) lists `search_tools`, `describe_tool` and `execute`; `execute` runs a sandboxed Python script that reads through the same read-only checks as `call_read_tool` and never dispatches a write. Code Mode is an opt-in, read-only experimental feature. It may change without a deprecation cycle. There is no compatibility promise for execute()'s schema or output shape until graduation. Limits: script 32,768 UTF-8 bytes; 32 tool calls per script; 262,144 bytes per tool response and 2,097,152 in total; 64 MiB memory; recursion depth 64; 30 seconds of interpreter time (waits on the console are not counted); output 65,536 bytes, longer output ends with `...[truncated]`; one script at a time per server process.
+
+- Listing and discovery: `list_active_clients` exposes the v2 active-client route.
+- Network services: `create_firewall_rule`.
+- Network controller administration: `reboot_unifi_os_console`.
+- Statistics: `list_speedtest_results`, `list_controller_stat_schemas`.
+
+### Changed
+
+- The documentation now states that tools routed to the consoles' internal APIs depend on paths Ubiquiti can restrict without notice, and names the official-APIs-only profile (`UNIFI_EXCLUDE=unofficial,source:relay`) for deployments that need to avoid that dependency. No tool, route or default changed.
+
+- FastMCP 4.1.6 (from 4.1.4; the `fastmcp` floor rises from 4.0 to 4.1.1, range `>=4.1.1,<5.0`), which compares `enum` and `const` values by JSON equality, not Python equality, so `1` no longer matches `true` or `0` `false` (an in-place change versus 0.7.0). No registered tool input schema has an `enum` or `const` value that disagrees with its declared type, so only a caller that sends a number for a boolean parameter is now refused.
+
+- Dependencies: every hash-locked requirements file is refreshed in one step from a single manifest, so packages shared between the image, the Homebrew formula, development and the release tooling have one version and one hash set; refreshed pins include starlette 1.10.0, pydantic 2.14.2, websockets 17.4 and hatchling 1.33.0, and new releases wait three days before a refresh takes them. New required runtime dependency: `pydantic-monty` (`>=1.4,<2`, locked at 1.4.0 in the image and the Homebrew formula), the sandbox that runs Code Mode scripts; it is installed whether or not Code Mode is used.
+
+- The published source tree is formatted with Ruff, and the release build fails when the formatted output drifts.
+
+- **Breaking (configuration): the 0.7.0 write and exposure settings are retired and a server that finds one refuses to start.** Upgrading from 0.7.0: the write and exposure settings (`UNIFI_READ_ONLY`, `UNIFI_DRY_RUN`, the per-area `UNIFI_ENABLE_..._WRITE` settings, `UNIFI_PROTECT_MUTATIONS_ENABLED`, `UNIFI_TOOL_FAMILIES`, `UNIFI_DISABLED_TOOL_FAMILIES` and `UNIFI_DISABLE_API_SOURCES`) are retired with no aliases. The server will not start while any `UNIFI_*` variable it does not recognise is set: it names every such variable on stderr, links the migration guide, prints `startup:retired:<NAME>` as the last line and exits with status 2. Replace them with `UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE`. Run the migrator on each configuration file (dry run by default; `--write` keeps a `.bak` copy): `uv run https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/v0.7.1/tools/migrate-0.7.1-env.py <config file>`. Mapping and per-client examples: [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md). Stay on `==0.7.0` until you have migrated.
+
+- **Breaking (configuration): four settings now control writes and tool exposure.** `UNIFI_WRITE_POLICY` is `allow` (the default when unset), `dry-run` or `deny`. `UNIFI_WRITE_EXCEPTIONS` is one semicolon-separated list of `<target>=deny` or `<target>=dry-run` entries, where a target is `family:<family-id>` or `tool:<tool-name>`; the strictest of the policy and any matching exception applies. A family `dry-run` exception previews every write that the same family exception set to `deny` refuses, including the typed tools governed by `family:connector` and the Network write families governed by `family:network`. `UNIFI_FAMILY_ALLOW` is a comma-separated list of family IDs (unset means every family). `UNIFI_EXCLUDE` is a comma-separated list of `family:<family-id>`, `tool:<tool-name>`, `source:<selector>` and `unofficial`. Values are case-sensitive lower case; a blank, malformed or unknown value fails startup naming the setting. The settings listed below are retired without aliases: a server that finds one in its environment refuses to start, names the setting and links the migration guide. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md).
+- Retired setting `UNIFI_READ_ONLY`: replace `UNIFI_READ_ONLY=1` with `UNIFI_WRITE_POLICY=deny`.
+- Retired setting `UNIFI_DRY_RUN`: replace `UNIFI_DRY_RUN=1` with `UNIFI_WRITE_POLICY=dry-run`.
+- Retired setting `UNIFI_ENABLE_CONNECTOR_WRITE`: replace `UNIFI_ENABLE_CONNECTOR_WRITE=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:connector=deny`; remove `UNIFI_ENABLE_CONNECTOR_WRITE=1`, which is now the default.
+- Retired setting `UNIFI_ENABLE_NETWORK_WRITE`: replace `UNIFI_ENABLE_NETWORK_WRITE=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:network=deny`; remove `UNIFI_ENABLE_NETWORK_WRITE=1`, which is now the default.
+- Retired setting `UNIFI_ENABLE_MOBILITY_WRITE`: replace `UNIFI_ENABLE_MOBILITY_WRITE=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:mobility=deny`; remove `UNIFI_ENABLE_MOBILITY_WRITE=1`, which is now the default.
+- Retired setting `UNIFI_ENABLE_CARRIER_FABRIC_WRITE`: replace `UNIFI_ENABLE_CARRIER_FABRIC_WRITE=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:carrier=deny`; remove `UNIFI_ENABLE_CARRIER_FABRIC_WRITE=1`, which is now the default.
+- Retired setting `UNIFI_ENABLE_INNERSPACE_WRITE`: replace `UNIFI_ENABLE_INNERSPACE_WRITE=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:innerspace=deny`; remove `UNIFI_ENABLE_INNERSPACE_WRITE=1`, which is now the default.
+- Retired setting `UNIFI_PROTECT_MUTATIONS_ENABLED`: replace `UNIFI_PROTECT_MUTATIONS_ENABLED=0` with the `UNIFI_WRITE_EXCEPTIONS` entry `family:protect=deny`; remove `UNIFI_PROTECT_MUTATIONS_ENABLED=1`, which is now the default. Several entries share one list, for example `UNIFI_WRITE_EXCEPTIONS=family:network=deny;family:protect=deny`.
+- Retired setting `UNIFI_TOOL_FAMILIES`: rename it to `UNIFI_FAMILY_ALLOW`. The new grammar is lower case with commas only: `"Network PROTECT"` becomes `network,protect`.
+- Retired setting `UNIFI_DISABLED_TOOL_FAMILIES`: replace `UNIFI_DISABLED_TOOL_FAMILIES=a,b` with `UNIFI_EXCLUDE=family:a,family:b`. The new grammar is lower case with commas only (no whitespace separators).
+- Retired setting `UNIFI_DISABLE_API_SOURCES`: replace each selector `sel` with the `UNIFI_EXCLUDE` entry `source:sel`, for example `UNIFI_EXCLUDE=source:network/private`. Selectors match case-sensitively.
+
+- Vendored UniFi contracts advance to Network 11.0.97 and Protect 7.3.74; firewall-policy tool bodies now advertise the new optional `reportFlowEnabled` field, and device reads and adoption pass the new radio fields (0.9 GHz band, `txPowerMode`, 802.11ah) through unchanged.
+
+- Audit log format: the default is now `json` (one JSON object per line with `schema_version`, `event` and `timestamp_utc`); 0.7.0 wrote `text`. Set `UNIFI_AUDIT_LOG_FORMAT=text` to keep the 0.7.0 key=value line for write records; other record types then start with `event=<name>`. The audit file is no longer reached through a symlink: a symlinked `UNIFI_AUDIT_LOG` path (other than one to the process's own standard error) is refused and the stream reports `audit_unavailable`.
+
+- Internal/CI: CI tiers are static: dev runs the fast checks, main runs the full suites; the PR test selector is removed.
+- Internal/CI: the public-artifact dry-run runs on pull requests into `main` and on demand, not on every pull request into `dev`.
+
+- Clarify the testing procedure and acceptance discovery documentation for ordering verification.
+
+- Documentation: carry the untested-tool family manifest forward for version 0.7.1.
+
+- Align CRUD resource families: VPN server, site-to-site tunnel, and RADIUS profile lists now belong to `vpn`; device tag and scheduled task reads now belong to `devices`. Update family selection and write rules accordingly.
+
+- Renamed the public release PR terminology in workflow display names and release documentation to "public release PR" and "public release workflow"; the workflow file and its dispatch inputs are unchanged.
+
+- The release image workflow validates the release tag and workflow ref with one shared script in both build jobs instead of two copies.
+
+- Clarified the release process, public pull request approval, and release tag and workflow responsibilities.
+
+- Clarify that a successful empty response from `set_ups_pairing` does not prove an unpair occurred.
+
+- Improve development CI selection with a conservative fast, targeted, or complete verification tier.
+
+- Code Mode now requires an operator-provisioned per-installation `UNIFI_AUDIT_HMAC_KEY` and records domain-separated HMACs of canonical tool arguments instead of retaining raw argument values.
+
+- Use the runner image’s bundled CodeQL tools for advisory scans.
+
+- Rename the private-to-public release tooling to public-release terminology and build public artifacts from the approved public source.
+- Remove the private-image precondition from the public release path; hosted public release builds retain native amd64 and arm64 validation, signing, and attestations.
+
+- **Breaking (tool split): `list_clients` no longer accepts `source="v2"` or the `include_*` flags; use `list_active_clients` for the unchanged v2 active-client route and verbatim body.** affected: `list_clients`, `list_active_clients`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md#active-clients-tool-split).
+
+- The README is shorter and now points to the docs for detail: configuration reference material moves to `docs/CONFIGURATION.md`, tool-usage guidance to `docs/TOOL-USAGE.md` and the tool catalog overview to `docs/CATALOG.md`. `docs/CLIENT-SETUP.md` gains a Troubleshooting section, and the README More-info table links to it. No tool, route or default changes.
+- Refusal and error text that cites documentation now names the page that holds the section (for example `docs/CONFIGURATION.md#read-only-mode` and `docs/CONFIGURATION.md#enabling--disabling-connector-writes`) in the read-only, write-policy, switch, startup configuration and missing-API-key messages. Only the message wording changes; error codes and behavior are unchanged.
+
+### Fixed
+
+- The HTTP access log writes control bytes in a request target as `\xNN` escapes, so terminal escape sequences and line breaks cannot reach the log line.
+
+- Keep catalog documentation, paging examples, generated route and spec inventories, and client instruction sizes consistent with the registered network, network_services_proxy, protect_camera_recording, and system_log tools.
+
+- Discovery search ignores leading “I need to” and “Help me” request framing so unrelated assistance vocabulary does not change tool rankings.
+
+- Mask complete route-bound share links before credential-field masking in Fabric connector relay post-write errors, so query parameters cannot leave a share token exposed.
+
+- Fix write acceptance route proofs to reject URL mutations and HTTP method changes, and keep cleanup and accounting failures visible in the hermetic selftest.
+
+- Mask credential fields in upstream client and device record errors, including `get_client`, `execute_client_action`, `authorize_guest`, `revoke_guest_access`, and `set_client_user_group`, when secret redaction is enabled, including JSON-string IDs containing quotes.
+- Mask credential fields in resolved Matter IDs for `rename_matter_node` and `remove_matter_node` when secret redaction is enabled.
+
+- Correct demo site client counts to match the clients served by the mock API.
+
+- `forget_device`, `unadopt_device`, `adopt_device` and `approve_pending_device` now drop the device's cached MAC lookup for every caller's keys, and a cached device id that answers HTTP 404 is looked up again from the device list. Before, a device re-adopted under a new id kept its old id for up to `UNIFI_CACHE_TTL_SECONDS`, so `get_device`, `restart_device`, `execute_port_action` and the other tools that take a device MAC answered HTTP 404.
+
+- Discovery dispatch now preserves the target tool and records the calling meta-tool in the optional `via` field of write audit records.
+
+- Testing documentation: restore the discovery gate recovery label and refresh coverage hashes for the acceptance and testability matrix updates.
+
+- The MCP registry entry (`server.json`) declares `UNIFI_WRITE_POLICY` (`allow`, `dry-run` or `deny`; default `allow`) for both the PyPI and the container package, so registry clients show the same write policy setting as the client manifests.
+
+- The fixture recorder now fakes the numeric half of `<uuid>:<number>` device ids and of lowercase console host ids, and no longer re-fakes its own host-id and UUID fakes in later passes. The fixture sanitization check now flags a recorded device id or console host id whose number is not a zero-padded fake.
+
+- OAuth mode: a JWKS download that the identity provider accepts and never answers no longer blocks every later authentication until a restart. Each key refresh now runs on its own, so a later refresh can still reach the provider once it recovers and a caller that disconnects leaves the download to the others; at most four downloads wait on a stalled provider at once. The download still has no time limit and keeps its 1 MiB cap.
+
+- Streamed HTTP requests with a disallowed Host now receive the same refusal as other requests.
+
+- Server instructions keep each line at a sentence or clause boundary for clients that preserve newlines.
+
+- Matter rename and removal errors redact credential fields in invalid native IDs before formatting, including values containing apostrophes.
+
+- Reject selected ACL rules and firewall zones with invalid native IDs before sending a batch deletion, and correct the traffic statistics period example.
+- Mask credential fields in WAN health errors when secret redaction is enabled.
+
+- `describe_tool` in discovery mode now returns schemas with `$ref` definitions inlined, exactly as the full-mode `tools/list` entry. Before, eight tools (`fabric_connector_patch`, `fabric_connector_post`, `fabric_connector_put`, `set_protect_event_favorite`, `update_camera_private`, `update_device_radio`, `update_nvr`, `update_sensor_private`) were described with unresolved `$ref`/`$defs`, which clients without `$ref` support could not read.
+
+- Documentation: the `search_tools` default limit is generated from the code, and the settings reference lists accepted log levels.
+
+- The tool-usage guide now says the per-area write opt-outs (`UNIFI_WRITE_EXCEPTIONS` entries such as `family:network=deny`) are off by default, so every write is allowed until one is set; it said they were on. It also says read tools return credential fields (device passwords, VPN client configurations, WLAN, RADIUS, Dynamic DNS and VPN secrets) verbatim unless `UNIFI_REDACT_SECRETS` is set, that the connector relay raises a 429 instead of returning it, that relay attempts reach the audit stream only when `UNIFI_AUDIT_LOG` or `UNIFI_AUDIT_SINK` is configured, and that a blank value for a fixed-choice argument such as `session_type` is still refused.
+- The coverage report now names the eight InnerSpace read tools it verified as the Integration-API ones, no longer says the internal `/proxy/innerspace/api/*` routes were deprecated (they still serve five reads and every InnerSpace write), and lists `list_all_sites_aggregated` and `search_across_sites` as always covering every API key, since neither takes `key_label`.
+
+- `commission_matter_node`, `create_ssl_inspection_certificate` and `get_camera_adoption_qr` no longer describe their secret argument (the Matter setup code, the certificate private key and passphrase, the WiFi password) as scrubbed from errors: logs always scrub it, but returned errors and dry-run previews mask it only with `UNIFI_REDACT_SECRETS`, which is off by default.
+- The 0.7.0 migration guide's dependency entry (change-079 in `docs/MIGRATING-0.7.md`) now gives 64 hash-locked runtime packages, the number the 0.7.0 runtime lock shipped. The 0.7.0 notes said 60 because that count skipped the four pins written with extras (`fastmcp-slim`, `py-key-value-aio`, `pydantic` and `pyjwt`).
+
+- Keep synthetic IDs in tool examples while clarifying the Classic network ID required by `list_dhcp_leases` and `list_dhcp_excluded_ips`, the `host_name` field in `update_dynamic_dns`, and the mount values in `set_edge_storage_mount_state`. The Protect `analyze_footage_with_ai` and `update_protect_case` examples also retain synthetic IDs.
+
+- Documentation: the official-only catalog is `UNIFI_EXCLUDE=unofficial,source:relay`, now
+  given in the README, AGENTS.md, llms.txt and a new Official-only catalog section of
+  docs/CONFIGURATION.md, with generated tool counts for full mode and for
+  `UNIFI_WRITE_POLICY=deny`. `unofficial` alone keeps the generic `fabric_connector_*` relays,
+  which can reach private routes, and the five relay descriptions now say so.
+
+- The `UNIFI_PAGINATE_MAX_PAGES` documentation (settings tables, README and the pagination guide) now states that `query_traffic_flows` and `export_traffic_flows` are exempt from the page cap and always drain every page the console reports; bound them with `body.pageSize`. Earlier text described the cap as applying to every drain.
+
+- Keep firewall policy schema descriptions within client size limits while retaining their complete shapes.
+
+- The Rule 17(a) shape-clause check now requires an actual type outline immediately after a ``Shape:`` or ``Shape (legend):`` clause, so a description carrying the marker alone, or prose that merely mentions a type word, no longer counts as stating a shape.
+- ``query_traffic_flows`` (network_nat_qos_traffic) states the shape of its ``direction``, ``action`` and ``risk`` parameters as ``string|string[]`` instead of in English, so an AI client reads the accepted form from the schema itself. The observed values and the forwarding note are unchanged.
+
+- Harden `tests/test_tool_schema_contract.py` to validate shape alias definitions and schema format annotations. Recognize JSON object and array literals emitted in outlines.
+
+- Explain invalid startup configuration before the refusal token.
+
+- `update_traffic_rule` merges `payload` into the stored rule before the PUT, so a partial update such as `{"enabled": false}` keeps every other field (matching target, target devices, schedule) instead of replacing the whole rule; the result adds `_verified` from a read-back of the requested fields.
+- `query_switch_mac_tables` sends the documented legacy `query` object `{mac, ports}` as a one-item array, so that call no longer answers HTTP 400.
+
+- Correct network error hints and preserve the Wi-Fi raise-site inventory.
+- Clarify network_clients_guests identifiers, local refusals, response warnings and read-after errors.
+- Reject malformed network_device_operations device rows; document SSH action passthrough and power-off delay units.
+- Validate network_dpi_policy batch identifiers, avoid requests for empty batches and front-load update routes.
+- Clarify network_mobile_wan period choices and network_nat_qos_traffic pagination, examples and read-after errors.
+- Scrub network_routing_topology error fields and document confirmed deletion; use the HTTP verb in network_security_diagnostics refusal audits.
+- Clarify network_services_proxy credential masking and fresh-read updates, removing unreachable response handling.
+- Document network_switching_power link identifiers and wrap legacy MAC queries; scrub its and network_vpn_dns upstream error identifiers.
+- Audit all six network_wifi_radio dry-run preview paths and document quick-scan band choices.
+- Clarify placement_snapshot duplicate handling and protect event bounds, body fields and error choices.
+- Disable protect_camera_recording export preparation retries; clarify mount choices and use synthetic protect_device_lifecycle examples.
+- Document protect_events_cases duplicate-field refusals and protect_recognition_search singular type choices.
+- Correct protect_private unadopt verification and metadata descriptions.
+- Repair protect_users_assets confirmation descriptions and indefinite notification mute verification.
+- Scrub site_admin error values and preserve non-timestamp nulls in site_manager ISP queries.
+- Include the converted timestamp in system_log warnings and clarify millisecond-looking input behavior.
+
+- Correct device configuration dry-run previews and read-after verification, fleet aggregation deduplication, and key-labelled partial-result diagnostics.
+- Honor opt-in credential redaction in clients, client_records, network_clients_guests, Matter, and connector error messages.
+- Correct carrier_fabric write guards and paging counts, mobility paging diagnostics, and connector dry-run detection.
+- Preserve InnerSpace fallback HTTP status and clarify innerspace_internal request-body handling.
+- Clarify device_commands destination-site selection and device_mgmt paging limits.
+
+- Tool descriptions now match the API and the code: `patch_firewall_policy` names `reportFlowEnabled` as patchable alongside `loggingEnabled`; the `update_dynamic_dns` example uses the native `host_name` field and the payload lists the native fields; `create_acl_rule` and `update_acl_rule` mark `index` as deprecated with no effect and point to `set_acl_rule_ordering`; and the Protect body blocks state each time unit (`update_light` `pirDuration` in milliseconds, liveview `cycleInterval` in seconds, plus `siren_play`, `relay_activate_output`, `alarm_hub_trigger_output`, `update_arm_profile` and `pos_ingest_transaction`).
+- `get_camera_analytics` states that `step` is a bucket width in milliseconds, sent unconverted while `start` and `end` are epoch seconds. `get_camera_playback_history` states that `resolution` is the recording quality channel (0 high, 2 low), not a time span, and its example is no longer a millisecond value.
+- Generated body-field notes keep an example after "e.g." (`pos_ingest_transaction` currency "e.g. USD"), carry the full text of a deprecated field, and state a bound a field narrows (`update_camera` `micVolume` minimum 1).
+- The `confirm` parameter text of 14 Protect user, group, tag, file, ringtone and liveview tools (for example `update_protect_user`, `delete_protect_file` and `upload_ringtone`) is no longer cut off mid-sentence.
+- `list_mobility_clients`, `list_mobility_devices` and `list_carrier_subscribers` now return `_count` when `limit` is set, as documented. `list_carrier_subscribers` documents that a single bare-array cursor page is returned as `{result: [...]}`.
+- The epoch warnings for millisecond-sized or negative `start` and `end` values no longer say the value was "sent as given": they say it was not rescaled and was still multiplied by 1000 where the endpoint takes milliseconds. `list_network_events`, `list_ips_events` and `list_protect_events` say the same.
+- Corrected tool text for `list_pending_devices` and `list_site_devices` (`limit` without `offset` gathers a total across pages), `query_traffic_flows` (single-page and multi-page results), `update_chime` (top-level keys), `start_wifi_quick_scan` (band values `ng`, `na`, `6e`), `set_edge_storage_mount_state` (`mounted` / `unmounted`), `update_protect_case` (a duplicated key is refused), `set_client_icon` (an unknown MAC is refused locally), `list_dhcp_leases` and `list_dhcp_excluded_ips` (Classic network `_id` only), `move_device_to_site` (where to read the Classic site `_id`), the three policy update tools (`update_policy_engine_rule`, `update_network_members_group`, `update_predefined_firewall_policy`), whose descriptions now open with the object they update, and the server instructions on paging arguments.
+
+- OAuth over HTTP (`MCP_AUTH_MODE=oauth`) could not start on fastmcp 4.0.x or 4.1.0, because the JWKS verifier needs a lock that fastmcp added in 4.1.1; the dependency floor is now `fastmcp>=4.1.1,<5.0`, so an environment that already had an older fastmcp is upgraded on install.
+
+- `create_vpn_server` now shows a documentation-reserved address (192.0.2.1/24, RFC 5737) in its `subnet` example and argument description.
+
+- `create_traffic_rule`: when the console does not implement the v2 traffic-rules route (HTTP 501 `api.err.NotImplemented`), the error now says that no payload change will help and names the supported alternatives (`create_firewall_policy` with `create_traffic_matching_list`, `create_qos_rule`, `create_traffic_route`) instead of passing the bare upstream status through.
+- `create_backup` now describes what it does: it writes one transient backup file on the console and returns its download path; no stored backup is added, so `list_backups` never shows it and the answer carries no filename or `backup_id`.
+- `export_site`: the hint added to the controller's `api.err.BackupFailed` refusal now names the Network application's own reading of that code, a backup that could not be written, so free console storage is the first thing to check.
+- `create_wifi_broadcast`: the access-point SSID-limit hint now says that creating the SSID disabled (`enabled: false`) does not avoid the limit.
+
+### Security
+
+- Audit log: JSON by default; `UNIFI_AUDIT_SINK`, `UNIFI_AUDIT_LEVEL` and `UNIFI_AUDIT_CALLS` choose where and what it records, and an `audit_unavailable` notice is returned when the sink fails. The `policy.startup` and `policy.refusal` records are written to stderr, and to the audit file when the sink is `file`, at every `UNIFI_AUDIT_LEVEL`, `off` included, and a free-text reason or error message is scrubbed of configured secrets before it is capped, so the cap never leaves part of a secret in the log. A new audit log file (`UNIFI_AUDIT_LOG`) is created with `UNIFI_AUDIT_LOG_MODE` (`0600` by default, or `0640`), whatever the umask; an existing file keeps its mode.
+
+- Dockerfile: Refresh the pinned Python base image to include the updated APT package.
+
+- Release images are signed and attested with newer actions: `sigstore/cosign-installer` v4.1.2 (cosign v3), `anchore/sbom-action` v0.24.3 and `actions/attest-build-provenance` v4.2.2. Cosign v3 stores an image's signature and SBOM attestation as Sigstore bundles attached through OCI referrers instead of `.sig` tags, so verify 0.7.1 and later images with cosign v3 or later (the image verification page states this).
+
+- With `UNIFI_REDACT_SECRETS` on, each camera channel's RTSP stream alias (`rtspAlias`), the share link and webhook shortcut headers and basic-auth credentials are now masked wherever Protect returns a camera: `get_camera_private`, the private camera list, `get_protect_bootstrap` and camera updates. Before, only some of these routes masked them, and none masked the RTSP alias. The values are also kept out of logs and audit records.
+- `create_camera_shortcut` now masks webhook headers and basic-auth credentials in its dry-run preview and keeps them out of logs and audit records, as `update_camera_shortcut` already did. With `UNIFI_REDACT_SECRETS` on, webhook headers and basic-auth credentials in Protect automation bodies and responses are masked too.
+
+- The PyPI release upload uses `pypa/gh-action-pypi-publish` v1.14.3 (from v1.14.2), which fixes GHSA-5xjx-3w67-w9x9.
+
+- The image, the runtime lock and the Homebrew formula install authlib 1.9.4 (from 1.9.1), which fixes GHSA-f3fg-34g9-v7jx, GHSA-gp2m-377p-m4j3 and GHSA-9qr6-8289-9j56, and dnspython 2.9.2 (from 2.9.1), which fixes GHSA-vvf4-9x63-8xvv. The server does not call the affected code.
+
+- With `UNIFI_REDACT_SECRETS` on, "not found" and "ambiguous" errors that list the valid choices now mask credential fields in the upstream names and ids they show. Before, an upstream name or id that was an object, or a string holding a JSON object, appeared unmasked. This covers `get_vpn_server`, `get_radius_profile`, the WireGuard user, WAN SLA, WAN, device, client, guest, network, site, user group, Matter node, camera, Protect record, recognition group and InnerSpace plan lookups, and the per-key and per-site failure reasons of multi-key fleet and cross-site reads (`list_all_clients`). Plain names and ids appear exactly as before.
+
+- Apply the same opt-in credential policy at the final tool-error boundary, including exception notes and fields embedded in JSON, Python representations, and credential pairs. Mask each upstream label before joining it into lookup errors; successful tool responses keep their pass-through behavior.
+
+- In tool error text, a credential key is now read whole and decoded through its escape layers before the response redaction rules apply to it. Keys such as `1_password`, `service.auth_password`, `é_password` and an escaped `pass\u0077ord` inside a repr of JSON are now masked exactly as they are in a successful response.
+
+- Tool modules whose lookup and validation errors now mask upstream values: `client_records`, `device_mgmt`, `device_radios`, `innerspace_internal`, `network_device_operations`, `network_mobile_wan`, `network_routing_topology`, `network_security_diagnostics`, `network_switching_power`, `network_vpn_dns`, `network_wifi_radio`, `protect_automation_backup`, `protect_private`, `protect_recognition_search`, `protect_users_assets`, `site_admin`, `site_config`, `site_manager`, `statistics`, and `aggregation` (`list_all_clients`).
+
+- Preserve following identifiers and failure reasons when masking credential arrays with escaped quotes or brackets, and quoted credentials ending in literal backslashes, including nested JSON and Python representations.
+
+- Parse complete JSON and Python representations before masking error credentials, keeping following identifiers and reasons intact even after prose apostrophes or escaped brackets.
+
+- Keep complete credential containers masked inside prose quotes and nested string representations, and preserve error identifiers and reasons when malformed outer literals contain unhashable dictionaries.
+
+- Decode nested JSON/repr error strings up to six layers and fail closed on unresolved credential spans or parser failures. Single-level identifiers and reasons survive; ambiguous nested errors may lose following diagnostics.
+
+- Scan every decoded escape level through a fixed point (up to 128 iterations), including deeply escaped credential keys; withhold the whole error when the decoding bound is exhausted.
+
+- Scan final structured error renderings at every decoded level so nested bytes, sets, and encoded strings cannot bypass masking. Require a key separator before masking credential words, preserving password-containing tool names and masked-only write refusals.
+
+- Mask credential assignments after incomplete tool headers and preserve following identifiers and reasons after empty quoted credential values.
+
+- `get_unifi_placement_snapshot` with `UNIFI_REDACT_SECRETS` on no longer emits the `smdev-` id of a device known only by its MAC. That id is an unkeyed hash of the MAC, so it let anyone recover the withheld MAC by trying every address of one vendor prefix. Such a device is now left out and counted under `_withheld` as `topology.record` / `hardware_address`. With redaction off, the id and the MAC are unchanged.
+
+- The example ids in the parameter descriptions of the Protect event, case, case-asset and case-export tools (`get_protect_event`, `set_protect_event_favorite`, `update_protect_case`, `export_protect_case`, `analyze_footage_with_ai` and their siblings) are now zero-padded synthetic ids. Before, they were ids of real Protect records.
+
 ## [0.7.0] - 2026-11-01
 
 Highlights: 786 tools (504 added, 1 removed); read-only mode (`UNIFI_READ_ONLY`); opt-in dry-run, audit log and credential redaction; setup for Claude Code, Claude Desktop, Codex, Antigravity and Gemini CLI. Breaking: tool results are returned verbatim (see the Breaking items below); input schemas changed for 97 tools.

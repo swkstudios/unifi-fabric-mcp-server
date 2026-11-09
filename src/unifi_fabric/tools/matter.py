@@ -12,11 +12,12 @@ from ..client import (
     UniFiClient,
     UniFiConnectionError,
     describe_shape,
+    upstream_error_value,
     validate_id,
 )
 from ..config import APIKeyConfig
 from ..matching import find_by_id
-from ..read_only import guard_request
+from ..read_only import guard_request, mark_write_denied
 from ..registry import Registry
 from ..selector_args import check_selector
 from ..tool_annotations import READ_ONLY, WRITE
@@ -41,7 +42,7 @@ def _write_guard(method: str) -> None:
     guard_request(method, "network/v2/api/site/{site}/matter/nodes")
     refusal = area_write_refusal("network")
     if refusal is not None:
-        raise ValueError(refusal)
+        raise mark_write_denied(ValueError(refusal))
 
 
 async def _list(client: UniFiClient, path: str, key: APIKeyConfig | None) -> Any:
@@ -88,15 +89,26 @@ async def _matter_node_id(
         native_id = record.get("id", record.get("_id"))
         if not isinstance(native_id, str):
             raise ValueError(
-                f"Selected Matter node has invalid native id {native_id!r}. No write was sent."
+                f"Selected Matter node has invalid native id "
+                f"{upstream_error_value(native_id, client)!r}. No write was sent."
             )
         try:
             validate_id(native_id, "node_id")
-        except ValueError as exc:
-            raise ValueError(f"{exc}. No write was sent.") from exc
+        except ValueError:
+            # Redact the structured value before repr escapes quotes inside it.
+            # Re-parsing validate_id's formatted exception loses that structure.
+            raise ValueError(
+                f"Selected Matter node has invalid native id "
+                f"{upstream_error_value(native_id, client)!r}. No write was sent."
+            ) from None
         return native_id
     valid = (
-        "; ".join(f"{row.get('name')!r} (id={row.get('id')}, _id={row.get('_id')})" for row in rows)
+        "; ".join(
+            f"{upstream_error_value(row.get('name'), client)!r} "
+            f"(id={upstream_error_value(row.get('id'), client)}, "
+            f"_id={upstream_error_value(row.get('_id'), client)})"
+            for row in rows
+        )
         or "(none)"
     )
     raise ValueError(
@@ -191,13 +203,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         list_matter_nodes reports and other Matter tools can control.
 
         Sends the exact setup_code string to POST matter/nodes and returns the native
-        body unchanged. The setup code is secret: errors/logs scrub it and a dry-run
-        preview masks it only with UNIFI_REDACT_SECRETS. UNIFI_DRY_RUN sends no write.
-        Network write opt-out and global
+        body unchanged. The setup code is secret: logs always scrub it; returned errors and
+        the dry-run preview mask it only with UNIFI_REDACT_SECRETS. Under dry-run policy
+        nothing is sent and the preview is returned instead. Network write opt-out and global
         read-only mode apply before any request. Commissioning requires a device in
         pairing mode.
 
-        Returns the upstream body unchanged. With UNIFI_DRY_RUN, returns
+        Returns the upstream body unchanged. With dry-run policy, returns
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}} without sending a write.
 
@@ -220,7 +232,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         unchanged. No invented verification or no-op result. Discover the native node
         identifier with list_matter_nodes. Dry-run returns a preview without writing.
 
-        Returns the upstream body unchanged. With UNIFI_DRY_RUN, returns
+        Returns the upstream body unchanged. With dry-run policy, returns
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}} without sending a write.
 
@@ -245,7 +257,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). With UNIFI_DRY_RUN, returns {status: "dry_run", deleted: false, message, response},
+        empty). With dry-run policy, returns {status: "dry_run", deleted: false, message, response},
         where response is the dry-run preview {status, dryRun, sent: false, message, preview:
         {method, path, params, body}}, without sending a write.
 

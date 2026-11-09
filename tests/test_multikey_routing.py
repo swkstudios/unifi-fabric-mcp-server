@@ -51,24 +51,24 @@ async def _seed_host_caches(client: UniFiClient, registry: Registry) -> None:
         await registry.set_hosts(hosts, key=client.get_key_by_label(label))
 
 
-def _capture_key_on_get(client: UniFiClient) -> dict[str, APIKeyConfig | None]:
+def _capture_key_on_get(client: UniFiClient) -> dict[str, list[APIKeyConfig | None]]:
     """Replace client.get with a capturing stub; return the dict it records the key into."""
-    captured: dict[str, APIKeyConfig | None] = {}
+    captured: dict[str, list[APIKeyConfig | None]] = {}
 
     async def _get(path, *, key=None, params=None):
-        captured["key"] = key
+        captured.setdefault("key", []).append(key)
         return {"data": []}
 
     client.get = AsyncMock(side_effect=_get)
     return captured
 
 
-def _capture_key_on(client: UniFiClient, method: str) -> dict[str, APIKeyConfig | None]:
+def _capture_key_on(client: UniFiClient, method: str) -> dict[str, list[APIKeyConfig | None]]:
     """Replace an arbitrary client method with a capturing stub (records the ``key`` kwarg)."""
-    captured: dict[str, APIKeyConfig | None] = {}
+    captured: dict[str, list[APIKeyConfig | None]] = {}
 
     async def _call(path, *args, key=None, **kwargs):
-        captured["key"] = key
+        captured.setdefault("key", []).append(key)
         return {"data": []}
 
     setattr(client, method, AsyncMock(side_effect=_call))
@@ -82,10 +82,10 @@ def _stub_resolution(registry: Registry, host_id: str) -> None:
     registry.resolve_site_slug = AsyncMock(return_value="default")
 
 
-def _assert_rode(captured: dict[str, APIKeyConfig | None], label: str) -> None:
-    key = captured.get("key")
-    assert key is not None, f"data request rode the default key, expected the {label!r} key"
-    assert key.label == label, f"data request rode {key.label!r}, expected {label!r}"
+def _assert_rode(captured: dict[str, list[APIKeyConfig | None]], label: str) -> None:
+    keys = captured.get("key", [])
+    assert keys, "no data request was captured"
+    assert all(key is not None and key.label == label for key in keys), keys
 
 
 async def test_list_networks_routes_to_owning_key(multikey_client, multikey_registry):
@@ -241,12 +241,22 @@ async def test_innerspace_project_routes_to_owning_key(multikey_client, multikey
     # InnerSpace is per-host (no site); the project fetch must ride the owning key.
     await _seed_host_caches(multikey_client, multikey_registry)
     multikey_registry.resolve_host_id = AsyncMock(return_value=_BETA_HOST_ID)
-    captured: dict[str, APIKeyConfig | None] = {}
+    captured: dict[str, list[APIKeyConfig | None]] = {}
 
     async def _get(path, *, key=None, params=None):
-        captured["key"] = key
+        captured.setdefault("key", []).append(key)
         return {"data": {"shapes": [], "plans": [], "products": [], "wallTypes": []}}
 
     multikey_client.get = AsyncMock(side_effect=_get)  # type: ignore[method-assign]
     await get_innerspace_project(multikey_client, multikey_registry, "Beta-Branch")
+    _assert_rode(captured, "beta")
+
+
+async def test_integration_device_tags_routes_to_owning_key(multikey_client, multikey_registry):
+    from unifi_fabric.tools.network import list_integration_device_tags
+
+    await _seed_host_caches(multikey_client, multikey_registry)
+    _stub_resolution(multikey_registry, _BETA_HOST_ID)
+    captured = _capture_key_on_get(multikey_client)
+    await list_integration_device_tags(multikey_client, multikey_registry, "Beta-Branch", "Default")
     _assert_rode(captured, "beta")

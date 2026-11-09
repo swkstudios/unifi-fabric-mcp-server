@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.swkstudios/unifi-fabric-mcp-server",
   "description": "MCP server for UniFi Fabric: Network, Protect, Site Manager, InnerSpace, Carrier Fabric, Mobility.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "repository": {
     "url": "https://github.com/swkstudios/unifi-fabric-mcp-server",
     "source": "github"
@@ -11,7 +11,7 @@
     {
       "registryType": "pypi",
       "identifier": "unifi-fabric-mcp-server",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "transport": {
         "type": "stdio"
       },
@@ -23,12 +23,24 @@
           "isSecret": true
         },
         {
+          "name": "UNIFI_WRITE_POLICY",
+          "description": "Write control: allow (default) sends writes, dry-run previews every write without sending it, deny refuses every write.",
+          "default": "allow",
+          "choices": [
+            "allow",
+            "dry-run",
+            "deny"
+          ],
+          "isRequired": false
+        },
+        {
           "name": "UNIFI_TOOL_MODE",
-          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways).",
+          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways); codemode is experimental and read-only.",
           "default": "discovery",
           "choices": [
             "discovery",
-            "full"
+            "full",
+            "codemode"
           ],
           "isRequired": false
         }
@@ -36,7 +48,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0",
+      "identifier": "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:3000/mcp",
@@ -66,7 +78,7 @@
         },
         {
           "name": "MCP_AUTH_MODE",
-          "description": "Transport authentication: bearer requires MCP_BEARER_TOKEN on every request.",
+          "description": "Recommended: bearer requires MCP_BEARER_TOKEN on every request.",
           "isRequired": true,
           "default": "bearer",
           "choices": [
@@ -82,12 +94,24 @@
           "isSecret": true
         },
         {
+          "name": "UNIFI_WRITE_POLICY",
+          "description": "Write control: allow (default) sends writes, dry-run previews every write without sending it, deny refuses every write.",
+          "default": "allow",
+          "choices": [
+            "allow",
+            "dry-run",
+            "deny"
+          ],
+          "isRequired": false
+        },
+        {
           "name": "UNIFI_TOOL_MODE",
-          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways).",
+          "description": "Discovery meta-tools by default; full retains the complete catalog (recommended for gateways); codemode is experimental and read-only.",
           "default": "discovery",
           "choices": [
             "discovery",
-            "full"
+            "full",
+            "codemode"
           ],
           "isRequired": false
         }

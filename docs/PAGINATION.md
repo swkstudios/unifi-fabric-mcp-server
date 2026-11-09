@@ -52,7 +52,7 @@ continuation. Network native-position calls remain one verbatim upstream page. M
 
 Results for a requested size carry additive `_pageSize` metadata, for example:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/tools/_pagination.py@sha256:477d65aa5634448373289991fb5a45b5d5d88a7af0f277a4814cf2f3fd6e50ee support=0.7.0 citation=file:src/unifi_fabric/tools/_pagination.py@sha256:477d65aa5634448373289991fb5a45b5d5d88a7af0f277a4814cf2f3fd6e50ee -->
+<!-- doc-provenance: source=file:src/unifi_fabric/tools/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 support=0.7.1 citation=file:src/unifi_fabric/tools/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 -->
 ```json
 {"_pageSize": {"requested": 275, "sent": [200, 75], "effective": 200, "returned": 275}}
 ```
@@ -168,10 +168,11 @@ clamp, including when the record boundary is inside a physical page.
 ## Partial results when a page cap is set
 
 Requested record totals and default drains honour an explicitly configured
-`UNIFI_PAGINATE_MAX_PAGES`. With the setting unset there is no page cap. When its
-cap is reached before the requested count or the end, the response includes:
+`UNIFI_PAGINATE_MAX_PAGES`, except `query_traffic_flows` and `export_traffic_flows`.
+With the setting unset there is no page cap. When its cap is reached before the
+requested count or the end, the response includes:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af support=0.7.0 citation=file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af -->
+<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:1da845342a9948c191d1e3e216499d883aaacf7fb8d81a22420ac16138eb2928 support=0.7.1 citation=file:src/unifi_fabric/client.py@sha256:1da845342a9948c191d1e3e216499d883aaacf7fb8d81a22420ac16138eb2928 -->
 ```json
 {
   "incomplete": true,
@@ -188,6 +189,12 @@ list (another object with that name may lie past the cap): it fails with `cannot
 '<name>' unambiguously: the site/host list is incomplete (UNIFI_PAGINATE_MAX_PAGES=N)`;
 an exact id still resolves. Raise or remove the cap (the default is no cap) to
 retrieve the full dataset.
+
+`query_traffic_flows` and `export_traffic_flows` are exempt from the cap: they drain
+every page the console reports (`has_next` / `total_page_count`) even when
+`UNIFI_PAGINATE_MAX_PAGES` is set, so a wide time window is bounded only by loop
+detection and the console. To bound one, send `body.pageSize` (a record count) and
+resume with the returned `_nextPage` ([MIGRATING-0.7.md](MIGRATING-0.7.md#change-097)).
 
 Loop detection is always active regardless of the cap, and ends the drain with the
 pages gathered so far plus `"incomplete": true` and an `incompleteReason` (never an
@@ -209,12 +216,12 @@ page; only the opt-in `UNIFI_PAGINATE_MAX_PAGES` cap bounds a run of such pages.
 
 ## Server-side filtering
 
-These 24 Network tools accept an optional `filter` argument:
+These 25 Network tools accept an optional `filter` argument:
 `get_controller_stats`, `get_latest_firmware_versions`,
 `list_acl_rules`, `list_all_clients`, `list_clients`, `list_countries`,
 `list_dns_policies`, `list_dpi_applications`, `list_dpi_categories`,
 `list_firewall_policies`, `list_firewall_zones_proxy`, `list_hotspot_vouchers`,
-`list_lags`, `list_local_sites`, `list_mc_lag_domains`, `list_networks`,
+`list_integration_device_tags`, `list_lags`, `list_local_sites`, `list_mc_lag_domains`, `list_networks`,
 `list_pending_devices`, `list_radius_profiles`, `list_site_devices`,
 `list_site_to_site_tunnels`, `list_switch_stacks`, `list_traffic_matching_lists`,
 `list_vpn_servers` and `list_wifi_broadcasts` (`list_all_clients` sends it to every
@@ -225,12 +232,12 @@ expression. Filtering is applied server-side in both full-drain and single-page 
 so a narrowed query returns a smaller `totalCount`/result set without draining the
 unfiltered collection first. When `filter` is omitted the parameter is not sent at all.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af support=0.7.0 citation=file:src/unifi_fabric/client.py@sha256:08b81968fbed5aec04cc813f927c0c8b3f0a6d5ab976f67bf16a479e7c6586af -->
+<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:1da845342a9948c191d1e3e216499d883aaacf7fb8d81a22420ac16138eb2928 support=0.7.1 citation=file:src/unifi_fabric/client.py@sha256:1da845342a9948c191d1e3e216499d883aaacf7fb8d81a22420ac16138eb2928 -->
 ```text
 list_networks(host="HQ", site="Default", filter="vlanId.eq(100)")
 list_clients(host="HQ", site="Default", filter="macAddress.eq('AA:BB:CC:DD:EE:FF')")
 list_site_devices(host="HQ", site="Default", filter="state.eq('ONLINE')")
 ```
 
-See the [Network v10.6.106 OpenAPI](https://developer.ui.com/network/v10.6.106/openapi.json)
+See the [Network v11.0.97 OpenAPI](https://developer.ui.com/network/v11.0.97/openapi.json)
 for the filterable properties and grammar for each collection resource.

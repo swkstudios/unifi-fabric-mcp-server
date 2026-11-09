@@ -5,8 +5,16 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..client import UniFiClient, UniFiConnectionError, is_dry_run_preview, upstream_error_text
+from ..client import (
+    UniFiClient,
+    UniFiConnectionError,
+    is_dry_run_preview,
+    strip_additive_keys,
+    upstream_error_text,
+)
 from ..config import APIKeyConfig
+from ..redaction import drop_and_note_masked_fields
+from ..write_body import require_unmasked_fields
 from ._keys import with_context
 from ._results import leaf_equal
 
@@ -46,9 +54,14 @@ async def update_device_config(
     requested = diff(before, desired)
     base = {"readBefore": before, "_diff": requested}
     if dry_run or client.dry_run:
-        client._audit_write("PUT", path, "dry_run", None)
+        body = strip_additive_keys(body)
+        require_unmasked_fields(body, "PUT body")
+        body = drop_and_note_masked_fields(body)
+        client._audit_write("PUT", path, "dry_run", None, body=body)
+        configs = client._key_configs()
+        preview_key = key or (configs[0] if configs else None)
         return {
-            **client._dry_run_response("PUT", path, body).json(),
+            **client._dry_run_response("PUT", path, body, key=preview_key).json(),
             "diff": requested,
             **base,
             "changed": None,
@@ -71,7 +84,8 @@ async def update_device_config(
                     "_verified": None,
                 },
             )
-        require_classic_success(response, path)
+        if isinstance(response, dict) and "meta" in response:
+            require_classic_success(response, path)
         write_result["response"] = response
     try:
         after_response, after, views = await read_after()

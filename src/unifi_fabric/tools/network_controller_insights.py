@@ -5,7 +5,7 @@ Route choice (the official published API when it can do the job or
 reach the same outcome, else the newer private v2 API, else the older Classic API). The
 choice and the reason are recorded per tool in ``ROUTE_CHOICES``. In short:
 
-* The official Network Integration API (pinned 10.6.106) has none of these capabilities
+* The official Network Integration API (pinned 11.0.97) has none of these capabilities
   (its ``/v1/info`` carries only ``applicationVersion``).
 * The official Site Manager API was compared key by key on a live console:
   ``/v1/sites`` carries the same 16 per-site counts as the v2 sites overview but not the
@@ -841,7 +841,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         reports the requested count, sent (every pageSize sent, in request order), the
         effective console page size and the returned count. _nextPage is absent when no
         site follows the window or the call stopped short (_incomplete). For counts across
-        every console use list_sites. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        every console use list_sites. With dry-run policy, returns {status: "dry_run",
         dryRun: true, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
 
@@ -988,9 +988,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST /v2/api/ups/pair: the console logs in to the UPS with the UI account given.
         action unpair sends {console_mac} to POST /v2/api/ups/unpair. Only the
         arguments you pass are sent; the console reports a missing one. Returns the
-        upstream body verbatim, whatever its type: an unpair can answer a bare true, and a
+        upstream body verbatim, whatever its type: a 204 response does not prove an unpair;
+        an unpair can answer a bare true, and a
         body that is not a JSON object arrives as {result: ...}. The
-        password is a credential: UNIFI_REDACT_SECRETS masks it. With UNIFI_DRY_RUN,
+        password is a credential: UNIFI_REDACT_SECRETS masks it. With dry-run policy,
         returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}} and sends nothing.
 

@@ -127,9 +127,9 @@ async def test_failed_readback_is_not_verified(rig):
 @pytest.mark.parametrize(
     "env,value",
     [
-        ("UNIFI_READ_ONLY", "1"),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", "0"),
-        ("UNIFI_PROTECT_MUTATIONS_ENABLED", "0"),
+        ("UNIFI_WRITE_POLICY", "deny"),
+        ("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny"),
+        ("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny"),
     ],
 )
 async def test_optouts_precede_resolution(rig, monkeypatch, env, value):
@@ -144,6 +144,7 @@ async def test_optouts_precede_resolution(rig, monkeypatch, env, value):
 
 async def test_dry_run_does_not_read_after(rig):
     c, r, _, calls = rig
+    c.dry_run = True
     original = c.request.side_effect
 
     async def preview(method, path, **kwargs):
@@ -458,8 +459,8 @@ async def test_explicit_private_owner_key_is_used_for_every_request(rig):
 )
 async def test_action_connector_optout_precedes_any_resolution(rig, monkeypatch, fn, args):
     c, r, _, _ = rig
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
-    with pytest.raises(Exception, match="UNIFI_ENABLE_CONNECTOR_WRITE"):
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny")
+    with pytest.raises(Exception, match="family:connector=deny"):
         await getattr(pp, fn)(c, r, "example", *args)
     r.resolve_key_for_host.assert_not_awaited()
     c.request.assert_not_awaited()
@@ -578,6 +579,7 @@ async def test_actions_report_consequence_for_result_and_preview(
     rig, fn, args, consequence, preview
 ):
     c, r, _, calls = rig
+    c.dry_run = preview
     original = c.request.side_effect
     preview_body = {"dryRun": True, "message": DRY_RUN_MESSAGE, "preview": {"method": "POST"}}
 
@@ -652,6 +654,7 @@ async def test_registered_nvr_retention_rejects_booleans_without_requests(rig, v
 
 async def test_nvr_retention_preview_warns_of_footage_deletion(rig):
     c, r, _, calls = rig
+    c.dry_run = True
     original = c.request.side_effect
     preview_body = {"dryRun": True, "message": DRY_RUN_MESSAGE, "preview": {"method": "PATCH"}}
 

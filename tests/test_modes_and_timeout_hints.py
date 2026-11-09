@@ -18,20 +18,23 @@ from unifi_fabric.tools import carrier_fabric, connector, mobility, protect
     "read_only,dry_run", [(False, False), (True, False), (False, True), (True, True)]
 )
 async def test_initialize_instructions_report_actual_modes(monkeypatch, read_only, dry_run):
-    settings = Settings(api_key="synthetic-unit-key", read_only=read_only, dry_run=dry_run)
+    expected = "deny" if read_only else "dry-run" if dry_run else "allow"
+    if expected != "allow":
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", expected)
+    settings = Settings(api_key="synthetic-unit-key")
     monkeypatch.setattr(server, "get_settings", lambda: settings)
-    monkeypatch.setattr(server, "apply_tool_family_filter", AsyncMock())
+    monkeypatch.setattr(server.policy, "apply_exposure", AsyncMock(return_value=[]))
     async with Client(server.mcp, mode="legacy") as client:
         result = await client.initialize()
         instructions = result.instructions
-        assert f"UNIFI_READ_ONLY={int(read_only)}" in instructions
-        assert f"UNIFI_DRY_RUN={int(dry_run)}" in instructions
+        assert f"UNIFI_WRITE_POLICY={expected}." in instructions
         assert "Current deployment:" in instructions
         assert len(instructions) <= 2048
 
 
-async def test_suppressed_write_preview_has_top_level_status():
-    client = UniFiClient(Settings(api_key="synthetic-unit-key", dry_run=True))
+async def test_suppressed_write_preview_has_top_level_status(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings(api_key="synthetic-unit-key"))
     try:
         preview = await client.post("/v1/unit", json={"name": "unit"})
         assert preview["status"] == "dry_run"
@@ -67,15 +70,15 @@ async def test_timeout_write_hint_and_no_transport_retry(monkeypatch, method):
 )
 def test_area_refusals_name_every_deployment_surface(message):
     manifest = Path(__file__).resolve().parents[1] / "plugins/claude/.claude-plugin/plugin.json"
-    option = json.loads(manifest.read_text())["userConfig"]["read_only"]["title"]
+    option = json.loads(manifest.read_text())["userConfig"]["write_policy"]["title"]
     assert option in message
     for phrase in [
         "client",
         "env",
         "plugin",
         "docker-compose",
-        "README",
         "Enabling / disabling connector writes",
+        "docs/CONFIGURATION.md#enabling--disabling-connector-writes",
     ]:
         assert phrase in message
 

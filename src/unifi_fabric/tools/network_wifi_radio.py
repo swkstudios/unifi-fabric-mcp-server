@@ -7,13 +7,19 @@ from typing import Any, Literal, cast
 
 from fastmcp import FastMCP
 
-from ..client import DRY_RUN_MESSAGE, UniFiClient, UniFiConnectionError, validate_id
+from ..client import (
+    DRY_RUN_MESSAGE,
+    UniFiClient,
+    UniFiConnectionError,
+    upstream_error_value,
+    validate_id,
+)
 from ..config import APIKeyConfig
 from ..macs import colon_mac, is_mac
-from ..read_only import ReadOnlyModeError, guard_action
+from ..read_only import ReadOnlyModeError, guard_action, mark_write_denied
 from ..registry import Registry
 from ..selector_args import check_selector
-from ..switches import env_flag
+from ..switches import connector_writes_enabled
 from ..tool_annotations import READ_ONLY, WRITE
 from . import network
 from ._classic_cmd import classic_command_for_site
@@ -115,14 +121,15 @@ async def _post(
     try:
         guard_action(tool)
     except ReadOnlyModeError:
-        client.audit_refusal(tool=tool, reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool=tool, reason="UNIFI_WRITE_POLICY")
         raise
-    if not env_flag(CONNECTOR_WRITE_ENV, True):
+    if not connector_writes_enabled():
         client.audit_refusal(tool=tool, reason=CONNECTOR_WRITE_ENV)
-        raise PermissionError(connector_write_refusal(tool))
+        raise mark_write_denied(PermissionError(connector_write_refusal(tool)))
     key, host_id, slug = await _site(registry, host, site)
     path = v2_site(host_id, slug, suffix)
     if dry_run or client.dry_run:
+        client._audit_write("POST", path, "dry_run", None, body=body)
         return {
             "status": "dry_run",
             "dryRun": True,
@@ -371,13 +378,20 @@ async def start_spectrum_scan(
     try:
         guard_action("start_spectrum_scan")
     except ReadOnlyModeError:
-        client.audit_refusal(tool="start_spectrum_scan", reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool="start_spectrum_scan", reason="UNIFI_WRITE_POLICY")
         raise
-    if not env_flag(CONNECTOR_WRITE_ENV, True):
+    if not connector_writes_enabled():
         client.audit_refusal(tool="start_spectrum_scan", reason=CONNECTOR_WRITE_ENV)
-        raise PermissionError(connector_write_refusal("start_spectrum_scan"))
+        raise mark_write_denied(PermissionError(connector_write_refusal("start_spectrum_scan")))
     if dry_run or client.dry_run:
         key, host_id, slug = await _site(registry, host, site)
+        client._audit_write(
+            "POST",
+            f"/v1/connector/consoles/{host_id}/proxy/network/api/s/{slug}/cmd/devmgr",
+            "dry_run",
+            None,
+            body={"cmd": "spectrum-scan", "mac": mac},
+        )
         return {
             "status": "dry_run",
             "dryRun": True,
@@ -474,7 +488,10 @@ def _select_wan(records: list[dict[str, Any]], wan_id: str | None) -> dict[str, 
         return records[0]
     valid = (
         "; ".join(
-            f"{r.get('name')!r}: id={r.get('external_id')}, _id={r.get('_id')}" for r in records
+            f"{upstream_error_value(r.get('name'))!r}: "
+            f"id={upstream_error_value(r.get('external_id'))}, "
+            f"_id={upstream_error_value(r.get('_id'))}"
+            for r in records
         )
         or "(none)"
     )
@@ -530,11 +547,11 @@ async def configure_wifi_wan(
     try:
         guard_action("configure_wifi_wan")
     except ReadOnlyModeError:
-        client.audit_refusal(tool="configure_wifi_wan", reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool="configure_wifi_wan", reason="UNIFI_WRITE_POLICY")
         raise
-    if not env_flag(CONNECTOR_WRITE_ENV, True):
+    if not connector_writes_enabled():
         client.audit_refusal(tool="configure_wifi_wan", reason=CONNECTOR_WRITE_ENV)
-        raise PermissionError(connector_write_refusal("configure_wifi_wan"))
+        raise mark_write_denied(PermissionError(connector_write_refusal("configure_wifi_wan")))
     key, host_id, slug = await _site(registry, host, site)
     records = await networkconf_records(client, host_id, slug, "wan", key=key)
     current = _select_wan(records, wan_id)
@@ -557,6 +574,13 @@ async def configure_wifi_wan(
     if dry_run or client.dry_run:
         body = addressed_body(
             strip_empty_list_values(desired), classic_id, current.get("external_id")
+        )
+        client._audit_write(
+            "PUT",
+            classic_rest(host_id, slug, f"/networkconf/{classic_id}"),
+            "dry_run",
+            None,
+            body=body,
         )
         return {
             "status": "dry_run",
@@ -627,7 +651,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POSTs calculation_id, radios and method to radio-ai/optimize/preview.
         Returns the upstream v2 body verbatim (an object, or an array wrapped as result).
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body) without sending; never a write result.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).
@@ -660,7 +684,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         With calculation_id POSTs radio-ai/optimize/apply/{calculation_id}; without it
         POSTs radios to radio-ai/optimize/apply-last. Never auto-retried.
         Returns the upstream v2 body verbatim (an object, or an array wrapped as result).
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body) without sending; never a write result.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).
@@ -748,7 +772,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POSTs wifi-doctor/optimization/{action}. Never auto-retried.
         Returns the upstream v2 body verbatim (an object, or an array wrapped as result).
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body) without sending; never a write result.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).
@@ -881,7 +905,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends Classic cmd/devmgr {"cmd": "spectrum-scan", "mac": ...}; success needs
         meta.rc "ok", otherwise the full upstream meta is raised. Never auto-retried.
         Returns the upstream Classic envelope verbatim (meta and data).
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body) without sending; never a write result.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).
@@ -920,7 +944,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POSTs {"band": radio_band} to quick-scan. Never auto-retried.
         Returns the upstream v2 body verbatim (an object, or an array wrapped as result).
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body) without sending; never a write result.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).
@@ -930,7 +954,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Required console name or id, e.g. "my-console".
             site: Required Network site name or UUID, e.g. "Default".
-            radio_band: Required radio band, e.g. "na".
+            radio_band: Required radio band: ng (2.4 GHz), na (5 GHz) or 6e (6 GHz), e.g. "na".
             dry_run: Preview without POST, e.g. true.
         """
         return await start_wifi_quick_scan(*deps(), host, site, radio_band, dry_run=dry_run)
@@ -996,7 +1020,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         when the read-back fails. A non-object write body is returned whole under response
         with those keys beside it. x_uplink_password passes through unless
         UNIFI_REDACT_SECRETS. Several WANs without wan_id fail listing valid records.
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message and
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
         preview (method, path, params, body: the merged record) without writing or verifying.
         Provide host (console name or id from list_hosts) and site (Network site name or UUID
         from list_local_sites).

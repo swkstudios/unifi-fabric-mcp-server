@@ -1,13 +1,13 @@
 {
   "name": "unifi-fabric",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Runs the open-source UniFi Fabric MCP server locally (uvx, pinned release) with your own UniFi Site Manager API key, to read and manage UniFi sites, devices, clients, firewall, VPN and Protect cameras through Ubiquiti's cloud API (api.ui.com). Not affiliated with Ubiquiti Inc.",
   "mcpServers": {
     "unifi-fabric": {
       "command": "uvx",
       "args": [
         "--from",
-        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp-server==0.7.1",
         "unifi-fabric-mcp"
       ]
     }
@@ -20,9 +20,9 @@
       "sensitive": true
     },
     {
-      "name": "Read-only mode",
-      "description": "Leave empty for the default (read and write tools both work). Enter 1 to refuse every write and action tool before anything is sent to UniFi.",
-      "envVar": "UNIFI_READ_ONLY",
+      "name": "Write policy",
+      "description": "Enter allow (the default: read and write tools both work), dry-run (every write returns a preview and nothing is sent) or deny (refuse every write and action tool before anything is sent to UniFi). Enter allow to keep the default. Lower case; a blank or other value stops the server from starting.",
+      "envVar": "UNIFI_WRITE_POLICY",
       "sensitive": false
     },
     {

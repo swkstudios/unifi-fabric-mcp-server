@@ -1,0 +1,7 @@
+{
+  "$comment": "Public release identity. A fork edits owner and repo; image (ghcr.io/<owner>/<repo>), registry_name (io.github.<owner>/<repo>), pypi (<repo>) and homebrew_tap (<owner>/homebrew-tap) derive from them unless overrides names them. server.json stays the authoritative registry identity: scripts/prepare_release.py fails when the two disagree.",
+  "schema": 1,
+  "owner": "swkstudios",
+  "repo": "unifi-fabric-mcp-server",
+  "overrides": {}
+}

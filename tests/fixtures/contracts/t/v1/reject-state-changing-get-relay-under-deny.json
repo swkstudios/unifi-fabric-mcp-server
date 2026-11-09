@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-state-changing-get-relay-under-deny",
+  "description": "A state-changing GET relayed through fabric_connector_get (Protect disable-control, read_only.STATE_CHANGING_GET_ROUTES) is a write and refuses under UNIFI_WRITE_POLICY=deny",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_POLICY": "deny",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "fabric_connector_get",
+    "arguments": {
+      "host": "host-a1",
+      "path": "protect/api/cameras/camera-1/disable-control"
+    }
+  },
+  "expected": {
+    "code": "write_denied",
+    "upstream_calls": 0
+  }
+}

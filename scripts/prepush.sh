@@ -5,12 +5,11 @@
 #
 # The steps are read from the workflows themselves (scripts/ci_fast_jobs.py), so this
 # check and CI's fast jobs cannot drift: from ci.yml lint, typecheck, docs, the version,
-# fixture and changelog checks, and the changed-path test selection
-# (scripts/select_pr_tests.py) with CI's pytest flags; then the fast jobs of the other
+# fixture and changelog checks; then the fast jobs of the other
 # workflows that run for a pull request (documentation checks, changelog size). Each job
-# runs when its CI condition holds for a pull request from HEAD into the base branch; a
-# change that the selector escalates to the full tier runs the full suite in CI's test
-# and test-locked jobs, not in this default run (see --full below). The secret scan,
+# runs when its CI condition holds for a pull request from HEAD into the base branch; the
+# full suite runs in CI's test and test-locked jobs on main, not in this default run (see
+# --full below). The secret scan,
 # the image build and the other jobs scripts/ci_fast_jobs.py lists in CI_ONLY also stay
 # in CI. The test files in its PREPUSH_GUARDS run on every pre-push, whatever the change.
 #
@@ -19,9 +18,9 @@
 #   .venv/bin/python -m pip install --require-hashes -r requirements.lock
 #   .venv/bin/python -m pip install --no-deps -e .
 #
-# Settings: PREPUSH_BASE_BRANCH (the pull request's base branch; the default is this
-# tree's lane target, printed on the first line), PREPUSH_REMOTE (default origin),
-# PREPUSH_LABELS (comma-separated pull request labels, e.g. full-ci).
+# Settings: PREPUSH_BASE_BRANCH (the pull request's base branch; the default is the
+# checkout's default base), PREPUSH_REMOTE (default origin),
+# PREPUSH_LABELS (comma-separated pull request labels).
 #
 # Push only after it prints "Pre-push: scripts/prepush.sh pass (head <sha7>)" for the
 # commit you push, and cite that line in the pull request. This is not a git hook.

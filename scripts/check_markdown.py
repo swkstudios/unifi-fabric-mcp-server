@@ -224,6 +224,22 @@ def link_problems(path: Path, lines: list[tuple[int, str]], cache: dict[Path, se
                 yield number, f"link fragment does not match any heading or id: {target}"
 
 
+_RELEASED_HEADING_RE = re.compile(r"^## \[[^\]]+\] - \d{4}-\d{2}-\d{2}")
+
+
+def without_released_sections(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Drop released (dated) CHANGELOG sections: they are frozen to their tag text, so
+    their relative links name the README as it was released and are not rewritten."""
+    kept: list[tuple[int, str]] = []
+    released = False
+    for number, line in lines:
+        if line.startswith("## "):
+            released = bool(_RELEASED_HEADING_RE.match(line))
+        if not released:
+            kept.append((number, line))
+    return kept
+
+
 def check(paths: Iterable[Path]) -> list[str]:
     findings: list[str] = []
     cache: dict[Path, set[str]] = {}
@@ -234,7 +250,8 @@ def check(paths: Iterable[Path]) -> list[str]:
             rel = path.relative_to(ROOT).as_posix()
         except ValueError:
             rel = str(path)
-        problems = sorted({*table_problems(lines), *link_problems(path, lines, cache)})
+        link_lines = without_released_sections(lines) if path.name == "CHANGELOG.md" else lines
+        problems = sorted({*table_problems(lines), *link_problems(path, link_lines, cache)})
         findings.extend(f"{rel}:{number}: {problem}" for number, problem in problems)
     return findings
 

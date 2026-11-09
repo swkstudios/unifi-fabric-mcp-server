@@ -104,10 +104,13 @@ def derived_sets():
         },
         "update tools refuse a body with nothing to change": reaching("require_update_fields")
         | {name for name in common if body_argument(tools[name]) is not None},
-        "no-op and verification checks compare leaf by leaf": reaching(
-            "requested_leaves_match", "short_circuit_no_op", "_updated"
+        # update_traffic_rule gained leaf-by-leaf verification in 0.7.1 (its changelog.d
+        # fragment says so); the released 0.7 list keeps its 0.7.0 contents.
+        "no-op and verification checks compare leaf by leaf": (
+            reaching("requested_leaves_match", "short_circuit_no_op", "_updated")
+            | (connector - {"fabric_connector_get"})
         )
-        | (connector - {"fabric_connector_get"}),
+        - {"update_traffic_rule"},
         "a call that reached nothing fails": reaching(
             "_require_object",
             "_object_body",
@@ -171,7 +174,7 @@ def test_breaking_entry_lists_exactly_the_derived_tools(title):
         "write tools drop server-added",
     }
     if title in catalog_reference_titles:
-        assert f"{len(expected)} tools" in entry
+        assert re.search(rf"\b{len(expected)} tools\b", entry)
         assert (
             "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/"
             "docs/TOOLS.md#tool-categories"

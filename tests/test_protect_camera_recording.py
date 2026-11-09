@@ -103,10 +103,10 @@ CALLS: dict[str, tuple[Any, tuple[Any, ...], dict[str, Any], str, str, dict[str,
     "get_camera_playback_history": (
         pcr.get_camera_playback_history,
         (CAMERA, START, END),
-        {"resolution": 60_000},
+        {"resolution": 2},
         "GET",
         f"{BASE}/cameras/{CAMERA}/playback-history",
-        {"start": str(START * 1000), "end": str(END * 1000), "resolution": "60000"},
+        {"start": str(START * 1000), "end": str(END * 1000), "resolution": "2"},
         None,
     ),
     "get_camera_wifi_networks": (
@@ -365,7 +365,7 @@ async def test_export_prepare_sends_no_filename_and_returns_body_verbatim():
 
 
 async def test_export_prepare_sends_filename_start_and_end_protect_7_3_requires():
-    """Protect 7.3.70 (live 2026-10-28) answers prepare with 400 "must have required
+    """Protect 7.3.74 (live 2026-10-28) answers prepare with 400 "must have required
     property 'filename', 'start', 'end'" (start and end in ms), and the console stores the
     export under that filename for download. All three are sent; start and end are epoch
     seconds converted to ms."""
@@ -651,10 +651,11 @@ async def test_empty_free_form_body_is_refused_before_any_request(name, empty):
 
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
-async def test_dry_run_returns_the_preview_and_sends_no_write(name):
+async def test_dry_run_returns_the_preview_and_sends_no_write(name, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     _, _, _, method, path, params, body = CALLS[name]
     up = Upstream()
-    result = await call(name, up, settings={"dry_run": True})
+    result = await call(name, up)
     assert up.seen == [], name  # the control GET is not sent either
     if name == "delete_recordings":
         # A delete returns the deletion_result dry-run shape; a plausible window adds no
@@ -678,16 +679,16 @@ def _typed(value: str) -> Any:
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_protect_write_opt_out_refuses_with_zero_requests(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "false")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
     up = Upstream()
-    with pytest.raises(ValueError, match="UNIFI_PROTECT_MUTATIONS_ENABLED"):
+    with pytest.raises(ValueError, match="family:protect=deny"):
         await call(name, up)
     assert up.seen == []
 
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_read_only_mode_refuses_every_write_with_zero_requests(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     up = Upstream()
     with pytest.raises(Exception, match="read-only mode"):
         await call(name, up)
@@ -696,8 +697,8 @@ async def test_read_only_mode_refuses_every_write_with_zero_requests(name, monke
 
 @pytest.mark.parametrize("name", sorted(READ_TOOLS))
 async def test_read_only_mode_and_opt_out_leave_reads_working(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
-    monkeypatch.setenv("UNIFI_PROTECT_MUTATIONS_ENABLED", "false")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")
     up = Upstream()
     await call(name, up)
     assert up.seen
@@ -830,7 +831,11 @@ async def test_control_get_is_audited_as_a_write(tmp_path):
     up = Upstream()
     settings = {"audit_log": str(log), "audit_log_format": "json"}
     await run(up, pcr.set_camera_control_enabled, CAMERA, False, settings=settings)
-    records = [json.loads(line) for line in log.read_text().splitlines()]
+    records = [
+        r
+        for r in (json.loads(line) for line in log.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
     assert [(r["method"], r["path"]) for r in records] == [
         ("GET", f"{BASE}/cameras/{CAMERA}/disable-control")
     ]
@@ -866,18 +871,17 @@ async def test_wifi_setup_body_is_sent_verbatim_by_default():
     assert body_of(up.seen[0]) == body
 
 
-async def test_wifi_setup_dry_run_masks_the_password_only_under_opt_in():
+async def test_wifi_setup_dry_run_masks_the_password_only_under_opt_in(monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     body = {"ssid": "synthetic-ssid", "password": "synthetic-wifi-pass"}
-    plain = await run(
-        Upstream(), pcr.configure_camera_wifi, CAMERA, body, settings={"dry_run": True}
-    )
+    plain = await run(Upstream(), pcr.configure_camera_wifi, CAMERA, body)
     assert plain["preview"]["body"]["password"] == "synthetic-wifi-pass"
     masked = await run(
         Upstream(),
         pcr.configure_camera_wifi,
         CAMERA,
         body,
-        settings={"dry_run": True, "redact_secrets": True},
+        settings={"redact_secrets": True},
     )
     assert "synthetic-wifi-pass" not in json.dumps(masked)
 
@@ -980,7 +984,7 @@ QR_404 = {"error": "Entity 'camera' not found", "name": "NOT_FOUND", "entity": "
 
 
 async def test_adoption_qr_404_on_protect_7_3_keeps_the_upstream_text_and_adds_a_hint():
-    """Protect 7.3.70 (live 2026-10-28) has no QR route: GET cameras/qr is matched as
+    """Protect 7.3.74 (live 2026-10-28) has no QR route: GET cameras/qr is matched as
     camera id "qr" and answers this 404. The upstream text stays; a hint is appended."""
     up = Upstream(httpx.Response(404, json=QR_404))
     with pytest.raises(UniFiConnectionError) as info:
@@ -1012,9 +1016,14 @@ async def test_nvr_mac_selector_grammar_fails_before_any_request(bad):
 
 
 async def test_edge_export_prepare_executes_in_read_only_and_dry_run(monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     up = Upstream()
-    await run(up, pcr.export_edge_recording, CAMERA, "prepare", settings={"dry_run": True})
+    await run(up, pcr.export_edge_recording, CAMERA, "prepare")
+    assert len(up.seen) == 1
+    assert up.seen[0].method == "GET" and up.seen[0].url.path.endswith("/prepare")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    up = Upstream()
+    await run(up, pcr.export_edge_recording, CAMERA, "prepare")
     assert len(up.seen) == 1
     assert up.seen[0].method == "GET" and up.seen[0].url.path.endswith("/prepare")
 

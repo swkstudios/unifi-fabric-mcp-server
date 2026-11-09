@@ -54,7 +54,7 @@ for mode in stateful stateless; do
   docker run -d --name "$server" --network "$network" --network-alias server \
     -e UNIFI_API_KEY=synthetic-placeholder -e UNIFI_API_BASE_URL=http://127.0.0.1:8080 \
     -e FASTMCP_HOST=127.0.0.1 \
-    -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN -e UNIFI_READ_ONLY=1 -e FASTMCP_STATELESS_HTTP="$state" "$image" >/dev/null
+    -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN -e UNIFI_WRITE_POLICY=deny -e FASTMCP_STATELESS_HTTP="$state" "$image" >/dev/null
   actual_image=$(docker inspect --format '{{.Image}}' "$server")
   [[ $actual_image == "$image_id" ]] || { echo "running image mismatch" >&2; exit 1; }
   while :; do

@@ -1,7 +1,7 @@
 {
   "name": "unifi-fabric",
   "displayName": "UniFi Fabric MCP",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Runs the open-source UniFi Fabric MCP server on your own machine with your own UniFi Site Manager API key, so Claude Code can read and manage your UniFi sites, devices, clients, firewall, VPN and Protect cameras through Ubiquiti's cloud API (api.ui.com). Not affiliated with Ubiquiti Inc.",
   "author": {
     "name": "SWK Studios",
@@ -29,16 +29,16 @@
       "sensitive": true,
       "required": true
     },
-    "read_only": {
-      "type": "boolean",
-      "title": "Read-only mode",
-      "description": "Off by default: read and write tools both work. Turn on to hide every write and action tool and refuse any call to one before anything is sent to UniFi (sets UNIFI_READ_ONLY). Read tools keep working.",
-      "default": false
+    "write_policy": {
+      "type": "string",
+      "title": "Write policy",
+      "description": "allow (default): read and write tools both work. dry-run: every write returns a preview and nothing is sent to UniFi. deny: hide every write and action tool and refuse any call to one before anything is sent to UniFi; read tools keep working. Sets UNIFI_WRITE_POLICY. Lower case; a blank or other value stops the server from starting.",
+      "default": "allow"
     },
     "tool_mode": {
       "type": "string",
       "title": "Tool mode",
-      "description": "discovery (default) advertises five discovery meta-tools; full advertises every selected domain tool. Choose full to keep the previous catalog or for gateways.",
+      "description": "discovery (default) advertises five discovery meta-tools; full advertises every selected domain tool. Choose full to keep the previous catalog or for gateways; codemode (experimental, read-only) advertises search_tools, describe_tool and execute.",
       "default": "discovery",
       "required": false
     }
@@ -48,12 +48,12 @@
       "command": "uvx",
       "args": [
         "--from",
-        "unifi-fabric-mcp-server==0.7.0",
+        "unifi-fabric-mcp-server==0.7.1",
         "unifi-fabric-mcp"
       ],
       "env": {
         "UNIFI_API_KEY": "${user_config.unifi_api_key}",
-        "UNIFI_READ_ONLY": "${user_config.read_only}",
+        "UNIFI_WRITE_POLICY": "${user_config.write_policy}",
         "FASTMCP_TRANSPORT": "stdio",
         "UNIFI_TOOL_MODE": "${user_config.tool_mode}"
       }

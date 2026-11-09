@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "accept-exclude-all-domain-leaves-meta",
+  "description": "Excluding every family removes every domain tool; in full mode only the local meta tool list_configured_api_keys is listed (the five discovery meta tools are registered in discovery mode only).",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:carrier,family:clients,family:connector,family:devices,family:firewall,family:hotspot,family:innerspace,family:mobility,family:network,family:protect,family:site_manager,family:statistics,family:vpn",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "write_policy": "allow",
+      "write_exceptions": [],
+      "exposed_families": [],
+      "exclusions": [
+        "family:carrier",
+        "family:clients",
+        "family:connector",
+        "family:devices",
+        "family:firewall",
+        "family:hotspot",
+        "family:innerspace",
+        "family:mobility",
+        "family:network",
+        "family:protect",
+        "family:site_manager",
+        "family:statistics",
+        "family:vpn"
+      ]
+    },
+    "listed_tools": [
+      "list_configured_api_keys"
+    ],
+    "upstream_calls": 0
+  }
+}

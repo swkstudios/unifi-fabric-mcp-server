@@ -155,28 +155,78 @@ UPS_PAIRING_SECRET = RouteSecret(
 )
 
 
+#: Credential keys of a Protect webhook (camera shortcut, automation action): custom
+#: request headers (an ``Authorization`` bearer, an API-key header) and basic auth.
+_PROTECT_WEBHOOK_SECRET_FIELDS = ("headers", "auth")
+
+#: Credentials a Protect camera object carries, wherever the object is returned: each
+#: channel's RTSP stream alias (``channels[].rtspAlias``, the token in
+#: ``rtsp(s)://<console>:7441|7447/<alias>`` that plays the live stream with no further
+#: auth), the share link (``streamSharing.shareLink`` / ``token``) and the webhook
+#: shortcut credentials (``shortcuts[].shortcut.headers`` / ``auth``).
+_PROTECT_CAMERA_OBJECT_SECRET_FIELDS = (
+    "rtspAlias",
+    "shareLink",
+    "token",
+    *_PROTECT_WEBHOOK_SECRET_FIELDS,
+)
+
+#: Every private route that returns or accepts a Protect camera object lists the same
+#: fields: the camera list, one camera (GET, and the PATCH body and response) and the
+#: bootstrap (its ``cameras`` array). One entry, so a field added for one route covers
+#: them all.
+PROTECT_CAMERA_OBJECT_SECRET = RouteSecret(
+    name="protect-camera-object-secrets",
+    route=r"protect/api/(?:bootstrap|cameras(?:/[^/]+)?)",
+    methods=frozenset({"GET", "PATCH"}),
+    request_fields=_PROTECT_CAMERA_OBJECT_SECRET_FIELDS,
+    response_fields=_PROTECT_CAMERA_OBJECT_SECRET_FIELDS,
+    relay_path="protect/api/cameras/0000000000000000000000aa",
+    evidence=(
+        f"{_FE_PROTECT} camera model: channels[].rtspAlias (RTSP stream alias), "
+        "streamSharing shareLink and token, shortcuts[] webhook headers and auth; the "
+        "same camera object is returned by GET cameras, GET/PATCH cameras/{id} and the "
+        "bootstrap cameras array"
+    ),
+    verified=True,
+)
+
+
 #: The registry. Add an entry here (never a per-tool patch) for any route that carries a
 #: credential; the property test covers it through the relay path automatically.
 ROUTE_SECRETS: tuple[RouteSecret, ...] = (
     UPS_PAIRING_SECRET,
-    RouteSecret(
-        name="protect-camera-webhook-secrets",
-        route=r"protect/api/cameras/[^/]+",
-        methods=frozenset({"GET"}),
-        response_fields=("headers", "auth"),
-        relay_path="protect/api/cameras/example",
-        evidence="update_camera_shortcut camera response webhook fields",
-        verified=True,
-    ),
+    PROTECT_CAMERA_OBJECT_SECRET,
     RouteSecret(
         name="protect-camera-shortcut-webhook-secrets",
         route=r"protect/api/cameras/[^/]+/shortcuts",
-        methods=frozenset({"PATCH"}),
-        request_fields=("headers", "auth"),
-        response_fields=("headers", "auth"),
+        # Create (POST), update (PATCH) and delete (DELETE) all carry or hand back the
+        # webhook shortcut list: every write method of the route is listed.
+        methods=frozenset({"POST", "PATCH", "DELETE"}),
+        request_fields=_PROTECT_WEBHOOK_SECRET_FIELDS,
+        response_fields=_PROTECT_WEBHOOK_SECRET_FIELDS,
+        tool_arguments={
+            "create_camera_shortcut": ("shortcut",),
+            "update_camera_shortcut": ("body",),
+        },
         relay_path="protect/api/cameras/example/shortcuts",
-        evidence="update_camera_shortcut webhook request and response fields",
+        evidence=(
+            "create_camera_shortcut POSTs and update_camera_shortcut PATCHes the webhook "
+            "shortcut {headers, auth}; delete_camera_shortcut DELETEs on the same route"
+        ),
         verified=True,
+    ),
+    RouteSecret(
+        name="protect-automation-webhook-secrets",
+        route=r"protect/api/automations(?:/[^/]+)?",
+        methods=ALL_METHODS,
+        request_fields=_PROTECT_WEBHOOK_SECRET_FIELDS,
+        response_fields=_PROTECT_WEBHOOK_SECRET_FIELDS,
+        relay_path="protect/api/automations/0000000000000000000000aa",
+        evidence=(
+            f"{_FE_PROTECT} automations route; webhook action headers/auth key names "
+            "inferred from the camera webhook shortcut model"
+        ),
     ),
     RouteSecret(
         name="mobility-device-wireless",
@@ -283,25 +333,6 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         response_headers=("location",),
         relay_path="protect/api/cameras/0000000000000000000000aa/sharedStream",
         evidence="live camera share-link probe",
-        verified=True,
-    ),
-    RouteSecret(
-        name="protect-camera-share-link",
-        route=r"protect/api/cameras/[^/]+",
-        methods=frozenset({"GET", "PATCH"}),
-        request_fields=("shareLink", "token"),
-        response_fields=("shareLink", "token"),
-        relay_path="protect/api/cameras/0000000000000000000000aa",
-        evidence=f"{_FE_PROTECT} camera streamSharing model: shareLink and token",
-        verified=True,
-    ),
-    RouteSecret(
-        name="protect-bootstrap-share-link",
-        route=r"protect/api/bootstrap",
-        methods=frozenset({"GET"}),
-        response_fields=("shareLink", "token"),
-        relay_path="protect/api/bootstrap",
-        evidence=f"{_FE_PROTECT} bootstrap camera streamSharing model: shareLink and token",
         verified=True,
     ),
     RouteSecret(
@@ -646,7 +677,7 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         methods=frozenset({"GET", "POST", "DELETE"}),
         response_fields=("high", "medium", "low", "package"),
         relay_path="protect/integration/v1/cameras/0000000000000000000000aa/rtsps-stream",
-        evidence="Protect 7.3.70 spec createdRtspsStreams / existingRtspsStreams",
+        evidence="Protect 7.3.74 spec createdRtspsStreams / existingRtspsStreams",
         verified=True,
     ),
     RouteSecret(

@@ -247,7 +247,14 @@ def test_every_fan_out_site_is_covered():
     from unifi_fabric import registry as registry_module
 
     for module in (_keys, aggregation, site_manager, registry_module):
-        assert "asyncio.gather(" not in inspect.getsource(module), module.__name__
+        source = inspect.getsource(module)
+        # The moved query_isp_metrics wrapper (tools/site_manager.register) was outside
+        # this guard in server.py before the move; it alone keeps its bare gather.
+        allowed = 1 if module is site_manager else 0
+        assert source.count("asyncio.gather(") == allowed, module.__name__
+    register_source = inspect.getsource(site_manager.register)
+    assert register_source.count("asyncio.gather(") == 1
+    assert "async def query_isp_metrics" in register_source
 
 
 class _BlockedChildren(_Children):

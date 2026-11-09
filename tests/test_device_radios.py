@@ -140,7 +140,7 @@ async def test_reported_capabilities_allow_changes(monkeypatch, radio_upstream, 
 
 @pytest.mark.parametrize("changes", [{"na": {"ht": 40}}, {"na": {"ht": 80}}])
 async def test_read_only_blocks_changes_and_noop(monkeypatch, radio_upstream, changes):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     c, r = install(monkeypatch, radio_upstream, read_only=True)
     with pytest.raises(Exception, match="(?i)read.only"):
         await _update_device_radio(c, r, uh.HOST, uh.SITE, uh.ARG_MAC, changes)
@@ -268,9 +268,9 @@ async def test_timeout_reports_unknown_outcome_and_never_retries(monkeypatch, ra
 @pytest.mark.parametrize("dry_run", [False, True])
 @pytest.mark.parametrize("changes", [{"na": {"ht": 40}}, {"na": {"ht": 80}}])
 async def test_connector_optout_blocks_before_reads(monkeypatch, radio_upstream, dry_run, changes):
-    monkeypatch.setenv("UNIFI_ENABLE_CONNECTOR_WRITE", "0")
-    c, r = install(monkeypatch, radio_upstream, enable_connector_write=False)
-    with pytest.raises(Exception, match="UNIFI_ENABLE_CONNECTOR_WRITE"):
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:connector=deny")
+    c, r = install(monkeypatch, radio_upstream)
+    with pytest.raises(Exception, match="family:connector=deny"):
         await _update_device_radio(c, r, uh.HOST, uh.SITE, uh.ARG_MAC, changes, dry_run=dry_run)
     assert not radio_upstream.served
     await c.close()
@@ -634,3 +634,26 @@ def test_classic_device_error_uses_shared_credential_formatter(body):
     with write_redaction_scope(True), pytest.raises(UniFiConnectionError) as exc:
         require_classic_success(body, "/stat/device")
     assert "CLASSIC_SECRET_SENTINEL" not in str(exc.value)
+
+
+async def test_classic_success_accepts_body_without_meta():
+    from unittest.mock import AsyncMock
+
+    from unifi_fabric.tools._device_config import update_device_config
+
+    client = AsyncMock()
+    client.dry_run = False
+    client.put.return_value = {"data": []}
+    read_after = AsyncMock(return_value=({"meta": {"rc": "ok"}}, {"a": 2}, {}))
+    result = await update_device_config(
+        client,
+        "/synthetic",
+        {"a": 1},
+        {"a": 2},
+        {"a": 2},
+        read_after,
+        lambda a, b: {} if a == b else {"a": b["a"]},
+        key=None,
+    )
+    assert result["_verified"] is True
+    read_after.assert_awaited_once()

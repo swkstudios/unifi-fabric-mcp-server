@@ -33,8 +33,16 @@ Checks on recorded captures (tests/fixtures/recorded/), whose identifiers are al
 replaced with stable fakes: MAC addresses (any separator or none) outside the fake
 02:00:5e / 00:00:00 prefixes, ObjectIds, UUIDs and console host ids that are not the
 zero-padded fakes, email addresses, latitude/longitude values other than the fake
-pair, private IPv4 addresses outside the fake 10.0.0.0/16 range, and free-text name
-fields (name, hostname, email, owner, first/last/full name) that are not placeholders.
+pair, private IPv4 addresses outside the fake 10.0.0.0/16 range, free-text name
+fields (name, hostname, email, owner, first/last/full name) that are not placeholders,
+and identifiers inside free text under ANY key: host / domain names ending in a
+dotted name with an alphabetic last label that is not a known non-host shape or a
+reserved example domain, quoted spans ('Living Room', 'jsmith') that are not a
+placeholder or a listed schema word, and capitalised possessives ("Jane's AP").
+
+On every published text file (source, test code, public docs and fixtures alike):
+ObjectId literals whose embedded timestamp is live-plausible (2015-2039) and that are not
+zero-padded or a listed synthetic family.
 
 Findings print only "<file>:<line>: <category>" -- never the matched value --
 so no secret is echoed to CI logs.
@@ -49,6 +57,7 @@ import json
 import tomllib
 import re
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 # isort: on
@@ -185,6 +194,13 @@ UUID_RE = re.compile(
 )
 # Site Manager console host id: <hardware hex>:<number>.
 CONSOLE_ID_RE = re.compile(r"\b([0-9A-Fa-f]{40,}):(\d+)\b")
+# A UUID with a numeric suffix (the cloud-access setting's device_id). UUID_RE checks only
+# the UUID half; the number identifies the device too.
+DEVICE_ID_RE = re.compile(
+    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}:(\d+)\b"
+)
+# The recorder's numeric-suffix fakes: zero-padded, at most four significant digits.
+FAKE_ID_NUMBER_RE = re.compile(r"0*\d{1,4}")
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 COORD_KEYS = {"lat", "latitude", "lng", "lon", "long", "longitude"}
 COORD_RE = re.compile(r'"([A-Za-z_]+)"\s*:\s*"?(-?\d+(?:\.\d+)?)"?')
@@ -223,9 +239,131 @@ CONTROLLER_NAMES = {
     "vpn",
     "dmz",
     # A published enum constant named "name", not free text: the firewall-policy
-    # protocol preset (Network 10.6.106 ...ProtocolPresetTcpUdpDto, the only preset).
+    # protocol preset (Network 11.0.97 ...ProtocolPresetTcpUdpDto, the only preset).
     "tcp_udp",
 }
+
+
+# Free text. The recorder and the fixtures check carry this block verbatim
+# (tests/test_recorder_sanitizer.py asserts the two copies are equal).
+# A dotted name whose last label is alphabetic (2+ letters) names a host, under any
+# top-level domain, unless it is one of the exact non-host shapes seen in real
+# captures (error codes, permission-scope keys, a stats report path, a filter, a file
+# name) or a reserved example / vendor service domain. Firmware strings such as
+# UVC.SAV539g.v5 end in a digit label and never match.
+HOSTNAME_RE = re.compile(r"(?<![\w.@-])(?:\w[\w-]*\.)+[^\W\d_]{2,}(?![\w-]|\.\w)")
+# Extensions that are not also top-level domains; exempt only on a single-dot name.
+FILE_EXTENSIONS = frozenset(
+    "json js css html htm svg png jpg jpeg gif webp ico txt yaml yml xml csv pdf "
+    "log gz tar bin mp4 wav mp3 crt pem".split()
+)
+PERMISSION_SCOPES = frozenset(
+    "access calculus connect drive fabric innerspace led network olympus protect talk "
+    "talk-relay".split()
+)
+NON_HOST_RES = (
+    re.compile(r"^api\.(?:err|request)\.\w+\Z"),
+    re.compile(r"^system\.management\.(?:location|user)\Z"),
+    re.compile(r"^(?:5minutes|hourly|daily|monthly)\.(?:site|ap|user|gw|sw)\Z"),
+    re.compile(r"^cpu\.id\Z"),
+    re.compile(r"^deviceMac\.eq\Z"),
+)
+SAFE_HOST_SUFFIXES = (
+    "example.com",
+    "example.net",
+    "example.org",
+    "example",
+    "invalid",
+    "test",
+    "localhost",
+    "ui.com",
+    "ubnt.com",
+)
+# A quoted span in free text ('Living Room', "O'Brien AP") is usually a user-chosen
+# name. An ASCII quote pairs with the same quote at word boundaries (so a contraction
+# such as can't opens nothing) and the shortest such span wins; it may hold quotes. A span is kept
+# only when it is a recorder fake (word-NNNN, hostN.example.invalid, a fake MAC), a
+# {template} slot, or one of the schema words seen in real captures.
+QUOTED_RE = re.compile(
+    "(?<!\\w)(?P<q>['\"])(?P<a>[^\\n]{1,200}?)(?P=q)(?!\\w)"
+    "|(?P<o>[\\u201c\\u2018])(?P<b>[^\\u201d\\u2019\\n]{1,200})(?P<c>[\\u201d\\u2019])"
+)
+SAFE_QUOTED_WORDS = frozenset({"camera", "en", "utf-8", "text/css"})
+SAFE_QUOTED_RE = re.compile(
+    r"^(?:[A-Za-z_]+-\d{4}|\{[A-Za-z_]+\}|host\d+\.example\.invalid"
+    r"|02:00:5e(?::[0-9a-f]{2}){3}|00:00:00(?::[0-9a-f]{2}){3})\Z"
+)
+# A capitalised possessive, one or more words ("Jane's AP", "Jane Smith's AP",
+# "Living Room's AP"), names a person or place. A capitalised word left directly in
+# front of a recorder fake possessive ("Jane name-0001's") is a partial scrub.
+POSSESSIVE_RE = re.compile("\\b((?:[A-Z][\\w-]*[ \\t]+)*[A-Z][\\w-]*)['\\u2019]s\\b")
+PARTIAL_POSSESSIVE_RE = re.compile("\\b([A-Z][\\w-]*)[ \\t]+[A-Za-z_]+-\\d{4}['\\u2019]s\\b")
+NON_NAME_POSSESSIVES = frozenset(
+    "It That There What Here Who Let He She Where This When Why How Today Tomorrow "
+    "Yesterday Everything Everyone Everybody Nothing Nobody Something Someone Somebody "
+    "Anyone Anything One Each Device Camera Site Network Gateway Switch Console "
+    "Controller System User Client Admin Server".split()
+)
+
+
+def is_identifying_host(name):
+    """True for a host/domain name that may name a real site (not a non-host shape)."""
+    lo = name.lower().rstrip(".")
+    if lo.count(".") == 1 and lo.rsplit(".", 1)[-1] in FILE_EXTENSIONS:
+        return False
+    head, _, tail = lo.rpartition(".")
+    if tail == "management" and head in PERMISSION_SCOPES:
+        return False
+    if any(rx.search(name) for rx in NON_HOST_RES):
+        return False
+    return not any(lo == sfx or lo.endswith("." + sfx) for sfx in SAFE_HOST_SUFFIXES)
+
+
+def quoted_body(mo):
+    """The text inside one QUOTED_RE match."""
+    return mo.group("a") if mo.group("a") is not None else mo.group("b")
+
+
+def is_safe_quoted(body):
+    return body in SAFE_QUOTED_WORDS or bool(SAFE_QUOTED_RE.match(body))
+
+
+def possessive_name_words(mo):
+    """The name words of a POSSESSIVE_RE match, leading non-name words dropped."""
+    words = mo.group(1).split()
+    while words and words[0] in NON_NAME_POSSESSIVES:
+        words.pop(0)
+    return words
+
+
+def is_name_possessive(mo):
+    return bool(possessive_name_words(mo))
+
+
+def is_partial_possessive(mo):
+    return mo.group(1) not in NON_NAME_POSSESSIVES
+
+
+def free_text_hits(value):
+    """Identifiers inside free-text string values under any key (recorded captures)."""
+    hits = []
+    if isinstance(value, list):
+        for item in value:
+            hits.extend(free_text_hits(item))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            hits.extend(free_text_hits(key))
+            hits.extend(free_text_hits(item))
+    elif isinstance(value, str):
+        if any(is_identifying_host(m.group(0)) for m in HOSTNAME_RE.finditer(value)):
+            hits.append("host/domain name in free text outside the reserved example domains")
+        if any(not is_safe_quoted(quoted_body(m)) for m in QUOTED_RE.finditer(value)):
+            hits.append("quoted free-text span that is not a placeholder")
+        if any(is_name_possessive(m) for m in POSSESSIVE_RE.finditer(value)):
+            hits.append("possessive name in free text")
+        if any(is_partial_possessive(m) for m in PARTIAL_POSSESSIVE_RE.finditer(value)):
+            hits.append("name word left before a scrubbed possessive")
+    return hits
 
 
 def _mac_is_fake(hex12):
@@ -320,10 +458,19 @@ def _eui64(run, allowed):
 def embedded_colon_macs(line, allowed, taken):
     """Number of colon runs on ``line`` holding a six-group MAC window that ``allowed``
     rejects, not already matched by a bounded MAC pattern (``taken`` spans) and not a
-    valid IPv6 literal, or that are a vendor EUI-64 (see ``_eui64``)."""
+    valid IPv6 literal, or that are a vendor EUI-64 (see ``_eui64``).
+
+    Runs and ``taken`` spans are each in line order and do not overlap among themselves,
+    so one forward sweep finds the overlaps: linear in the line, where testing every run
+    against every span was quadratic on a long single-line capture."""
     count = 0
+    spans = sorted(taken)
+    index = 0
     for match in COLON_RUN_RE.finditer(line):
-        if any(s < match.end() and match.start() < e for s, e in taken):
+        start, end = match.span()
+        while index < len(spans) and spans[index][1] <= start:
+            index += 1
+        if index < len(spans) and spans[index][0] < end:
             continue
         groups = match.group(0).split(":")
         bad = any(
@@ -464,7 +611,8 @@ SERIAL_PLACEHOLDER_RE = re.compile(
 
 def _serial_key(key):
     normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
-    return normalized == "sn" or "serial" in normalized
+    # "serialize"/"serialization" name a package or a codec, not a device serial number.
+    return normalized == "sn" or re.search(r"serial(?!iz[ae]|is[ae])", normalized) is not None
 
 
 def serial_hits(value):
@@ -514,6 +662,104 @@ def estate_name_hits(line):
     ]
 
 
+# ------------------------------- ObjectIds with a live-plausible timestamp (all public text)
+# A MongoDB ObjectId opens with its creation time (4-byte big-endian epoch seconds), and the
+# Network and Protect applications mint one for every record: a site, backup, event, case,
+# camera. A 24-hex literal whose timestamp falls in the years a UniFi console could have
+# created it may therefore be the id of a real console's record. Unlike the checks above,
+# this rule runs on test CODE and source too, because those files are published as well:
+# real Protect backup ids once sat in a test module and real event and case ids in tool
+# descriptions, where neither the fixture scope nor gitleaks looks.
+# Synthetic ids pass when they are zero-padded (the recorder's form, which decodes to 1970),
+# carry a run of ten zeros after the timestamp, or belong to one of the hand-made families
+# below. Published paths are scanned regardless of extension or hidden components.
+OBJECT_ID_LITERAL_RE = re.compile(r"(?<![0-9A-Za-z])([0-9a-fA-F]{24})(?![0-9A-Za-z])")
+LIVE_OBJECT_ID_FROM = 1420070400  # 2015-01-01T00:00:00Z
+LIVE_OBJECT_ID_UNTIL = 2208988800  # 2040-01-01T00:00:00Z
+# Hand-made example families: each prefix plus any final hex digits is synthetic. They are
+# ascending/descending digit patterns ("a1b2c3d4", "0123456789", "c0ffee") or, for
+# 66d025b301ebc903e80003, one timestamp with consecutive counters (...3ea-...3f0) reused
+# across unrelated object types (camera, sensor, user, liveview), which no console mints.
+SYNTHETIC_OBJECT_ID_PREFIXES = (
+    "5f0c4d2e8b1a2c3d4e5f6a7",
+    "5f1e3c2a9b8d7e6f5a4b3c2d",
+    "64b1f0c2e4b0a1b2c3d4e5f6",
+    "6512a0b1c2d3e4f5a6b7c8d",
+    "6523f0c1e4b0a1b2c3d4e5f",
+    "65a1b2c3d4e5f60718293a4b",
+    "65d4f1e2a1b2c3d4e5f6071",
+    "65f1c0ffee0123456789ab",
+    "6605abcd1234567890abcdef",
+    "66a1b2c3d4e5f60718293a4b",
+    "66b2c3d4e5f60718293a4b5c",
+    "66d025b301ebc903e80003",
+    "66f1a2b3c4d5e6f7a8b9c0d",
+    "68f1d2c3b4a5968778695a4",
+)
+# Private-only directories are omitted from the published-file scan.
+OBJECT_ID_PRIVATE_DIRS = (
+    "docs/hero/",
+    "tests/fixtures/battery_seed/",
+    "tests/fixtures/audit/remote/",
+    "tests/fixtures/private_api/",
+    "tests/fixtures/reference_drift/",
+    "tests/conformance/",
+    "scripts/private_api/",
+)
+
+
+def object_id_is_synthetic(value):
+    """True when a 24-hex ObjectId-shaped ``value`` cannot be a live record id."""
+    value = value.lower()
+    seconds = int(value[:8], 16)
+    if not LIVE_OBJECT_ID_FROM <= seconds < LIVE_OBJECT_ID_UNTIL:
+        return True
+    return "0" * 10 in value[8:] or value.startswith(SYNTHETIC_OBJECT_ID_PREFIXES)
+
+
+def live_object_id_hits(line):
+    """Categories of ObjectId literals on ``line`` that may be live (values never returned)."""
+    return [
+        "ObjectId with a live-plausible timestamp that is not a synthetic id"
+        for match in OBJECT_ID_LITERAL_RE.finditer(line)
+        if not object_id_is_synthetic(match.group(1))
+    ]
+
+
+def iter_object_id_target_files(root=None):
+    """Every published text file the live-ObjectId rule reads."""
+    root = REPO_ROOT if root is None else root
+    if (root / ".git").exists():
+        tracked = subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"])  # noqa: S603, S607
+        paths = (root / name for name in tracked.decode("utf-8").split("\0") if name)
+    else:
+        # Source archives and isolated test trees have no Git index.
+        paths = root.rglob("*")
+    targets = []
+    for path in paths:
+        rel = path.relative_to(root).as_posix()
+        if not path.is_file() or rel.startswith(OBJECT_ID_PRIVATE_DIRS):
+            continue
+        try:
+            data = path.read_bytes()
+            if b"\0" in data:
+                continue
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        targets.append(path)
+    return sorted(targets)
+
+
+def scan_object_ids(rel, text):
+    """Live-ObjectId findings for one file (path, line and category only)."""
+    return [
+        f"{rel}:{lineno}: {label}"
+        for lineno, line in enumerate(text.splitlines(), start=1)
+        for label in live_object_id_hits(line)
+    ]
+
+
 def mac_hits(line):
     """Categories of vendor (globally unique) MACs on ``line`` (values never returned)."""
     hits = []
@@ -550,8 +796,13 @@ def recorded_identifier_hits(line):
         if not match.group(1).startswith("00000000-"):
             hits.append("UUID that is not a zero-padded fake")
     for match in CONSOLE_ID_RE.finditer(line):
-        if not match.group(1).startswith("0" * 40):
+        if not match.group(1).startswith("0" * 40) or not FAKE_ID_NUMBER_RE.fullmatch(
+            match.group(2)
+        ):
             hits.append("console host id that is not a zero-padded fake")
+    for match in DEVICE_ID_RE.finditer(line):
+        if not FAKE_ID_NUMBER_RE.fullmatch(match.group(1)):
+            hits.append("UUID:number device id whose number is not a zero-padded fake")
     if EMAIL_RE.search(line):
         hits.append("email address")
     for match in COORD_RE.finditer(line):
@@ -738,8 +989,11 @@ _CREDENTIAL_FIELD_RE = re.compile(
 # Match whole values only. Command substitutions need a separate literal check.
 _CREDENTIAL_PLACEHOLDER_RE = re.compile(
     r"""^(?:<[^<>]+>|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*|"""
+    # A VS Code input reference (`${input:<id>}`): the editor prompts for the value.
+    r"""\$\{input:[A-Za-z_][A-Za-z0-9_]*\}|"""
     r"""YOUR_[A-Z][A-Z0-9_]*|your-api-key-here|"""
     r"""example-(?:api-key|token|secret|password)|"""
+    r"""synthetic-key-[a-z]|"""
     r"""\*{3}REDACTED\*{3}|(?:token|secret|api-key|access-key|private-key|placeholder|fake|example)-\d+)\Z"""
 )
 
@@ -1013,6 +1267,9 @@ def scan_text(rel, text, recorded=None):
             findings.append(f"{rel}: {label}")
         for label in voucher_code_hits(rel, parsed):
             findings.append(f"{rel}: {label}")
+        if recorded:
+            for label in free_text_hits(parsed):
+                findings.append(f"{rel}: {label}")
     # Fixture data only: example configs and the private-only .mcp.json (stripped from
     # the public tree) may name the private services they configure.
     check_names = rel.startswith(FORBIDDEN_SCOPE_PREFIXES) and not rel.startswith(
@@ -1055,8 +1312,18 @@ def main() -> int:
             findings.append(f"{rel}: unreadable ({exc})")
             continue
         findings.extend(scan_text(rel, text))
+    object_id_targets = iter_object_id_target_files()
+    for path in object_id_targets:
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            findings.append(f"{rel}: unreadable ({exc})")
+            continue
+        findings.extend(scan_object_ids(rel, text))
 
     print(f"Scanned {len(targets)} fixture/example-config file(s).")
+    print(f"Scanned {len(object_id_targets)} public text file(s) for live ObjectIds.")
     if findings:
         print("FAIL: potential real secret/PII detected:")
         for finding in findings:

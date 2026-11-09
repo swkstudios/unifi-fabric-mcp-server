@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests.test_run_full_suite import workflow_full_suite_command
+
 ROOT = Path(__file__).resolve().parents[1]
 PREPUSH = ROOT / "scripts" / "prepush.sh"
 HELPER = ROOT / "scripts" / "ci_fast_jobs.py"
@@ -59,8 +61,6 @@ def test_every_ci_fast_job_step_is_in_the_prepush_step_list():
         "version-consistency",
         "changelog-check",
     } <= jobs
-    if "test-targeted" in WORKFLOW["jobs"]:
-        assert {"test-tier", "test-targeted", "lane-gate"} <= jobs
     runs = "\n".join(run for _, run in listed)
     assert "ruff check src/ tests/ scripts/ .github/scripts/" in runs
     assert "ruff format --check src/ tests/ scripts/ .github/scripts/" in runs
@@ -72,11 +72,15 @@ def test_ci_only_jobs_are_the_reviewed_set():
     # Only the full suites, the image build, the secret scan and steps that need a
     # repository token, a secret or the public repository stay out of the local run.
     assert set(fast.CI_ONLY_JOBS) == {
+        "classify",
+        "test-selected",
+        "ci-required",
         "test",
         "test-locked",
         "scrub-oracle",
         "gitleaks",
         "docker-build",
+        "docker-build-arm64",
         "divergence-gate",
         "notify-matrix",
         "lint-public-language",
@@ -84,17 +88,55 @@ def test_ci_only_jobs_are_the_reviewed_set():
     assert set(WORKFLOW["jobs"]) - set(fast.CI_ONLY_JOBS) == set(fast.fast_jobs(WORKFLOW))
 
 
+def _setup_action_steps():
+    for uses in sorted(fast.SETUP_ACTIONS):
+        action = yaml.safe_load((ROOT / uses / "action.yml").read_text())
+        assert action["runs"]["using"] == "composite", uses
+        yield from action["runs"]["steps"]
+
+
 def test_setup_steps_only_provision_the_environment():
     seen = set()
-    for job in WORKFLOW["jobs"].values():
-        for step in job.get("steps", []):
+    action_steps = list(_setup_action_steps())
+    for steps in (*(job.get("steps", []) for job in WORKFLOW["jobs"].values()), action_steps):
+        for step in steps:
             if step.get("name") in fast.SETUP_STEPS:
                 seen.add(step["name"])
-                run = step["run"]
+                run = step["run"].replace("scripts/extract_ruff_requirements.py", "")
                 assert re.search(r"pip install|python -m venv|mkdir|rm -rf", run), run
                 for check in ("pytest", "mypy", "ruff check", "ruff format", "scripts/"):
                     assert check not in run, (step["name"], check)
     assert seen == fast.SETUP_STEPS
+
+
+def test_setup_actions_hold_only_provisioning_steps():
+    """The local run skips a SETUP_ACTIONS step whole, so every step inside it must be
+    provisioning (a SETUP_STEPS run step or a SHA-pinned action), never a check."""
+    steps = list(_setup_action_steps())
+    assert steps
+    for step in steps:
+        if "run" in step:
+            assert step.get("name") in fast.SETUP_STEPS, step.get("name")
+        else:
+            assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", step["uses"]), step
+    # Only the jobs the local run executes (default and --full) reach the local-action
+    # check; a CI_ONLY job (divergence-gate) may call its own local action.
+    local_jobs = set(fast.fast_jobs(WORKFLOW)) | set(fast.fast_jobs(WORKFLOW, full=True))
+    used = {
+        str(step.get("uses"))
+        for job_name in local_jobs
+        for step in WORKFLOW["jobs"][job_name].get("steps", [])
+        if str(step.get("uses", "")).startswith("./")
+    }
+    assert used == set(fast.SETUP_ACTIONS)
+
+
+def test_a_local_action_outside_setup_actions_stops_the_run():
+    workflow = {"jobs": {"fast": {"steps": [{"uses": "./.github/actions/other"}]}}}
+    with pytest.raises(fast.WorkflowError, match="local action ./.github/actions/other"):
+        list(fast.fast_job_steps(workflow))
+    workflow["jobs"]["fast"]["steps"] = [{"uses": sorted(fast.SETUP_ACTIONS)[0]}]
+    assert list(fast.fast_job_steps(workflow)) == []
 
 
 def _pull_request_workflows():
@@ -115,7 +157,7 @@ def test_dry_run_resolves_every_fast_job_expression(tmp_path):
         base_ref="main",
         head="1" * 40,
         head_ref="topic",
-        labels=["full-ci"],
+        labels=[],
         venv=Path(sys.prefix),
         execute=False,
         out=lambda line: None,
@@ -128,6 +170,30 @@ def test_dry_run_resolves_every_fast_job_expression(tmp_path):
     ]
     assert sorted(labels) == sorted(expected)
     assert {name for name, _, _ in labels} >= {"ci.yml"}
+
+
+def test_run_removes_its_work_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(fast.tempfile, "tempdir", str(tmp_path))
+    seen: list[Path] = []
+    real = fast._run_workflow
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs["event_path"])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(fast, "_run_workflow", spy)
+    fast.run(
+        base="0" * 40,
+        base_ref="main",
+        head="1" * 40,
+        head_ref="topic",
+        labels=[],
+        venv=Path(sys.prefix),
+        execute=False,
+        out=lambda line: None,
+    )
+    assert seen and all(path.parent.parent == tmp_path for path in seen)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_every_pull_request_workflow_is_classified():
@@ -203,18 +269,31 @@ def test_prepush_guards_exist_and_cover_the_cross_file_artifacts():
 
 
 def test_lint_ruff_pin_is_the_locked_ruff():
-    lock = (ROOT / "requirements.lock").read_text()
-    locked = re.search(r"^ruff==(\S+) \\\n((?:\s+--hash=sha256:[0-9a-f]{64}.*\n)+)", lock, re.M)
-    assert locked
+    # The lint job installs the requirement generated from requirements.lock, the lock
+    # the local development environment is built from (tests/test_ci_pins.py checks the
+    # generated requirement against the lock).
     install = next(
         step["run"]
         for step in WORKFLOW["jobs"]["lint"]["steps"]
         if step.get("name") == "Install ruff (hash-pinned)"
     )
-    pinned = re.search(r"ruff==(\S+) \\", install)
-    assert pinned and pinned.group(1) == locked.group(1)
-    hashes = set(re.findall(r"sha256:([0-9a-f]{64})", install))
-    assert hashes and hashes <= set(re.findall(r"sha256:([0-9a-f]{64})", locked.group(2)))
+    generate = 'scripts/extract_ruff_requirements.py --lock requirements.lock --out "$RUFF_REQ"'
+    assert generate in install
+    assert "pip install --require-hashes --only-binary :all: --no-deps" in install
+    assert install.index(generate) < install.index("pip install")
+    assert "ruff==" not in install
+
+
+def test_setup_python_version_reads_the_version_file(tmp_path):
+    (tmp_path / ".python-version").write_text("3.12\n")
+    step = {"uses": "actions/setup-python@x", "with": {"python-version-file": ".python-version"}}
+    assert fast.setup_python_version(step, tmp_path) == "3.12"
+    assert fast.setup_python_version({"with": {"python-version": "3.11"}}, tmp_path) == "3.11"
+    (tmp_path / ".python-version").write_text("3.12\n3.13\n")
+    with pytest.raises(fast.WorkflowError, match="exactly one"):
+        fast.setup_python_version(step, tmp_path)
+    # The tree's own file names the version every workflow job runs.
+    assert fast.setup_python_version(step) == (ROOT / ".python-version").read_text().strip()
 
 
 def _concurrency_groups(workflow, event, sha, run_id="1", pr=None):
@@ -252,7 +331,7 @@ def _no_pending_push_run_is_replaced(workflow):
     return True
 
 
-# changelog-size and public-artifact-dry-run are private-only: the mirror transform removes
+# These workflow checks are private-only: the publication transform removes
 # them, so they are exercised only where they exist (the private repository).
 PR_CONCURRENCY_WORKFLOWS = tuple(
     name
@@ -269,11 +348,18 @@ PR_CONCURRENCY_WORKFLOWS = tuple(
 
 @pytest.mark.parametrize("name", PR_CONCURRENCY_WORKFLOWS)
 def test_pr_runs_share_a_group_and_other_runs_never_do(name):
-    """runs of one PR share a group that is
-    cancelled in progress; every other event keeps a group unique per sha and run."""
+    """runs of one PR share a group that is cancelled in progress; for ci.yml pushes to dev
+    share one group too (the newest dev head supersedes the older run); every other event
+    keeps a group unique per sha and run."""
     workflow = yaml.safe_load((ROOT / ".github" / "workflows" / f"{name}.yml").read_text())
     cancel = workflow["concurrency"]["cancel-in-progress"]
-    assert cancel == "${{ github.event_name == 'pull_request' }}"
+    expected = (
+        "${{ github.event_name == 'pull_request' || "
+        "(github.event_name == 'push' && github.ref == 'refs/heads/dev') }}"
+        if name == "ci"
+        else "${{ github.event_name == 'pull_request' }}"
+    )
+    assert cancel == expected
     pr_groups = [
         _concurrency_groups(workflow, "pull_request", sha, run_id=run, pr=7)
         for sha, run in (("a" * 40, "1"), ("b" * 40, "2"))
@@ -305,11 +391,11 @@ def test_non_pull_request_runs_are_never_replaced_by_a_newer_commit():
         ("github.event_name == 'PULL_REQUEST'", True),
         ("github.base_ref != 'main' || 'fallback'", "fallback"),
         ("github.base_ref == 'main' && 'full' || 'targeted'", "full"),
-        ("contains(github.event.pull_request.labels.*.name, 'full-ci')", True),
+        ("contains(github.event.pull_request.labels.*.name, 'ready')", True),
         ("contains(github.event.pull_request.labels.*.name, 'other')", False),
         ("!cancelled() && always() && success() && !failure()", True),
         ("format('{0}-{1}', github.base_ref, 3)", "main-3"),
-        ("toJson(github.event.pull_request.labels.*.name)", '[\n  "full-ci"\n]'),
+        ("toJson(github.event.pull_request.labels.*.name)", '[\n  "ready"\n]'),
         ("needs.tier.outputs.tier == 'full'", True),
         ("needs.tier.outputs.missing == ''", True),
     ],
@@ -321,7 +407,7 @@ def test_expression_semantics(expression, expected):
             {
                 "event_name": "pull_request",
                 "base_ref": "main",
-                "event": {"pull_request": {"labels": [{"name": "full-ci"}]}},
+                "event": {"pull_request": {"labels": [{"name": "ready"}]}},
             },
         ),
         "needs": {"tier": {"result": "success", "outputs": {"tier": "full"}}},
@@ -637,12 +723,16 @@ def test_full_refuses_a_suite_step_that_declares_a_credential(tmp_path):
 def test_full_reads_the_ci_full_suite_step_unchanged():
     step = fast.full_suite_step(WORKFLOW)
     assert step["name"] == "Run full suite with coverage"
-    script, workers = fast.full_suite_workers(str(step["run"]), None)
-    assert script == str(step["run"]) and workers == "4"
-    assert fast.full_suite_workers(str(step["run"]), "8")[0] == str(step["run"]).replace(
-        "-n 4", "-n 8"
-    )
-    words = str(step["run"]).split()
+    run = str(step["run"])
+    script, workers = fast.full_suite_workers(run, None)
+    assert script == run and workers == "4"
+    # The override changes only the script's --workers; the script turns it into -n.
+    assert fast.full_suite_workers(run, "8")[0] == run.replace("--workers 4", "--workers 8")
+    words = workflow_full_suite_command(run).split()
+    assert words[words.index("-n") + 1] == "4"
+    assert workflow_full_suite_command(fast.full_suite_workers(run, "8")[0]) == " ".join(
+        words
+    ).replace("-n 4", "-n 8")
     options = words[words.index("pytest") + 1 :]
     assert "tests/" in options  # the whole suite, no path narrowing
     for option in options:
@@ -650,6 +740,17 @@ def test_full_reads_the_ci_full_suite_step_unchanged():
         assert not option.startswith(("--maxfail", "--deselect", "--timeout")), option
     assert fast.FULL_SUITE_JOB in fast.CI_ONLY_JOBS  # CI-only unless --full
     assert fast.FULL_SUITE_JOB not in fast.ci_only_jobs("ci.yml", full=True)
+
+
+def test_full_suite_workers_reads_either_flag_and_keeps_it():
+    script = 'bash scripts/run_full_suite.sh "$DEV_VENV/bin/python" --workers 4'
+    assert fast.full_suite_workers(script, None) == (script, "4")
+    assert fast.full_suite_workers(script, "3")[0].endswith(" --workers 3")
+    assert fast.full_suite_workers("pytest -n 4 -v", "2") == ("pytest -n 2 -v", "2")
+    with pytest.raises(fast.WorkflowError, match="2 worker counts"):
+        fast.full_suite_workers("run --workers 4 -n 4", None)
+    with pytest.raises(fast.WorkflowError, match="0 worker counts"):
+        fast.full_suite_workers("bash scripts/run_full_suite.sh python", None)
 
 
 def test_without_credentials_removes_every_credential_name_and_nothing_else():

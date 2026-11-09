@@ -1,0 +1,19 @@
+services:
+  unifi-fabric-mcp:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    env_file: unifi.env
+    environment:
+      - UNIFI_API_KEY=${UNIFI_API_KEY}
+      - "UNIFI_READ_ONLY=1"
+      - UNIFI_ENABLE_NETWORK_WRITE=0
+      - UNIFI_DISABLE_API_SOURCES=network/private/write
+    ports:
+      - "8000:8000"
+
+  unifi-fabric-mcp-protect:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    environment:
+      UNIFI_API_KEY: ${UNIFI_API_KEY}
+      UNIFI_TOOL_FAMILIES: "protect"
+      UNIFI_PROTECT_MUTATIONS_ENABLED: "0"   # no camera changes
+      UNIFI_TOOL_MODE: full

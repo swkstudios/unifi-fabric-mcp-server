@@ -41,7 +41,6 @@ from unifi_fabric.tools import connector
 from unifi_fabric.tools._device_wrappers import wrapper_devices
 from unifi_fabric.tools.carrier_fabric import (
     CARRIER_BASE,
-    WRITE_ENABLED_ENV,
     suspend_carrier_subscriber,
     update_carrier_subscriber,
 )
@@ -68,7 +67,7 @@ def _subscriber(**over: Any) -> dict[str, Any]:
 
 @pytest.fixture()
 def carrier(monkeypatch):
-    monkeypatch.setenv(WRITE_ENABLED_ENV, "1")
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
     return UniFiClient(Settings(api_key="sk-single"))
 
 
@@ -373,7 +372,7 @@ async def test_relay_post_write_failure_under_dry_run_says_dry_run(monkeypatch, 
         raise RuntimeError("post-write processing failed")
 
     monkeypatch.setattr(connector, "_relay_body", boom)
-    monkeypatch.setenv("UNIFI_DRY_RUN", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     up = _RelayUpstream("application/json", b"{}")
     payload, audit = await _relay(monkeypatch, tool, up)
     assert payload["status"] == "dry_run"

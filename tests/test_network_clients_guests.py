@@ -14,6 +14,7 @@ import ast
 import asyncio
 import inspect
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -120,7 +121,28 @@ def registry(c: UniFiClient, key: APIKeyConfig | None = None) -> Registry:
     return r
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def client(handler, **settings: Any) -> UniFiClient:
+    settings = _modes(settings)
     c = UniFiClient(Settings(api_keys=[APIKeyConfig(key="test-key", label="beta")], **settings))
     c._clients[("beta", _key_fingerprint("test-key"))] = httpx.AsyncClient(
         base_url="https://api.ui.com", transport=httpx.MockTransport(handler)
@@ -441,7 +463,7 @@ async def test_logs_all_multi_page_answer_carries_a_warning():
 @pytest.mark.parametrize(
     "window", [{}, {"start": 1793188385}, {"end": 1793191985}], ids=["none", "start", "end"]
 )
-async def test_window_views_require_start_and_end_before_any_request(view, window):
+async def test_window_views_without_complete_window_pass_upstream_400_verbatim(view, window):
     """E2E 0.7.0 bug 18: logs-all (and timeline, timestamps) without the window was sent
     and answered HTTP 400 (live, Network 11.0.89: neither or only one of start / end)."""
     path = f"{V2}/observability/client/{MAC_PATH}/{view}"
@@ -746,7 +768,7 @@ async def test_dry_run_previews_every_write_and_sends_none(name):
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_read_only_mode_refuses_every_write(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = GenericUpstream()
     with pytest.raises(Exception, match="read-only mode"):
@@ -756,7 +778,7 @@ async def test_read_only_mode_refuses_every_write(name, monkeypatch):
 
 @pytest.mark.parametrize("name", sorted(READ_TOOLS))
 async def test_read_only_mode_leaves_reads_working(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = GenericUpstream()
     await run(up, fn, *args, **kwargs)
@@ -816,16 +838,32 @@ async def test_limits_must_be_integers_before_any_request(value):
 async def test_requests_ride_the_resolved_key():
     """Every request goes out on the key the registry resolved for the host: the only
     mocked transport is the resolved key's, so another key would fail to connect."""
-    key = APIKeyConfig(key="test-key", label="beta")
+    alpha = APIKeyConfig(key="synthetic-alpha", label="alpha")
+    beta = APIKeyConfig(key="synthetic-beta", label="beta")
     assert "authorize_guest" in CALLS
     for name, (fn, args, kwargs) in sorted(CALLS.items()):
         up = GenericUpstream()
-        c = client(up)
+        c = UniFiClient(Settings(api_keys=[alpha, beta]))
+        c._clients[("beta", _key_fingerprint(beta.key))] = httpx.AsyncClient(
+            base_url="https://api.ui.com",
+            headers={"X-API-KEY": beta.key},
+            transport=httpx.MockTransport(up),
+        )
+
+        def wrong_key(request: httpx.Request) -> httpx.Response:
+            raise AssertionError(f"request used the non-owning key: {request.method}")
+
+        c._clients[("alpha", _key_fingerprint(alpha.key))] = httpx.AsyncClient(
+            base_url="https://api.ui.com", transport=httpx.MockTransport(wrong_key)
+        )
+        r = registry(c, beta)
+        r._hosts["alpha"] = []
         try:
-            await fn(c, registry(c, key), HOST, "Default", *args, **kwargs)
+            await fn(c, r, HOST, "Default", *args, **kwargs)
         finally:
             await c.close()
         assert up.seen, name
+        assert all(request.headers["X-API-KEY"] == beta.key for request in up.seen), name
 
 
 # --------------------------------------------------------------- registration contract

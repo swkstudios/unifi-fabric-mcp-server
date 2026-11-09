@@ -8,8 +8,14 @@ Use a unique, sortable filename ending in one of these category suffixes:
 
 - `<lane>-<ticket>.added.md`
 - `<lane>-<ticket>.changed.md`
+- `<lane>-<ticket>.removed.md`
 - `<lane>-<ticket>.fixed.md`
 - `<lane>-<ticket>.security.md`
+
+`<lane>` and `<ticket>` are lower-case words or numbers joined by hyphens. Any other file in
+this directory (no suffix, a misspelt suffix, another extension or a name that is not
+lower-case kebab words) would never be folded, so regeneration, `--check` and the CI fragment
+lint refuse it. Only `README.md`, `TEMPLATE.md` and `examples/` are exempt.
 
 Each fragment contains one or more release-note bullets, beginning with `- `. Keep every
 user-facing change represented. For tool additions, use one short line per module that
@@ -29,3 +35,11 @@ Do not include internal governance references, rule IDs, reviewer or agent names
 internal system names; the public-language lint rejects text it matches. Do not add a heading, a release-version heading or an HTML comment:
 the release section is published verbatim. After folding, the section is the only copy of
 the entry; edit it there.
+
+`TEMPLATE.md` shows the shape of every entry, and `examples/` holds a complete, valid
+fragment; neither is folded. CI lints every pending fragment before it can be folded: the
+file name, the `affected:` tool names (each must be in the catalog, or for a Removed entry
+no longer in it), the pinned migration link of every breaking Changed and every Removed
+entry, and references that would not work in the public repository (a bare `#N`, a private
+issue, pull request or repository, a closing keyword, or a file the public tree does not
+ship).

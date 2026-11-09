@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -119,7 +120,28 @@ def registry():
     )
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def real_client(handler, **overrides):
+    overrides = _modes(overrides)
     c = UniFiClient(Settings(api_key="synthetic-test-key", **overrides))
     transport = httpx.AsyncClient(
         transport=httpx.MockTransport(handler), base_url="https://api.ui.com"
@@ -562,7 +584,7 @@ async def test_secondary_key_forwarded_without_default_fallback(fn, method, path
 
 @pytest.mark.parametrize("fn,method,path,args", WRITE_CASES)
 async def test_read_only_writes_refused_without_http(fn, method, path, args, registry, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     c, transport = real_client(lambda _: pytest.fail("read-only sent HTTP"), read_only=True)
     async with transport:
         with pytest.raises(Exception, match="read.only|READ_ONLY"):

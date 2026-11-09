@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-pair-4-5",
+  "description": "Adjacent pair (4,5): a key_label argument wins over a tool excluded by UNIFI_EXCLUDE=family:protect",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full",
+      "UNIFI_EXCLUDE": "family:protect"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "list_cameras",
+    "arguments": {
+      "key_label": "alpha"
+    }
+  },
+  "expected": {
+    "code": "key_label_not_allowed",
+    "upstream_calls": 0
+  }
+}

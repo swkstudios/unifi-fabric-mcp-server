@@ -278,7 +278,11 @@ async def test_classic_and_v2_writes_audit_canonical_site(
         keys=keys,
         env={"UNIFI_AUDIT_LOG": str(log), "UNIFI_AUDIT_LOG_FORMAT": "json"},
     )
-    records = [json.loads(line) for line in log.read_text().splitlines()]
+    records = [
+        r
+        for r in (json.loads(line) for line in log.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
     assert records
     expected_host = "console-beta-1" if multikey else uh.HOST_ID
     assert all(

@@ -14,8 +14,8 @@ controller's own web-UI routes, taken from the Network 11.0.81 private-API inven
 * Body keys are the keys the bundle sends for that command (cited per tool). Where the
   bundle builds the body at runtime the tool takes a free-form ``body`` object that is
   sent as given; no key is invented and no key is required locally.
-* Every POST here is a write (none is on the read-POST allowlist): ``UNIFI_READ_ONLY``
-  refuses it and ``UNIFI_DRY_RUN`` returns the client's dry-run preview. No POST is ever
+* Every POST here is a write (none is on the read-POST allowlist): ``UNIFI_WRITE_POLICY=deny``
+  refuses it and ``dry-run policy`` returns the client's dry-run preview. No POST is ever
   retried automatically.
 * Credentials (SMTP, Ubiquiti account and SSO passwords, 2FA tokens, MFA cookies, admin
   passwords, TURN credentials) are listed in :data:`unifi_fabric.route_secrets.ROUTE_SECRETS`:
@@ -566,14 +566,42 @@ async def get_latest_firmware_versions(
     return result
 
 
+async def reboot_unifi_os_console(client: UniFiClient, registry: Registry, host: str) -> Any:
+    """Reboot one UniFi OS console through the Network application proxy."""
+    key, host_id = await _host(registry, host)
+    return await client.post(
+        _CONSOLE.format(host_id=host_id) + "/api/system/reboot",
+        key=key,
+    )
+
+
 # --------------------------------------------------------------------------- registration
 
 
 def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the 17 Network controller administration tools."""
+    """Register the 18 Network controller administration tools."""
 
     def deps() -> tuple[UniFiClient, Registry]:
         return cast(tuple[UniFiClient, Registry], deps_fn())
+
+    @mcp.tool(name="reboot_unifi_os_console", annotations=WRITE)
+    async def reboot_unifi_os_console_tool(host: str, confirm: bool = False) -> Any:
+        """Reboot a UniFi OS console (POST /api/system/reboot).
+
+        Required argument: host. Consequence: this restarts the entire console, temporarily
+        interrupting every application it runs and disconnecting managed devices and clients.
+        The operation is destructive and non-idempotent. Returns the upstream body verbatim.
+
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
+        "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
+        auto-retried. Writes are allowed by default; family:network=deny disables this tool.
+
+        Args:
+            host: Console name or id from list_hosts, e.g. "my-console".
+            confirm: Accepted and ignored for compatibility; e.g. false.
+        """
+        del confirm
+        return await reboot_unifi_os_console(*deps(), host)
 
     @mcp.tool(name="cancel_controller_backup", annotations=WRITE)
     async def cancel_controller_backup_tool(host: str, site: str, backup_id: str) -> Any:
@@ -587,7 +615,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -595,7 +623,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             backup_id: Id of the running backup the controller reported, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         return await cancel_controller_backup(*deps(), host, site, backup_id)
 
@@ -616,7 +644,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body). Never
         auto-retried.
@@ -627,7 +655,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             filename: Backup file name as the controller lists it, e.g.
                 "autobackup_11.0.81_20261001_0000_1759276800000.unf".
             device_id: Optional console device id the backup belongs to, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         return await delete_controller_backup(*deps(), host, site, filename, device_id)
 
@@ -649,7 +677,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -677,14 +705,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            backup_id: Id of the uploaded site export, e.g. "65f1c0ffee0123456789abcd".
+            backup_id: Id of the uploaded site export, e.g. "000000000000000000000107".
             site_desc: Name for the imported site, e.g. "Branch Office".
         """
         return await import_site_configuration(*deps(), host, site, backup_id, site_desc)
@@ -716,7 +744,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -762,7 +790,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -794,7 +822,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -841,7 +869,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -881,7 +909,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -921,7 +949,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         keys beside it. An object with nothing to change fails before any request.
         Consequence: changes this admin's own settings.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -945,7 +973,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body from the MFA challenge of a refresh_sso_session reply. Returns the upstream
         body verbatim. Consequence: a new code is sent to the account.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -972,7 +1000,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -999,7 +1027,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Poll get_support_file, then fetch it with download=true. Consequence: the device
         collects diagnostics.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -1044,7 +1072,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 
@@ -1073,7 +1101,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
         Returns the upstream body verbatim.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview: status
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
         "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
         auto-retried.
 

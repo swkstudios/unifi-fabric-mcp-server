@@ -1,4 +1,4 @@
-"""Tests for the global opt-in read-only switch (``UNIFI_READ_ONLY``).
+"""Tests for the global opt-in read-only switch (``UNIFI_WRITE_POLICY``).
 
 Covers three properties:
 
@@ -33,7 +33,7 @@ from unifi_fabric import read_post_routes as rp
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.client import is_write_request as client_is_write_request
 from unifi_fabric.config import Settings
-from unifi_fabric.read_only import ReadOnlyModeError
+from unifi_fabric.read_only import AreaOptOutError, ReadOnlyModeError
 from unifi_fabric.tools import connector
 
 BASE = "https://api.ui.com"
@@ -56,8 +56,10 @@ def _registered_tools() -> list:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("value", [None, "", "  ", "0", "false", "FALSE", "no", "off", "Off"])
+@pytest.mark.parametrize("value", [None, "allow", "dry-run"])
 def test_default_off(monkeypatch, value):
+    # Only ``deny`` is read-only: unset (the default ``allow``), ``allow`` and ``dry-run``
+    # (a preview, not a refusal) are not.
     if value is None:
         monkeypatch.delenv(read_only.ENV_VAR, raising=False)
     else:
@@ -65,25 +67,29 @@ def test_default_off(monkeypatch, value):
     assert read_only.is_read_only() is False
 
 
-@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", "On", "t", "Y"])
-def test_truthy_on(monkeypatch, value):
-    monkeypatch.setenv(read_only.ENV_VAR, value)
+def test_deny_is_on(monkeypatch):
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     assert read_only.is_read_only() is True
 
 
-@pytest.mark.parametrize("value", ["f", "N", " n "])
-def test_short_false_spellings_are_off(monkeypatch, value):
-    # The same spellings Settings accepts (switches.parse_bool): f / n are false.
+def test_blank_value_fails_closed(monkeypatch):
+    # Settings drops a blank environment value; the call-time reader does not: a blank
+    # UNIFI_WRITE_POLICY is not a policy, so every write is denied.
+    monkeypatch.setenv(read_only.ENV_VAR, "")
+    assert read_only.is_read_only() is True
+
+
+@pytest.mark.parametrize(
+    "value", ["1", "true", "TRUE", "yes", "on", "f", "N", " n ", "0", "Deny", "enabled"]
+)
+def test_malformed_value_fails_closed_and_names_the_variable(monkeypatch, value, capsys):
+    # The retired boolean spellings and any other malformed value are not a policy:
+    # Settings refuses them at startup naming the variable, and the call-time reader fails
+    # closed (every write denied) instead of guessing that the switch is off.
     monkeypatch.setenv(read_only.ENV_VAR, value)
-    assert read_only.is_read_only() is False
-
-
-def test_malformed_value_raises_naming_the_variable(monkeypatch):
-    # Settings refuses "enabled" at startup; the runtime reader refuses it the same way
-    # instead of guessing (it used to read any non-false value as on).
-    monkeypatch.setenv(read_only.ENV_VAR, "enabled")
     with pytest.raises(ValueError, match=read_only.ENV_VAR):
-        read_only.is_read_only()
+        Settings(api_key="sk-test")
+    assert read_only.is_read_only() is True
 
 
 @pytest.mark.parametrize(
@@ -138,13 +144,13 @@ def test_client_uses_the_read_only_classifier():
     ],
 )
 def test_guard_allows_read_posts_under_read_only(monkeypatch, path):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     read_only.guard_request("POST", path)  # no raise
 
 
 @pytest.mark.parametrize("path", ["/v1/isp-metrics/5m", "/v1/isp-metrics/export"])
 def test_guard_refuses_non_query_isp_metrics_posts_under_read_only(monkeypatch, path):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     with pytest.raises(read_only.ReadOnlyModeError):
         read_only.guard_request("POST", path)
 
@@ -174,7 +180,7 @@ async def test_write_proceeds_when_off(client, monkeypatch):
 @respx.mock
 @pytest.mark.asyncio
 async def test_read_proceeds_when_on(client, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     route = respx.get(f"{BASE}/v1/hosts").mock(return_value=Response(200, json={"data": []}))
     await client.request("GET", "/v1/hosts")
     assert route.called
@@ -183,7 +189,7 @@ async def test_read_proceeds_when_on(client, monkeypatch):
 @respx.mock
 @pytest.mark.asyncio
 async def test_read_post_proceeds_when_on(client, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "on")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     stat = respx.post(
         f"{BASE}/v1/connector/consoles/h/proxy/network/api/s/default/stat/report/5m.site"
     ).mock(return_value=Response(200, json={"data": []}))
@@ -208,7 +214,7 @@ async def test_read_post_proceeds_when_on(client, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
 async def test_write_verb_refused_when_on(client, monkeypatch, method):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     route = respx.route(method=method).mock(return_value=Response(200, json={}))
     with pytest.raises(ReadOnlyModeError) as exc:
         await client.request(method, "/v1/sites/s/networks", json={"x": 1})
@@ -222,7 +228,7 @@ async def test_write_verb_refused_when_on(client, monkeypatch, method):
 @pytest.mark.asyncio
 async def test_connector_relay_refuses_before_network(monkeypatch):
     """The generic write relay refuses up-front, before resolving or reading anything."""
-    monkeypatch.setenv(read_only.ENV_VAR, "true")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
 
     class _BoomClient:
         async def request(self, *a, **k):  # pragma: no cover - must never run
@@ -252,24 +258,26 @@ async def test_connector_relay_refuses_before_network(monkeypatch):
 @respx.mock
 @pytest.mark.asyncio
 async def test_read_only_precedence_over_dry_run(monkeypatch):
-    """With both read-only AND dry-run on, read-only wins: refuse, no preview, no call.
+    """With a dry-run global policy AND a deny exception, deny wins: refuse, no preview, no call.
 
-    Dry-run (``UNIFI_DRY_RUN``) and read-only (``UNIFI_READ_ONLY``) are both opt-in and
-    both intercept writes at the single ``UniFiClient.request`` chokepoint. Their order
-    is defined: the read-only guard runs first, so a write raises ``ReadOnlyModeError``
-    (the actionable refusal) rather than returning a dry-run preview — and no upstream
-    request is made under either mode. This pins that precedence so a future reorder of
-    the chokepoint cannot silently turn a read-only refusal into a dry-run "success".
+    The global ``UNIFI_WRITE_POLICY=dry-run`` and the ``family:network=deny`` exception of
+    ``UNIFI_WRITE_EXCEPTIONS`` both intercept writes at the single ``UniFiClient.request``
+    chokepoint. The strictest wins (allow < dry-run < deny): the guard runs first, so a write
+    raises the actionable refusal rather than returning a dry-run preview, and no upstream
+    request is made under either setting. This pins that precedence so a future reorder of
+    the chokepoint cannot silently turn a refusal into a dry-run "success".
     """
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
-    dry_run_client = UniFiClient(Settings(api_key="sk-test", dry_run=True))
-    assert dry_run_client._dry_run is True  # both modes are genuinely active
-    route = respx.post(f"{BASE}/v1/sites/s/networks").mock(return_value=Response(200, json={}))
-    with pytest.raises(ReadOnlyModeError) as exc:
-        await dry_run_client.request("POST", "/v1/sites/s/networks", json={"x": 1})
-    # The refusal is the read-only message (names the var + how to disable), not a preview.
-    assert read_only.ENV_VAR in str(exc.value)
-    assert not route.called  # zero upstream traffic from either mode
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
+    dry_run_client = UniFiClient(Settings(api_key="sk-test"))
+    assert dry_run_client.dry_run is True  # the dry-run policy is genuinely active
+    path = "/v1/connector/consoles/h/proxy/network/integration/v1/sites/s/networks"
+    route = respx.post(f"{BASE}{path}").mock(return_value=Response(200, json={}))
+    with pytest.raises(AreaOptOutError) as exc:
+        await dry_run_client.request("POST", path, json={"x": 1})
+    # The refusal is the area's denial, not a preview.
+    assert "family:network=deny" in exc.value.env
+    assert not route.called  # zero upstream traffic from either setting
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +301,7 @@ READ_NAMED_POST_WRITES = frozenset(
         # Classic query commands (cmd/lte check-subscription, cmd/mbb
         # read-inactive-slot-sim-card) and v2 query POSTs (sites/overview, the multicast
         # clients/history queries, the rolling-upgrade time estimate) not on the read-POST
-        # allowlist; their descriptions say UNIFI_READ_ONLY refuses them.
+        # allowlist; their descriptions say UNIFI_WRITE_POLICY refuses them.
         "get_lte_subscription_status",
         "get_inactive_sim_slot",
         "get_sites_overview",
@@ -498,14 +506,8 @@ def test_derived_write_cache_recomputes_changed_catalog(monkeypatch):
     assert len(calls) == 3
 
 
-def test_every_write_tool_covered_by_guard():
-    """count(refused) == count(registered write/action tools); no tool missed.
-
-    For every systematically-derived write tool, every write verb it can issue must
-    be one the central guard refuses under read-only mode. If a future write tool
-    issued a mutation the guard does not recognise, ``is_write_request`` returns
-    False for that verb and the tool drops out of ``covered`` — making this fail.
-    """
+def test_every_derived_write_verb_classified_on_representative_path():
+    """Every derived write verb is classified as a write on a representative path."""
     tools = _registered_tools()
     verbmap = audit.classify_tool_verbs(tools)
     writes = {n for n, v in verbmap.items() if v}

@@ -22,7 +22,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..client import UniFiClient, is_dry_run_preview, validate_selector
+from ..client import UniFiClient, is_dry_run_preview, upstream_error_value, validate_selector
 from ..config import APIKeyConfig
 from ..macs import colon_mac, is_mac
 from ..matching import find_by_id, name_matches, same_id
@@ -66,11 +66,12 @@ def _require_macs(mac: Any, arg: str, source: str) -> list[str]:
     return list(dict.fromkeys(colon_mac(m) for m in macs))
 
 
-def _describe_users(records: list[dict[str, Any]]) -> str:
+def _describe_users(records: list[dict[str, Any]], client: UniFiClient) -> str:
     return (
         "; ".join(
-            f"{r.get('name') or r.get('hostname') or '(unnamed)'} "
-            f"(mac={r.get('mac')}, _id={r.get('_id')})"
+            f"{upstream_error_value(r.get('name') or r.get('hostname') or '(unnamed)', client)} "
+            f"(mac={upstream_error_value(r.get('mac'), client)}, "
+            f"_id={upstream_error_value(r.get('_id'), client)})"
             for r in records
         )
         or "(none)"
@@ -100,13 +101,14 @@ async def _resolve_user(
         if len(matches) > 1:
             raise ValueError(
                 f"MAC {ref!r} matches {len(matches)} client records: "
-                f"{_describe_users(matches)}. Pass the record's _id."
+                f"{_describe_users(matches, client)}. Pass the record's _id."
             )
         if not matches:
             raise ValueError(
                 f"Client MAC {mac} not found among this site's client records: the controller "
                 "has never seen this client (create_client_reservation creates a record for "
-                f"it). Records: {_describe_users(records)}. Pass a MAC or _id from list_users."
+                f"it). Records: {_describe_users(records, client)}. "
+                "Pass a MAC or _id from list_users."
             )
         record = matches[0]
     else:
@@ -114,7 +116,7 @@ async def _resolve_user(
         if found is None:
             raise ValueError(
                 f"Client record {ref!r} not found by _id or MAC; records: "
-                f"{_describe_users(records)}. Pass a client MAC or the _id from list_users."
+                f"{_describe_users(records, client)}. Pass a client MAC or the _id from list_users."
             )
         record = found
     listed_record_id(record, "client")
@@ -155,8 +157,10 @@ async def _resolve_network_id(
     records = _classic_data(await client.get(path, key=key), path)
     valid = (
         "; ".join(
-            f"{r.get('name')!r} (_id={r.get('_id')}, id={r.get('external_id')}, "
-            f"purpose={r.get('purpose')})"
+            f"{upstream_error_value(r.get('name'), client)!r} "
+            f"(_id={upstream_error_value(r.get('_id'), client)}, "
+            f"id={upstream_error_value(r.get('external_id'), client)}, "
+            f"purpose={upstream_error_value(r.get('purpose'), client)})"
             for r in records
         )
         or "(none)"
@@ -239,10 +243,13 @@ async def _list_guests(
     return body
 
 
-def _describe_guests(records: list[dict[str, Any]]) -> str:
+def _describe_guests(records: list[dict[str, Any]], client: UniFiClient) -> str:
     return (
         "; ".join(
-            f"mac={r.get('mac')} _id={r.get('_id')} end={r.get('end')} expired={r.get('expired')}"
+            f"mac={upstream_error_value(r.get('mac'), client)} "
+            f"_id={upstream_error_value(r.get('_id'), client)} "
+            f"end={upstream_error_value(r.get('end'), client)} "
+            f"expired={upstream_error_value(r.get('expired'), client)}"
             for r in records
         )
         or "(none)"
@@ -264,7 +271,8 @@ async def _extend_guest(
         if len(picked) != 1:
             raise ValueError(
                 f"Guest MAC {mac} matches {len(picked)} {'active ' if active else ''}guest "
-                f"authorization(s): {_describe_guests(mine or records)}. Pass the guest _id "
+                f"authorization(s): {_describe_guests(mine or records, client)}. "
+                "Pass the guest _id "
                 "from list_guests."
             )
         record = picked[0]
@@ -272,7 +280,8 @@ async def _extend_guest(
         by_id = [r for r in records if same_id(guest, r.get("_id"))]
         if not by_id:
             raise ValueError(
-                f"Guest {guest!r} not found by _id or MAC; guests: {_describe_guests(records)}. "
+                f"Guest {guest!r} not found by _id or MAC; guests: "
+                f"{_describe_guests(records, client)}. "
                 "Get it from list_guests (_id or mac)."
             )
         record = by_id[0]
@@ -379,7 +388,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} for one MAC or a
         list alike, since the controller answers the whole batch with one envelope (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead). Not auto-retried
         on HTTP 429: a retry could repeat the action.
 
@@ -427,8 +436,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         returned verbatim instead.
 
         The POST form is a write pending a separately approved read-POST allowlist PR.
-        Consequence: none intended; both forms only read guest records. UNIFI_READ_ONLY
-        hides the whole tool, including both GET forms. With UNIFI_DRY_RUN, the POST returns
+        Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny
+        hides the whole tool, including both GET forms. With dry-run policy, the POST returns
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}} without sending it; the GET form returns the usual response.
 
@@ -476,7 +485,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         "_id": GUEST_ID} (Classic REST, no published spec).
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead). Read
         list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could
         extend twice.
@@ -495,7 +504,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             site: Network site name or UUID; resolved server-side. Get it from list_local_sites
                 (name or id). Names like "Default" work.
             guest: The guest authorization _id from list_guests (data[]._id, e.g.
-                "6523f0c1e4b0a1b2c3d4e5f6") or the guest's MAC (any separator style).
+                "000000000000000000000102") or the guest's MAC (any separator style).
         """
         client, registry = deps_fn()
         return await _extend_guest(client, registry, host, site, guest)
@@ -516,7 +525,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Network 11.0.81: the name reads back).
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}
-        (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params (query parameters), body}} instead).
 
@@ -557,7 +566,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Network 11.0.81: the note reads back and the controller sets noted to true).
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}
-        (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params (query parameters), body}} instead).
 
@@ -604,7 +613,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         address; an upstream error gets a hint.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}
-        (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params (query parameters), body}} instead).
 
@@ -654,7 +663,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty). For this PUT the body is the Classic envelope {meta: {rc}, data: [the updated
-        record]}. Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        record]}. Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query
         parameters), body}}.
@@ -702,7 +711,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         duplicate MAC and an upstream error gets a hint.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the created record]}
-        (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params (query parameters), body}} instead).
 

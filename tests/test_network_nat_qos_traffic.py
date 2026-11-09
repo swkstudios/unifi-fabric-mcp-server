@@ -615,7 +615,7 @@ class LiveNetworkUpstream(Client):
         if route == "/traffic-flow-latest-statistics":
             if query.get("period") not in {"HOUR", "DAY", "WEEK", "MONTH"}:
                 raise bad
-            return {"all_count_by_region": {"DE": 13889}}
+            return {"all_count_by_region": {"DE": 1234}}
         if route == "/poe-info":
             if "mac" not in query:
                 raise bad
@@ -629,11 +629,11 @@ async def test_latest_flow_stats_default_and_documented_period_reach_a_served_qu
     mcp = FastMCP("nat-qos-traffic")
     nc.register(mcp, lambda: (client, Registry()))
     default = await mcp.call_tool("get_latest_traffic_flow_stats", {"host": HOST, "site": SITE})
-    assert default.structured_content == {"all_count_by_region": {"DE": 13889}}
+    assert default.structured_content == {"all_count_by_region": {"DE": 1234}}
     hour = await mcp.call_tool(
         "get_latest_traffic_flow_stats", {"host": HOST, "site": SITE, "period": "HOUR", "top": 5}
     )
-    assert hour.structured_content == {"all_count_by_region": {"DE": 13889}}
+    assert hour.structured_content == {"all_count_by_region": {"DE": 1234}}
     assert [params for *_, params in client.calls] == [
         {"period": "DAY"},
         {"period": "HOUR", "top": 5},

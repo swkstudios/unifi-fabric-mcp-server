@@ -1,0 +1,68 @@
+# UniFi Fabric MCP Server
+
+> An MCP server that exposes the UniFi Fabric APIs (Site Manager, Network, Protect, InnerSpace, Carrier Fabric, Mobility) as tools for AI assistants. Version 0.7.1. Python 3.12+. Package `unifi-fabric-mcp-server`, command `unifi-fabric-mcp`.
+
+This index is for AI coding agents and assistants. It points to the files that are the source of truth; it does not copy their content. There is no `llms-full.txt`: the linked files are the full text.
+
+## Install (exact)
+
+- Run from PyPI: `uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` with `UNIFI_API_KEY` set in the environment.
+- Docker: `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1`; HTTP deployment and the client entry are in [docs/DOCKER.md](docs/DOCKER.md).
+- Client setup (Claude Code, Codex, Claude Desktop, VS Code, Cursor, Antigravity, ChatGPT): [README.md](README.md) Quick Start.
+
+## Read-only use
+
+- Set `UNIFI_WRITE_POLICY=deny` to hide every write tool (four discovery meta-tools instead of five). Per-family write exceptions (`UNIFI_WRITE_EXCEPTIONS`) and the full environment reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+- `UNIFI_WRITE_POLICY=dry-run` previews writes without sending them. Authentication and TLS for HTTP: [docs/AUTH-TLS.md](docs/AUTH-TLS.md).
+
+- Tools using console-internal paths depend on routes Ubiquiti can restrict without notice; `UNIFI_EXCLUDE=unofficial` alone retains generic relays that can reach private routes; use `UNIFI_EXCLUDE=unofficial,source:relay` for an official-only catalog.
+- Official APIs only: `UNIFI_EXCLUDE=unofficial,source:relay`, under which 191 tools remain and 601 are excluded; `unofficial` alone keeps the generic `fabric_connector_*` relays, which can reach private routes ([docs/CONFIGURATION.md](docs/CONFIGURATION.md#official-only-catalog)).
+
+- Every setting with its default and accepted values: the generated [settings reference](docs/CONFIGURATION.md#settings-reference-generated).
+
+<!-- BEGIN GENERATED: code-mode -->
+`UNIFI_TOOL_MODE=codemode` (opt-in, experimental) advertises 3 tools: `describe_tool`, `execute`, `search_tools`. `execute` runs one Python script in a sandbox with no credentials, environment, network, filesystem or process access; inside it, `call_tool` reaches the enabled read tools only and every write is refused, whatever the write policy and its exceptions say. Code Mode is an opt-in, read-only experimental feature. It may change without a deprecation cycle. There is no compatibility promise for execute()'s schema or output shape until graduation. Limits and refusal codes: [docs/CONFIGURATION.md](docs/CONFIGURATION.md#code-mode-experimental).
+<!-- END GENERATED -->
+
+## Tool reference
+
+- [docs/TOOLS.md](docs/TOOLS.md): every tool with family, read/write class and annotations (generated).
+- [docs/TOOL-USAGE.md](docs/TOOL-USAGE.md): worked examples, discovery mode and paging.
+- [docs/CATALOG.md](docs/CATALOG.md): catalog sizes by family and tool mode (generated figures).
+- [docs/PAGINATION.md](docs/PAGINATION.md): how list tools drain pages.
+
+## Add or change a tool
+
+Follow [docs/AI-CHANGES.md](docs/AI-CHANGES.md): the ordered recipe, the three invariants, and the table of generators with their sources, outputs, `--check` modes and CI jobs. The contributor path with a worked read-tool example is [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Regenerate generated files
+
+Never edit a generated file by hand. Run the generator, then its `--check`:
+
+- `python3 scripts/gen_tools_doc.py` writes `docs/TOOLS.md`.
+- `python3 scripts/gen_catalog_figures.py` writes the catalog figures in `README.md`, `docs/CATALOG.md`, `docs/DOCKER.md`, `docs/MIGRATING-0.7.md`, `docs/COVERAGE.md`, `docs/CONFIGURATION.md`, `plugins/claude-desktop/README.md`, `docs/site-stats.json`; it also targets the first numbered `CHANGELOG.md` section, and a dated (released) section must never be committed changed.
+- `python3 scripts/gen_reference_blocks.py` writes the marked blocks in `README.md`, `docs/CONFIGURATION.md` and `docs/TOOL-USAGE.md`.
+- `python3 scripts/gen_tool_input_schemas.py --write` writes `tests/fixtures/tool_input_schemas_baseline.json`.
+- `python -m tests.api_sources_gen --write` writes `src/unifi_fabric/_api_source_table.py`.
+
+## Generated paths (do not hand-edit)
+
+`docs/TOOLS.md`, `docs/site-stats.json`, `src/unifi_fabric/_api_source_table.py`, `tests/fixtures/tool_input_schemas_baseline.json`, the lock files (`requirements.lock`, `requirements-runtime.lock`, `requirements-build.lock`), and the blocks between `<!-- BEGIN GENERATED: name -->` and `<!-- END GENERATED -->` markers.
+
+## Verify before pushing
+
+- Without committing: each generator's `--check`, `python3 scripts/check_markdown.py`, and the targeted test file, as listed in [AGENTS.md](AGENTS.md#verify-without-committing).
+- Push gate, on the committed head: `PREPUSH_PYTHON=.venv/bin/python scripts/prepush.sh`; it prints `Pre-push: scripts/prepush.sh pass (head <sha7>)`.
+- CI: `.github/workflows/ci.yml` (jobs `lint`, `typecheck`, `docs`, `test`, `version-consistency`, `changelog-check`).
+
+## Contributing
+
+- [AGENTS.md](AGENTS.md): constraints, setup and the no-commit verification route for agents.
+- [CONTRIBUTING.md](CONTRIBUTING.md): the human contributor guide.
+- [docs/FORKING.md](docs/FORKING.md): every identity surface to change when you fork and rename.
+- [SECURITY.md](.github/SECURITY.md): reporting a vulnerability.
+
+## Optional
+
+- [CHANGELOG.md](CHANGELOG.md), [docs/MIGRATING-0.7.md](docs/MIGRATING-0.7.md), [docs/COVERAGE.md](docs/COVERAGE.md), [LAST_AUDITED.md](LAST_AUDITED.md).
+

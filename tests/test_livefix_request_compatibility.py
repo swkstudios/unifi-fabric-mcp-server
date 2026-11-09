@@ -39,7 +39,7 @@ from unifi_fabric import server
         (
             "query_switch_mac_tables",
             {"site": uh.SITE, "query": {"mac": uh.ARG_MAC, "ports": [1, 24]}},
-            {"mac": uh.ARG_MAC, "ports": [1, 24]},
+            [{"mac": uh.ARG_MAC, "ports": [1, 24]}],
         ),
         (
             "query_switch_mac_tables",

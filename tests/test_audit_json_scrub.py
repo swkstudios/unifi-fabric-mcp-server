@@ -22,10 +22,14 @@ def test_json_audit_line_is_valid_json_when_a_secret_matches_a_number(tmp_path: 
     sink = AuditSink(path=str(log), fmt="json", secrets=(secret,))
     for status in (200, 502, None):
         sink.record(method="PATCH", path="/proxy/x", outcome="success", status=status)
-    records = [json.loads(line) for line in log.read_text().splitlines()]
+    records = [
+        r
+        for r in (json.loads(line) for line in log.read_text().splitlines())
+        if r.get("event", "audit") == "audit"
+    ]
     assert [r["status"] for r in records] == [200, 502, None]
     for record in records:
-        assert set(record) >= {"timestamp", "method", "path", "outcome", "status"}
+        assert set(record) >= {"timestamp_utc", "method", "path", "outcome", "status"}
 
 
 def test_text_audit_line_scrubs_values_and_colliding_field_name(tmp_path: Path):

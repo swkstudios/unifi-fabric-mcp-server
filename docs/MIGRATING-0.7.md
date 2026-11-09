@@ -2,6 +2,8 @@
 
 This guide preserves the complete 0.7.0 behaviour and compatibility notes. Each entry records the former behaviour, the new behaviour, affected tools, and the caller action where applicable.
 
+0.7.1 replaced the 0.7.0 write and exposure settings with `UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE`, without aliases. This guide names each 0.7.0 setting by its 0.7.1 replacement. Upgrading from 0.7.0: the old names, the exact mapping and a one-command migrator are in [MIGRATING-0.7.1.md](MIGRATING-0.7.1.md).
+
 ## Tool discovery default
 
 Previously, the server advertised the full tool surface by default. Starting in 0.7.0,
@@ -10,7 +12,7 @@ To restore the previous behaviour after upgrading, set `UNIFI_TOOL_MODE=full`. A
 tool (discovery mode lists five meta-tools in `tools/list` and reaches the others through
 `call_read_tool` and `call_write_tool`). Clients that need every domain tool in `tools/list`,
 such as ContextForge and other gateway deployments, should select `full`. Read-only mode
-(`UNIFI_READ_ONLY`) hides `call_write_tool` in discovery mode, so the previous behaviour is
+(`UNIFI_WRITE_POLICY=deny`) hides `call_write_tool` in discovery mode, so the previous behaviour is
 restored exactly only with read-only mode off.
 
 ## 0.7.0 behaviour changes
@@ -66,7 +68,7 @@ restored exactly only with read-only mode off.
 
 ### change-008
 
-- Documentation corrections: Claude Code setup names the files Claude Code reads (a project `.mcp.json`, or `claude mcp add --scope user`), not `settings.json`, which it ignores for MCP servers; `docs/AUTH-OAUTH.md`, `docs/CHATGPT.md` and `SECURITY.md` state that an OAuth scope admits a client to the whole server and does not turn write tools off (use a separate `UNIFI_READ_ONLY=1` instance); `docs/TLS.md` no longer says a sessionless `GET /mcp` hangs (it answers 400, or 405 when stateless); the read-only refusal tells local-install users where to unset the variable; `PRIVACY.md` covers every integration; and the repository gains a Code of Conduct, a pull request template and an issue-template chooser.
+- Documentation corrections: Claude Code setup names the files Claude Code reads (a project `.mcp.json`, or `claude mcp add --scope user`), not `settings.json`, which it ignores for MCP servers; `docs/AUTH-OAUTH.md`, `docs/CHATGPT.md` and `SECURITY.md` state that an OAuth scope admits a client to the whole server and does not turn write tools off (use a separate `UNIFI_WRITE_POLICY=deny` instance); `docs/TLS.md` no longer says a sessionless `GET /mcp` hangs (it answers 400, or 405 when stateless); the read-only refusal tells local-install users where to unset the variable; `PRIVACY.md` covers every integration; and the repository gains a Code of Conduct, a pull request template and an issue-template chooser.
 
 
 ### change-009
@@ -87,10 +89,10 @@ restored exactly only with read-only mode off.
     `routeClass: "unclassified"`; 0.6.2 refused it as outside the namespace allowlist. A
     ordinary GET on it relays (a GET the server classifies as state-changing is treated as
     a mutation). A mutation on it relays unless a per-area write opt-out is active, meaning
-    one of `UNIFI_ENABLE_NETWORK_WRITE`, `UNIFI_PROTECT_MUTATIONS_ENABLED`,
-    `UNIFI_ENABLE_MOBILITY_WRITE`, `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` or
-    `UNIFI_ENABLE_INNERSPACE_WRITE` is set to a false value (`0`, `false`, `no`, `off`,
-    `f`, `n`; all five default to on); then it is refused, naming every active variable,
+    one of the Network, Protect, Mobility, Carrier Fabric or InnerSpace write opt-outs is
+    set (since 0.7.1 the `UNIFI_WRITE_EXCEPTIONS` entries `family:network=deny`,
+    `family:protect=deny`, `family:mobility=deny`, `family:carrier=deny` and
+    `family:innerspace=deny`; all five areas default to on); then it is refused, naming every active opt-out,
     because the path cannot be shown to lie outside the opted-out area.
   - `create_port_forward`, `create_traffic_rule` and `create_traffic_route` send a body
     without a documented field as given (these Classic / v2 endpoints publish no request
@@ -174,8 +176,8 @@ restored exactly only with read-only mode off.
   compact TypeScript-like outline in the field description, for example
   `{zoneId:string(uuid),trafficFilter?:...}`. Local aliases such as `T1` refer to
   definitions in the outline's trailing `where T1=...` clause. Unknown fields remain allowed;
-  no new validation constraints are added. The other 191 object parameters are
-  explicitly described as free-form. The shapes are 72,208 bytes of compact JSON, and a
+  no new validation constraints are added. The other 192 object parameters are
+  explicitly described as free-form. The shapes are 69,295 bytes of compact JSON, and a
   size-budget test (`tests/test_catalog_size_budget.py`) holds the catalog to an average
   of 2,400 bytes per tool, any one tool's input schema to 10,000 bytes, the shapes to an
   average of 2,000 bytes and any one shape to 10,000 bytes.
@@ -301,9 +303,12 @@ restored exactly only with read-only mode off.
 - **Breaking (tool results): the single-object reads return the upstream body
   verbatim.** `get_host`, `get_sdwan_config` and `get_sdwan_config_status` return
   `{data, httpStatusCode, traceId}` (they returned only `data`); `get_carrier_subscriber`
-  (was `{subscriber: <data>}`), `get_carrier_service_plan` (was `{service_plan: <data>}`),
-  `get_mobility_device` (was `{device: <data>}`) and `get_innerspace_project` (was
-  `{mode, project: <data>}`) return the body as received. Read the resource at `data`.
+  (was `{subscriber: <data>}`), `get_carrier_service_plan` (was `{service_plan: <data>}`) and
+  `get_mobility_device` (was `{device: <data>}`) return the body as received, so the resource is
+  at `data` for these six tools. `get_innerspace_project` (was `{mode, project: <data>}`) also
+  returns the body as received, but the shape depends on the route that answered: the documented
+  integration route wraps the project in `data`, while the legacy route (used when `user_email`
+  or `site_id` is passed, or as the fallback) returns the project itself with no `data` wrapper.
 
 ### change-028
 
@@ -427,7 +432,7 @@ restored exactly only with read-only mode off.
   `update_mobility_device_wireless` no longer echoes `"password": "updated"`). `device`
   is the full device-detail GET body of the read-after (0.6.2 returned only its `data`).
   A write that changes nothing returns `{status: "no_op", reason, device}` and a call under
-  `UNIFI_DRY_RUN` returns `{status: "dry_run", device, response}`.
+  dry-run (`UNIFI_WRITE_POLICY=dry-run`) returns `{status: "dry_run", device, response}`.
 
 ### change-038
 
@@ -442,30 +447,31 @@ restored exactly only with read-only mode off.
   returned only `data`). `suspend_carrier_subscriber` and `resume_carrier_subscriber`
   report `changed`, `create_carrier_subscriber` reports every sent field in `changed`,
   and `update_carrier_subscriber` reports `verified`. A write that changes nothing returns
-  `status: "no_op"` and a call under `UNIFI_DRY_RUN` returns `status: "dry_run"`, each with
+  `status: "no_op"` and a call under dry-run (`UNIFI_WRITE_POLICY=dry-run`) returns `status: "dry_run"`, each with
   `subscriber`. Read the resource at `subscriber.data` (Mobility: `device.data`).
 
 ### change-039
 
 - **Breaking (tool results): an opted-out write area raises instead of returning
-  `{status: "disabled", reason}`.** With `UNIFI_PROTECT_MUTATIONS_ENABLED`,
-  `UNIFI_ENABLE_MOBILITY_WRITE` or `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` falsey, every write
-  tool of the area fails before any request or argument check, naming the variable, its
-  value, the value that re-enables it and where it is set. 0.6.2 returned that object as
+  `{status: "disabled", reason}`.** With the Protect, Mobility or Carrier Fabric write
+  opt-out set (since 0.7.1 `family:protect=deny`, `family:mobility=deny` or
+  `family:carrier=deny` in `UNIFI_WRITE_EXCEPTIONS`), every write
+  tool of the area fails before any request or argument check, naming the setting, how to
+  re-enable it and where it is set. 0.6.2 returned that object as
   a success (Mobility and Carrier Fabric after a read). Affected: Protect
-  (`UNIFI_PROTECT_MUTATIONS_ENABLED`) `alarm_hub_trigger_output`, `create_arm_profile`,
+  (`family:protect=deny`) `alarm_hub_trigger_output`, `create_arm_profile`,
   `delete_arm_profile`, `disable_arm`, `enable_arm`, `pos_ingest_transaction`,
   `relay_activate_output`, `siren_play`, `siren_stop`, `siren_test_sound`,
   `speaker_test_sound`, `update_alarm_hub`, `update_arm_profile`,
   `update_arm_profile_settings`, `update_bridge`, `update_fob`, `update_link_station`,
   `update_relay`, `update_siren` and `update_speaker`; the three Mobility writes; the
-  seven Carrier Fabric writes. These Protect tools ignored the flag in 0.6.2 and now
-  raise when it is off: `ptz_goto_preset`, `ptz_patrol_start`, `ptz_patrol_stop`,
+  seven Carrier Fabric writes. These Protect tools ignored the opt-out in 0.6.2 and now
+  raise when it is set: `ptz_goto_preset`, `ptz_patrol_start`, `ptz_patrol_stop`,
   `start_talkback_session`, `disable_camera_mic_permanently`, `update_camera`,
   `create_rtsps_stream`, `delete_rtsps_stream`, `update_sensor`, `update_light`,
   `update_chime`, `update_viewer`, `create_liveview`, `update_liveview`,
-  `upload_protect_file` and `trigger_alarm_webhook`. The `UNIFI_ENABLE_CONNECTOR_WRITE`
-  refusal is worded the same way. The write tools of an opted-out area are also omitted
+  `upload_protect_file` and `trigger_alarm_webhook`. The connector write refusal
+  (`family:connector=deny`) is worded the same way. The write tools of an opted-out area are also omitted
   from `tools/list` and from discovery search; calling one by name raises the error.
 
   Affected tools: `alarm_hub_trigger_output`, `assign_carrier_subscriber_plan`,
@@ -698,13 +704,13 @@ restored exactly only with read-only mode off.
   `locate_device`, `ptz_goto_preset`, `ptz_patrol_start`, `ptz_patrol_stop`,
   `restart_device`, `start_talkback_session`, `unadopt_device`, `upgrade_device`), and
   many of the new tools advertise it too (such as `forget_device`; see Added in the 0.7.0
-  section of `CHANGELOG.md`). Use `UNIFI_DRY_RUN` for a no-send check.
+  section of `CHANGELOG.md`). Use dry-run (`UNIFI_WRITE_POLICY=dry-run`) for a no-send check.
   Because `confirm` is ignored, the connector relay results (`fabric_connector_post`,
   `fabric_connector_put`, `fabric_connector_patch`, `fabric_connector_delete`) no longer
-  carry the `confirmed` key that 0.6.2 echoed; read `status` and `writeEnabled` instead. `UNIFI_ENABLE_CONNECTOR_WRITE`,
-  `UNIFI_ENABLE_CARRIER_FABRIC_WRITE` and `UNIFI_ENABLE_MOBILITY_WRITE` now default on
-  (0.6.2: off); set `=0` to make an area read-only. `UNIFI_PROTECT_MUTATIONS_ENABLED`
-  stays on.
+  carry the `confirmed` key that 0.6.2 echoed; read `status` and `writeEnabled` instead. Connector, Carrier Fabric and Mobility writes
+  now default on (0.6.2: off); since 0.7.1 the `UNIFI_WRITE_EXCEPTIONS` entries
+  `family:connector=deny`, `family:carrier=deny` and `family:mobility=deny` make an area
+  read-only. Protect writes stay on.
 
 ### change-054
 
@@ -950,10 +956,11 @@ restored exactly only with read-only mode off.
 ### change-065
 
 - **Breaking (connector relay): the per-area write opt-outs apply to relayed writes.**
-  `UNIFI_ENABLE_NETWORK_WRITE` (network routes), `UNIFI_PROTECT_MUTATIONS_ENABLED`
-  (Protect routes) and `UNIFI_ENABLE_INNERSPACE_WRITE` (InnerSpace routes) refuse a
-  relayed write to their area before any request, as do the Mobility and Carrier Fabric
-  switches for routes of those areas (0.6.2 checked only `UNIFI_ENABLE_CONNECTOR_WRITE`).
+  The Network (network routes), Protect (Protect routes) and InnerSpace (InnerSpace routes)
+  opt-outs, since 0.7.1 `family:network=deny`, `family:protect=deny` and
+  `family:innerspace=deny`, refuse a relayed write to their area before any request, as do
+  the Mobility and Carrier Fabric opt-outs for routes of those areas (0.6.2 checked only
+  the connector write opt-out, now `family:connector=deny`).
   A write to a route in no mapped namespace (`talk/`, `connect/`, `drive/`) is refused
   while any of these opt-outs is active (see change-009). Relay reads are unaffected.
   Affected tools: `fabric_connector_post`, `fabric_connector_put`,
@@ -1036,15 +1043,15 @@ changes.
   `UNIFI_API_KEYS[i]` and how many unknown fields it has, never their names (a key pasted
   as a field name is not printed) (0.6.2 rejected it too, with pydantic's
   `api_keys.<i>.<field>` "Extra inputs are not permitted"). Every boolean setting, including
-  `UNIFI_PROTECT_MUTATIONS_ENABLED`, `UNIFI_ENABLE_MOBILITY_WRITE` and
-  `UNIFI_ENABLE_CARRIER_FABRIC_WRITE`, is parsed by one function, at startup and at call
+  the 0.7.0 Protect, Mobility and Carrier Fabric write opt-outs (replaced in 0.7.1 by
+  `UNIFI_WRITE_EXCEPTIONS` entries), is parsed by one function, at startup and at call
   time: `1`/`true`/`yes`/`on`/`t`/`y` or `0`/`false`/`no`/`off`/`f`/`n`
   (case-insensitive), anything else fails (0.6.2 read any unrecognised Protect value,
   `f` and `n` included, as on, and any unrecognised Mobility or Carrier value as off).
   `UNIFI_LOG_LEVEL` must be `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`,
   `UNIFI_AUDIT_LOG_FORMAT` `text` or `json`, `MCP_AUTH_MODE` / `MCP_TLS_MODE` /
-  `MCP_TLS_CERT_REQS` one of their values, every one of these (like the booleans and
-  `UNIFI_TOOL_FAMILIES`) case-insensitive with edge whitespace ignored (only
+  `MCP_TLS_CERT_REQS` one of their values, every one of these (like the booleans and the
+  0.7.0 family allowlist, now `UNIFI_FAMILY_ALLOW`, which 0.7.1 matches case-sensitively) case-insensitive with edge whitespace ignored (only
   `MCP_OAUTH_ALGORITHM` stays case-sensitive, as JWT `alg` values are), and
   `UNIFI_API_BASE_URL` an absolute
   `http(s)` URL with a host and no user info, query, fragment or whitespace. API key entries are no longer filled from bare `KEY` / `LABEL` /
@@ -1060,8 +1067,8 @@ changes.
 
 ### change-073
 
-- Tool annotations: the 328 read-only tools advertise `readOnlyHint: true` and
-  `destructiveHint: false`; the 458 write tools advertise `readOnlyHint: false` and
+- Tool annotations: the 332 read-only tools advertise `readOnlyHint: true` and
+  `destructiveHint: false`; the 460 write tools advertise `readOnlyHint: false` and
   `destructiveHint: true`. 0.6.2 sent none, so clients showed every tool as a
   destructive write. Fifteen tools with read-style names are still annotated as writes
   because their upstream route is a POST not yet proven read-only: `get_inactive_sim_slot`,
@@ -1142,7 +1149,7 @@ changes.
 
 ### change-079
 
-- Dependencies (`requirements-runtime.lock`, installed by the image): 60 hash-locked packages, the server's runtime dependencies only. The `dev`
+- Dependencies (`requirements-runtime.lock`, installed by the image): 64 hash-locked packages, the server's runtime dependencies only. The `dev`
   extra's test, lint and type-check packages (pytest, mypy, ruff, hypothesis, coverage,
   respx, trustme and the rest) are not installed by the image; they are
   pinned in `requirements.lock`, the development and test environment, which carries the
@@ -1199,6 +1206,9 @@ changes.
   (`update_carrier_subscriber` `subscriber_number`, 1-32) is checked on the trimmed value,
   never the raw one. The limit table is generated from the specs and test-pinned.
   The 68 tools: `alarm_hub_trigger_output`, `attach_carrier_subscriber_host`, `create_acl_rule`, `create_arm_profile`, `create_carrier_subscriber`, `create_firewall_policy`, `create_hotspot_vouchers`, `create_liveview`, `create_network`, `create_rtsps_stream`, `create_traffic_matching_list`, `create_wifi_broadcast`, `delete_rtsps_stream`, `get_camera_snapshot`, `get_innerspace_asset`, `list_acl_rules`, `list_carrier_subscribers`, `list_clients`, `list_countries`, `list_dns_policies`, `list_dpi_applications`, `list_dpi_categories`, `list_firewall_policies`, `list_firewall_zones_proxy`, `list_hotspot_vouchers`, `list_lags`, `list_local_sites`, `list_mc_lag_domains`, `list_mobility_clients`, `list_mobility_devices`, `list_networks`, `list_pending_devices`, `list_protect_files`, `list_radius_profiles`, `list_site_devices`, `list_site_to_site_tunnels`, `list_switch_stacks`, `list_traffic_matching_lists`, `list_vpn_servers`, `list_wan_interfaces`, `list_wifi_broadcasts`, `pos_ingest_transaction`, `ptz_goto_preset`, `ptz_patrol_start`, `relay_activate_output`, `siren_play`, `siren_test_sound`, `speaker_test_sound`, `suspend_carrier_subscriber`, `update_acl_rule`, `update_arm_profile`, `update_camera`, `update_carrier_subscriber`, `update_chime`, `update_firewall_policy`, `update_light`, `update_liveview`, `update_mobility_device_name`, `update_mobility_device_network`, `update_mobility_device_wireless`, `update_network`, `update_predefined_firewall_policy`, `update_sensor`, `update_siren`, `update_speaker`, `update_traffic_matching_list`, `update_wifi_broadcast`, `upload_protect_file`.
+
+  Additional tools in 0.7.1: `list_integration_device_tags`. The 68-tool list above
+  records the 0.7.0 release; the current spec-limit table covers 69 tools.
 
 ### change-086
 

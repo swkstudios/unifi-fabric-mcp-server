@@ -50,12 +50,12 @@ async def test_write_source_filter_preserves_reads_and_per_call_action_refusal(
     async def fabric_connector_get(path: str) -> dict:
         return {"path": path}
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     app.add_middleware(ReadOnlyToolMiddleware(app))
     assert await apply_api_source_filter(app, selector) == []
     result = await app.call_tool("fabric_connector_get", {"path": "protect/api/bootstrap"})
     assert result.structured_content == {"path": "protect/api/bootstrap"}
-    with pytest.raises(Exception, match="UNIFI_READ_ONLY"):
+    with pytest.raises(Exception, match="UNIFI_WRITE_POLICY"):
         await app.call_tool(
             "fabric_connector_get", {"path": "protect/api/cameras/camera/enable-control"}
         )

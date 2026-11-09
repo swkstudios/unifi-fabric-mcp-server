@@ -26,7 +26,10 @@ from __future__ import annotations
 import copy
 import json
 import os
+import subprocess
+import sys
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -38,7 +41,21 @@ from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.registry import Registry
 
-pytest_plugins = ["tests._worker_diagnostics", "tests._report_retention"]
+pytest_plugins = [
+    "tests._worker_diagnostics",
+    "tests._report_retention",
+    "tests._server_import_isolation",
+]
+
+# Tests that run repository scripts which call ``ruff format`` call the tools installed
+# beside this interpreter by name. CI installs them on PATH; a venv run
+# (``.venv/bin/python -m pytest``, or scripts/prepush.sh with PREPUSH_PYTHON) does not
+# activate the venv, so its bin directory goes first on PATH, as activation would put it.
+_INTERPRETER_BIN = str(Path(sys.executable).parent)
+if _INTERPRETER_BIN not in os.environ.get("PATH", "").split(os.pathsep):
+    os.environ["PATH"] = os.pathsep.join(
+        part for part in (_INTERPRETER_BIN, os.environ.get("PATH", "")) if part
+    )
 
 # Synthetic upstream probes deliberately exercise many errors. Rendering their
 # tracebacks through Rich/Pygments dominates those tests; retain ordinary exception
@@ -114,26 +131,51 @@ def _hermetic_credentials_env(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _reset_policy_state():
+    """Forget the startup policy, exclusions and catalog a test's server lifespan installed.
+
+    ``policy.current()`` fails closed to the startup exposure when one is recorded, so a
+    lifespan run by one test must not change what a later test's fail-closed policy is.
+    """
+    yield
+    from unifi_fabric import policy
+
+    policy.clear_exposure()
+
+
+@pytest.fixture(autouse=True)
 def _reset_server_singletons(_hermetic_credentials_env, monkeypatch):
     """Keep import-time transport/auth construction local to the test that reloads it.
 
     Bearer, auth HTTP, transport-security and FastMCP adoption tests reload server
     under temporary environment values. Clearing only the lazy Settings/client/
     registry leaves the rebuilt MCP auth provider and transport config behind.
-    Snapshot these three bindings without reloading or copying the catalog: tests
-    can still use their collected handler references and module-scoped fixtures.
+    Restore the entire module namespace together: reload redefines middleware
+    classes and handler functions as well as mcp. Restoring only mcp would pair
+    old middleware instances with new class identities. Re-imports must also
+    restore external callbacks and the original module in both Python import
+    bindings so collected references and subsequent imports share one namespace.
     """
-    from unifi_fabric import server
+    import unifi_fabric
+    from unifi_fabric import header_credentials, policy, secret_scrub, server
 
-    import_state = {name: getattr(server, name) for name in ("mcp", "_mcp_transport", "_cache_ttl")}
+    record_listener = policy._record_listener
+    secret_provider = secret_scrub._provider
+    process_key_mode = header_credentials._header_mode_process
+    import_state = vars(server).copy()
     for name in ("_settings", "_client", "_registry"):
         setattr(server, name, None)
     yield
     # Undo test patches first, otherwise their finalizers can resurrect a dirty
     # binding after this fixture resets it. This also rolls back temporary env.
     monkeypatch.undo()
-    for name, value in import_state.items():
-        setattr(server, name, value)
+    header_credentials._header_mode_process = process_key_mode
+    vars(server).clear()
+    vars(server).update(import_state)
+    sys.modules[server.__name__] = server
+    unifi_fabric.server = server
+    policy.set_record_listener(record_listener)
+    secret_scrub.set_secret_provider(secret_provider)
     for name in ("_settings", "_client", "_registry"):
         setattr(server, name, None)
 
@@ -193,6 +235,58 @@ def pytest_configure(config):
         "tool_where(predicate): restrict the ``tool`` argument's catalog parametrization "
         "to tools for which predicate(tool) is true.",
     )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionstart(session):
+    # Hypothesis builds its UTF-8 codec table by enumerating every Unicode
+    # code point. On a cold cache this briefly costs ~200 MiB per worker. Build
+    # it once before local xdist workers start, in a short-lived process, so the
+    # allocations do not persist in the controller. Hypothesis retains its own
+    # fallback if its cache is unavailable (e.g. on remote workers).
+    config = session.config
+    if hasattr(config, "workerinput") or not config.getoption("numprocesses", default=0):
+        return
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from hypothesis.internal.charmap import "
+            "charmap_file, intervals_from_codec; intervals_from_codec(sys.argv[1]); "
+            'print("Hypothesis UTF-8 cache unavailable; workers will build it locally", '
+            "file=sys.stderr) if not charmap_file(sys.argv[2]).is_file() else None",
+            "utf-8",
+            "codec-v2-utf-8",
+        ],
+        check=True,
+    )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    """Refuse an unauthorized live mutation before any of the item's fixtures run.
+
+    Every ``@pytest.mark.mutating`` test in every module passes this one gate
+    (``tests/_live_gates.py``); a class- or module-scoped fixture that creates live state
+    is never set up for a refused item.
+    """
+    from tests import _live_gates
+
+    _live_gates.authorize_live_mutation(item)
+
+
+def pytest_collection_finish(session):
+    # Persist behaviour-derived selections for the next pytest process (xdist workers,
+    # later steps and shards) and release the producer lock (tests/_selection_cache).
+    from tests import _selection_cache
+
+    _selection_cache.flush()
+
+
+def pytest_unconfigure(config):
+    from tests import _selection_cache
+
+    _selection_cache.flush()
 
 
 def pytest_generate_tests(metafunc):

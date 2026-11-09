@@ -18,11 +18,12 @@ PATH = "protect/api/cameras/0000000000000000000000aa"
 
 @pytest.mark.parametrize("redact", [False, True])
 @pytest.mark.parametrize("route", ["relay", "protect"])
-async def test_configured_key_scrubbed_from_real_dry_run_preview(redact, route):
+async def test_configured_key_scrubbed_from_real_dry_run_preview(redact, route, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     registry = AsyncMock()
     registry.resolve_key_for_host.return_value = None
     registry.resolve_host_id.return_value = HOST
-    client = UniFiClient(Settings(api_key=KEY, dry_run=True, redact_secrets=redact))
+    client = UniFiClient(Settings(api_key=KEY, redact_secrets=redact))
     url = f"https://api.ui.com/v1/connector/consoles/{HOST}/proxy/{PATH}"
     try:
         with respx.mock:

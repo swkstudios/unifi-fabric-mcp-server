@@ -55,7 +55,6 @@ from unifi_fabric.config import MCPTransportSettings
 from unifi_fabric.server import build_uvicorn_config
 
 HTTP = "streamable-http"
-# Bounded so a reject that (wrongly) hangs fails fast instead of stalling CI.
 
 
 @pytest.fixture(autouse=True)

@@ -84,7 +84,7 @@ class TestGetAllHostSitePairs:
         async def mock_get_sites(host_id, **kwargs):
             if host_id == "h1":
                 # ObjectId — not a valid UUID for proxy URLs
-                return [{"id": "5d21296497ba433a10af6cbd", "description": "Bad"}]
+                return [{"id": "000000000000000000000502", "description": "Bad"}]
             return [{"id": _UUID_S2, "description": "Good"}]
 
         registry.get_sites = AsyncMock(side_effect=mock_get_sites)
@@ -97,7 +97,7 @@ class TestGetAllHostSitePairs:
             {
                 "hostId": "h1",
                 "hostName": "c1",
-                "siteId": "5d21296497ba433a10af6cbd",
+                "siteId": "000000000000000000000502",
                 "reason": skipped[0]["reason"],
             }
         ]

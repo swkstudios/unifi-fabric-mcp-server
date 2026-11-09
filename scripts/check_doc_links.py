@@ -49,7 +49,15 @@ def probe(url: str, retries: int = 2) -> dict[str, object]:
         except (HTTPError, URLError, TimeoutError, OSError) as error:
             status = error.code if isinstance(error, HTTPError) else 0
             if status == 429 and attempt == retries:
-                return {"url": url, "status": status, "ok": True, "moved": False}
+                # Rate limited on every attempt: the link was never checked, so it is
+                # neither a pass nor a failure.
+                return {
+                    "url": url,
+                    "status": status,
+                    "ok": False,
+                    "moved": False,
+                    "not_tested": f"rate limited (HTTP 429) on all {retries + 1} attempts",
+                }
             if attempt < retries and (status == 0 or status in {408, 429} or status >= 500):
                 time.sleep(attempt + 1)
                 continue
@@ -68,7 +76,12 @@ def project_version(root: Path) -> str | None:
 
 def reference_texts(root: Path) -> list[str]:
     """Include the current CHANGELOG section copied into the release body."""
-    texts = [path.read_text() for path in public_reference_docs(root)]
+    community = [
+        root / name for name in ("CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "ACCESSIBILITY.md")
+    ]
+    community += list((root / ".github" / "ISSUE_TEMPLATE").glob("*.md"))
+    paths = set(public_reference_docs(root)) | {p for p in community if p.is_file()}
+    texts = [path.read_text() for path in sorted(paths)]
     changelog = root / "CHANGELOG.md"
     version = project_version(root)
     if changelog.exists() and version:
@@ -76,6 +89,13 @@ def reference_texts(root: Path) -> list[str]:
             rf"(?ms)^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
             changelog.read_text(),
         )
+        published = root / "scripts" / "published-version.txt"
+        if not section and published.is_file():
+            version = published.read_text().strip()
+            section = re.search(
+                rf"(?ms)^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
+                changelog.read_text(),
+            )
         if section:
             texts.append(section.group(1))
     return texts
@@ -84,6 +104,7 @@ def reference_texts(root: Path) -> list[str]:
 def discovery(root: Path) -> tuple[list[str], list[dict[str, str]]]:
     exclusions = []
     blocked = {}
+    blocked_prefixes = {}
     config = root / "scripts/doc_links.toml"
     if config.exists():
         policy = tomllib.loads(config.read_text())
@@ -91,12 +112,18 @@ def discovery(root: Path) -> tuple[list[str], list[dict[str, str]]]:
         blocked.update(
             {entry["url"]: entry["reason"] for entry in policy.get("anonymous_blocked", [])}
         )
+        blocked_prefixes.update(
+            {
+                entry["prefix"]: entry["reason"]
+                for entry in policy.get("anonymous_blocked_prefix", [])
+            }
+        )
     found = set()
     for text in reference_texts(root):
         for _, line in prose_lines(text):
             found.update(t for t in link_targets(line) if t.startswith(("http://", "https://")))
             found.update(
-                target.rstrip(".,;!?)")
+                target.rstrip(".,;:!?)")
                 for target in re.findall(r'https?://[^\s<>\]"\x60]+', _without_code_spans(line))
             )
         found.update(re.findall(r"(?:citation|source)=(https://[^\s>]+)", text))
@@ -105,6 +132,10 @@ def discovery(root: Path) -> tuple[list[str], list[dict[str, str]]]:
     for url in sorted(found):
         if url in blocked:
             excluded.append({"url": url, "status": "NOT-TESTED", "reason": blocked[url]})
+        elif prefix := next((p for p in blocked_prefixes if url.startswith(p)), None):
+            excluded.append(
+                {"url": url, "status": "NOT-TESTED", "reason": blocked_prefixes[prefix]}
+            )
         elif any(re.search(pattern, url) for pattern in exclusions):
             excluded.append(
                 {
@@ -247,12 +278,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"nonblocking reference report: {args.report}")
         return 0
     for exception in excluded:
-        if "Authenticated client UI" in exception["reason"]:
+        if exception["reason"].startswith(("Authenticated client UI", "Editor install deeplink")):
             print(f"NOT-TESTED: {exception['url']}: {exception['reason']}")
-    failed = [r for r in results if not r["ok"]]
+    untested = [r for r in results if r.get("not_tested")]
+    for result in untested:
+        print(f"NOT-TESTED: {result['url']}: {result['not_tested']}")
+    failed = [r for r in results if not r["ok"] and not r.get("not_tested")]
     for result in failed:
         print(f"broken external link: {result['url']} (status {result['status']})")
-    print(f"external links: {len(results)} checked, {len(failed)} failed")
+    print(
+        f"external links: {len(results) - len(untested)} checked, {len(failed)} failed, "
+        f"{len(untested)} not tested"
+    )
     if not external:
         print(
             f"offline: {len(targets) - len(results)} external links not requested; "

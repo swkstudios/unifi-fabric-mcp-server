@@ -13,13 +13,13 @@ uses: pure diff logic here, live I/O in ``scripts/check_spec_drift.py``.
 The unit of comparison is a :class:`SpecSnapshot`: the set of published services, each
 service's published *version* and its ``METHOD /path`` endpoint set (every endpoint
 carrying a resolved-schema *signature* so a same-path contract change is detectable), plus
-the versions those apps are actually running on the estate. A run diffs the freshly
+the versions those apps are actually running on the deployment. A run diffs the freshly
 fetched snapshot against the committed baseline and reports, per service:
 
 * **VERSION_DRIFT** — published version differs from the recorded baseline.
 * **CONSOLE_GAP** — the console runs a version other than the published contract (e.g.
-  Network publishes ``10.4.57`` while the estate runs a higher build such as ``10.5.x`` — the
-  estate is *ahead* of the documented contract).
+  Network publishes ``10.4.57`` while the deployment runs a higher build such as ``10.5.x`` — the
+  deployment is *ahead* of the documented contract).
 * **NEW endpoint** — a ``METHOD /path`` present now but absent from the baseline: a
   capability we could add. Elevated when it is a write method or lands on a service whose
   coverage we track (e.g. the day InnerSpace grows a write route).
@@ -93,7 +93,7 @@ SPEC_COVERAGE: dict[str, frozenset[str]] = {
 # service slug and the ``vX.Y.Z`` version, e.g.
 #   - [Network OpenAPI Spec](https://developer.ui.com/network/v10.4.57/openapi.json): ...
 _OPENAPI_LINK_RE = re.compile(
-    r"\]\((?P<url>https?://[^)]*?/(?P<service>[^/]+)/v(?P<version>[^/]+)/openapi\.json)\)"
+    r"\]\((?P<url>https://developer\.ui\.com/(?P<service>[^/]+)/v(?P<version>[^/]+)/openapi\.json)\)"
 )
 
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "options", "trace"})
@@ -1419,10 +1419,10 @@ def build_service_spec(name: str, version: str, spec_url: str, openapi_doc: obje
 
 @dataclass(frozen=True)
 class SpecSnapshot:
-    """A point-in-time view of every published service plus estate-running versions.
+    """A point-in-time view of every published service plus deployment-running versions.
 
     ``services`` maps service slug -> :class:`ServiceSpec`. ``console_versions`` maps
-    service slug -> the version that service is actually running on the estate (observed
+    service slug -> the version that service is actually running on the deployment (observed
     live; carried in the committed baseline). ``captured_at`` is informational provenance
     and never participates in the diff.
     """
@@ -1533,7 +1533,7 @@ class ServiceDiff:
     @property
     def console_gap(self) -> bool:
         # Published-vs-running divergence, only meaningful while the service is published.
-        # This is *informational*: on the EA channel the estate routinely runs ahead of the
+        # This is *informational*: on the EA channel the deployment routinely runs ahead of the
         # documented contract, so it is a standing condition the watcher cannot resolve and
         # must NOT treat as actionable drift (that would make the weekly monitor permanently
         # red — the failure mode the monitor is designed to avoid). It is always
@@ -2262,7 +2262,7 @@ class SpecDriftReport:
         gaps = self.console_gaps
         if not gaps:
             return []
-        lines = ["Console/contract version gaps (informational — estate vs. published):"]
+        lines = ["Console/contract version gaps (informational — deployment vs. published):"]
         for d in sorted(gaps, key=lambda x: x.name):
             lines.append(
                 f"  [{d.name}] published v{d.new_version}, console runs v{d.console_version}"
@@ -2329,7 +2329,7 @@ def diff_snapshot(
     """Diff a freshly fetched snapshot against the committed baseline.
 
     Console-version gaps are read from ``current.console_versions`` when present, else the
-    baseline's (the checker's public-spec live mode does not touch the estate, so the
+    baseline's (the checker's public-spec live mode does not touch the deployment, so the
     committed console observation is used unless a caller supplies a fresher one).
     """
     names = sorted(set(baseline.services) | set(current.services))
@@ -2373,9 +2373,9 @@ def build_snapshot(
     )
 
 
-#: Synthetic "estate runs ahead of the published contract" derivation for the committed
+#: Synthetic "deployment runs ahead of the published contract" derivation for the committed
 #: baseline. On the EA channel the console genuinely runs a higher build than the published
-#: spec, but the TRUE running build is a live estate observation that must never be
+#: spec, but the TRUE running build is a live deployment observation that must never be
 #: persisted into the committed baseline fixture — that file reaches the public repository,
 #: so a real, distinct console build sitting in it is an unintended disclosure. A
 #: committed console version is therefore only ever one of two safe values: the
@@ -2391,7 +2391,7 @@ _CONSOLE_AHEAD_PATCH = 99
 
 
 def synthetic_console_version(published_version: str) -> str:
-    """Derive a synthetic "estate is ahead" console build from a *published* spec version.
+    """Derive a synthetic "deployment is ahead" console build from a *published* spec version.
 
     Deterministic and public-input-only: for the usual ``major.minor.patch`` numeric dotted
     form, bump the minor by :data:`_CONSOLE_AHEAD_MINOR` and pin the patch to
@@ -2413,7 +2413,7 @@ def synthesize_console_versions(
     console_versions: Mapping[str, str],
     services: Mapping[str, ServiceSpec],
 ) -> dict[str, str]:
-    """Normalise console observations so no real, distinct estate build is ever persisted.
+    """Normalise console observations so no real, distinct deployment build is ever persisted.
 
     This is the single normalisation applied at the baseline **write boundary** (see
     ``scripts/check_spec_drift.py``), common to every path that persists a baseline. For
@@ -2421,7 +2421,7 @@ def synthesize_console_versions(
 
     * a value equal to that service's *published* version is kept verbatim — it discloses
       nothing beyond the public spec (no gap), and
-    * any DISTINCT value is a potential live estate observation and is replaced by the
+    * any DISTINCT value is a potential live deployment observation and is replaced by the
       deterministic :func:`synthetic_console_version` of the published version, regardless
       of the magnitude the incoming observation held.
 

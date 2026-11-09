@@ -17,7 +17,7 @@ ONLY for
 
 Everything else passes through: the upstream judges the value, and the server may append
 a hint to the upstream's error. Two additional categories cover the
-operator's own write switches (``operator-policy``: ``UNIFI_READ_ONLY`` and the per-area
+operator's own write switches (``operator-policy``: ``UNIFI_WRITE_POLICY=deny`` and the per-area
 write opt-outs) and explicit policy exceptions (``ruled-keep``): the empty-update
 guard, AP radio channel validation required by the L15-AP dispatch, the collectors' work
 and pacing bounds, and the camera-shortcut shape checks a caller opts into.
@@ -80,35 +80,34 @@ SPEC_REQUIRED_FIELDS: dict[str, tuple[str, frozenset[str], str]] = {
     "create_network": (
         "create_network",
         frozenset({"management"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/networks: required management "
+        "network-11.0.97 POST /v1/sites/{siteId}/networks: required management "
         "(the discriminator of the Network create schema)",
     ),
     "create_wifi_broadcast": (
         "create_wifi_broadcast",
         frozenset({"type"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/wifi/broadcasts: required type (discriminator)",
+        "network-11.0.97 POST /v1/sites/{siteId}/wifi/broadcasts: required type (discriminator)",
     ),
     "create_dns_policy": (
         "create_dns_policy",
         frozenset({"type"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/dns/policies: required type (discriminator)",
+        "network-11.0.97 POST /v1/sites/{siteId}/dns/policies: required type (discriminator)",
     ),
     "create_traffic_matching_list": (
         "create_traffic_matching_list",
         frozenset({"type"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/traffic-matching-lists: required type "
+        "network-11.0.97 POST /v1/sites/{siteId}/traffic-matching-lists: required type "
         "(discriminator)",
     ),
     "create_hotspot_vouchers": (
         "create_hotspot_vouchers",
         frozenset({"name", "timeLimitMinutes"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/hotspot/vouchers: required name, "
-        "timeLimitMinutes",
+        "network-11.0.97 POST /v1/sites/{siteId}/hotspot/vouchers: required name, timeLimitMinutes",
     ),
     "bulk_delete_hotspot_vouchers filter_params": (
         "bulk_delete_hotspot_vouchers",
         frozenset({"filter"}),
-        "network-10.6.106 DELETE /v1/sites/{siteId}/hotspot/vouchers: query filter required: true",
+        "network-11.0.97 DELETE /v1/sites/{siteId}/hotspot/vouchers: query filter required: true",
     ),
     "create_firewall_policy": (
         "create_firewall_policy",
@@ -116,18 +115,18 @@ SPEC_REQUIRED_FIELDS: dict[str, tuple[str, frozenset[str], str]] = {
             {"action", "destination", "enabled", "ipProtocolScope", "loggingEnabled", "name"}
             | {"source"}
         ),
-        "network-10.6.106 POST /v1/sites/{siteId}/firewall/policies: required action, "
+        "network-11.0.97 POST /v1/sites/{siteId}/firewall/policies: required action, "
         "destination, enabled, ipProtocolScope, loggingEnabled, name, source",
     ),
     "create_firewall_zone": (
         "create_firewall_zone_proxy",
         frozenset({"name", "networkIds"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/firewall/zones: required name, networkIds",
+        "network-11.0.97 POST /v1/sites/{siteId}/firewall/zones: required name, networkIds",
     ),
     "create_acl_rule": (
         "create_acl_rule",
         frozenset({"type"}),
-        "network-10.6.106 POST /v1/sites/{siteId}/acl-rules: required type (discriminator)",
+        "network-11.0.97 POST /v1/sites/{siteId}/acl-rules: required type (discriminator)",
     ),
 }
 
@@ -232,7 +231,7 @@ REFUSALS: tuple[Refusal, ...] = (
         (
             "discovery.py:SearchIndex.search",
             "discovery.py:apply_tool_mode.require_tool",
-            "discovery.py:apply_tool_mode.call_read_tool",
+            "discovery.py:apply_tool_mode.dispatch_read",
         ),
     ),
     Refusal(
@@ -336,7 +335,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "tools/statistics.py:_get_client_link_diagnostics",
             "tools/site_manager.py:validate_isp_sites",
             "tools/protect.py:_body_with_name",
-            "server.py:update_carrier_subscriber",
+            "tools/carrier_fabric.py:register.update_carrier_subscriber",
             "tools/clients.py:_resolve_client_filter",
             "tools/site_manager.py:list_devices",
             "tools/_keys.py:page_mode_scope",
@@ -426,7 +425,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "when the caller opts in with validate_schema=true (default off: the body passes "
         "through and the upstream judges it). Shapes: Protect UI 5.3.18 bundle "
         "f5afa0f4eccbb98bfb70.531.js linked-type enum and Shortcuts create/onSelect builders; "
-        "Protect 7.3.70 rejects a webhook without timeout",
+        "Protect 7.3.74 rejects a webhook without timeout",
         r"^camera shortcut (must be an object|is missing required fields: "
         r"|id must be a non-empty string)|^shortcut\.placement(\.[xy])? must be "
         r"|^shortcut\.shortcut(\.type)? must be "
@@ -475,7 +474,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "spec-required-body-keys",
         SPEC,
         "write_body.REQUIRED_BODY_KEYS: orderedAclRuleIds / orderedFirewallPolicyIds, "
-        "required by the full-replace ordering operations (network-10.6.106)",
+        "required by the full-replace ordering operations (network-11.0.97)",
         r"^Missing required field\(s\) .* the published request schema requires",
         ("write_body.py:EmptyUpdateMiddleware.on_call_tool",),
     ),
@@ -509,7 +508,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "tools/carrier_fabric.py:_validate_metadata",
             "tools/carrier_fabric.py:update_carrier_subscriber",
             "tools/carrier_fabric.py:list_carrier_subscribers",
-            "server.py:update_carrier_subscriber",
+            "tools/carrier_fabric.py:register.update_carrier_subscriber",
         ),
     ),
     Refusal(
@@ -530,7 +529,7 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "protect-request-fields",
         SPEC,
-        "protect-7.3.70: posTransactionRequest required [type, externalId, amount], type "
+        "protect-7.3.74: posTransactionRequest required [type, externalId, amount], type "
         "enum [sale, refund], externalId minLength 1, amount minimum 0; createArmProfile "
         "name minLength 1; RTSPS qualities minItems 1 (create body, delete query); "
         "{outputId} type integer; POST /v1/files/{fileType} accepted media types "
@@ -552,7 +551,7 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "client-action",
         SPEC,
-        "network-10.6.106 executeConnectedClientAction: the action discriminator "
+        "network-11.0.97 executeConnectedClientAction: the action discriminator "
         "[AUTHORIZE_GUEST_ACCESS, UNAUTHORIZE_GUEST_ACCESS]",
         r"^action\.action must be one of ",
         ("tools/clients.py:_check_client_action",),
@@ -658,9 +657,11 @@ REFUSALS: tuple[Refusal, ...] = (
         "body-not-object",
         JSON_VALIDITY,
         "a request body argument that is not a JSON object",
-        r"requires a JSON object with fields: |must be an object\.$|' must be a JSON object; got ",
+        r"requires a JSON object with fields: |must be an object\.$|' must be a JSON object; got "
+        r"|^create_firewall_rule requires a JSON object$",
         (
             "tools/_payload.py:require_fields",
+            "tools/network_services_proxy.py:create_firewall_rule",
             "tools/protect_automation_backup.py:_body",
             "tools/protect_recognition_search.py:_object",
         ),
@@ -771,7 +772,6 @@ REFUSALS: tuple[Refusal, ...] = (
             "tools/protect.py:_validate_collector_controls",
             "tools/protect.py:_validate_collector_limit",
         ),
-        frozenset({"collect_protect_events", "collect_protect_device_changes"}),
     ),
     Refusal(
         "n06-json-body",
@@ -787,9 +787,10 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "read-only",
         OPERATOR_POLICY,
-        "UNIFI_READ_ONLY (an operator switch, default off)",
-        r"UNIFI_READ_ONLY|read-only mode",
+        "UNIFI_WRITE_POLICY=deny (an operator switch, default off)",
+        r"UNIFI_WRITE_POLICY=deny|read-only mode|effective write policy for this request denies",
         (
+            "request_policy.py:RequestPolicyMiddleware.on_call_tool",
             "read_only_tools.py:ReadOnlyToolMiddleware.on_call_tool",
             "read_only.py:guard_request",
             "read_only.py:guard_action",
@@ -812,15 +813,16 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "area-write-opt-out",
         OPERATOR_POLICY,
-        "the per-area write opt-outs UNIFI_ENABLE_CONNECTOR_WRITE / "
-        "UNIFI_ENABLE_NETWORK_WRITE / UNIFI_ENABLE_CARRIER_FABRIC_WRITE / "
-        "UNIFI_ENABLE_MOBILITY_WRITE / UNIFI_ENABLE_INNERSPACE_WRITE / "
-        "UNIFI_PROTECT_MUTATIONS_ENABLED (operator "
+        "the per-area write opt-outs family:connector=deny / "
+        "family:network=deny / family:carrier=deny / "
+        "family:mobility=deny / family:innerspace=deny / "
+        "family:protect=deny (operator "
         "switches, default on)",
-        r"UNIFI_ENABLE_\w+_WRITE|UNIFI_PROTECT_MUTATIONS_ENABLED|opts this area out",
+        r"family:(?:connector|network|carrier|mobility|innerspace|protect)=deny|opts this area out",
         (
             "read_only_tools.py:AreaOptOutMiddleware.on_call_tool",
             "read_only.py:guard_area_write",
+            "read_only.py:guard_tool_write",
             "tools/connector.py:_check_area_opt_out",
             "tools/connector.py:connector_get",
             "tools/carrier_fabric.py:_require_writes",
@@ -831,6 +833,47 @@ REFUSALS: tuple[Refusal, ...] = (
             "tools/network_wifi_radio.py:start_spectrum_scan",
             "tools/network_wifi_radio.py:configure_wifi_wan",
             "tools/matter.py:_write_guard",
+        ),
+    ),
+    Refusal(
+        "tool-not-exposed",
+        OPERATOR_POLICY,
+        "the operator's UNIFI_FAMILY_ALLOW / UNIFI_EXCLUDE and a request's narrowing "
+        "headers: a call to a tool the effective policy does not expose is refused with "
+        "tool_not_exposed before dispatch",
+        r"is not exposed",
+        (
+            "read_only_tools.py:ExposureMiddleware.on_call_tool",
+            "request_policy.py:RequestPolicyMiddleware.on_call_tool",
+        ),
+    ),
+    Refusal(
+        "invalid-policy-header",
+        OPERATOR_POLICY,
+        "the X-UniFi-Write-Policy / X-UniFi-Family-Allow / X-UniFi-Exclude request headers: "
+        "a repeated, blank or malformed policy header is refused with invalid_policy_header "
+        "before dispatch",
+        r"(?i)x-unifi-(?:write-policy|family-allow|exclude)",
+        (
+            "request_policy.py:RequestPolicy.hook",
+            "request_policy.py:tighten",
+        ),
+    ),
+    Refusal(
+        "header-credential",
+        OPERATOR_POLICY,
+        "UNIFI_KEY_MODE (an operator setting): in header mode a call must carry a valid "
+        "X-UniFi-Api-Key header and no key_label; in environment mode the header is refused. "
+        "The pre-dispatch refusals invalid_api_key_header, missing_api_key_header, "
+        "key_label_not_allowed and credential_cache_saturated name no value",
+        r"X-UniFi-Api-Key|header mode|UNIFI_KEY_MODE|key_label is not accepted"
+        r"|credential slots are serving",
+        (
+            "header_credentials.py:HeaderCredentialMiddleware.on_call_tool",
+            "header_credentials.py:evaluate_call",
+            "header_credentials.py:parse_api_key_header",
+            "header_credentials.py:_reject_duplicates",
+            "header_credentials.py:CredentialCache.acquire",
         ),
     ),
     Refusal(
@@ -845,7 +888,8 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "empty-update",
         RULED_KEEP,
-        "an empty PATCH/PUT/create body (kept by the refusal policy)",
+        "an empty PATCH/PUT/create body, except a literal empty create body with "
+        "unpublished upstream-judged provenance (kept by the refusal policy)",
         r"^No fields provided",
         (
             "write_body.py:require_update_fields",

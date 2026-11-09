@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/swkstudios/unifi-fabric-mcp-server/tests/fixtures/contracts/catalog.schema.json",
+  "title": "C catalog contract fixture envelope, schema_version 1",
+  "description": "One catalog contract fixture (tests/fixtures/contracts/c/v1/<name>.json). input.tool_specs overlays the baseline catalog: each entry names its base tool and the ToolSpec fields that replace the baseline's. Overlay field values are typed here but not range-checked, so an invalid_spec fixture (an id off its pattern, a HandlerRef outside its family) stays envelope-valid; register_tool's catalog validation returns invalid_spec for them. A new field, inner key, reason or schema_version is a contract amendment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract",
+    "name",
+    "description",
+    "kind",
+    "input",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "kind": {
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
+    "contract": {
+      "const": "c"
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_specs"
+      ],
+      "properties": {
+        "tool_specs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "base"
+            ],
+            "properties": {
+              "base": {
+                "type": "string",
+                "minLength": 1
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "family": {
+                "type": "string"
+              },
+              "family_id": {
+                "type": "string"
+              },
+              "api_source_id": {
+                "type": "string"
+              },
+              "api_status": {
+                "type": "string"
+              },
+              "read_only": {
+                "type": "boolean"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": {
+                "type": "object"
+              },
+              "output_schema": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "version": {
+                "type": "string"
+              },
+              "fixtures": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "handler": {
+                "type": "string"
+              },
+              "annotations": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "readOnlyHint": {
+                    "type": "boolean"
+                  },
+                  "destructiveHint": {
+                    "type": "boolean"
+                  },
+                  "idempotentHint": {
+                    "type": "boolean"
+                  },
+                  "openWorldHint": {
+                    "type": "boolean"
+                  },
+                  "api_class": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "accept"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registered_names"
+          ],
+          "properties": {
+            "registered_names": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "reject"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "registered"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^startup:catalog:(invalid_spec|unclassified_source|annotation_mismatch|unbumped_version|missing_fixture|duplicate_key|duplicate_emitted_name|missing_handler|invalid_signature)$"
+            },
+            "registered": {
+              "const": 0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

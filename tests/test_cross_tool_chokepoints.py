@@ -42,7 +42,7 @@ bt. One validate-before-resolve: every tool that rejects an argument does so wit
 bu. One id validator: every id / MAC argument with a trailing newline is rejected naming
     the argument, with zero upstream requests.
 bv. One retry rule: a 429 on any write tool's write sends that write exactly once.
-bw. Dry-run always previews: under ``UNIFI_DRY_RUN`` a write whose change is already
+bw. Dry-run always previews: under ``dry-run policy`` a write whose change is already
     applied (its no-op path) still returns ``status: "dry_run"`` with the preview and sends
     nothing; an upload preview shows the multipart summary, never the content.
 bx. Relay fidelity: a 3xx carries its ``Location`` and safe headers; non-UTF-8 bytes under a
@@ -84,6 +84,7 @@ from unifi_fabric.selector_args import (
 )
 from unifi_fabric.tools._payload import INTEGRATION_UPDATE_KEEP, server_managed_fields
 from unifi_fabric.write_body import (
+    CREATE_ACTION_BODY_PROVENANCE,
     NO_FIELDS,
     REQUIRED_BODY_KEYS,
     body_argument,
@@ -148,25 +149,38 @@ _SPELLINGS = [
 
 
 def test_bo_bool_fields_are_the_known_switches():
-    assert set(_BOOL_FIELDS) >= {
-        "read_only",
-        "dry_run",
-        "redact_secrets",
-        "enable_connector_write",
-        "protect_mutations_enabled",
-        "enable_mobility_write",
-        "enable_network_write",
-        "enable_carrier_fabric_write",
-        "enable_innerspace_write",
-    }, _BOOL_FIELDS
+    assert set(_BOOL_FIELDS) == {"audit_calls", "redact_secrets"}, _BOOL_FIELDS
 
 
-def test_bo_every_runtime_switch_is_a_settings_field_with_the_same_default():
-    fields = {f"UNIFI_{n.upper()}": n for n in _BOOL_FIELDS}
-    assert {"UNIFI_READ_ONLY", "UNIFI_ENABLE_NETWORK_WRITE"} <= set(switches.RUNTIME_SWITCHES)
-    for env, default in switches.RUNTIME_SWITCHES.items():
-        assert env in fields, f"{env} is read at call time but is not a Settings field"
-        assert Settings.model_fields[fields[env]].default is default, env
+def test_bo_every_call_time_policy_setting_is_a_settings_field():
+    # The write policy is read at call time (policy.current) from the same four settings
+    # Settings validates at load, each defaulting to unset.
+    from unifi_fabric import policy
+
+    for env in policy.POLICY_SETTINGS:
+        field = env.removeprefix("UNIFI_").lower()
+        assert Settings.model_fields[field].default is None, env
+
+
+@pytest.mark.parametrize(
+    ("env", "value"),
+    [
+        ("UNIFI_WRITE_POLICY", "maybe"),
+        ("UNIFI_WRITE_EXCEPTIONS", "family:network=allow"),
+        ("UNIFI_FAMILY_ALLOW", "networkk"),
+        ("UNIFI_EXCLUDE", "netwrk"),
+    ],
+)
+def test_bo_a_malformed_policy_setting_fails_in_settings_and_at_runtime(monkeypatch, env, value):
+    from unifi_fabric import policy
+
+    monkeypatch.setenv(env, value)
+    with pytest.raises(Exception) as at_startup:
+        Settings(api_key="k-test")
+    assert env in str(at_startup.value)
+    assert f"startup:{env}" in str(at_startup.value)
+    # At call time a malformed value fails closed: every write is denied.
+    assert policy.current() is policy.FAIL_CLOSED
 
 
 @pytest.mark.parametrize("field", _BOOL_FIELDS)
@@ -216,11 +230,11 @@ def test_bo_no_boolean_switch_is_parsed_outside_switches():
 
 
 _AREA_SAMPLE = {
-    "UNIFI_ENABLE_NETWORK_WRITE": "create_network",
-    "UNIFI_PROTECT_MUTATIONS_ENABLED": "update_camera",
-    "UNIFI_ENABLE_MOBILITY_WRITE": "update_mobility_device_name",
-    "UNIFI_ENABLE_CARRIER_FABRIC_WRITE": "update_carrier_subscriber",
-    "UNIFI_ENABLE_INNERSPACE_WRITE": "create_innerspace_plan",
+    "family:network=deny": "create_network",
+    "family:protect=deny": "update_camera",
+    "family:mobility=deny": "update_mobility_device_name",
+    "family:carrier=deny": "update_carrier_subscriber",
+    "family:innerspace=deny": "create_innerspace_plan",
 }
 
 
@@ -229,27 +243,27 @@ def test_bo_area_sample_covers_every_area_switch():
 
 
 @pytest.mark.parametrize("env", sorted(_AREA_SAMPLE))
-@pytest.mark.parametrize(
-    "spelling", [v for w in switches.FALSE_VALUES for v in (w, w.upper(), f" {w} ")]
-)
-async def test_bo_every_false_spelling_opts_an_area_out(monkeypatch, env, spelling):
-    up = uh.FakeUpstream()
-    with pytest.raises(ToolError) as exc:
-        await _call(monkeypatch, _AREA_SAMPLE[env], up, env={env: spelling})
-    assert env in str(exc.value), str(exc.value)
-    assert up.served == [], up.served
-
-
-@pytest.mark.parametrize(
-    "spelling", [v for w in switches.TRUE_VALUES for v in (w, w.upper(), f" {w} ")]
-)
-async def test_bo_every_true_spelling_turns_read_only_on(monkeypatch, spelling):
+@pytest.mark.parametrize("extra", ["", "tool:fabric_connector_post=dry-run;"])
+async def test_bo_every_area_deny_exception_opts_an_area_out(monkeypatch, env, extra):
     up = uh.FakeUpstream()
     with pytest.raises(ToolError) as exc:
         await _call(
-            monkeypatch, "update_mobility_device_name", up, env={"UNIFI_READ_ONLY": spelling}
+            monkeypatch, _AREA_SAMPLE[env], up, env={"UNIFI_WRITE_EXCEPTIONS": f"{extra}{env}"}
         )
-    assert "UNIFI_READ_ONLY" in str(exc.value)
+    assert env in str(exc.value), str(exc.value)
+    assert "write_denied" in str(exc.value)
+    assert up.served == [], up.served
+
+
+@pytest.mark.parametrize("value", ["deny", " deny ", "\tdeny"])
+async def test_bo_write_policy_deny_refuses_writes(monkeypatch, value):
+    up = uh.FakeUpstream()
+    with pytest.raises(ToolError) as exc:
+        await _call(
+            monkeypatch, "update_mobility_device_name", up, env={"UNIFI_WRITE_POLICY": value}
+        )
+    assert "UNIFI_WRITE_POLICY" in str(exc.value)
+    assert "write_denied" in str(exc.value)
     assert up.served == []
 
 
@@ -366,6 +380,16 @@ async def test_bq_update_with_no_field_raises_before_any_request(monkeypatch, na
     if arg is not None:
         args[arg] = copy.deepcopy(_EMPTY_BODIES[kind])
     up = uh.FakeUpstream()
+    provenance = CREATE_ACTION_BODY_PROVENANCE.get(name, {})
+    if (
+        kind == "empty"
+        and provenance.get("argument") == _lz_GUARDED_BODY_TOOLS()[name]
+        and provenance.get("schema") == "unpublished"
+        and provenance.get("empty_body_disposition") == "upstream_judged"
+    ):
+        await _call(monkeypatch, name, up, args)
+        assert len(up.writes()) == 1
+        return
     with pytest.raises(ToolError) as exc:
         await _call(monkeypatch, name, up, args)
     assert NO_FIELDS in str(exc.value), f"{name} ({kind}): {exc.value}"
@@ -508,6 +532,16 @@ async def test_bq_full_replace_or_create_with_no_field_raises_before_any_request
     args = _required_only_args(name)
     args[_lz_GUARDED_BODY_TOOLS()[name]] = copy.deepcopy(_EMPTY_BODIES[kind])
     up = uh.FakeUpstream()
+    provenance = CREATE_ACTION_BODY_PROVENANCE.get(name, {})
+    if (
+        kind == "empty"
+        and provenance.get("argument") == _lz_GUARDED_BODY_TOOLS()[name]
+        and provenance.get("schema") == "unpublished"
+        and provenance.get("empty_body_disposition") == "upstream_judged"
+    ):
+        await _call(monkeypatch, name, up, args)
+        assert len(up.writes()) == 1
+        return
     with pytest.raises(ToolError) as exc:
         await _call(monkeypatch, name, up, args)
     assert NO_FIELDS in str(exc.value), f"{name} ({kind}): {exc.value}"
@@ -531,7 +565,7 @@ async def test_bq_full_replace_missing_spec_required_key_raises(monkeypatch, nam
 def test_bq_required_body_keys_match_the_published_spec():
     """REQUIRED_BODY_KEYS is the vendored spec's ``required`` list of each operation."""
     spec = json.loads(
-        (pathlib.Path(__file__).parent / "fixtures/openapi/network-10.6.106.json").read_text()
+        (pathlib.Path(__file__).parent / "fixtures/openapi/network-11.0.97.json").read_text()
     )
     paths = {
         "set_acl_rule_ordering": "/v1/sites/{siteId}/acl-rules/ordering",
@@ -708,7 +742,7 @@ async def _applied_then_repeat(
     up = _ReflectingUpstream(replay_recordings=False)
     for k, v in tool_args.TOOL_ENV.get(name, {}).items():
         monkeypatch.setenv(k, v)
-    client = uh.install(monkeypatch, up)
+    uh.install(monkeypatch, up)
     args = _with_probe_flag(
         name, {**cti.sc.conformance_args(name), **cti._SENT_OPTIONALS.get(name, {})}
     )
@@ -718,7 +752,7 @@ async def _applied_then_repeat(
     if flip:
         flipped = _flip_types(up.overlay)
     if dry_run:
-        client._dry_run = True
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     before = len(up.writes())
     second = uh.result_payload(await server.mcp.call_tool(name, args))
     return first, first_writes, second, len(up.writes()) - before, flipped
@@ -902,7 +936,9 @@ async def test_bw_upload_preview_shows_the_multipart_summary(monkeypatch):
         "file_content_base64": base64.b64encode(raw).decode(),
     }
     up = uh.FakeUpstream()
-    res = await _call(monkeypatch, "upload_protect_file", up, args, env={"UNIFI_DRY_RUN": "1"})
+    res = await _call(
+        monkeypatch, "upload_protect_file", up, args, env={"UNIFI_WRITE_POLICY": "dry-run"}
+    )
     payload = uh.result_payload(res)
     assert payload["status"] == "dry_run" and up.writes() == []
     parts = payload["response"]["preview"]["multipart"]
@@ -1225,7 +1261,7 @@ async def test_bt_opt_out_refusal_comes_before_argument_errors(monkeypatch, name
         mp = pytest.MonkeyPatch()
         try:
             if valid_read:
-                await _call(mp, name, up, args, env={env_var: "0"})
+                await _call(mp, name, up, args, env=tool_args.optout_env(env_var))
                 assert up.writes() == []
                 assert any(
                     request.method == "GET" and request.path.endswith(f"/proxy/{value}")
@@ -1233,7 +1269,7 @@ async def test_bt_opt_out_refusal_comes_before_argument_errors(monkeypatch, name
                 ), f"{name}: read route {value!r} was not relayed under opt-out"
             else:
                 with pytest.raises(ToolError) as exc:
-                    await _call(mp, name, up, args, env={env_var: "0"})
+                    await _call(mp, name, up, args, env=tool_args.optout_env(env_var))
                 message = str(exc.value)
                 assert up.served == []
                 # Schema validation precedes the tool and cannot name its opt-out.
@@ -1580,7 +1616,7 @@ async def test_bx_relay_stat_post_outside_network_is_a_write(monkeypatch, tmp_pa
     audit = tmp_path / "audit.log"
     up = uh.FakeUpstream()
     args = {"host": uh.HOST, "site": uh.SITE, "path": path, "body": {"probe": "relay"}}
-    env = {"UNIFI_DRY_RUN": "1", "UNIFI_AUDIT_LOG": str(audit)}
+    env = {"UNIFI_WRITE_POLICY": "dry-run", "UNIFI_AUDIT_LOG": str(audit)}
     payload = uh.result_payload(
         await _call(monkeypatch, "fabric_connector_post", up, args, env=env)
     )

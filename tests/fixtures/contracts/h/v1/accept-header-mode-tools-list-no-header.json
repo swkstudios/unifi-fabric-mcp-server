@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-header-mode-tools-list-no-header",
+  "description": "Header-mode tools/list needs no key header and lists the discovery catalog",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "listed_tools": [
+      "call_read_tool",
+      "call_write_tool",
+      "describe_tool",
+      "list_tool_families",
+      "search_tools"
+    ],
+    "upstream_calls": 0
+  }
+}

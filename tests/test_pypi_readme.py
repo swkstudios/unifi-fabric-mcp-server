@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,4 +45,9 @@ def test_the_readme_has_no_relative_target_after_the_rewrite():
     assert pypi_readme.relative_targets(readme), "README has no relative link to rewrite"
     out = pypi_readme.absolutize(readme, pypi_readme.repository_url())
     assert pypi_readme.relative_targets(out) == []
-    assert out.startswith("![UniFi Fabric MCP Server](https://raw.githubusercontent.com/")
+    assert out.startswith("<!-- mcp-name: io.github.swkstudios/unifi-fabric-mcp-server -->")
+    # The rewrite covers Markdown targets only, so every HTML src/href must already be
+    # absolute or an in-page anchor.
+    html = re.findall(r'\b(?:src|href)="([^"]*)"', out)
+    assert html, "README has no HTML link or image"
+    assert [t for t in html if pypi_readme.is_relative(t)] == []

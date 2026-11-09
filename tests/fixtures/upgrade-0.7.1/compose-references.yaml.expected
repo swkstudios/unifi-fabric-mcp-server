@@ -1,0 +1,30 @@
+# A half-done migration: 0.7.1 settings whose values come from the environment sit next
+# to 0.7.0 settings. The migrator cannot read the 0.7.1 values, so it must not merge
+# into them or replace them.
+services:
+  unifi-fabric-mcp:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    environment:
+      UNIFI_API_KEY: ${UNIFI_API_KEY}
+      UNIFI_WRITE_EXCEPTIONS: ${EXC:-family:protect=deny}
+      UNIFI_EXCLUDE: ${EXCL:-source:protect/write}
+      # MANUAL: UNIFI_ENABLE_NETWORK_WRITE cannot be merged: UNIFI_WRITE_EXCEPTIONS has a value this script cannot read; see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+      UNIFI_ENABLE_NETWORK_WRITE: "false"
+      # MANUAL: UNIFI_DISABLED_TOOL_FAMILIES cannot be merged: UNIFI_EXCLUDE has a value this script cannot read; see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+      UNIFI_DISABLED_TOOL_FAMILIES: vpn
+
+  unifi-fabric-mcp-dry-run:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    environment:
+      - UNIFI_API_KEY=${UNIFI_API_KEY}
+      - UNIFI_WRITE_POLICY=${P:-deny}
+      # MANUAL: UNIFI_DRY_RUN cannot be merged: UNIFI_WRITE_POLICY has a value this script cannot read; see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+      - UNIFI_DRY_RUN=true
+
+  unifi-fabric-mcp-protect:
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    environment:
+      - UNIFI_API_KEY=${UNIFI_API_KEY}
+      - UNIFI_FAMILY_ALLOW
+      # MANUAL: UNIFI_TOOL_FAMILIES cannot be merged: UNIFI_FAMILY_ALLOW has a value this script cannot read; see https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md
+      - UNIFI_TOOL_FAMILIES=protect

@@ -94,7 +94,7 @@ def protect_client():
 async def test_relay_protect_mutation_refused_under_protect_opt_out(
     monkeypatch, relay_client, registry, method, path
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match=PROTECT_MUTATIONS_ENV):
         await connector.connector_write(
             relay_client, registry, "h", method, path, body={}, write_enabled=True
@@ -106,7 +106,7 @@ async def test_relay_protect_mutation_refused_under_protect_opt_out(
 async def test_relay_protect_get_still_runs_under_protect_opt_out(
     monkeypatch, relay_client, registry
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     res = await connector.connector_get(
         relay_client, registry, "h", "protect/integration/v1/sirens"
     )
@@ -116,7 +116,7 @@ async def test_relay_protect_get_still_runs_under_protect_opt_out(
 async def test_relay_network_mutation_unaffected_by_protect_opt_out(
     monkeypatch, relay_client, registry
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     res = await connector.connector_write(
         relay_client,
         registry,
@@ -130,6 +130,7 @@ async def test_relay_network_mutation_unaffected_by_protect_opt_out(
 
 
 async def test_relay_protect_mutation_runs_by_default(monkeypatch, relay_client, registry):
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
     monkeypatch.delenv(PROTECT_MUTATIONS_ENV, raising=False)
     res = await connector.connector_write(
         relay_client, registry, "h", "POST", "protect/integration/v1/sirens/abc/play", body={}
@@ -148,22 +149,22 @@ async def test_relay_protect_mutation_runs_by_default(monkeypatch, relay_client,
 def test_area_opt_out_check_covers_every_area(monkeypatch, env_var, route_class):
     # Mobility and Carrier have no relay route class today; any added under their prefix
     # is gated by the same table.
-    monkeypatch.setenv(env_var, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", env_var)
     with pytest.raises(ValueError, match=env_var):
         connector._check_area_opt_out("POST", route_class)
     connector._check_area_opt_out("POST", "network-classic")  # never another area's
-    monkeypatch.setenv(env_var, "1")
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS")
     connector._check_area_opt_out("POST", route_class)
 
 
 def test_area_opt_out_table_lists_every_area_flag():
     envs = {env for _p, env, _e, _r in connector._AREA_OPT_OUTS}
     assert envs == {
-        "UNIFI_ENABLE_NETWORK_WRITE",
+        "family:network=deny",
         PROTECT_MUTATIONS_ENV,
         mobility.WRITE_ENABLED_ENV,
         carrier_fabric.WRITE_ENABLED_ENV,
-        "UNIFI_ENABLE_INNERSPACE_WRITE",
+        "family:innerspace=deny",
     }
 
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-env-mode-tools-call-with-malformed-header",
+  "description": "Environment mode refuses a tools/call carrying X-UniFi-Api-Key on presence alone, even when malformed",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "environment",
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "not-json"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_api_key_header",
+    "upstream_calls": 0
+  }
+}

@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
 
+# Rendered by scripts/gen_workflow_headers.py from .github/workflow-headers.toml.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -29,7 +30,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Build local artifacts and install only smoke tooling
         run: |
           python -m venv "$RUNNER_TEMP/install-tooling"
@@ -82,7 +83,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Build local artifacts and install only smoke tooling
         run: |
           python -m venv "$RUNNER_TEMP/install-tooling"
@@ -130,7 +131,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Build local wheel and source archive
         shell: bash
         run: |

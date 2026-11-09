@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-header-mode-initialize-no-header",
+  "description": "Header-mode initialize needs no key header and makes no upstream call",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "route": "initialize"
+  },
+  "expected": {
+    "upstream_calls": 0
+  }
+}

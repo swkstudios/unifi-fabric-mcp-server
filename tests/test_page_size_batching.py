@@ -695,7 +695,9 @@ async def test_mobility_pagination_preserves_colliding_upstream_metadata(name, r
             assert result["_wrapperFields_2"] == {"_count": 3}
             assert context_value(result, "_count", strict=True) == 3
         else:
-            assert result["_wrapperFields_2"] == {
+            assert result["_wrapperFields_2"] == {"_count": 3}
+            assert context_value(result, "_count", strict=True) == 3
+            assert result["_wrapperFields_3"] == {
                 "_pageSize": {"requested": 3, "sent": [3, 1], "effective": 2, "returned": 3}
             }
             assert context_value(result, "_pageSize", strict=True) == {

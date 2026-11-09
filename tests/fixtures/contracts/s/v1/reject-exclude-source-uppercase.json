@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-exclude-source-uppercase",
+  "description": "Source selectors match case-sensitively.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "source:Network"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_EXCLUDE",
+    "upstream_calls": 0
+  }
+}

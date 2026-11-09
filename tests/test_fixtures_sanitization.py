@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -88,7 +89,7 @@ def test_real_looking_identifiers_are_flagged(line):
         '"ispAsn": "64511",',
         '"asn": 65551,',
         '"asn": 4200000000,',
-        '"asn": 0,',
+        '"asn": ' + str(0) + ",",
         '"iccid": "000000000000000002",',  # zero-padded fake (does not start 89)
         '"imeisv": "0000000000000003",',  # zero-padded 16-digit fake
         '"featuredGroupOrder": 9007199254740991,',  # 2**53 - 1 sentinel
@@ -131,6 +132,11 @@ def test_committed_fixtures_are_clean():
 _REAL_MAC = "24:5a:4c:" + "12:34:56"
 _REAL_HEX24 = "6a" + "1b2c3d4e5f60718293a4b5"
 _REAL_CONSOLE = "A1B2C3D4E5F6" * 5 + ":1234567890"
+# A cloud-access device_id is <uuid>:<number>; the number alone identifies the device, so
+# a fake UUID with a real-shaped number is a leak (built at runtime, no estate value).
+_FAKE_UUID = "00000000-0000-4000-a000-000000fa00f4"
+_REAL_DEVICE_NUMBER = str(7 * 10**8 + 1234567)
+_REAL_DEVICE_ID = f"{_FAKE_UUID}:{_REAL_DEVICE_NUMBER}"
 
 
 @pytest.mark.parametrize(
@@ -145,13 +151,18 @@ _REAL_CONSOLE = "A1B2C3D4E5F6" * 5 + ":1234567890"
         f'"owner": "{_REAL_HEX24}",',
         '"id": "3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f",',
         f'"hostId": "{_REAL_CONSOLE}",',
+        f'"hostId": "{"0" * 54}FA0001:{_REAL_DEVICE_NUMBER}",',
+        f'"hostId": "{_REAL_CONSOLE.lower()}",',
+        f'"device_id": "{_REAL_DEVICE_ID}",',
+        f'"device_id": "{_REAL_DEVICE_ID.upper()}",',
+        f'"url": "/connect/{_REAL_DEVICE_ID}/status",',
         '"email": "someone@mail.example-isp.net",',
         '"owner": "Jane Doe <jane@example.org>",',
         '"latitude": 51.507351,',
         '"long": -0.127758,',
         '"lat": "48.8566",',
-        '"ip": "10.10.1.183",',
-        '"wan_ip": "192.168.12.40",',
+        '"ip": "10.99.7.183",',
+        '"wan_ip": "192.168.251.40",',
         '"gw": "172.20.0.1",',
         '"cgnat": "100.72.3.4",',
         '"name": "Garage Camera",',
@@ -176,6 +187,9 @@ def test_recorded_real_identifiers_are_flagged(line):
         '"owner": "000000000000000000fa01c5",',  # an ObjectId fake, not free text
         '"id": "00000000-0000-4000-8000-000000000004",',
         '"hostId": "000000000000000000000000000000000000000000000000000000FA0001:0000000001",',
+        f'"device_id": "{_FAKE_UUID}:000000001",',
+        f'"device_id": "{_FAKE_UUID}:7",',
+        '"time": "12:30:45",',  # a clock time is not a UUID:number id
         '"latitude": 12.345678,',
         '"longitude": -98.765432,',
         '"lat": 0,',
@@ -202,13 +216,26 @@ def test_main_flags_a_planted_recorded_capture(tmp_path, monkeypatch, capsys):
     rec = tmp_path / "tests" / "fixtures" / "recorded" / "site_manager"
     rec.mkdir(parents=True)
     (rec / "v1_devices.json").write_text(
-        f'{{\n  "mac": "{_REAL_MAC}",\n  "name": "Garage Camera",\n  "ip": "10.10.1.183"\n}}\n'
+        f'{{\n  "mac": "{_REAL_MAC}",\n  "name": "Garage Camera",\n  "ip": "10.99.7.183"\n}}\n'
     )
     monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
     assert gate.main() == 1
     out = capsys.readouterr().out
     assert "MAC address outside" in out and "free-text" in out and "private IPv4" in out
     assert _REAL_MAC not in out and "Garage Camera" not in out  # values never echoed
+
+
+def test_main_flags_a_planted_uuid_number_device_id(tmp_path, monkeypatch, capsys):
+    rec = tmp_path / "tests" / "fixtures" / "recorded" / "network_classic"
+    rec.mkdir(parents=True)
+    (rec / "network_api_s_SITE_rest_setting.json").write_text(
+        json.dumps({"data": [{"key": "super_cloudaccess", "device_id": _REAL_DEVICE_ID}]}, indent=1)
+    )
+    monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+    assert gate.main() == 1
+    out = capsys.readouterr().out
+    assert "UUID:number device id" in out
+    assert _REAL_DEVICE_NUMBER not in out  # values never echoed
 
 
 def test_recorded_checks_apply_only_to_recorded_captures(tmp_path, monkeypatch):
@@ -466,7 +493,7 @@ def test_json_digit_only_hardware_identifiers(key, number, recorded, tmp_path, m
 
 
 @pytest.mark.parametrize("key", ["asn", "ASN", "ispAsn", "isp_asn", "peerASN", "peer-asn"])
-@pytest.mark.parametrize("value", [15169, "13335", "AS15169"])
+@pytest.mark.parametrize("value", [15169, "13335", "AS" + str(15169)])
 def test_multiline_json_asn(key, value, tmp_path, monkeypatch):
     import json
 
@@ -1046,3 +1073,281 @@ def test_voucher_codes_ship_only_as_all_zero_placeholders():
     # "code" elsewhere (error codes, country codes) is not a voucher.
     assert gate.voucher_code_hits("tests/fixtures/recorded/errors/x__400.json", real) == []
     assert any("voucher code" in finding for finding in gate.scan_text(rel, json.dumps(real)))
+
+
+# ------------------------------------------------- free text in recorded captures
+_REC = "tests/fixtures/recorded/network/example.json"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"message": "Device kitchen-ap.home.lan disconnected"},
+        {"status": "uplink via core-sw.corp.acme.com"},
+        {"note": "seen at fw1.internal"},
+        {"host": "nas.acme.ch"},
+        {"message": "reach acme.co.nz"},
+        {"message": "host acme.club"},
+        {"message": "host my_host.lan"},
+        {"messageRaw": "Case created by 'Jane Smith'"},
+        {"message": "Device “Living Room AP” restarted"},
+        {"nested": [{"statusMessage": 'adopted "Garage Cam"'}]},
+        {"message": "renamed to 'kitchen-ap'"},
+        {"message": "user 'jsmith' signed in"},
+        {"message": "user 'jane.smith' signed in"},
+        {"message": "site 'acme-hq' added"},
+        {"message": "Jane's AP restarted"},
+        {"message": "Acme-HQ’s switch is offline"},
+        {"message": "reach api.acme.com"},
+        {"message": "reach nas.management.lan"},
+        {"acme.management": True},
+        {"message": "reach nas.acme.md"},
+        {"message": "reach x.acme.sh"},
+        {"message": "reach myNas.lt"},
+        {"message": "renamed to 'Garage-2'"},
+        {"message": 'renamed to "O\'Brien AP"'},
+        {"message": "renamed to 'Jane's Cam'"},
+        {"message": "Jane Smith's AP restarted"},
+        {"message": "Living Room's AP restarted"},
+        {"message": "Jane name-0001's AP restarted"},
+        {"acme-nas.local": 1},
+    ],
+)
+def test_recorded_free_text_identifiers_are_flagged(value):
+    findings = gate.scan_text(_REC, json.dumps(value))
+    assert findings, value
+    assert all("acme" not in f and "Smith" not in f and "Garage" not in f for f in findings)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"message": "must have required property 'camera'"},
+        {"messageRaw": "{userLink} closed the case"},
+        {"messageRaw": "Case created by {userLink}"},
+        {"message": "Device 'name-0003' restarted"},
+        {"message": "can't reach host; didn't respond"},
+        {"message": "It's offline and that's expected"},
+        {"message": "Device name-0001's uplink and Today's report"},
+        {"fw_version": "UVC.SAV539g.v5"},
+        {"code": "api.err.MatterNodeNotFound"},
+        {"code": "api.request.invalid-filter"},
+        {"url": "host3.example.invalid"},
+        {"inform_url": "example.com"},
+        {"path": "hourly.site"},
+        {"path": "2DPreview.svg"},
+        {"filter": "deviceMac.eq"},
+        {"network.management": True, "system.management.location": True, "cpu.id": 1},
+        {"host": "unifi.ui.com"},
+        {"text": '<meta charset="utf-8" lang="en">'},
+    ],
+)
+def test_recorded_free_text_fakes_and_codes_pass(value):
+    assert gate.scan_text(_REC, json.dumps(value)) == []
+
+
+def test_free_text_rules_apply_only_to_recorded_captures():
+    value = {"message": "Device kitchen-ap.home.lan said 'Jane Smith'"}
+    assert gate.scan_text("docs/evidence/example.json", json.dumps(value)) == []
+
+
+@pytest.mark.parametrize("value", ["synthetic-key-a", "synthetic-key-z"])
+def test_the_contract_fixture_synthetic_key_convention_passes(value):
+    assert gate.credential_hits(json.dumps({"input": {"env": {"UNIFI_API_KEY": value}}})) == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "synthetic-key-ab",
+        "synthetic-key-",
+        "synthetic-key-a1",
+        "Xsynthetic-key-a",
+        "prod-key-abcdef",
+    ],
+)
+def test_other_credential_material_is_still_flagged(value):
+    assert gate.credential_hits(json.dumps({"UNIFI_API_KEY": value}))
+
+
+def test_serialize_is_not_a_serial_number_key_but_serial_fields_still_are():
+    assert gate.serial_hits({"ast-serialize": "0.13.1", "serialization": "x"}) == []
+    assert gate.serial_hits({"serialNumber": "00005E005301"})
+    assert gate.serial_hits({"serial": "00005E005301"})
+    assert gate.serial_hits({"sn": "00005E005301"})
+    assert gate.serial_hits({"serialIssuer": "00005E005301"})
+    assert gate.serial_hits({"serial_isolation": "00005E005301"})
+    assert gate.serial_hits({"deviceSerial": "00005E005301"})
+    assert gate.serial_hits({"ast-serialise": "0.13.1"}) == []
+
+
+class _CountingSpans(list):
+    """``taken`` spans that count how many span visits a caller makes."""
+
+    visits = 0
+
+    def __iter__(self):
+        for span in super().__iter__():
+            self.visits += 1
+            yield span
+
+
+def _colon_runs_line(count):
+    # One long single-line record: vendor MACs (bounded matches, so ``taken`` spans)
+    # interleaved with JSON key colons and MACs embedded in longer colon runs.
+    parts = []
+    for i in range(count):
+        parts.append(f'"m{i}": "{_VENDOR_MAC}"')
+        parts.append(f'"e{i}": "{_VENDOR_MAC}:{i % 9 + 1}"')
+    return "{" + ", ".join(parts) + "}"
+
+
+def test_colon_run_overlap_check_is_linear_on_a_long_line():
+    """A long single-line capture is scanned in one pass over the bounded-MAC spans,
+    not one pass per colon run (quadratic: a multi-MB recorded fixture stalled the gate)."""
+    line = _colon_runs_line(400)
+    taken = _CountingSpans(m.span() for m in gate.MAC_ANY_RE.finditer(line))
+    assert len(taken) == 400
+    assert gate.embedded_colon_macs(line, gate.mac_is_documentation, taken) == 400
+    assert taken.visits <= len(taken), taken.visits
+
+
+def test_colon_run_overlap_check_matches_the_pairwise_rule():
+    """The sweep skips exactly the colon runs that overlap a ``taken`` span."""
+    line = _colon_runs_line(25)
+    taken = [m.span() for m in gate.MAC_ANY_RE.finditer(line)]
+    expected = 0
+    for match in gate.COLON_RUN_RE.finditer(line):
+        if any(s < match.end() and match.start() < e for s, e in taken):
+            continue
+        groups = match.group(0).split(":")
+        if any(
+            all(len(g) == 2 for g in groups[i : i + 6])
+            and not gate.mac_is_documentation("".join(groups[i : i + 6]))
+            for i in range(len(groups) - 5)
+        ) and not gate._ipv6_literal(match.group(0)):
+            expected += 1
+    assert expected == 25
+    for spans in (taken, list(reversed(taken)), taken[::2]):
+        pairwise = sum(
+            1
+            for match in gate.COLON_RUN_RE.finditer(line)
+            if not any(s < match.end() and match.start() < e for s, e in spans)
+            and gate.embedded_colon_macs(match.group(0), gate.mac_is_documentation, [])
+        )
+        assert gate.embedded_colon_macs(line, gate.mac_is_documentation, spans) == pairwise
+
+
+# ------------------------------------------------------------ live-plausible ObjectIds
+# Built at runtime from a timestamp and an arbitrary tail, so no live-shaped literal ships.
+def _object_id(year: int, tail: str = "5a3c91e7d24b08f6") -> str:
+    import datetime
+
+    seconds = int(datetime.datetime(year, 10, 28, tzinfo=datetime.UTC).timestamp())
+    return f"{seconds:08x}{tail}"
+
+
+@pytest.mark.parametrize("year", [2016, 2024, 2026, 2039])
+def test_live_plausible_object_id_is_flagged_in_any_context(year: int) -> None:
+    value = _object_id(year)
+    for line in (
+        f'LIVE_BACKUP_ID = "{value}"',
+        f'    {{"type": "manual", "id": {value!r}}},',
+        f"Case id from list_protect_cases; for example {value}.",
+        f"/backup/{value}",
+        f'"siteId": "{value.upper()}"',
+    ):
+        hits = gate.live_object_id_hits(line)
+        assert hits == ["ObjectId with a live-plausible timestamp that is not a synthetic id"]
+        assert value not in hits[0] and value.upper() not in hits[0]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "000000000000000000000b01",  # the recorder's zero-padded fake (1970)
+        "000000000000000000000e01",
+        _object_id(2014),  # before UniFi Network/Protect could have minted it
+        "f" * 24,  # far-future timestamp
+        _object_id(2026, "0" * 12 + "aa01"),  # a ten-zero run after the timestamp
+        _object_id(2026, "ee0000000000ffff"),
+        # Listed hand-made families keep working.
+        gate.SYNTHETIC_OBJECT_ID_PREFIXES[0] + "b",
+        "66d025b301ebc903e80003ea",
+    ],
+)
+def test_synthetic_object_ids_pass(value: str) -> None:
+    assert len(value) == 24
+    assert gate.live_object_id_hits(f'"id": "{value}"') == []
+
+
+def test_longer_hex_runs_are_not_object_ids() -> None:
+    value = _object_id(2026)
+    # A hash, a longer hex run or an id glued to a word is not a standalone ObjectId.
+    for line in (f"sha256:{value}{value}", f"{value}0", f"x{value}", f"{value}g"):
+        assert gate.live_object_id_hits(line) == [], line
+    # Punctuation is a boundary: an id in a URL path or an identifier suffix still counts.
+    for line in (f"/backups/{value}", f"{value}_suffix", f"({value})"):
+        assert len(gate.live_object_id_hits(line)) == 1, line
+
+
+def test_live_object_id_scope_covers_published_paths(tmp_path: Path) -> None:
+    value = _object_id(2026)
+    published = [
+        "tests/test_module.py",
+        "tests/fixtures/upgrade-0.7.1/unifi.env",
+        "tests/fixtures/upgrade-0.7.1/result.stdout",
+        "skills/example/SKILL.md",
+        "tools/migrate-0.7.1-env.py",
+        "plugins/example/.claude-plugin/plugin.json",
+        "plugins/codex/.mcp.json",
+        "changelog.d/example.md",
+        ".hidden/config",
+    ]
+    for rel in [
+        *published,
+        gate.OBJECT_ID_PRIVATE_DIRS[-1] + "private.py",
+        "tests/fixtures/binary.dat",
+    ]:
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\xff\x00" if rel.endswith(".dat") else value.encode())
+    scanned = {
+        p.relative_to(tmp_path).as_posix() for p in gate.iter_object_id_target_files(tmp_path)
+    }
+    assert scanned == set(published)
+    findings = gate.scan_object_ids(published[0], value)
+    label = "ObjectId with a live-plausible timestamp that is not a synthetic id"
+    assert findings == [f"{published[0]}:1: {label}"]
+
+
+def test_object_id_scope_includes_all_tracked_publishable_text() -> None:
+    root = gate.REPO_ROOT
+    tracked = subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"])  # noqa: S603, S607
+    scanned = set(gate.iter_object_id_target_files(root))
+    for name in tracked.decode().split("\0"):
+        if not name or name.startswith(gate.OBJECT_ID_PRIVATE_DIRS):
+            continue
+        path = root / name
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if b"\0" in data:
+            continue
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        assert path in scanned, name
+
+
+def test_public_tree_carries_no_live_plausible_object_id() -> None:
+    """Every published text file holds only synthetic ObjectIds (real Protect backup ids once
+    sat in a test module and real event and case ids in tool descriptions)."""
+    findings = []
+    for path in gate.iter_object_id_target_files():
+        rel = path.relative_to(gate.REPO_ROOT).as_posix()
+        findings.extend(
+            gate.scan_object_ids(rel, path.read_text(encoding="utf-8", errors="replace"))
+        )
+    assert findings == []

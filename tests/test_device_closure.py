@@ -125,11 +125,10 @@ async def test_device_config_read_after_failure_has_no_write_notice(changed):
 
 
 @pytest.mark.parametrize("redact", [False, True])
-async def test_adv_adopt_relay_preview_preserves_explicit_redaction_choice(redact):
+async def test_adv_adopt_relay_preview_preserves_explicit_redaction_choice(redact, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     password = "synthetic-preview-adopt-password"
-    client = UniFiClient(
-        Settings(api_key="synthetic-closure-api-key", dry_run=True, redact_secrets=redact)
-    )
+    client = UniFiClient(Settings(api_key="synthetic-closure-api-key", redact_secrets=redact))
     client._get_client = AsyncMock()
     try:
         response = await client.request(

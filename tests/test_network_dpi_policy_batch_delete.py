@@ -27,6 +27,15 @@ from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionErro
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.tools import network_dpi_policy as lane
 
+
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy (``real_client`` sets one for its modes)."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
 V2 = "/v1/connector/consoles/test-host/proxy/network/v2/api/site/default"
 IDS = ["0b6e1d8a-2f4c-4d7e-9a31-5c8f7e2b1a90", "0b6e1d8a-2f4c-4d7e-9a31-5c8f7e2b1a91"]
 V2_IDS = ["65f1c0ffee0123456789abcd", "65f1c0ffee0123456789abce"]
@@ -36,7 +45,7 @@ TOOLS = [
     ("batch_delete_firewall_zones", "firewall/zone", "list_firewall_zones_proxy"),
 ]
 POLICIES = "batch_delete_firewall_policies"
-SITE_UUID = "88f7af54-98f8-306a-a1c7-c9349722b1f6"
+SITE_UUID = "00000000-0000-3000-a000-000000000016"
 INTEGRATION = f"/v1/connector/consoles/test-host/proxy/network/integration/v1/sites/{SITE_UUID}"
 IMPLS = {
     "batch_delete_acl_rules": lane._batch_delete_acl_rules,
@@ -213,15 +222,13 @@ async def test_an_unknown_id_fails_with_the_valid_ids_and_sends_no_write(
 
 
 @pytest.mark.parametrize("tool,collection,list_tool", TOOLS)
-async def test_an_empty_list_posts_an_empty_array(tool, collection, list_tool, registry):
+async def test_an_empty_list_sends_no_request(tool, collection, list_tool, registry):
     console = FakeConsole(collection)
     c, transport = real_client(console)
     async with transport:
         result = await IMPLS[tool](c, registry, "my-console", "Default", [])
-    assert [(r.method, r.url.path, json.loads(r.content)) for r in console.requests] == [
-        ("POST", f"{V2}/{collection}/batch-delete", [])
-    ]
-    assert result["deleted"] is True
+    assert console.requests == []
+    assert result["deleted"] is False
 
 
 @pytest.mark.parametrize("tool,collection,list_tool", TOOLS)
@@ -298,7 +305,7 @@ async def test_invalid_selectors_precede_resolution(
 async def test_read_only_refuses_the_write_after_only_reading(
     tool, collection, list_tool, registry, monkeypatch
 ):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     console = FakeConsole(collection)
     c, transport = real_client(console, read_only=True)
     async with transport:
@@ -643,7 +650,7 @@ async def test_policy_secondary_key_reaches_every_delete_and_readback(registry, 
 
 
 async def test_read_only_policy_batch_refuses_before_any_write(registry, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     console = FakeIntegration()
     c, transport = real_client(console, read_only=True)
     async with transport:
@@ -678,11 +685,9 @@ async def test_empty_batch_never_addresses_or_removes_an_existing_record(tool, r
     c, transport = real_client(console)
     async with transport:
         result = await IMPLS[tool](c, registry, "my-console", "Default", [])
-    assert result["deleted"] is True
+    assert result["deleted"] is (collection is None)
     if collection:
-        assert [(r.method, r.url.path, json.loads(r.content)) for r in console.requests] == [
-            ("POST", f"{V2}/{collection}/batch-delete", [])
-        ]
+        assert console.requests == []
         assert len(console.rows) == 2
     else:
         assert console.requests == []

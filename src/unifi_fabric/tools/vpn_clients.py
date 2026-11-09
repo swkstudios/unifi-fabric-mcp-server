@@ -202,7 +202,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         11.0.81). An upstream error gets a hint listing those fields.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the created networkconf
-        record]} (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent:
+        record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
         false, message, preview: {method, path, params (query parameters), body}} instead).
 
         Example call (create_vpn_client):
@@ -266,14 +266,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         record (verified on Network 11.0.81: a rename reads back).
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated networkconf
-        record]} (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent:
+        record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
         false, message, preview: {method, path, params (query parameters), body}} instead).
 
         Example call (update_vpn_client):
             {
               "host": "my-console",
               "site": "Default",
-              "vpn_client_id": "6523f0c1e4b0a1b2c3d4e5f6",
+              "vpn_client_id": "000000000000000000000102",
               "fields": {"enabled": true}
             }
 
@@ -288,7 +288,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             fields: Native Classic networkconf fields to change, e.g. enabled, name,
                 wireguard_client_peer_ip. Sent unchanged (empty-string list placeholders
                 dropped); an absent or null purpose is sent as vpn-client, another is sent as
-                given (an upstream error then gets a hint).
+                given (an upstream error then gets a hint). A purpose-only update is refused.
                 Free-form JSON object; no fixed body shape is published.
         """
         client, registry = deps_fn()
@@ -311,7 +311,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
         (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}})}.
 
@@ -319,7 +319,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             {
               "host": "my-console",
               "site": "Default",
-              "vpn_client_id": "6523f0c1e4b0a1b2c3d4e5f6"
+              "vpn_client_id": "000000000000000000000102"
             }
 
         Args:

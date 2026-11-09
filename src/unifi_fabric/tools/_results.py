@@ -49,7 +49,7 @@ def deletion_result(message: str, response: Any) -> dict[str, Any]:
     text, or ``None`` when it sent no body) - never dropped, so a body that carries
     information (for example how many vouchers a bulk delete removed) reaches the caller.
 
-    Under ``UNIFI_DRY_RUN`` the DELETE was never sent and ``response`` is the client's
+    Under ``dry-run policy`` the DELETE was never sent and ``response`` is the client's
     dry-run preview: the result is then ``{status: "dry_run", deleted: false, message,
     response}`` with the preview under ``response`` and the dry-run message, never
     ``deleted: true`` or the would-be confirmation (nothing was deleted).
@@ -65,7 +65,7 @@ def deletion_result(message: str, response: Any) -> dict[str, Any]:
 
 
 def dry_run_or_verbatim(response: Any) -> Any:
-    """A verbatim write result, or ``{status: "dry_run", response}`` under ``UNIFI_DRY_RUN``.
+    """A verbatim write result, or ``{status: "dry_run", response}`` under ``dry-run policy``.
 
     Used by the hotspot operator writes (``create_hotspot_operator``,
     ``update_hotspot_operator``). A write whose result is the upstream body verbatim
@@ -260,7 +260,7 @@ def requested_leaves_verdict(
 def short_circuit_no_op(client: Any, already_applied: bool) -> bool:
     """Whether a verifying write may answer "no-op" without writing.
 
-    Only when the change is already applied AND opt-in ``UNIFI_DRY_RUN`` is off. Under
+    Only when the change is already applied AND opt-in ``dry-run policy`` is off. Under
     dry-run the write is always issued to the client's preview, so the tool returns
     ``status: "dry_run"`` with the preview of what it would send, already applied or not.
     """

@@ -1,0 +1,44 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "accept-exclude-all-domain-discovery-mode",
+  "description": "Excluding every family in discovery mode (the default): tools/list lists the five discovery meta tools, as discovery mode always does.",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "family:carrier,family:clients,family:connector,family:devices,family:firewall,family:hotspot,family:innerspace,family:mobility,family:network,family:protect,family:site_manager,family:statistics,family:vpn"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "write_policy": "allow",
+      "write_exceptions": [],
+      "exposed_families": [],
+      "exclusions": [
+        "family:carrier",
+        "family:clients",
+        "family:connector",
+        "family:devices",
+        "family:firewall",
+        "family:hotspot",
+        "family:innerspace",
+        "family:mobility",
+        "family:network",
+        "family:protect",
+        "family:site_manager",
+        "family:statistics",
+        "family:vpn"
+      ]
+    },
+    "listed_tools": [
+      "call_read_tool",
+      "call_write_tool",
+      "describe_tool",
+      "list_tool_families",
+      "search_tools"
+    ],
+    "upstream_calls": 0
+  }
+}

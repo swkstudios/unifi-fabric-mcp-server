@@ -38,12 +38,16 @@ _COMMAND_CONSEQUENCES = {
 # console whose site export cannot be built, whatever the body: the same answer came back
 # with extra ``days``, ``site`` and ``site_id`` fields, and ``{"cmd": "export-site"}`` is
 # exactly what the web UI's Export Site button sends (swai and modal chunks, ``cmd/backup``).
+# The Network 11.0.81 swai bundle confirms the body (``Xj(EXPORT_SITE, C1("cmd/backup"))``, no
+# other field) and translates ``api.err.BackupFailed`` as "Backup failed. Please ensure there is
+# enough space to perform the backup." (API_ERROR_BACKUP_FAILED).
 _EXPORT_FAILED_HINT = (
     "The Network application refused to build the site export. The request sent, "
-    '{"cmd": "export-site"} on cmd/backup, is the one the Network 11.0.97 web UI sends, and '
-    "the console gave the same answer when extra body fields were added, so a different "
-    "body will not help. Open the Network application log on the console around the "
-    "request time for the cause, then retry."
+    '{"cmd": "export-site"} on cmd/backup with no other field, is the one the Network web UI '
+    "sends, and the console gave the same answer when extra body fields were added, so a "
+    "different body will not help. The Network UI explains this error code as a backup that "
+    "could not be written: check that the console has free storage space, then open the "
+    "Network application log on the console around the request time for the cause, then retry."
 )
 
 
@@ -147,7 +151,7 @@ async def list_device_firmware(
     """List available or cached device firmware through a controller command.
 
     A read: ``cmd/firmware`` ``list-available`` / ``list-cached`` is a listed read command,
-    so UNIFI_READ_ONLY and UNIFI_DRY_RUN both send it once and return its result.
+    so UNIFI_WRITE_POLICY=deny and dry-run policy both send it once and return its result.
     Returns the upstream body verbatim. Commands are never automatically retried.
 
     Args:
@@ -264,7 +268,7 @@ async def get_speedtest_status(
     """Get gateway speed-test status through a controller command.
 
     A read: ``cmd/devmgr`` ``speedtest-status`` is a listed read command, so
-    UNIFI_READ_ONLY and UNIFI_DRY_RUN both send it once and return its result.
+    UNIFI_WRITE_POLICY=deny and dry-run policy both send it once and return its result.
     Returns the upstream body verbatim. Commands are never automatically retried.
 
     Args:
@@ -337,7 +341,8 @@ async def move_device_to_site(
         device_id: Adopted device UUID or MAC from list_site_devices.
         destination_site_id: Destination Classic site _id from the controller self/sites
             endpoint, typically 24 hexadecimal characters. This is not an Integration UUID or
-            site slug.
+            site slug. Read it with fabric_connector_get, path "network/api/self/sites"
+            (data[]._id).
     """
     # Body-only value: only the server's own selector syntax is checked (non-empty, no
     # control character, no surrounding whitespace); the controller judges the rest.
@@ -357,7 +362,7 @@ async def list_backups(client: UniFiClient, registry: Registry, host: str, site:
     """List backup metadata; never download or read backup file contents.
 
     A read: ``cmd/backup`` ``list-backups`` is a listed read command, so
-    UNIFI_READ_ONLY and UNIFI_DRY_RUN both send it once and return its result.
+    UNIFI_WRITE_POLICY=deny and dry-run policy both send it once and return its result.
     Returns the upstream body verbatim. Commands are never automatically retried.
 
     Args:
@@ -370,16 +375,18 @@ async def list_backups(client: UniFiClient, registry: Registry, host: str, site:
 async def create_backup(
     client: UniFiClient, registry: Registry, host: str, site: str, days: int = -1
 ) -> Any:
-    """Create a controller backup and return the controller's answer. Backups may contain
-        secrets; this command never downloads a backup.
+    """Generate a one-off controller backup file and return its console download path; no
+        stored backup is added. Backups may contain secrets; this command never downloads one.
 
     Returns the upstream body verbatim: on Network 11.0.97 ``{"meta": {"rc": "ok"}, "data":
     [{"url": "/dl/backup/{version}.unf"}]}``, the console path of the backup file. The file is
     one transient export that the next backup overwrites; it is not a stored backup, so
-    list_backups, cancel_controller_backup and delete_controller_backup never see it. Sent
-    once, never automatically retried.
+    list_backups, cancel_controller_backup and delete_controller_backup never see it, and the
+    answer carries no filename or backup_id. This server has no tool that adds a stored backup.
+    Sent once, never automatically retried.
 
-    Consequence: creates a controller backup without downloading its contents.
+    Consequence: writes one transient backup file on the console, replacing the previous one;
+    no stored backup is added and nothing is downloaded.
 
         Args:
         host: Console name or id from list_hosts; for example my-console.
@@ -451,9 +458,9 @@ def register(mcp, deps_fn) -> None:
         """Force provision an adopted device. Consequence: configuration is reapplied
             and clients may disconnect.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#provision_device.
 
@@ -470,9 +477,9 @@ def register(mcp, deps_fn) -> None:
         """Cancel the current rolling firmware upgrade. Consequence: devices already upgrading
             may continue and reboot.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#cancel_rolling_upgrade.
 
@@ -489,7 +496,7 @@ def register(mcp, deps_fn) -> None:
 
         A read: it only reports firmware and upgrades nothing. Sends Classic POST
         api/s/{site}/cmd/firmware with exactly {"cmd": "list-available"}, or
-        {"cmd": "list-cached"} when cached is true. UNIFI_READ_ONLY and UNIFI_DRY_RUN both
+        {"cmd": "list-cached"} when cached is true. UNIFI_WRITE_POLICY=deny and dry-run policy both
         send it and return its result.
 
         Returns the upstream body verbatim. Sent once, never automatically retried.
@@ -509,9 +516,9 @@ def register(mcp, deps_fn) -> None:
         """Migrate a device to another controller. Consequence: the device leaves
             controller management and may lose connectivity.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#migrate_device.
 
@@ -540,9 +547,9 @@ def register(mcp, deps_fn) -> None:
         """Adopt a device through SSH. Consequence: controller management and device
             connectivity may change.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#advanced_adopt_device.
 
@@ -577,9 +584,9 @@ def register(mcp, deps_fn) -> None:
         """Run a gateway speed test. Consequence: test traffic consumes WAN bandwidth
             and may affect clients.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#run_speedtest.
 
@@ -596,7 +603,7 @@ def register(mcp, deps_fn) -> None:
 
         A read: it only reports status and starts no test (run_speedtest starts one).
         Sends Classic POST api/s/{site}/cmd/devmgr with exactly {"cmd": "speedtest-status"}.
-        UNIFI_READ_ONLY and UNIFI_DRY_RUN both send it and return its result.
+        UNIFI_WRITE_POLICY=deny and dry-run policy both send it and return its result.
 
         Returns the upstream body verbatim. Sent once, never automatically retried.
 
@@ -614,9 +621,9 @@ def register(mcp, deps_fn) -> None:
         """Upgrade every device of a family. Consequence: devices reboot and clients or
             downstream equipment lose connectivity.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#upgrade_all_devices.
 
@@ -635,9 +642,9 @@ def register(mcp, deps_fn) -> None:
         """Start a rolling firmware upgrade. Consequence: devices reboot in sequence
             and clients may disconnect.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#start_rolling_upgrade.
 
@@ -658,9 +665,9 @@ def register(mcp, deps_fn) -> None:
         """Move a device into another controller site. Consequence: destination
             configuration is provisioned and connectivity may be interrupted.
 
-        Returns the upstream body verbatim. Never automatically retried. UNIFI_DRY_RUN sends no
-        write; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}.
+        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
+        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#move_device_to_site.
 
@@ -670,7 +677,8 @@ def register(mcp, deps_fn) -> None:
             device_id: Adopted Network device UUID or MAC from list_site_devices; not a Protect id.
             destination_site_id: Destination Classic site _id from the controller self/sites
                 endpoint, typically 24 hexadecimal characters. This is not an Integration UUID
-                or site slug.
+                or site slug. Read it with fabric_connector_get, path
+                "network/api/self/sites" (data[]._id).
         """
         client, registry = deps_fn()
         return await _move_device_to_site(
@@ -682,7 +690,8 @@ def register(mcp, deps_fn) -> None:
         """List backup metadata; never download or read backup file contents.
 
         A read: it only reads backup metadata. Sends Classic POST api/s/{site}/cmd/backup
-        with exactly {"cmd": "list-backups"}. UNIFI_READ_ONLY and UNIFI_DRY_RUN both send it
+        with exactly {"cmd": "list-backups"}. UNIFI_WRITE_POLICY=deny and dry-run policy both send
+        it
         and return its result.
 
         Returns the upstream body verbatim. Sent once, never automatically retried.
@@ -698,15 +707,20 @@ def register(mcp, deps_fn) -> None:
 
     @mcp.tool(annotations=WRITE)
     async def create_backup(host: str, site: str, days: int = -1) -> Any:
-        """Create a controller backup and return the controller's answer. Backups may contain
-            secrets; this command never downloads a backup.
+        """Generate a one-off controller backup file and return its console download path; no
+            stored backup is added. Backups may contain secrets; this command never downloads one.
+
+        Consequence: writes one transient backup file on the console, replacing the previous
+        one; no stored backup is added and nothing is downloaded.
 
         Returns the upstream body verbatim: on Network 11.0.97 {"meta": {"rc": "ok"}, "data":
-        [{"url": "/dl/backup/{version}.unf"}]}, the console path of the backup file. The file is
-        one transient export that the next backup overwrites; it is not a stored backup, so
-        list_backups, cancel_controller_backup and delete_controller_backup never see it. Never
-        automatically retried. UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun:
-        true, sent: false, message, preview: {method, path, params, body}}.
+        [{"url": "/dl/backup/{version}.unf"}]}, the console path of the backup file. The file is one
+        transient export that the next backup overwrites; it is not a stored backup, so
+        list_backups, cancel_controller_backup and delete_controller_backup never see it, and the
+        answer carries no filename or backup_id. This server has no tool that adds a stored
+        backup. Never automatically retried. Under dry-run policy nothing is sent; returns
+        {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
+        body}}.
 
         Example: docs/TOOL-USAGE.md#create_backup.
 
@@ -727,10 +741,11 @@ def register(mcp, deps_fn) -> None:
         Consequence: the controller prepares a site export file (Classic cmd/backup
         export-site); site configuration is unchanged and the contents are not downloaded.
 
-        Returns the upstream body verbatim. Never automatically retried. A console that cannot
-        build the export answers HTTP 400 api.err.BackupFailed, whatever the body; the error
-        names the next step. UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun:
-        true, sent: false, message, preview: {method, path, params, body}}.
+        Returns the upstream body verbatim. Never automatically retried. A console that cannot build
+        the export answers HTTP 400 api.err.BackupFailed, whatever the body; the error names the
+        next steps (free console storage first, then the Network application log).
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true,
+        sent: false, message, preview: {method, path, params, body}}.
 
         Example: docs/TOOL-USAGE.md#export_site.
 

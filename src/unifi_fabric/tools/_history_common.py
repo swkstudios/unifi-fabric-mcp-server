@@ -8,9 +8,10 @@ internally where the endpoint requires it.
 Only the JSON type is checked before the request (``refusals`` entry ``epoch-type``). The
 value itself is the upstream's to judge (the refusal policy, ``refusals``): a negative
 value, or one large enough to be epoch milliseconds passed by mistake (>= 1e11, about the
-year 5138), is sent as given and the result carries an additive ``_warnings`` entry
-saying so (:func:`epoch_warnings`), because milliseconds sent to ``/stat/session`` answer
-HTTP 200 with an empty array rather than an error.
+year 5138), is not refused or rescaled: it is sent in the unit every value takes
+(multiplied by 1000 where the endpoint takes milliseconds), and the result carries an
+additive ``_warnings`` entry saying so (:func:`epoch_warnings`), because milliseconds
+sent to ``/stat/session`` answer HTTP 200 with an empty array rather than an error.
 
 These tools return payloads verbatim: per-client and per-sensor identifiers (MAC
 addresses, IPs, hostnames, and client/sensor display names) are passed through
@@ -44,7 +45,8 @@ def require_epoch_seconds(value: int, name: str) -> int:
 def epoch_warnings(**values: int | None) -> list[dict[str, Any]]:
     """One ``_warnings`` entry per epoch-seconds argument that is negative or looks like
     epoch milliseconds (>= :data:`MILLISECONDS_HINT_AT`); omitted arguments are skipped.
-    The value was sent as given; the entry says so."""
+    The value was not refused or rescaled (only the usual unit conversion applied); the
+    entry says so."""
     out: list[dict[str, Any]] = []
     for name, value in values.items():
         if value is None or isinstance(value, bool) or not isinstance(value, int):
@@ -58,8 +60,9 @@ def epoch_warnings(**values: int | None) -> list[dict[str, Any]]:
                     "argument": name,
                     "value": value,
                     "message": (
-                        f"{name}={value} is negative (before 1970-01-01); it was sent as "
-                        "given. Pass epoch SECONDS, e.g. 1690000000."
+                        f"{name}={value} is negative (before 1970-01-01); it was sent "
+                        "uncorrected (multiplied by 1000 where the endpoint takes "
+                        "milliseconds, like any value). Pass epoch SECONDS, e.g. 1690000000."
                     ),
                 }
             )
@@ -71,9 +74,10 @@ def epoch_warnings(**values: int | None) -> list[dict[str, Any]]:
                     "value": value,
                     "message": (
                         f"{name}={value} looks like epoch milliseconds; this tool takes "
-                        "epoch SECONDS and sent the value as given (an endpoint can answer "
-                        "such a window with an empty result rather than an error). Divide "
-                        "by 1000 for seconds."
+                        "epoch SECONDS and did not rescale it (an endpoint that takes "
+                        "milliseconds received it multiplied by 1000, like any value; such "
+                        "a window can answer with an empty result rather than an error). "
+                        "Divide by 1000 for seconds."
                     ),
                 }
             )

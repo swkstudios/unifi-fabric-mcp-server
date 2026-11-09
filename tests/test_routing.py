@@ -84,21 +84,31 @@ class TestCreatePortForward:
 class TestUpdatePortForward:
     async def test_basic(self, client, registry):
         payload = {"enabled": False}
-        client.get.return_value = {"data": [{"_id": "pf-1"}]}  # write target resolved first
-        client.put.return_value = {"_id": "pf-1", "enabled": False}
-        result = await update_port_forward(client, registry, "h", "s", "pf-1", payload)
+        client.get.return_value = {
+            "data": [{"_id": "abcdef0123456789abcdef01"}]
+        }  # write target resolved first
+        client.put.return_value = {"_id": "abcdef0123456789abcdef01", "enabled": False}
+        result = await update_port_forward(
+            client, registry, "h", "s", "ABCDEF0123456789ABCDEF01", payload
+        )
+        client.get.assert_any_await(f"{CLASSIC_REST_BASE}/portforward", key=None)
         client.put.assert_called_once_with(
-            f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None, json=payload
+            f"{CLASSIC_REST_BASE}/portforward/abcdef0123456789abcdef01", key=None, json=payload
         )
         assert result["enabled"] is False
 
 
 class TestDeletePortForward:
     async def test_basic(self, client, registry):
-        client.get.return_value = {"data": [{"_id": "pf-1"}]}  # write target resolved first
+        client.get.return_value = {
+            "data": [{"_id": "abcdef0123456789abcdef01"}]
+        }  # write target resolved first
         client.delete.return_value = None
-        await delete_port_forward(client, registry, "h", "s", "pf-1")
-        client.delete.assert_called_once_with(f"{CLASSIC_REST_BASE}/portforward/pf-1", key=None)
+        await delete_port_forward(client, registry, "h", "s", "ABCDEF0123456789ABCDEF01")
+        client.get.assert_any_await(f"{CLASSIC_REST_BASE}/portforward", key=None)
+        client.delete.assert_called_once_with(
+            f"{CLASSIC_REST_BASE}/portforward/abcdef0123456789abcdef01", key=None
+        )
 
 
 # --- Traffic Rules (v2 API) ---
@@ -135,18 +145,31 @@ class TestCreateTrafficRule:
 class TestUpdateTrafficRule:
     async def test_basic(self, client, registry):
         payload = {"enabled": False}
-        client.get.return_value = [{"_id": "tr-1"}]  # write target resolved first
-        client.put.return_value = {"_id": "tr-1", "enabled": False}
-        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
+        # The write target is resolved (and read for the merge) first.
+        client.get.return_value = [
+            {"_id": "abcdef0123456789abcdef01", "action": "BLOCK", "enabled": True}
+        ]
+        client.put.return_value = {"_id": "abcdef0123456789abcdef01", "enabled": False}
+        result = await update_traffic_rule(
+            client, registry, "h", "s", "ABCDEF0123456789ABCDEF01", payload
+        )
+        client.get.assert_any_await(f"{V2_API_BASE}/trafficrules", key=None)
         client.put.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/tr-1/", key=None, json=payload
+            f"{V2_API_BASE}/trafficrules/abcdef0123456789abcdef01/",
+            key=None,
+            json={"_id": "abcdef0123456789abcdef01", "action": "BLOCK", "enabled": False},
         )
         assert result["enabled"] is False
 
 
 class TestDeleteTrafficRule:
     async def test_basic(self, client, registry):
-        client.get.return_value = [{"_id": "tr-1"}]  # write target resolved first
+        client.get.return_value = [
+            {"_id": "abcdef0123456789abcdef01"}
+        ]  # write target resolved first
         client.delete.return_value = None
-        await delete_traffic_rule(client, registry, "h", "s", "tr-1")
-        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", key=None)
+        await delete_traffic_rule(client, registry, "h", "s", "ABCDEF0123456789ABCDEF01")
+        client.get.assert_any_await(f"{V2_API_BASE}/trafficrules", key=None)
+        client.delete.assert_called_once_with(
+            f"{V2_API_BASE}/trafficrules/abcdef0123456789abcdef01/", key=None
+        )

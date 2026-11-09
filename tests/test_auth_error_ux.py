@@ -32,8 +32,8 @@ def test_missing_api_key_exits_with_one_actionable_line(entrypoint):
     assert "Traceback" not in result.stderr
     assert len(result.stderr.strip().splitlines()) == 1
     assert "UNIFI_API_KEY is not set" in result.stderr
-    assert "https://unifi.ui.com" in result.stderr
-    assert "README#get-your-api-key" in result.stderr
+    assert "https://unifi.ui.com" in result.stderr.split()
+    assert "README#1-join-your-fabric-and-create-an-api-key" in result.stderr
 
 
 MALFORMED_KEYS = {
@@ -73,7 +73,7 @@ def test_malformed_api_key_exits_with_one_actionable_line(entrypoint, case):
     assert len(lines) == 1, result.stderr
     assert variable in lines[0]
     assert reason in lines[0]
-    assert "README" in lines[0]
+    assert "See docs/CONFIGURATION.md" in lines[0]
     # No part of the value is echoed: every synthetic value contains "synth".
     assert "synth" not in result.stderr
 
@@ -96,10 +96,14 @@ async def test_upstream_auth_body_retained_and_hint_appended(status, multi):
         text = str(caught.value)
         assert text.startswith(f"HTTP {status} from GET /ea/hosts: {body}")
         hint = text[len(f"HTTP {status} from GET /ea/hosts: {body}") :]
-        assert "UNIFI_API_KEYS" in hint if multi else "UNIFI_API_KEY" in hint
-        assert "second" in hint if multi else "first" not in hint
-        assert "https://unifi.ui.com" in hint
-        assert "permission" in hint.lower() if status == 403 else "key" in hint.lower()
+        assert ("UNIFI_API_KEYS" if multi else "UNIFI_API_KEY") in hint
+        assert ("second" in hint) if multi else ("first" not in hint)
+        assert "https://unifi.ui.com" in hint.split()
+        assert (
+            "check the key's permissions, API scopes, and allowed sites"
+            if status == 403
+            else "check that the key is valid and has not expired or been revoked"
+        ) in hint
     finally:
         await client.close()
 

@@ -3,8 +3,9 @@
 Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
 Skip all tests automatically when the env var is absent.
 
-Run:
-    UNIFI_API_KEY=<key> pytest tests/test_site_manager_integration.py -v
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    pytest tests/test_site_manager_integration.py -v
 """
 
 from __future__ import annotations
@@ -32,8 +33,9 @@ from unifi_fabric.tools.site_manager import (
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated
-# at collection time, not import time.  Run with a real key to execute them:
-#   UNIFI_API_KEY=<key> pytest tests/test_site_manager_integration.py -v
+# at collection time, not import time.  Run them with a real key in the environment
+# (loaded from a secret store, never typed on the command line):
+#   pytest tests/test_site_manager_integration.py -v
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(

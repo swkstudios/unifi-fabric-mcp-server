@@ -26,7 +26,7 @@ def test_every_spec_backed_body_has_generated_properties() -> None:
     # 40 spec-backed bodies: the 39 of 505843cf plus update_predefined_firewall_policy
     # (7ac16050). The inventory is every object parameter of the registered catalog.
     assert len(table) == 40
-    assert len(inventory) == 235
+    assert len(inventory) == 236
     tools = sc._tools()
     for name, args in table.items():
         for arg, shape in args.items():
@@ -37,7 +37,7 @@ def test_every_spec_backed_body_has_generated_properties() -> None:
 
 def test_free_form_params_are_explicit_and_remain_unshaped() -> None:
     _, inventory = gen.derive()
-    assert len(inventory) == 235
+    assert len(inventory) == 236
     assert any(source["classification"] == "free-form" for source in inventory.values())
     # Typed selectors coexist with retained native bodies in the merged caller contract.
     for key in (
@@ -199,23 +199,31 @@ def test_original_body_validation_contract_is_preserved_for_whole_catalog() -> N
     additions = {
         key
         for key in inventory
-        if key.split(".")[1] not in baseline[key.split(".")[0]]["properties"]
+        if key.split(".")[0] not in baseline
+        or key.split(".")[1] not in baseline[key.split(".")[0]]["properties"]
     }
-    assert additions == {"get_multicast_insights.body"}
+    assert additions == {"get_multicast_insights.body", "create_firewall_rule.rule"}
     # Scope the immutable oracle to all body/object parameters, including free-form
     # ones. Unrelated scalar parameters may evolve deliberately in other changes.
     for key in inventory:
         name, arg = key.split(".")
         current = json.loads(json.dumps(tools[name].parameters["properties"][arg]))
+        if key == "create_firewall_rule.rule":
+            # This tool postdates the immutable pre-shapes oracle. Its private EA
+            # request has no fixed schema: require an object but permit every field.
+            assert inventory[key]["classification"] == "free-form"
+            assert arg in tools[name].parameters["required"]
+            assert _strip_descriptions(current) == {"type": "object", "additionalProperties": True}
+            continue
         if key in additions:
             assert inventory[key]["classification"] == "free-form"
             validator = jsonschema.Draft202012Validator(current)
             for value in (
-                None,
                 {},
                 {"future": {"nested": [1, None, True]}, "x_passphrase": "***REDACTED***"},
             ):
                 assert validator.is_valid(value), value
+            assert validator.is_valid(None) == (key == "get_multicast_insights.body")
             continue
         if inventory[key]["classification"] == "recorded-typed":
             assert key == "update_device_radio.radios"
@@ -376,6 +384,13 @@ def test_recorded_radio_shape_has_provenance_and_preserves_typed_contract() -> N
 def test_generator_rejects_ambient_settings(monkeypatch):
     import pytest
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     with pytest.raises(RuntimeError, match="ambient"):
         gen.require_clean_environment()
+
+
+def test_note_preserves_abbreviations():
+    from tests.tool_shapes_gen import note
+
+    assert note("Currency, e.g. USD. Another sentence.") == "Currency, e.g. USD."
+    assert note("Currency, i.e. USD. Another sentence.") == "Currency, i.e. USD."

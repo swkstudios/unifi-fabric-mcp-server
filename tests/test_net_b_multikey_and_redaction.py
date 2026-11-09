@@ -9,7 +9,7 @@ They are returned verbatim by default and masked only under the ``UNIFI_REDACT_S
 opt-in, in a list_vpn_clients result and in a create_vpn_client dry-run preview.
 
 Read-only: every system-log POST is a write pending a separate allowlist PR.
-UNIFI_READ_ONLY refuses all three tools before any upstream request; dry-run previews
+UNIFI_WRITE_POLICY refuses all three tools before any upstream request; dry-run previews
 the first POST without sending it.
 """
 
@@ -28,7 +28,7 @@ from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric import read_only, server
-from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.redaction import REDACTION_MASK, is_credential_field
 from unifi_fabric.tools import system_log
 
@@ -160,6 +160,11 @@ def _mocks() -> tuple[AsyncMock, AsyncMock]:
     client.put = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": [{"_id": "x"}]})
     client.delete = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": []})
     client.paginate_max_pages = None
+    # The attributes the server's call path reads synchronously stay plain values, not
+    # auto-created coroutine mocks: the client's settings (the environment credentials) and
+    # no audit stream.
+    client._settings = Settings(api_key="synthetic-unit-key")
+    client.audit_stream = None
     registry = AsyncMock()
     registry.resolve_key_for_host = AsyncMock(return_value=SECOND)
     registry.resolve_host_id = AsyncMock(return_value=HOST_ID)
@@ -282,7 +287,7 @@ async def test_create_vpn_client_dry_run_preview_masks_only_under_the_opt_in(mon
         "create_vpn_client",
         up,
         args=args,
-        env={"UNIFI_DRY_RUN": "1", "UNIFI_REDACT_SECRETS": "1" if enabled else "0"},
+        env={"UNIFI_WRITE_POLICY": "dry-run", "UNIFI_REDACT_SECRETS": "1" if enabled else "0"},
     )
     payload = uh.result_payload(res)
     assert payload.get("status") == "dry_run", payload
@@ -348,13 +353,18 @@ async def test_system_log_tools_are_advertised_as_writes():
     ]
     + [("list_network_events", {}), ("list_ips_events", {})],
 )
-@pytest.mark.parametrize("dry_run", ["0", "1"])
-async def test_system_log_tools_refused_before_any_request(monkeypatch, name, extra, dry_run):
+@pytest.mark.parametrize("exceptions", [None, "family:network=dry-run"])
+async def test_system_log_tools_refused_before_any_request(monkeypatch, name, extra, exceptions):
     up = uh.FakeUpstream()
     args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
-    with pytest.raises(ToolError, match="UNIFI_READ_ONLY|read-only"):
+    with pytest.raises(ToolError, match="UNIFI_WRITE_POLICY|read-only"):
         await cti._call(
-            monkeypatch, name, up, args=args, env={"UNIFI_READ_ONLY": "1", "UNIFI_DRY_RUN": dry_run}
+            monkeypatch,
+            name,
+            up,
+            args=args,
+            env={"UNIFI_WRITE_POLICY": "deny"}
+            | ({"UNIFI_WRITE_EXCEPTIONS": exceptions} if exceptions else {}),
         )
     assert up.served == [], f"{name} made an upstream request before refusal"
 
@@ -372,7 +382,7 @@ async def test_system_log_tools_refused_before_any_request(monkeypatch, name, ex
 async def test_system_log_dry_run_returns_first_post_preview(monkeypatch, name, extra, log_class):
     up = uh.FakeUpstream()
     args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
-    res = await cti._call(monkeypatch, name, up, args=args, env={"UNIFI_DRY_RUN": "1"})
+    res = await cti._call(monkeypatch, name, up, args=args, env={"UNIFI_WRITE_POLICY": "dry-run"})
     payload = uh.result_payload(res)
     assert payload["status"] == "dry_run", payload
     assert payload["preview"]["method"] == "POST"
@@ -393,7 +403,7 @@ async def test_guest_window_post_dry_run_returns_preview(monkeypatch):
         "list_guests",
         up,
         args={"host": tool_args.HOST, "site": tool_args.SITE, "within_hours": 24},
-        env={"UNIFI_DRY_RUN": "1"},
+        env={"UNIFI_WRITE_POLICY": "dry-run"},
     )
     payload = uh.result_payload(res)
     assert payload["status"] == "dry_run"

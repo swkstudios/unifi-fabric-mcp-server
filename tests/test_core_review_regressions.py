@@ -43,7 +43,7 @@ async def test_lookup_exception_does_not_forward_tool_call(kind, monkeypatch):
     from unifi_fabric.tools import connector
     from unifi_fabric.write_body import EmptyUpdateMiddleware
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "true")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     monkeypatch.setattr(connector, "area_write_refusal", lambda family: "area disabled")
     middleware = {
         "scope": lambda: WriteScopeMiddleware(server, lambda: "write"),

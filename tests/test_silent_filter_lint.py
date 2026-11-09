@@ -106,6 +106,36 @@ HOST_MACS = (
 #: {(file relative to src/unifi_fabric, function qualname, kind, normalized source): reason}
 ALLOWED: dict[tuple[str, str, str, str], str] = {
     (
+        "refusal_audit.py",
+        "denial_reason",
+        "ifexp-empty",
+        "arguments if isinstance(arguments, dict) else {}",
+    ): (
+        "Classification only: names the denying setting in the audit record of a call the "
+        "policy already refused. A non-object argument value is rejected by the tool's own "
+        "argument validation, and the substitute {} never reaches an upstream request."
+    ),
+    (
+        "code_mode.py",
+        "project_result",
+        "comprehension-filter",
+        "isinstance(t, str)",
+    ): (
+        "Joins the text of a tool result's content blocks; a non-text block (image, "
+        "resource link) has no text attribute and carries no JSON value for a script. "
+        "Structured content, when present, is returned verbatim instead of this join."
+    ),
+    (
+        "read_only_tools.py",
+        "dispatch_target",
+        "ifexp-empty",
+        "inner if isinstance(inner, dict) else {}",
+    ): (
+        "Classification only: names the dispatcher's target for the write-policy check. "
+        "The dispatcher call itself declares object arguments and rejects any other shape, "
+        "so the substitute {} never reaches an upstream request."
+    ),
+    (
         "families.py",
         "_route_literals",
         "comprehension-filter",
@@ -398,7 +428,7 @@ ALLOWED: dict[tuple[str, str, str, str], str] = {
         "tools/protect.py",
         "_resolve_camera_refs",
         "comprehension-filter",
-        "isinstance(c, dict) and c.get('name')",
+        "isinstance(c, dict) and isinstance(c.get('name'), str)",
     ): LOOKUP,
     (
         "tools/site_manager.py",
@@ -472,12 +502,6 @@ ALLOWED: dict[tuple[str, str, str, str], str] = {
         "ifexp-empty",
         "body if isinstance(body, dict) else {}",
     ): NOT_UPSTREAM,
-    (
-        "tools/network_device_operations.py",
-        "_site_devices",
-        "comprehension-filter",
-        "isinstance(r, dict)",
-    ): LOOKUP_RECORDS,
     (
         "tools/network_dpi_policy.py",
         "_native_url",

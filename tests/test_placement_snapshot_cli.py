@@ -126,7 +126,6 @@ async def test_export_runs_with_connector_writes_enabled(monkeypatch):
     """No write fence: the GET-only export runs on a default (writes-on) deployment."""
 
     class WriteEnabledSettings:
-        enable_connector_write = True
         cache_ttl_seconds = 1
         cache_max_hosts = 2
         cache_max_sites = 3
@@ -155,7 +154,6 @@ async def test_export_runs_with_connector_writes_enabled(monkeypatch):
 
 async def test_closes_client_after_snapshot(monkeypatch):
     class ReadOnlySettings:
-        enable_connector_write = False
         cache_ttl_seconds = 1
         cache_max_hosts = 2
         cache_max_sites = 3
@@ -250,7 +248,6 @@ async def test_preflight_runs_with_connector_writes_enabled(monkeypatch):
     """No write fence: the GET-only preflight runs on a default (writes-on) deployment."""
 
     class WriteEnabledSettings:
-        enable_connector_write = True
         cache_ttl_seconds = 1
         cache_max_hosts = 2
         cache_max_sites = 3
@@ -279,7 +276,6 @@ async def test_preflight_runs_with_connector_writes_enabled(monkeypatch):
 
 async def test_preflight_closes_client_after_completed_all_ok_probe(monkeypatch):
     class ReadOnlySettings:
-        enable_connector_write = False
         cache_ttl_seconds = 1
         cache_max_hosts = 2
         cache_max_sites = 3

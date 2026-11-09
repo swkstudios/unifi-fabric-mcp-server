@@ -52,7 +52,8 @@ Pick the mode that matches where the server is reachable from:
 Tool responses include all upstream API fields, including credential fields (WLAN
 passphrases, RADIUS secrets, DDNS passwords), GPS coordinates, and Protect recognition data.
 The server always replaces its own configured secrets (its API keys, `MCP_BEARER_TOKEN`,
-`MCP_TLS_KEY_PASSWORD`) with `***` wherever a response, error or log line echoes them;
+`MCP_TLS_KEY_PASSWORD`), and in header mode the keys a call sends, with `***` wherever a
+response, error or log line echoes them;
 masking upstream credential fields (with `***REDACTED***`) is off by default and opt-in with `UNIFI_REDACT_SECRETS`. Authentication controls admission, not field visibility. Transport security is therefore load-bearing: an inadequately secured
 listener exposes complete network credentials and sensitive data, not just network visibility.
 
@@ -67,8 +68,8 @@ to authenticated requests. `MCP_HOST_ORIGIN_PROTECTION=off` disables both checks
 
 Authentication admits a caller to the server; OAuth can additionally restrict writes with
 `MCP_OAUTH_WRITE_SCOPE`. To limit what all admitted callers can change, set
-`UNIFI_READ_ONLY=1` (every write and action is refused before it reaches UniFi) or opt single areas
-out of writes with `UNIFI_ENABLE_NETWORK_WRITE=0` and its siblings; both are listed in
+`UNIFI_WRITE_POLICY=deny` (every write and action is refused before it reaches UniFi) or deny writes
+for single families or tools with `UNIFI_WRITE_EXCEPTIONS` (for example `family:network=deny`); both are listed in
 [`docs/CONFIGURATION.md`](../docs/CONFIGURATION.md).
 
 ### `none`
@@ -108,10 +109,35 @@ OAuth scopes control admission to the whole server. `MCP_OAUTH_REQUIRED_SCOPES` 
 get in, and a scope named `fabric:read` does not disable write tools on its own. To restrict writes per token, set `MCP_OAUTH_WRITE_SCOPE`
 (opt-in, unset by default): a write tool, or a `fabric_connector_get` call to a known state-changing
 GET route, is then refused before it runs unless the caller's token also carries that scope; read
-tools need only the admission scopes. All admitted clients use the deployment's configured UniFi
-key(s), tool catalog and write settings. For an instance with no write path at all, run it with
-`UNIFI_READ_ONLY=1`; use separate instances and keys when callers need different UniFi permissions.
+tools need only the admission scopes. All admitted clients share the deployment's tool catalog and
+write settings; the request policy headers let a client tighten them for its own calls, never loosen
+them. In the default key mode every client also uses the deployment's configured UniFi key(s); with
+`UNIFI_KEY_MODE=header` each call brings its own (see [Header key mode](#header-key-mode)). For an
+instance with no write path at all, run it with `UNIFI_WRITE_POLICY=deny`; use separate instances and
+keys when callers need different UniFi permissions.
 See [Scopes and write access](../docs/AUTH-OAUTH.md#scopes-and-write-access).
+
+### Header key mode
+
+With `UNIFI_KEY_MODE=header` the server stores no UniFi key: each tool call carries its keys in the
+`X-UniFi-Api-Key` request header, and the server uses whatever key a caller sends
+([Header key mode](../docs/CONFIGURATION.md#header-key-mode-unifi_key_mode)). This changes the trust
+model:
+
+- **MCP authentication still decides who may call.** Header mode does not authenticate the caller;
+  the UniFi key only decides what UniFi lets that call do. Run it with `MCP_AUTH_MODE=bearer` or
+  `oauth`.
+- **TLS is required.** UniFi keys travel in every request, so without TLS they cross the network in
+  cleartext. Use `MCP_TLS_MODE=https` (or `mtls`), or a TLS-terminating reverse proxy on the same
+  host or a trusted segment, and make sure that proxy does not log request headers.
+- **Keys are held in memory.** The connections opened for a key keep it in process memory, for at
+  most 256 key identities at once (the least recently used idle one is dropped first), until its
+  identity is dropped or the server stops. Keys are never written to disk or the audit log; responses, errors and logs replace
+  them with `***`. A memory dump of the server process can contain them.
+- **Request policy headers are not an access control.** `X-UniFi-Write-Policy`,
+  `X-UniFi-Family-Allow` and `X-UniFi-Exclude` let a client tighten the operator policy for its own
+  calls; they never loosen it, and a client that omits them gets the operator policy
+  ([Request policy headers](../docs/CONFIGURATION.md#request-policy-headers)).
 
 ### Internet-exposed deployments
 

@@ -12,6 +12,7 @@ from ..client import (
     UniFiConnectionError,
     describe_shape,
     object_records,
+    upstream_error_value,
     validate_id,
     validate_spec_id,
 )
@@ -28,7 +29,7 @@ from .network import _proxy
 
 _CLASSIC_CMD_BASE = "/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/cmd"
 
-#: Every connected-client type the published Network spec lists (Network 10.6.106
+#: Every connected-client type the published Network spec lists (Network 11.0.97
 #: "Client overview" / "Client details" discriminator on ``type``; pinned to the vendored
 #: spec by a test, so a type the spec adds fails until it is accepted here).
 CLIENT_TYPES = ("WIRED", "WIRELESS", "VPN", "TELEPORT")
@@ -60,10 +61,11 @@ def _record_mac(record: dict[str, Any]) -> str | None:
     return None
 
 
-def _describe_clients(records: list[dict[str, Any]]) -> str:
+def _describe_clients(records: list[dict[str, Any]], client: UniFiClient) -> str:
     return "; ".join(
-        f"{r.get('name') or r.get('hostname') or '(unnamed)'} (mac={_record_mac(r)}, "
-        f"id={r.get('id')})"
+        f"{upstream_error_value(r.get('name') or r.get('hostname') or '(unnamed)', client)} "
+        f"(mac={_record_mac(r)}, "
+        f"id={upstream_error_value(r.get('id'), client)})"
         for r in records
     )
 
@@ -94,35 +96,44 @@ async def _resolve_client(
         if not isinstance(native_id, str) or not native_id:
             raise UniFiConnectionError(
                 f"Unexpected response shape from GET {url}: client with MAC {mac} needs a "
-                f"non-empty string native id; identifying fields: {_describe_clients([r])}; "
-                f"id={native_id!r}"
+                "non-empty string native id; identifying fields: "
+                f"{_describe_clients([r], client)}; "
+                f"id={upstream_error_value(native_id, client)!r}"
             )
         ids.append(native_id)
     if len({id_key(i) for i in ids}) > 1:
         raise ValueError(
             f"MAC {client_id!r} matches distinct client ids in site {site_id!r}: "
-            f"{_describe_clients(matches)}. Pass the client UUID (list_clients data[].id)."
+            f"{_describe_clients(matches, client)}. Pass the client UUID (list_clients data[].id)."
         )
     if ids:
+        try:
+            validate_id(ids[0], "client_id")
+        except ValueError:
+            try:
+                validate_id(upstream_error_value(ids[0], client), "client_id")
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
         if collected["incomplete"]:
             note_incomplete_resolution(collected["incompleteReason"])
         return ids[0], mac
     if collected["incomplete"]:
         raise ValueError(
             f"Cannot resolve MAC {client_id!r} in site {site_id!r}: the client list is "
-            f"incomplete ({collected['incompleteReason']})."
+            f"incomplete ({upstream_error_value(collected['incompleteReason'])})."
         )
     everyone = await collect_offset(client, url, key=key)
     valid = object_records(everyone["items"], f"GET {url}")
     partial = (
-        f" (the client list is incomplete: {everyone['incompleteReason']})"
+        f" (the client list is incomplete: {upstream_error_value(everyone['incompleteReason'])})"
         if everyone["incomplete"]
         else ""
     )
     raise ValueError(
         f"No connected client with MAC {mac} in site {site_id!r}{partial}: this tool needs "
         "the client's Integration id, which exists only while the client is connected; "
-        f"valid (connected): {_describe_clients(valid) or '(none)'}. Get it from list_clients "
+        f"valid (connected): {_describe_clients(valid, client) or '(none)'}. "
+        "Get it from list_clients "
         "(data[].macAddress or data[].id)."
     )
 
@@ -197,7 +208,7 @@ async def _stamgr_mac(
 
 
 # The actions the published executeConnectedClientAction operation accepts (Network
-# 10.6.106 "Client action request": a discriminator on ``action``). Block, unblock and
+# 11.0.97 "Client action request": a discriminator on ``action``). Block, unblock and
 # reconnect are NOT among them: they are block_client / unblock_client / reconnect_client.
 _CLIENT_ACTIONS = ("AUTHORIZE_GUEST_ACCESS", "UNAUTHORIZE_GUEST_ACCESS")
 
@@ -251,11 +262,6 @@ def _resolve_client_filter(client_type: str | None, filter: str | None) -> str |
         )
     return f"type.eq('{normalized}')"
 
-
-#: ``list_clients`` sources: the published Integration API (default) and the controller's
-#: v2 active-client list (Network 11.0.81 web UI, GET
-#: /proxy/network/v2/api/site/{site}/clients/active).
-LIST_CLIENTS_SOURCES = ("integration", "v2")
 
 #: The v2 client-list query flags the Network 11.0.81 web UI sends on clients/active,
 #: clients/local and clients/history: {tool argument: upstream query key}.
@@ -326,7 +332,7 @@ def resolve_list_source(
     return chosen
 
 
-async def _list_clients_v2(
+async def _list_active_clients(
     client: UniFiClient,
     registry: Registry,
     host: str,
@@ -356,10 +362,6 @@ async def _list_clients(
     limit: int | None = None,
     client_type: str | None = None,
     filter: str | None = None,
-    source: str | None = None,
-    include_matter_thread_clients: bool | None = None,
-    include_traffic_usage: bool | None = None,
-    include_unifi_devices: bool | None = None,
 ) -> Any:
     """List connected clients for a site with optional pagination and type filter.
 
@@ -373,34 +375,11 @@ async def _list_clients(
     ``filter`` query parameter and applied in either mode; when ``None`` it is
     omitted rather than sent as the string ``"None"``. ``client_type`` is translated
     into a ``type.eq(...)`` filter expression and is mutually exclusive with an
-    explicit ``filter`` (see ``_resolve_client_filter``).
-
-    ``source="v2"`` (or any ``include_*`` flag) reads the controller's v2
-    active-client list instead and returns its body verbatim (see
-    :func:`_list_clients_v2`); the Integration-only arguments then do not apply.
+    explicit ``filter`` (see ``_resolve_client_filter``). This tool uses only the
+    published Integration API; the controller's private v2 route is exposed separately
+    as :func:`_list_active_clients` so official-only source selection remains accurate.
     """
     validate_pagination(page_size=limit, offset=offset, names={"page_size": "limit"})
-    flags = {
-        "include_matter_thread_clients": include_matter_thread_clients,
-        "include_traffic_usage": include_traffic_usage,
-        "include_unifi_devices": include_unifi_devices,
-    }
-    chosen = resolve_list_source(
-        "list_clients",
-        source,
-        LIST_CLIENTS_SOURCES,
-        "integration",
-        "v2",
-        newer_args=flags,
-        default_args={
-            "offset": offset,
-            "limit": limit,
-            "client_type": client_type,
-            "filter": filter,
-        },
-    )
-    if chosen == "v2":
-        return await _list_clients_v2(client, registry, host, site, flags)
     resolved_filter = _resolve_client_filter(client_type, filter)
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
@@ -529,10 +508,6 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         limit: int | None = None,
         client_type: str | None = None,
         filter: str | None = None,
-        source: str | None = None,
-        include_matter_thread_clients: bool | None = None,
-        include_traffic_usage: bool | None = None,
-        include_unifi_devices: bool | None = None,
     ) -> Any:
         """List connected clients for a site.
 
@@ -541,10 +516,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         envelope fields are kept beside them, and incomplete / incompleteReason are added when a
         capped drain stopped short. A limit without offset requests a total gathered in batches.
         An explicit offset returns one upstream page with its envelope and page-size accounting.
-        With source "v2" (or any
-        include_* flag) the controller's v2 active-client list (GET
-        network/v2/api/site/{site}/clients/active, the web UI's route) is returned verbatim
-        instead; it can include Matter/Thread clients.
+        This tool uses the published Network Integration API. For the controller's private v2
+        active-client route, use list_active_clients.
 
         By default every page is drained and the complete client list is returned
         as {data, totalCount}. Limit alone requests a total; offset selects one native page
@@ -582,17 +555,6 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 rather than silently returning wrong results. A capped drain returns the clients
                 gathered so far with incomplete=true rather than truncating silently.
                 Example: `type.eq('WIRED')`.
-            source: Optional route: "integration" (default, the published API) or "v2"
-                (the controller's v2 active-client list). offset, limit, client_type and
-                filter apply only to "integration"; the include_* flags only to "v2".
-                Example: `v2`.
-            include_matter_thread_clients: Optional v2 flag (query includeMatterThreadClients):
-                true also lists Matter/Thread clients. Selects source "v2".
-                Example: `true`.
-            include_traffic_usage: Optional v2 flag (query includeTrafficUsage): true asks the
-                controller to include traffic usage. Selects source "v2". Example: `true`.
-            include_unifi_devices: Optional v2 flag (query includeUnifiDevices): true asks the
-                controller to include UniFi devices. Selects source "v2". Example: `false`.
         """
         client, registry = deps_fn()
         return await _list_clients(
@@ -604,10 +566,50 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             limit=limit,
             client_type=client_type,
             filter=filter,
-            source=source,
-            include_matter_thread_clients=include_matter_thread_clients,
-            include_traffic_usage=include_traffic_usage,
-            include_unifi_devices=include_unifi_devices,
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_active_clients(
+        host: str,
+        site: str,
+        include_matter_thread_clients: bool | None = None,
+        include_traffic_usage: bool | None = None,
+        include_unifi_devices: bool | None = None,
+    ) -> Any:
+        """Retrieve the private v2 active-client roster and optional Matter/Thread rows.
+
+        Returns the upstream body verbatim from GET
+        network/v2/api/site/{site}/clients/active. FastMCP wraps a top-level array in
+        result for MCP clients. This is the private-route counterpart
+        to the official Integration API list_clients tool. Use it when the v2-specific
+        flags or Matter/Thread client rows are required.
+
+        Required arguments: host, site (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
+                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site: Network site name or slug; resolved server-side. Get it from list_local_sites
+                (name or id). Names like "Default" work.
+            include_matter_thread_clients: Optional v2 flag (query includeMatterThreadClients):
+                true also lists Matter/Thread clients. Example: `true`.
+            include_traffic_usage: Optional v2 flag (query includeTrafficUsage): true asks the
+                controller to include traffic usage. Example: `true`.
+            include_unifi_devices: Optional v2 flag (query includeUnifiDevices): true asks the
+                controller to include UniFi devices. Example: `false`.
+        """
+        client, registry = deps_fn()
+        return await _list_active_clients(
+            client,
+            registry,
+            host,
+            site,
+            {
+                "include_matter_thread_clients": include_matter_thread_clients,
+                "include_traffic_usage": include_traffic_usage,
+                "include_unifi_devices": include_unifi_devices,
+            },
         )
 
     @mcp.tool(annotations=READ_ONLY)
@@ -659,11 +661,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         UNAUTHORIZE_GUEST_ACCESS revokes the guest's access.
 
         Returns the upstream response body verbatim: the action-result object the API answers with
-        (under UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
+        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
         message,
         preview: {method, path, params (query parameters), body}} instead).
 
-        Request body (Network 10.6.106, POST /v1/sites/{siteId}/clients/{clientId}/actions
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions
         (executeConnectedClientAction); schema "Client action request") is passed in `action`.
         Required keys — action.
         - action: string, AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS
@@ -698,7 +700,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 optionally takes timeLimitMinutes, dataUsageLimitMBytes, rxRateLimitKbps and
                 txRateLimitKbps.
             confirm: Ignored; accepted for backward compatibility. The call executes immediately
-                when made unless the operator opted in to UNIFI_DRY_RUN (then nothing
+                when made unless the operator opted in to dry-run policy (then nothing
                 is sent upstream and a preview of the request is returned).
         """
         client, registry = deps_fn()
@@ -717,7 +719,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         unblock_client.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead).
 
         Request body: none is passed by the caller. Tool sends
@@ -762,7 +764,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the client may connect to the site again.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead).
 
         Request body: none is passed by the caller. Tool sends
@@ -807,7 +809,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         traffic.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead).
 
         Request body: none is passed by the caller. Tool sends

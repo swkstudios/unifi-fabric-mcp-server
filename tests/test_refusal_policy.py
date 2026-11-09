@@ -395,12 +395,16 @@ def test_sweep_covers_every_argument_kind():
 # --------------------------------------------------------------------------- inventory
 #: Raise sites that are not pre-upstream argument refusals: {module.py:qualname: reason}.
 NON_REFUSAL_RAISES: dict[str, str] = {
-    "server.py:query_isp_metrics": (
+    "tools/statistics.py:_list_speedtest_results": (
+        "re-raises an observed upstream archive.speedtest error; only a 403 host-not-found "
+        "response gets host-id guidance appended, with status and request_sent preserved"
+    ),
+    "tools/site_manager.py:register.query_isp_metrics": (
         "re-raises a selector-resolution failure gathered from the per-key resolvers: an "
         "invalid selector fails the whole call before any metrics request, a partial or "
         "failed listing is scoped to its key, and a cancellation propagates"
     ),
-    "server.py:query_isp_metrics._query": (
+    "tools/site_manager.py:register.query_isp_metrics._query": (
         "re-raises an already-observed host/site selector-resolution failure through the "
         "existing per-key fan-out; selector ValueErrors propagate before metrics requests"
     ),
@@ -411,17 +415,53 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     ),
     # configuration and process start (not a tool call)
     "server.py:": "module __main__ entrypoint exits before the tool catalog is imported",
-    "audit.py:AuditSink.__post_init__": "configuration (UNIFI_AUDIT_LOG_FORMAT)",
-    "families.py:apply_tool_family_filter": "configuration (UNIFI_TOOL_FAMILIES)",
+    "audit.py:AuditStream.__post_init__": (
+        "configuration (UNIFI_AUDIT_LOG_FORMAT, UNIFI_AUDIT_LEVEL)"
+    ),
+    "audit.py:FileSink.write": "audit sink fault: converted to SinkWriteError and handled "
+    "fail-open inside AuditStream._write; never reaches a tool call",
+    "audit.py:StderrSink.write": "audit sink fault: converted to SinkWriteError and handled "
+    "fail-open inside AuditStream._write; never reaches a tool call",
+    "server.py:AuditContextMiddleware.on_call_tool": "re-raises the tool's own error, with the "
+    "audit_unavailable notice appended while the audit sink is failing",
+    "profiles.py:Profile.__post_init__": "configuration (a profile naming unknown families)",
+    "profiles.py:selection_profile": "configuration (family allowlist / exclusion list)",
+    "catalog.py:Catalog.from_dict": "catalog generation/validation (startup:catalog), "
+    "never a tool call",
+    "catalog.py:overlay": "catalog contract fixture overlay (startup:catalog), never a tool call",
+    "catalog.py:validate_catalog": "catalog validation at startup/generation "
+    "(startup:catalog:<reason>), never a tool call",
+    "catalog_build.py:registered_tools": "catalog generation invariant (discovery meta tools "
+    "registered), never a tool call",
+    "catalog_build.py:build_catalog": "catalog generation (unclassified source), never a tool call",
     "tool_annotations.py:install_tool_annotations": "server construction (import time): the\n"
     "registered tool catalog cannot be read to annotate it; fails closed, never a tool call",
+    # Code Mode (UNIFI_TOOL_MODE=codemode, experimental): its own closed codes per the Code
+    # Mode contract (code_mode_invalid_source and code_mode_busy before any upstream call; the
+    # post-dispatch code_mode_* results), or the shared read broker's existing refusals.
+    "code_mode.py:check_source": "code_mode_invalid_source before slot/interpreter/upstream",
+    "code_mode.py:_canonical_argument_bytes": (
+        "programming invariant: the bounded strict-JSON preflight byte count must equal the "
+        "canonical materialization; it adds no caller-visible argument refusal"
+    ),
+    "code_mode.py:finish_output": "code_mode_invalid_text for script output (post-dispatch)",
+    "code_mode.py:render_output": "code_mode_script_error: final value not strict JSON",
+    "code_mode.py:_Run.call_tool": "sandbox-side end of an already-ended script",
+    "code_mode.py:_Run._call": "33rd attempt or surrogate response ends the script",
+    "code_mode.py:_Run._deliver": "response byte limits / strict encoding end the script",
+    "code_mode.py:_run_sandbox": "code_mode_unavailable / recorded script failure",
+    "code_mode.py:_drive_pool": "recorded script failure or mapped sandbox error",
+    "code_mode.py:run_script": "code_mode_busy before any upstream call",
+    "discovery.py:apply_tool_mode.code_search_tools": "server lifecycle has ended",
+    "discovery.py:apply_tool_mode.code_describe_tool": "write_denied: Code Mode is read-only",
+    "discovery.py:apply_tool_mode.execute": "re-raises a code_mode_* result as its MCP error",
     "discovery.py:apply_tool_mode": "configuration (UNIFI_TOOL_MODE) and server construction "
     "(meta-tool names colliding with registered tools)",
     "discovery.py:apply_tool_mode.search_tools": "server lifecycle has ended; the meta-tool "
     "has already been removed and no registered tool argument is refused",
     "discovery.py:DiscoveryMiddleware.on_call_tool": "re-raises a dispatched meta-tool's "
     "framework argument error, formatted, or a dispatcher missing at server construction",
-    "api_sources.py:parse_disabled_sources": "configuration (UNIFI_DISABLE_API_SOURCES)",
+    "api_sources.py:parse_disabled_sources": "configuration (UNIFI_EXCLUDE)",
     "api_sources.py:route_source": "classification of a request path (build time and "
     "server construction, never a tool call)",
     "api_sources.py:primary_pair": "classification invariant (a tool touches a pair)",
@@ -435,6 +475,10 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "transport_security.py:_CappedStream.__aiter__": "JWKS download over the 1 MiB cap",
     "transport_security.py:_CappedTransport.handle_async_request": "JWKS download over the "
     "1 MiB cap (declared Content-Length)",
+    "transport_security.py:StrictJWTVerifier.__init__": "server construction (the FastMCP "
+    "JWKS refresh internals this verifier replaces are missing)",
+    "transport_security.py:StrictJWTVerifier._fetch_jwks": "hands a shared JWKS download "
+    "failure to FastMCP, which rejects the token",
     "list_results.py:install_structured_list_results": "server construction",
     "server.py:lifespan": "server start without an API key",
     "server.py:main": "process start: a missing or malformed API key exits before serving",
@@ -446,7 +490,54 @@ NON_REFUSAL_RAISES: dict[str, str] = {
         "no pre-upstream argument is refused"
     ),
     "client.py:UniFiClient._default_key": "configuration (no API key)",
-    "client.py:UniFiClient._get_client": "configuration (a key HTTP cannot carry)",
+    "client.py:UniFiClient._new_http_client": "configuration (a key HTTP cannot carry)",
+    "audit.py:FileSink._check_existing": "configuration (UNIFI_AUDIT_LOG names an unsafe "
+    "existing file): refused at sink creation, never a tool call",
+    "server.py:startup_policy": "configuration (the startup policy of UNIFI_WRITE_POLICY, "
+    "UNIFI_WRITE_EXCEPTIONS and UNIFI_EXCLUDE): refuses to start, never a tool call",
+    # Policy grammar: environment-variable parsing and the catalog the policy is built on
+    # (startup), plus the invariants of the closed policy record; none is a tool-call refusal.
+    "policy.py:Catalog.build": "policy catalog construction (startup), never a tool call",
+    "policy.py:_family_id": "configuration grammar (family id in UNIFI_WRITE_EXCEPTIONS)",
+    "policy.py:_tokens": "configuration grammar (list separators and empty items)",
+    "policy.py:_tool_target": "configuration grammar (tool:<name> in UNIFI_WRITE_EXCEPTIONS)",
+    "policy.py:check_retired_settings": "configuration (a retired setting refuses startup)",
+    "policy.py:operator_policy": "configuration (the operator's policy settings)",
+    "policy.py:parse_exclude": "configuration grammar (UNIFI_EXCLUDE)",
+    "policy.py:parse_write_exceptions": "configuration grammar (UNIFI_WRITE_EXCEPTIONS)",
+    "policy.py:parse_write_policy": "configuration grammar (UNIFI_WRITE_POLICY)",
+    "policy.py:_header_value": "request policy header grammar: reaches the caller as the "
+    "registered invalid_policy_header refusal (request_policy.py)",
+    "policy.py:_parse_header": "request policy header grammar: reaches the caller as the "
+    "registered invalid_policy_header refusal (request_policy.py)",
+    "policy.py:_selectors_for": "invariant: exclusions are parsed at configuration time",
+    "policy.py:refusal_record": "invariant of the closed policy.refusal record (code, ids)",
+    "request_policy.py:RequestPolicyMiddleware.on_list_tools": "tools/list, not a tool call: "
+    "an invalid policy header answers with the invalid_policy_header MCP error",
+    # shared contracts: construction invariants of internal values
+    "contracts.py:CredentialHandle.__post_init__": "construction invariant (internal value)",
+    "contracts.py:EffectivePolicy.__post_init__": "construction invariant (internal value)",
+    "contracts.py:RequestContext.__post_init__": "construction invariant (internal value)",
+    "contracts.py:RequestContext.child": "construction invariant (internal value)",
+    "contracts.py:credentials_index": "construction invariant (internal value)",
+    "contracts.py:require_selected_credential": "internal caller contract (a selected key)",
+    # header credentials (UNIFI_KEY_MODE=header): the closed pre-dispatch refusals are the
+    # registered header-credential refusal; the remaining raises are startup configuration or
+    # internal invariants.
+    "header_credentials.py:ActiveRequest.handle_for_config": "internal caller contract",
+    "header_credentials.py:CredentialCache.client": "internal caller contract (cache closed)",
+    "header_credentials.py:CredentialLeaseMiddleware.on_call_tool": "re-raises the tool's "
+    "own error after releasing the credential lease",
+    "header_credentials.py:CredentialTransport.key_config": "internal caller contract",
+    "header_credentials.py:check_startup": "configuration (UNIFI_KEY_MODE startup check)",
+    "header_credentials.py:children_for": "internal caller contract",
+    "header_credentials.py:hostless_selection": "internal caller contract",
+    "header_credentials.py:key_mode": "configuration (UNIFI_KEY_MODE)",
+    # tool registration (import time): the catalog contract, never a tool call
+    "registration.py:HandlerRef.parse": "catalog registration (import time)",
+    "registration.py:_check_signature": "catalog registration (import time)",
+    "registration.py:_resolve": "catalog registration (import time)",
+    "registration.py:validate_catalog": "catalog registration (import time)",
     "tools/placement_snapshot.py:build_snapshot": "internal caller contract (aware datetime)",
     "client.py:gather_or_cancel": "re-raise concurrent upstream failure after cancellation",
     "tools/protect.py:_collector_id": "upstream poll-record identity shape",
@@ -541,6 +632,10 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "tools/protect.py:collect_protect_events": "a failing first poll re-raises its error",
     "tools/protect.py:list_protect_events": "upstream error re-raised with a host hint",
     "tools/network.py:create_wifi_broadcast": "upstream SSID-limit error re-raised with a hint",
+    "tools/network_services_proxy.py:create_traffic_rule": (
+        "upstream error re-raised with a hint; a 501 api.err.NotImplemented names the "
+        "supported rule families"
+    ),
     "tools/network_dpi_policy.py:update_predefined_firewall_policy": (
         "upstream system-defined-policy refusal re-raised with a patch_firewall_policy hint"
     ),
@@ -697,6 +792,21 @@ def test_every_raise_site_is_a_registered_refusal_or_inventoried():
     )
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "X-UniFi-Api-Key was sent more than once; send it once.",
+        "This server runs in header mode: send your UniFi API key(s) in the header.",
+        "key_label is not accepted in header mode; send only the key(s) this call should use.",
+        "This server uses its configured keys (UNIFI_KEY_MODE=environment).",
+        "All 4 credential slots are serving active calls; retry in a few seconds.",
+    ],
+)
+def test_header_credential_refusals_classify(message):
+    refusal = refusals.classify(message)
+    assert refusal is not None and refusal.id == "header-credential", message
+
+
 def test_registry_names_only_live_raise_sites():
     sites = _raise_sites()
     stale = sorted(
@@ -820,7 +930,7 @@ def test_path_segment_registers_padded_id_refusal():
         ("Unexpected Protect cameras response: dict", "upstream-shape"),
         ("Read-before GET protect/api/nvr needs an object, received list", "upstream-shape"),
         (
-            "PATCH connector relay is refused: (UNIFI_ENABLE_CONNECTOR_WRITE=0)",
+            "PATCH connector relay is refused: (family:connector=deny=0)",
             "area-write-opt-out",
         ),
     ],

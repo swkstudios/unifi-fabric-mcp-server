@@ -18,7 +18,9 @@ Everything here applies to the HTTP transports (``streamable-http``, ``sse``) on
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import contextlib
 import hmac
 import ipaddress
 import json
@@ -253,7 +255,11 @@ class HostRefusalHintMiddleware:
                 if local_refusal:
                     message = dict(message)
                     message["headers"] = _lengthened(message.get("headers", []), len(hint))
-            elif message["type"] == "http.response.body" and local_refusal:
+            elif (
+                message["type"] == "http.response.body"
+                and local_refusal
+                and not message.get("more_body", False)
+            ):
                 message = {**message, "body": message.get("body", b"") + hint}
             await send(message)
 
@@ -468,12 +474,44 @@ class _CappedTransport(httpx2.AsyncBaseTransport):
 def capped_jwks_client(inner: httpx2.AsyncBaseTransport | None = None) -> httpx2.AsyncClient:
     """Await JWKS completion or cancellation while preserving the 1 MiB byte cap.
 
-    ``inner`` replaces the network transport (tests). No elapsed-time deadline is set.
+    ``inner`` replaces the network transport (tests). No elapsed-time deadline is set: a
+    download that never answers is left waiting, and :class:`StrictJWTVerifier` keeps
+    every other authentication independent of it (see :data:`JWKS_MAX_PENDING_DOWNLOADS`).
     """
     return httpx2.AsyncClient(
         timeout=None,  # noqa: S113 -- retain byte safety, not an elapsed-time cap
         transport=_CappedTransport(inner),
     )
+
+
+#: How many JWKS downloads may be waiting on the identity provider at once. A download
+#: has no elapsed-time deadline, so one that is accepted and never answered stays open; a
+#: later refresh (at most one per ``jwks_refresh_interval``, and only when a caller needs
+#: one) starts another download beside it rather than waiting behind it. Past this many,
+#: starting a new download closes the oldest, so a long stall holds a fixed number of
+#: connections. The first download to finish answers every waiting caller and closes the
+#: rest.
+JWKS_MAX_PENDING_DOWNLOADS = 4
+
+
+class _JWKSRound:
+    """The callers waiting for the next JWKS download to finish, and its outcome."""
+
+    __slots__ = ("document", "error", "settled")
+
+    def __init__(self) -> None:
+        self.settled = asyncio.Event()
+        self.document: dict[str, Any] | None = None
+        self.error: Exception | None = None
+
+
+#: A settled download that FastMCP's key processing reads through
+#: :meth:`StrictJWTVerifier._fetch_jwks` (the download task's own cache fill).
+_settled_jwks: ContextVar[_JWKSRound | None] = ContextVar("unifi_fabric_settled_jwks", default=None)
+#: Whether FastMCP asked for a download during this caller's key lookup.
+_jwks_download_requested: ContextVar[bool] = ContextVar(
+    "unifi_fabric_jwks_download_requested", default=False
+)
 
 
 #: What parsing an untrusted token can raise on hostile input: a missing segment
@@ -489,7 +527,118 @@ UNTRUSTED_TOKEN_ERRORS: tuple[type[Exception], ...] = (IndexError, ValueError, R
 class StrictJWTVerifier(JWTVerifier):
     """FastMCP's :class:`JWTVerifier` plus the time-claim checks of
     :func:`jwt_time_claim_problem`, run after the signature and the issuer, audience and
-    scope checks pass. A rejection is logged and recorded for the 401 response."""
+    scope checks pass. A rejection is logged and recorded for the 401 response.
+
+    JWKS refreshes hold no lock across the download. FastMCP's verifier keeps one refresh
+    lock for the whole download; as the download has no deadline, an identity provider
+    that accepted the connection and never answered kept the lock, and every later
+    authentication that needed a refresh (an unknown ``kid``, or any token once the cached
+    key set aged out) waited behind it until a restart, even after the provider recovered.
+    Here that lock is a no-op and each download runs as its own task: callers wait for the
+    next download to finish without holding anything, a caller that goes away leaves the
+    download to the others, and a refresh due under FastMCP's ``jwks_refresh_interval``
+    starts a new download beside a stalled one. FastMCP's own code still decides when the
+    cached keys are fresh and when a refresh is due, and processes and selects the keys.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        if not hasattr(self, "_shared_jwks_refresh_lock"):
+            raise RuntimeError(
+                "FastMCP's JWTVerifier no longer has _shared_jwks_refresh_lock; "
+                "StrictJWTVerifier's JWKS refresh must be revisited for this FastMCP version"
+            )
+        # FastMCP's checks between the cache test and the download contain no await, so
+        # on one event loop they stay atomic without the lock.
+        self._shared_jwks_refresh_lock = contextlib.nullcontext()  # type: ignore[assignment]
+        self._jwks_round = _JWKSRound()
+        self._jwks_downloads: list[asyncio.Task[None]] = []
+
+    async def _get_jwks_key(self, kid: str | None) -> str:
+        reset = _jwks_download_requested.set(False)
+        try:
+            return await super()._get_jwks_key(kid)
+        except ValueError:
+            # FastMCP refused before downloading (a refresh ran inside the refresh
+            # interval). Its lock used to make this caller wait for that refresh; wait
+            # for the download in flight instead, then let FastMCP answer from its cache.
+            if _jwks_download_requested.get() or not self._jwks_downloads:
+                raise
+        finally:
+            _jwks_download_requested.reset(reset)
+        await self._jwks_round.settled.wait()
+        return await super()._get_jwks_key(kid)
+
+    async def _fetch_jwks(self) -> dict[str, Any]:
+        """The document of the next JWKS download to finish (FastMCP processes it)."""
+        settled = _settled_jwks.get()
+        if settled is None:
+            _jwks_download_requested.set(True)
+            self._start_jwks_download()
+            settled = self._jwks_round
+            await settled.settled.wait()
+        if settled.error is not None:
+            raise settled.error
+        if settled.document is None:  # pragma: no cover - a settled round has one or the other
+            raise ValueError("JWKS download settled without a document")
+        return settled.document
+
+    def _start_jwks_download(self) -> None:
+        if len(self._jwks_downloads) >= JWKS_MAX_PENDING_DOWNLOADS:
+            self._jwks_downloads.pop(0).cancel()
+        task = asyncio.create_task(self._download_jwks(), name="unifi-fabric-jwks-download")
+        self._jwks_downloads.append(task)
+        # A task cancelled before it starts never runs its body, so it cannot remove
+        # itself. Whoever cancels a download here takes it out of the list at once; this
+        # covers a cancellation from outside (shutdown).
+        task.add_done_callback(self._forget_jwks_download)
+
+    def _forget_jwks_download(self, task: asyncio.Task[None]) -> None:
+        if task in self._jwks_downloads:
+            self._jwks_downloads.remove(task)
+
+    async def _download_jwks(self) -> None:
+        """One download; its outcome answers every caller waiting on the current round.
+
+        Cancelled (to make room for a newer download, or at shutdown), it settles
+        nothing: its callers keep waiting for the next download to finish.
+        """
+        me = asyncio.current_task()
+        outcome = _JWKSRound()
+        cancelled = False
+        try:
+            try:
+                outcome.document = await JWTVerifier._fetch_jwks(self)
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
+            except Exception as exc:  # handed to the waiting callers; FastMCP maps it
+                outcome.error = exc
+            else:
+                # Take the siblings out of the in-flight list before cancelling them: one
+                # not yet started never runs its finally, and left in the list it would
+                # make a caller refused inside the refresh interval wait for a download
+                # that is not running.
+                siblings = [other for other in self._jwks_downloads if other is not me]
+                self._jwks_downloads[:] = [task for task in self._jwks_downloads if task is me]
+                for other in siblings:
+                    other.cancel()
+                # Fill FastMCP's cache before waking anyone, so a caller arriving next
+                # finds it. A document FastMCP cannot process is reported to each waiting
+                # caller by its own processing, so nothing is lost here.
+                reset = _settled_jwks.set(outcome)
+                try:
+                    with contextlib.suppress(Exception):
+                        await self._refresh_jwks_key(None)
+                finally:
+                    _settled_jwks.reset(reset)
+        finally:
+            if me in self._jwks_downloads:
+                self._jwks_downloads.remove(me)
+            if not cancelled:
+                waiting, self._jwks_round = self._jwks_round, _JWKSRound()
+                waiting.document, waiting.error = outcome.document, outcome.error
+                waiting.settled.set()
 
     async def load_access_token(self, token: str) -> AccessToken | None:
         _claim_rejection.set(None)

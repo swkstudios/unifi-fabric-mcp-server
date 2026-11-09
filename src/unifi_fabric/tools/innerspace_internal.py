@@ -9,7 +9,7 @@ The routes have no published request/response schema. Bodies the routes take are
 free-form here (no invented required keys): the upstream judges them. Every upstream body
 is returned verbatim; additive keys are ``_``-prefixed. Every GET is a read. Every POST,
 PATCH and DELETE is a write (no route here is on the read-POST allowlist), so
-``UNIFI_READ_ONLY`` refuses it and ``UNIFI_DRY_RUN`` returns the client's preview
+``UNIFI_WRITE_POLICY=deny`` refuses it and ``dry-run policy`` returns the client's preview
 ``{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}``
 instead of sending it. Writes are sent once and never retried. An upstream 401/403 (for
 example a route that needs a console session rather than an API key) is raised with its
@@ -33,6 +33,7 @@ from ..client import (
     describe_shape,
     is_dry_run_preview,
     strip_additive_keys,
+    upstream_error_value,
     validate_selector,
 )
 from ..config import APIKeyConfig
@@ -123,11 +124,11 @@ def _update_body(fields: Any, tool: str) -> dict[str, Any]:
 
 
 def _guard(client: UniFiClient, tool: str, method: str) -> None:
-    """Refuse a write under ``UNIFI_READ_ONLY`` before any request (resolution included)."""
+    """Refuse a write under ``UNIFI_WRITE_POLICY=deny`` before any request (resolution included)."""
     try:
         guard_action(method)
     except ReadOnlyModeError:
-        client.audit_refusal(tool=tool, reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool=tool, reason="UNIFI_WRITE_POLICY")
         raise
 
 
@@ -327,7 +328,7 @@ def _select_plan(plans: list[dict[str, Any]], plan_id: str, host: str) -> dict[s
     """The one plan whose ``id`` is ``plan_id``; else fail listing the valid ids."""
     matches = [p for p in plans if str(p.get("id", "")).lower() == plan_id.lower()]
     if len(matches) != 1:
-        valid = [p.get("id") for p in plans]
+        valid = [upstream_error_value(p.get("id")) for p in plans]
         raise ValueError(
             f"InnerSpace plan {plan_id!r} not found exactly once in the project of host "
             f"{host!r} ({len(matches)} matches); valid: {valid}"
@@ -642,7 +643,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends {title, siteId, captures}. Each capture is free-form and is sent as given;
         captures carry files (topView, 3d.gltf), a title and devices [{id, sku}].
         Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -672,8 +673,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         The plan object is free-form and sent as given; the web app sends type, url,
         title and siteId. Returns the upstream body verbatim ({data: plan}). An empty
-        plan fails before any request. Write: sent once, never retried. UNIFI_READ_ONLY
-        refuses it before any request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run",
+        plan fails before any request. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny
+        refuses it before any request. dry-run policy returns a dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Required arguments: host, plan (see each parameter's description).
@@ -696,8 +697,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty). The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails
         before any request. The id is resolved in the collection list first; an unknown id lists the
-        valid ids and sends no write. Write: sent once, never retried. UNIFI_READ_ONLY refuses it
-        before any request. UNIFI_DRY_RUN returns {status: "dry_run", deleted: false, message,
+        valid ids and sends no write. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny
+        refuses it
+        before any request. dry-run policy returns {status: "dry_run", deleted: false, message,
         response} where response is the dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}}.
@@ -721,7 +723,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends the array of plan objects as given; each carries its
         new ordering. Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -748,9 +750,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The fields are free-form and sent as given. An empty update or a plan_id that is
         not a UUID fails before any request. The id is resolved in the collection list
         first; an unknown id lists the valid ids and sends no write. Returns the upstream
-        body verbatim. Write: sent once, never retried. UNIFI_READ_ONLY refuses it before
+        body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before
         any request.
-        UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
+        dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
         preview: {method, path, params, body}}.
 
         Required arguments: host, plan_id, fields (see each parameter's description).
@@ -784,7 +786,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         returns the plan as read plus _noOp: true, _verified: true and _note, without
         writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction
         mask is not sent and is listed under _redactedFieldsNotSent. Write: sent once, never
-        retried. UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a
+        dry-run
         preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}.
 
@@ -808,8 +811,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The fields are free-form and sent as given. An empty update fails before any
         request. Returns the upstream body verbatim; it is not read back, and an earlier
         live test saw this route answer HTTP 200 without persisting the change, so confirm
-        with get_innerspace_project. Write: sent once, never retried. UNIFI_READ_ONLY
-        refuses it before any request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run",
+        with get_innerspace_project. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny
+        refuses it before any request. dry-run policy returns a dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}.
 
         Required arguments: host, fields (see each parameter's description).
@@ -838,8 +841,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends the decoded file as the files part and assets_dir as the assetsDir field.
         No size limit. Content that is not base64 fails before any request. Returns the
-        upstream body verbatim. Write: sent once, never retried. UNIFI_READ_ONLY refuses
-        it before any request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun,
+        upstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses
+        it before any request. dry-run policy returns a dry-run preview {status: "dry_run", dryRun,
         sent: false, message, preview: {method, path, params, body, multipart}} plus _form.
 
         Required arguments: host, filename, content_base64, assets_dir (see each parameter's
@@ -870,7 +873,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         The wall type is free-form and sent as given. An empty body fails before any
         request. Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -895,8 +898,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Route: /proxy/innerspace/api/project/attenuation-object-type. The type is
         free-form and sent as given. An empty body fails before any request. Returns the
-        upstream body verbatim. Write: sent once, never retried. UNIFI_READ_ONLY refuses
-        it before any request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun,
+        upstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses
+        it before any request. dry-run policy returns a dry-run preview {status: "dry_run", dryRun,
         sent: false, message, preview: {method, path, params, body}}.
 
         Required arguments: host, attenuation_type (see each parameter's description).
@@ -919,9 +922,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the imported shapes become plans under site_id (data.planIds); failed
         maps are listed in mapFailures and can be retried with retry_innerspace_plan_maps.
 
-        Sends siteId as a query parameter and the optional free-form body as given.
+        Sends siteId as a query parameter and the optional free-form body after removing
+        additive underscore-prefixed keys and masked credential fields.
         Returns the upstream body verbatim ({data: {planIds, mapFailures}}). Write: sent
-        once, never retried. UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN
+        once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy
         returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview:
         {method, path, params, body}}.
 
@@ -930,7 +934,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site_id: UniFi site id (siteId query), e.g. "default".
-            body: Optional request body, sent as given, e.g. {"shapes": []}. Free-form object.
+            body: Optional free-form request body, e.g. {"shapes": []}; additive keys and
+                masked credential fields are removed before sending.
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         client, registry = deps_fn()
@@ -944,8 +949,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the plans they produce.
 
         Sends siteId as a query parameter and no body. Returns the upstream body
-        verbatim. Write: sent once, never retried. UNIFI_READ_ONLY refuses it before any
-        request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any
+        request. dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}}.
 
@@ -970,8 +975,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         The share token is a UUID path segment (checked before any request, never echoed
         in that refusal) and siteId a query parameter. Returns the upstream body verbatim.
-        Write: sent once, never retried. UNIFI_READ_ONLY refuses it before any request.
-        UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
+        Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request.
+        dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false, message,
         preview: {method, path, params, body}}.
 
         Required arguments: host, token, site_id (see each parameter's description).
@@ -1001,7 +1006,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The transform data is free-form and sent as the body, with mode added when
         given; socket_id is sent as the socketId query. An empty transform fails before
         any request. Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -1028,8 +1033,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends {dir}. The route may need a console session rather than an API key; an
         upstream 401/403 is raised with its full reason. Returns the upstream body
-        verbatim. Write: sent once, never retried. UNIFI_READ_ONLY refuses it before any
-        request. UNIFI_DRY_RUN returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any
+        request. dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message,
         preview: {method, path, params, body}}.
 
@@ -1050,7 +1055,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the InnerSpace data is replaced by the backup. Sends {dir}. The route
         may need a console session rather than an API key; an upstream 401/403 is raised
         with its full reason. Returns the upstream body verbatim. Write: sent once, never
-        retried. UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a
+        retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a
         dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -1071,7 +1076,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Write an InnerSpace support dump on the console (POST .../api/ucore/support-dump).
 
         Sends {dir}. Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -1091,7 +1096,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the application removes stored files it no longer references. Sends
         no body. Returns the upstream body verbatim. Write: sent once, never retried.
-        UNIFI_READ_ONLY refuses it before any request. UNIFI_DRY_RUN returns a dry-run
+        UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}}.
 

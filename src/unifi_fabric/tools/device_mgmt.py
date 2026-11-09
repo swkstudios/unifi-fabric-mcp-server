@@ -22,6 +22,12 @@ from ..client import (
     validate_id,
 )
 from ..config import APIKeyConfig
+from ..header_credentials import (
+    MAX_CREDENTIAL_IDENTITIES,
+    full_key_digest,
+    header_mode_enabled,
+    request_key_configs,
+)
 from ..macs import colon_mac, is_mac, normalize_mac, record_mac
 from ..matching import id_key, same_id
 from ..registry import Registry, _assert_uuid
@@ -51,6 +57,9 @@ _mac_uuid_cache: weakref.WeakKeyDictionary[UniFiClient, TTLCache[str, str]] = (
     weakref.WeakKeyDictionary()
 )
 _DEFAULT_MAC_CACHE_TTL = 900
+_mac_uuid_identity_cache: weakref.WeakKeyDictionary[
+    UniFiClient, dict[tuple[tuple[str, str], ...], TTLCache[str, str]]
+] = weakref.WeakKeyDictionary()
 
 
 def _mac_cache_ttl(client: UniFiClient) -> int:
@@ -66,6 +75,24 @@ def _mac_cache_for(client: UniFiClient) -> TTLCache[str, str] | None:
     ttl = _mac_cache_ttl(client)
     if ttl == 0:
         return None
+    if header_mode_enabled():
+        # Header mode: one MAC -> UUID cache per credential identity set of the call
+        # (labels + full key digests), never shared across callers' keys.
+        identity = tuple(
+            (cfg.label, full_key_digest(cfg.key)) for cfg in (request_key_configs() or [])
+        )
+        if not identity:
+            return None
+        per_identity = _mac_uuid_identity_cache.setdefault(client, {})
+        cache = per_identity.pop(identity, None)
+        if cache is not None:
+            per_identity[identity] = cache  # most recently used goes last (LRU bound)
+        if cache is None or cache.ttl != ttl:
+            cache = TTLCache(maxsize=4096, ttl=ttl)
+            per_identity[identity] = cache
+            while len(per_identity) > MAX_CREDENTIAL_IDENTITIES:
+                per_identity.pop(next(iter(per_identity)))
+        return cache
     cache = _mac_uuid_cache.get(client)
     if cache is None or cache.ttl != ttl:
         cache = TTLCache(maxsize=4096, ttl=ttl)
@@ -92,7 +119,7 @@ _colon_mac = colon_mac
 
 
 # Classic REST device manager: /proxy/network/api/s/{site_slug}/cmd/devmgr. The published
-# Network Integration device-action schema (Network 10.6.106, "Device action request")
+# Network Integration device-action schema (Network 11.0.97, "Device action request")
 # lists only RESTART, and the controller rejects every other action there with HTTP 400
 # api.request.unknown-type-id "valid values: 'RESTART'" (verified live on 11.x). Locate and
 # firmware upgrade are therefore sent to the Classic device manager, addressed by MAC.
@@ -128,16 +155,24 @@ def _forget_cached_device(
 
     Called after unadopt, forget and adopt (a re-adopted device gets a new id, so a cached
     id would address the old one) and when a cached id answers HTTP 404.
+
+    Every cache the client holds is swept: the environment-mode cache and, in header mode,
+    the cache of every credential identity. The device changed upstream, so an entry cached
+    under any caller's keys is stale; dropping one only forces a fresh device-list lookup.
     """
-    cache = _mac_uuid_cache.get(client)
-    if not cache:
-        return
+    caches = [_mac_uuid_cache.get(client)]
+    caches.extend(list(_mac_uuid_identity_cache.get(client, {}).values()))
     suffix = f":{_normalize_mac(mac)}" if mac and _is_mac(mac) else None
-    for cache_key, cached_id in list(cache.items()):
-        if not cache_key.startswith(f"{host_id}:"):
+    for cache in caches:
+        if not cache:
             continue
-        if (suffix and cache_key.endswith(suffix)) or (device_id and same_id(device_id, cached_id)):
-            cache.pop(cache_key, None)
+        for cache_key, cached_id in list(cache.items()):
+            if not cache_key.startswith(f"{host_id}:"):
+                continue
+            if (suffix and cache_key.endswith(suffix)) or (
+                device_id and same_id(device_id, cached_id)
+            ):
+                cache.pop(cache_key, None)
 
 
 async def _resolve_device_id(
@@ -203,7 +238,8 @@ async def _resolve_device_id_cached(
         ids.append(uuid)
     if len({id_key(i) for i in ids}) > 1:
         choices = "; ".join(
-            f"{upstream_error_text(d.get('name'), client)!r} (id={i}, mac={_record_mac(d)})"
+            f"{upstream_error_text(d.get('name'), client)!r} (id={upstream_error_value(i)}, "
+            f"mac={_record_mac(d)})"
             for d, i in zip(matches, ids, strict=True)
         )
         raise ValueError(
@@ -222,8 +258,8 @@ async def _resolve_device_id_cached(
         evidence = [(d.get("name"), d.get("id"), _record_mac(d)) for d in devices]
         raise ValueError(
             f"Cannot resolve MAC {device_id!r} in site {site_id!r}: the device list is "
-            f"incomplete ({collected['incompleteReason']}). No id was cached. Read so far: "
-            f"{upstream_error_text(evidence, client)}."
+            f"incomplete ({upstream_error_value(collected['incompleteReason'])}). No id was "
+            f"cached. Read so far: {upstream_error_text(evidence, client)}."
         )
     valid = "; ".join(
         f"{upstream_error_text(d.get('name'), client)} "
@@ -773,8 +809,8 @@ async def _update_device_tag(
     if "_id" in tag and not (isinstance(tag["_id"], str) and same_id(tag["_id"], upstream_id)):
         raise ValueError(
             f"device tag body _id {tag['_id']!r} does not match the resolved "
-            f"record _id {upstream_id!r}. Remove the body _id or use the resolved "
-            "_id. No write was sent."
+            f"record _id {upstream_error_value(upstream_id)!r}. Remove the body _id or use the "
+            "resolved _id. No write was sent."
         )
     # This v2 PUT rejects _id; validate it before either payload form drops it.
     fields = {key: value for key, value in tag.items() if key != "_id"}
@@ -874,7 +910,7 @@ async def _forget_device(
     each MAC that failed (``[]`` when none did). It raises only when every MAC failed,
     quoting each MAC's error; a one-MAC list whose MAC fails therefore raises too.
 
-    Under ``UNIFI_DRY_RUN`` nothing is sent: a string returns the dry-run preview as is, and
+    Under ``dry-run policy`` nothing is sent: a string returns the dry-run preview as is, and
     a list returns ``{status: "dry_run", byMac, errors}`` with each MAC's preview under
     ``byMac`` (no ``forgotten``: nothing was forgotten).
 
@@ -961,11 +997,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 (MAC:numericId composite). One console serves both Network and Protect.
             site: Network site name or UUID; resolved server-side. Get it from list_local_sites
                 (name or id). Names like "Default" work.
-            offset: fetch a single page manually (the API's totalCount is surfaced so you can
-                advance).
+            offset: Optional zero-based starting record; alone, fetch one page manually (the
+                API's totalCount is surfaced so you can advance).
                 Example: `25`.
-            limit: fetch a single page manually (the API's totalCount is surfaced so you can
-                advance).
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain every page.
                 Example: `25`.
             filter: optional Network Integration API filter expression, forwarded unchanged as the
                 upstream `filter` query parameter for server-side filtering (e.g.
@@ -994,13 +1033,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns the upstream response body verbatim: the adopted device object the API answers with
         .
 
-        Request body (Network 10.6.106, POST /v1/sites/{siteId}/devices (adoptDevice); schema
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/devices (adoptDevice); schema
         "IntegrationDeviceAdoptionRequestDto") is passed in `device`. Required keys —
         ignoreDeviceLimit, macAddress.
         - ignoreDeviceLimit: boolean
         - macAddress: string
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#adopt_device.
@@ -1058,9 +1097,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         managed again.
 
         Returns {deleted: true, message, response}, with the upstream DELETE body in response (JSON,
-        text or null). UNIFI_DRY_RUN sends no write; returns {status: "dry_run", deleted: false,
-        message, response: {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}, _consequence}}. Never automatically retried.
+        text or null). Under dry-run policy nothing is sent; returns {status: "dry_run", deleted:
+        false, message, response: {status: "dry_run", dryRun: true, sent: false, message, preview:
+        {method, path, params, body}, _consequence}}. Never automatically retried.
 
         Example: docs/TOOL-USAGE.md#unadopt_device.
 
@@ -1093,19 +1132,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         .
 
         `action` is the action body {"action": "RESTART"}; RESTART is the only variant in
-        the published Device action request schema (Network 10.6.106), and the controller
+        the published Device action request schema (Network 11.0.97), and the controller
         rejects any other value with HTTP 400 api.request.unknown-type-id (verified live).
         For the locate LED use locate_device and for firmware use upgrade_device (both use
         the Classic device manager, cmd/devmgr); adopt a pending device with adopt_device or
         approve_pending_device. Not auto-retried on HTTP 429: a retry could repeat the action.
 
-        Request body (Network 10.6.106, POST /v1/sites/{siteId}/devices/{deviceId}/actions
+        Request body (Network 11.0.97, POST /v1/sites/{siteId}/devices/{deviceId}/actions
         (executeAdoptedDeviceAction); schema "Device action request") is passed in `action`.
         Required keys — action.
         - action: string
         Variants by `action` — RESTART requires action.
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#execute_device_action.
@@ -1179,10 +1218,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         wide-blast-radius surface. Not auto-retried on HTTP 429: a retry could repeat the
         power cycle. Returns the upstream body verbatim.
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
-        Request body (Network 10.6.106, POST
+        Request body (Network 11.0.97, POST
         /v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions
         (executePortAction); schema "Port action request") is passed in `action`. Required keys —
         action.
@@ -1230,11 +1269,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Transport failure leaves the outcome unknown; read back before retrying.
 
         Sends {"action": "RESTART"} to the Network Integration device-actions route (Network
-        10.6.106, POST /v1/sites/{siteId}/devices/{deviceId}/actions, executeAdoptedDeviceAction;
+        11.0.97, POST /v1/sites/{siteId}/devices/{deviceId}/actions, executeAdoptedDeviceAction;
         schema "Device action request", whose only variant is RESTART). Returns the upstream body
         verbatim. Not auto-retried on HTTP 429: a retry could repeat the action.
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#restart_device.
@@ -1273,7 +1312,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         {"meta": {"rc": "ok"}, "data": []}). Not auto-retried on HTTP 429: a retry could repeat
         the action.
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#locate_device.
@@ -1318,7 +1357,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         envelope {meta: {rc}, data: [...]} verbatim. Not auto-retried on HTTP 429: a retry
         could repeat the action.
 
-        UNIFI_DRY_RUN sends no write; returns {status: "dry_run", dryRun: true, sent: false,
+        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}, _consequence}.
 
         Example: docs/TOOL-USAGE.md#upgrade_device.
@@ -1347,7 +1386,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """List devices pending adoption on a console.
 
         Returns {data, totalCount} with every page drained (the API pages at 25 by default).
-        Pass offset or limit to fetch a single manual page (native envelope preserved).
+        limit alone requests a total gathered from the start in pages of at most 200 (_pageSize
+        reports the sizes); pass offset to fetch a single manual page (native envelope preserved).
         Pending devices are identified by data[].macAddress (pass it to approve_pending_device to
         adopt, or to forget_device to remove it from the pending list).
 
@@ -1357,11 +1397,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
                 or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
                 (MAC:numericId composite). One console serves both Network and Protect.
-            offset: Optional zero-based offset for fetching one page manually. Omit both offset and
-                limit to drain every page and get the complete list.
+            offset: Optional zero-based offset for fetching one page manually (limit, if given, is
+                its page size). Omit both offset and limit to drain every page.
                 Example: `25`.
-            limit: Optional page size for fetching one page manually. Omit both offset and limit to
-                drain every page and get the complete list.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is sent
+                unchanged as one page. The console clamps that page to 200, so fewer can
+                return while more exist (compare _pageSize requested and returned). Omit
+                offset and limit to drain every page.
                 Example: `25`.
             filter: Optional Network Integration API filter expression, forwarded unchanged as the
                 upstream `filter` query parameter for server-side filtering (e.g.
@@ -1391,7 +1434,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         "NAME - CONSOLE NAME" (Network 11.0.81). Check list_device_tags first.
 
         Returns: the upstream body verbatim, the created tag {_id, name, member_device_macs}.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -1436,7 +1479,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         fields on update (HTTP 400 "Unrecognized field").
 
         Returns: the upstream body verbatim, the updated tag {_id, name, member_device_macs}.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -1490,7 +1533,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
         (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview)}.
 
         Example call (delete_device_tag):
@@ -1529,13 +1572,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the site's controller takes over and provisions the device, which may restart
         while it applies its new configuration.
 
-        Uses the published adoptDevice route (Network 10.6.106, POST /v1/sites/{siteId}/devices;
+        Uses the published adoptDevice route (Network 11.0.97, POST /v1/sites/{siteId}/devices;
         schema "IntegrationDeviceAdoptionRequestDto"), the same route as adopt_device, with the
         body built from the parameters: {"macAddress": device_id, "ignoreDeviceLimit":
         ignore_device_limit}. Both keys are required by the spec, so the caller chooses
         ignore_device_limit (no default is filled in). Returns the upstream body (the adopted
         device details) verbatim.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -1562,7 +1605,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             ignore_device_limit: Required. Sent as the spec's required ignoreDeviceLimit; true
                 adopts even when the console's device limit is reached, false respects the limit.
             confirm: Ignored; accepted for backward compatibility. The call executes immediately
-                when made unless the operator opted in to UNIFI_DRY_RUN (then nothing
+                when made unless the operator opted in to dry-run policy (then nothing
                 is sent upstream and a preview of the request is returned).
         """
         client, registry = deps_fn()
@@ -1590,10 +1633,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         A list returns {byMac, forgotten, errors}; each successful byMac value is the
         upstream body, and errors contains {mac, error}. It raises only if every MAC fails.
 
-        UNIFI_READ_ONLY blocks this write. UNIFI_DRY_RUN sends no write; returns {status: "dry_run",
-        dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}. A
-        MAC list returns {status: "dry_run", byMac, errors}; byMac holds each MAC's preview, with no
-        forgotten key. Never automatically retried.
+        UNIFI_WRITE_POLICY=deny blocks this write. Under dry-run policy nothing is sent; returns
+        {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
+        body}, _consequence}. A MAC list returns {status: "dry_run", byMac, errors}; byMac holds
+        each MAC's preview, with no forgotten key. Never automatically retried.
 
         Example: docs/TOOL-USAGE.md#forget_device.
 

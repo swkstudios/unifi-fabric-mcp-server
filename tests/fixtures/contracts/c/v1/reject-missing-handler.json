@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-missing-handler",
+  "description": "A HandlerRef whose symbol the family adapter module does not define",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras",
+        "handler": "unifi_fabric._generated.adapters.protect:no_such_symbol"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:missing_handler",
+    "registered": 0
+  }
+}

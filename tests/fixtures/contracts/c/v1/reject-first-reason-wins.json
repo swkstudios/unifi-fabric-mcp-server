@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-first-reason-wins",
+  "description": "An entry both off its id pattern and a cross-family duplicate returns the first reason, invalid_spec",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "list_cameras"
+      },
+      {
+        "base": "list_cameras",
+        "id": "Network.list_cameras",
+        "family": "network",
+        "family_id": "network"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:invalid_spec",
+    "registered": 0
+  }
+}

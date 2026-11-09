@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-blank-write-exceptions",
+  "description": "UNIFI_WRITE_EXCEPTIONS present and blank (whitespace only) fails startup naming the setting.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_WRITE_EXCEPTIONS": "  "
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_WRITE_EXCEPTIONS",
+    "upstream_calls": 0
+  }
+}

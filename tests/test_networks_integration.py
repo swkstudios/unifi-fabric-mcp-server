@@ -4,10 +4,14 @@ Requires UNIFI_API_KEY (and optionally UNIFI_API_BASE_URL) to be set.
 Skip all tests automatically when the env var is absent.
 
 Also requires UNIFI_TEST_HOST and UNIFI_TEST_SITE to identify where to create
-the test VLAN (host name/ID and site name/ID on the test console).
+the test VLAN (host name/ID and site name/ID on the test console). The VLAN CRUD class is
+marked mutating: it runs only when selected with -m mutating, UNIFI_TEST_ALLOW_MUTATIONS=1
+is set and the write policy is allow (the shared gate in tests/_live_gates.py, run from
+tests/conftest.py before the class-scoped VLAN fixture).
 
-Run:
-    UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
+Run (with UNIFI_API_KEY already in the environment, loaded from a secret store; never
+type the key on the command line, where shell history keeps it):
+    UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
         pytest tests/test_networks_integration.py -v
 """
 
@@ -31,8 +35,9 @@ from unifi_fabric.tools.network import (
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated
-# at collection time, not import time.  Run with a real key to execute them:
-#   UNIFI_API_KEY=<key> UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
+# at collection time, not import time.  Run them with a real key in the environment
+# (loaded from a secret store, never typed on the command line):
+#   UNIFI_TEST_HOST=<host> UNIFI_TEST_SITE=<site> \
 #       pytest tests/test_networks_integration.py -v
 pytestmark = [
     pytest.mark.integration,

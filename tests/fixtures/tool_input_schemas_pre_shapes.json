@@ -8580,7 +8580,7 @@
     },
     "case_id": {
      "type": "string",
-     "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\"."
+     "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\"."
     },
     "camera_id": {
      "type": "string",
@@ -12739,7 +12739,7 @@
     "dry_run": {
      "default": false,
      "type": "boolean",
-     "description": "Preview the exact full-table PUT body and diff without writing, e.g. true.\nUNIFI_DRY_RUN also previews; read-only and write opt-outs still apply."
+     "description": "Preview the exact full-table PUT body and diff without writing, e.g. true.\ndry-run policy also previews; read-only and write opt-outs still apply."
     }
    },
    "required": [
@@ -13514,7 +13514,7 @@
     },
     "case_id": {
      "type": "string",
-     "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\"."
+     "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\"."
     },
     "name": {
      "anyOf": [
@@ -13586,11 +13586,11 @@
     },
     "case_id": {
      "type": "string",
-     "description": "Case id from list_protect_cases; for example \"6acc2a9002b21e03e42bf4ce\"."
+     "description": "Case id from list_protect_cases; for example \"000000000000000000000c01\"."
     },
     "asset_id": {
      "type": "string",
-     "description": "Asset id from list_protect_case_assets; for example\n\"6acc2a9500461e03e42bf50d\"."
+     "description": "Asset id from list_protect_case_assets; for example\n\"000000000000000000000a01\"."
     },
     "note": {
      "anyOf": [

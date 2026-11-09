@@ -99,18 +99,44 @@ async def test_padded_mac_is_refused_before_any_request(monkeypatch, name, pname
     assert up.served == [], f"{name}.{pname}: requests before the refusal: {up.served}"
 
 
+def _has_mac_pattern(text: str) -> bool:
+    # A single hex byte also occurs in Python's xXX string-escape grammar.
+    # Match MAC structure: repeated octets, a bare address, or MAC separators.
+    octet = r"\[(?:0-9a-fA-F|0-9A-Fa-f)\]\{2\}"
+    return bool(
+        re.search(r"\[(?:0-9a-fA-F|0-9A-Fa-f)\]\{12\}|\[:[^\]\n]*-\]", text)
+        or re.search(octet + r".*" + octet, text)
+        or re.search(octet + r".*\{[56]\}", text)
+    )
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        (r"\\x[0-9A-Fa-f]{2}", False),
+        (r"\\(?:u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|x[0-9A-Fa-f]{2})", False),
+        (r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}", True),
+        (r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", True),
+        (r"(?:[0-9A-Fa-f]{2}:?){6}", True),
+        (r"[0-9a-fA-F]{12}", True),
+        (r"[:.-]", True),
+    ],
+)
+def test_mac_pattern_lint_distinguishes_string_escapes(pattern, expected):
+    assert _has_mac_pattern(pattern) is expected
+
+
 def test_one_mac_validator():
     """``unifi_fabric.macs`` is the only MAC rule: no other module compiles a MAC pattern
     (the placement-snapshot sanitizer finds MACs inside free text to WITHHOLD
     them; secret_scrub escapes free-text patterns and does not validate caller MACs)
     and no tool strips a caller's MAC before checking."""
-    mac_pattern = re.compile(r"\[0-9a-fA-F\]\{(2|12)\}|\[0-9A-Fa-f\]\{(2|12)\}|\[:\\\\?-")
     offenders = []
     for path in sorted(SRC.rglob("*.py")):
         if path.name in ("macs.py", "placement_snapshot.py", "secret_scrub.py"):
             continue
         text = path.read_text()
-        if mac_pattern.search(text):
+        if _has_mac_pattern(text):
             offenders.append(f"{path.name}: compiles a MAC pattern")
         if re.search(r"_is_mac\([a-z_]+\.strip\(\)\)|is_mac\([a-z_]+\.strip\(\)\)", text):
             offenders.append(f"{path.name}: strips a caller's MAC before the check")
@@ -124,7 +150,7 @@ def test_one_mac_validator():
 # ============================================== list_clients: every spec client type
 def test_client_types_are_the_spec_discriminator():
     spec = json.loads(
-        (pathlib.Path(__file__).parent / "fixtures/openapi/network-10.6.106.json").read_text()
+        (pathlib.Path(__file__).parent / "fixtures/openapi/network-11.0.97.json").read_text()
     )
     schemas = spec["components"]["schemas"]
     for name in ("Client overview", "Client details"):

@@ -2,7 +2,7 @@
 and doorbell ringtone / credential (NFC card, fingerprint) enrollment.
 
 Route choice (official > private). The official Protect Integration API pinned in
-``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.70) has exactly three PTZ
+``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.74) has exactly three PTZ
 routes: ``POST /v1/cameras/{id}/ptz/goto/{slot}``, ``.../ptz/patrol/start/{slot}`` and
 ``.../ptz/patrol/stop``, already served by ``ptz_goto_preset`` / ``ptz_patrol_start`` /
 ``ptz_patrol_stop`` (``tools/protect.py``). ``ptz_home`` reuses that official goto helper with
@@ -64,7 +64,7 @@ from .protect import (
     ptz_goto,
 )
 
-#: The PTZ home position is preset slot -1 on the official goto route (Protect 7.3.70
+#: The PTZ home position is preset slot -1 on the official goto route (Protect 7.3.74
 #: ``POST /v1/cameras/{id}/ptz/goto/{slot}``; ``ptz_goto_preset`` documents -1 as home).
 PTZ_HOME_SLOT = -1
 
@@ -430,7 +430,7 @@ def _validate_shortcut_element(element: dict[str, Any], *, update: bool = False)
 
     Linked types: Protect UI 5.3.18, f5afa0f4eccbb98bfb70.531.js, linked enum
     and Shortcuts create/onSelect builders (official apt package 5.3.48).
-    Webhook: Protect 7.3.70 rr070 AJV rejection identifies timeout; the complete
+    Webhook: Protect 7.3.74 schema-validation rejection identifies timeout; the complete
     acceptance recipe supplies name/url/method/headers/body/auth as well.
     """
     if not isinstance(element, dict):
@@ -736,7 +736,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         it, so no key is required or added; the console validates it and its error is
         returned in full. To go to a saved position use ptz_goto_preset; to return home use
         ptz_home. Returns {status: "sent", response}. Sent once, never auto-retried on 429.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", response (the preview)} and sends no
+        With dry-run policy, returns {status: "dry_run", response (the preview)} and sends no
         write.
 
         Dry-run response previews include body and params.
@@ -746,7 +746,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             movement: Movement object sent as given (free-form; shape not published); for
                 example {"type": "continuous", "payload": {"x": 10, "y": 0, "z": 0}}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -761,7 +761,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Uses the official Protect Integration route POST /v1/cameras/{camera_id}/ptz/goto/-1 (slot
         -1 is the home preset), the same call as ptz_goto_preset with slot -1, on the Protect
         console host. Returns {status: "sent", response}. Sent once, never auto-retried on 429. With
-        UNIFI_DRY_RUN, returns {status: "dry_run", response (the preview)} and sends no write.
+        dry-run policy, returns {status: "dry_run", response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
@@ -770,7 +770,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -785,7 +785,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends {open: open_window} to POST cameras/{camera_id}/ptz/eventPtzControlWindow on
         the Protect console host, the call the Protect web app makes (UI bundle 5.3.18 names
         the open key). Returns {status: "sent", response} with the console's answer
-        verbatim. With UNIFI_DRY_RUN, returns {status: "dry_run", response (the preview)} and
+        verbatim. With dry-run policy, returns {status: "dry_run", response (the preview)} and
         sends no write.
 
         Dry-run response previews include body and params.
@@ -795,7 +795,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             open_window: true opens the window, false closes it (sent as open); for example
                 true.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -812,14 +812,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends patrol as given to POST cameras/{camera_id}/ptz/patrol on the Protect console host. No
         published schema documents the body; patrol records the console lists carry name, slot
         (0-4), presets (preset slots), presetDurationSeconds and presetMovementSpeed. Returns
-        {status: "created", response}. Start it with ptz_patrol_start. With UNIFI_DRY_RUN, returns
+        {status: "created", response}. Start it with ptz_patrol_start. With dry-run policy, returns
         {status: "dry_run", response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             patrol: Patrol object sent as given (free-form); for example {"name": "Yard
                 tour", "slot": 0, "presets": [0, 1], "presetDurationSeconds": 10}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -841,7 +841,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         "updated", verified, before, after, response}; verified is true only when every
         requested leaf matches, type-strict, and null with readAfterError when the read-back
         fails or lacks the slot. Passing no field fails before any request.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", before, response (the preview)}.
+        With dry-run policy, returns {status: "dry_run", before, response (the preview)}.
 
         Dry-run response previews include body and params.
 
@@ -849,7 +849,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             slot: Patrol slot 0-4 (the patrol's slot field); for example 0.
             fields: Patrol fields to change (free-form); for example {"name": "Yard tour",
                 "presetDurationSeconds": 15}.
@@ -867,7 +867,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Reads the camera's patrols first (GET cameras/{camera_id}/ptz/patrol on the Protect
         console host); a slot the list does not hold fails listing the valid slots, with no
         delete sent. Then sends DELETE cameras/{camera_id}/ptz/patrol/{slot}. Returns
-        {deleted: true, message, response}. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        {deleted: true, message, response}. With dry-run policy, returns {status: "dry_run",
         deleted: false, message, response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
@@ -876,7 +876,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             slot: Patrol slot 0-4 (the patrol's slot field); for example 0.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -892,14 +892,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends preset as given to POST cameras/{camera_id}/ptz/preset on the Protect console
         host. No published schema documents the body; preset records the console lists
         carry name, slot and ptz {pan, tilt, zoom}. Returns {status: "created", response}.
-        Go to it with ptz_goto_preset. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        Go to it with ptz_goto_preset. With dry-run policy, returns {status: "dry_run",
         response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             preset: Preset object sent as given (free-form); for example {"name": "Gate",
                 "slot": 1}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -921,7 +921,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         read back. Returns {status: "updated", verified, before, after, response}; verified
         is true only when every requested leaf matches, type-strict, and null with
         readAfterError when the read-back fails or lacks the slot. Passing no field fails
-        before any request. With UNIFI_DRY_RUN, returns {status: "dry_run", before,
+        before any request. With dry-run policy, returns {status: "dry_run", before,
         response (the preview)}.
 
         Dry-run response previews include body and params.
@@ -930,7 +930,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             slot: Preset slot (the preset's slot field; -1 is home); for example 1.
             fields: Preset fields to change (free-form); for example {"name": "Front gate"}.
             confirm: Accepted and ignored for compatibility; for example false.
@@ -947,7 +947,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Reads the camera's presets first (GET cameras/{camera_id}/ptz/preset on the Protect
         console host); a slot the list does not hold fails listing the valid slots, with no
         delete sent. Then sends DELETE cameras/{camera_id}/ptz/preset/{slot}. Returns
-        {deleted: true, message, response}. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        {deleted: true, message, response}. With dry-run policy, returns {status: "dry_run",
         deleted: false, message, response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
@@ -957,7 +957,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: PTZ camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: PTZ camera id from list_cameras; for example "000000000000000000000103".
             slot: Preset slot (the preset's slot field); for example 1.
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -979,14 +979,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         shortcut type: linkedCamera needs linkedCameraId; linkedDoor needs linkedDoorId; webhook
         needs name, url, method, headers, body, auth and timeout. Missing fields fail locally.
         Legacy calls pass their body unchanged. Returns {status: "created", response}
-        on success. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        on success. With dry-run policy, returns {status: "dry_run",
         response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             shortcut: One shortcut object, sent inside an array (free-form); for example
                 {"placement": {"x": 0, "y": 0}, "shortcut": {"type": "webhook", "name":
                 "Gate view", "url": "http://192.0.2.1/", "method": "GET", "headers": null,
@@ -1018,7 +1018,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         sent as a single-item array. validate_schema=true checks id, any placement x/y, and any
         complete nested shortcut using the same per-type rules as create_camera_shortcut.
         Returns {status: "updated", verified, before, after, response}. An empty body fails
-        before any request. With UNIFI_DRY_RUN, returns {status: "dry_run", before,
+        before any request. With dry-run policy, returns {status: "dry_run", before,
         response (the preview)}.
 
         Dry-run response previews include body and params.
@@ -1027,10 +1027,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             body: One shortcut update, sent inside an array (free-form): the shortcut's id plus
-                the parts to change; for example {"id": "66a1b2c3d4e5f60718293a4b",
-                "placement": {"x": 0, "y": 0}}. Protect 7.3.70 rejected anything but an
+                the parts to change; for example {"id": "000000000000000000000109",
+                "placement": {"x": 0, "y": 0}}. Protect 7.3.74 rejected anything but an
                 array of {id, placement?, shortcut?} with an AJV 400.
             confirm: Accepted and ignored for compatibility; for example false.
             validate_schema: Opt in to local per-type shape checks; for example true.
@@ -1050,7 +1050,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         shortcuts array does not list fails listing the valid ids, with no delete sent. Then sends
         DELETE cameras/{camera_id}/shortcuts with shortcut_ids as the shortcutIds query parameter
         (one per id). An empty shortcut_ids list fails before any request. Returns {deleted:
-        true, message, response}. With UNIFI_DRY_RUN, returns {status: "dry_run", deleted:
+        true, message, response}. With dry-run policy, returns {status: "dry_run", deleted:
         false, message, response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
@@ -1059,9 +1059,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             shortcut_ids: Non-empty list of shortcut ids (the camera's shortcuts[].id); for example
-                ["66a1b2c3d4e5f60718293a4b"].
+                ["000000000000000000000109"].
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1076,7 +1076,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Reads the camera first (GET cameras/{camera_id} on the Protect console host); an id
         its shortcuts array does not list fails listing the valid ids, with nothing sent.
         Then sends POST cameras/{camera_id}/shortcuts/{shortcut_id}/click once (never
-        auto-retried on 429). Returns {status: "sent", response}. With UNIFI_DRY_RUN,
+        auto-retried on 429). Returns {status: "sent", response}. With dry-run policy,
         returns {status: "dry_run", response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
@@ -1086,9 +1086,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             shortcut_id: Shortcut id (the camera's shortcuts[].id); for example
-                "66a1b2c3d4e5f60718293a4b".
+                "000000000000000000000109".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1101,7 +1101,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Sends POST cameras/{camera_id}/calibrate (no body) once on the Protect console host,
         never auto-retried on 429. Returns {status: "sent", response} with the console's
         answer verbatim; a camera without calibration answers with its error. With
-        UNIFI_DRY_RUN, returns {status: "dry_run", response (the preview)} and sends no write.
+        dry-run policy, returns {status: "dry_run", response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
@@ -1110,7 +1110,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1124,7 +1124,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends POST cameras/{camera_id}/test-ringtone (no body) once on the Protect console
         host, never auto-retried on 429. camera_id is the doorbell's camera id. Returns
-        {status: "sent", response}. With UNIFI_DRY_RUN, returns {status: "dry_run",
+        {status: "sent", response}. With dry-run policy, returns {status: "dry_run",
         response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
@@ -1134,7 +1134,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Doorbell camera id from list_cameras; for example
-                "65d4f1e2a1b2c3d4e5f60718".
+                "000000000000000000000103".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1163,7 +1163,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         before any request. Returns {status, response}: status: "enrolling" for step enroll,
         status: "assigned" for assign and status: "cancelled" for cancel. Credential
         identifiers are registered secrets, masked only under UNIFI_REDACT_SECRETS. With
-        UNIFI_DRY_RUN, returns {status: "dry_run", response (the preview)} and sends no write.
+        dry-run policy, returns {status: "dry_run", response (the preview)} and sends no write.
 
         Dry-run response previews include body and params.
 
@@ -1173,7 +1173,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Doorbell camera id from list_cameras; for example
-                "65d4f1e2a1b2c3d4e5f60718".
+                "000000000000000000000103".
             credential_type: nfc or fingerprint; for example "fingerprint".
             step: enroll, assign or cancel; for example "enroll".
             fingerprint_id: assign only: the read fingerprint id, sent as fingerprintId;
@@ -1209,7 +1209,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends DELETE cameras/{camera_id}/{credential_type}/{credential_id} on the Protect console
         host (credential_type nfc or fingerprint). The id is a registered secret, masked only under
-        UNIFI_REDACT_SECRETS. Returns {deleted: true, message, response}. With UNIFI_DRY_RUN,
+        UNIFI_REDACT_SECRETS. Returns {deleted: true, message, response}. With dry-run policy,
         returns {status: "dry_run", deleted: false, message, response (the preview)} and sends no
         write.
 
@@ -1221,10 +1221,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             camera_id: Doorbell camera id from list_cameras; for example
-                "65d4f1e2a1b2c3d4e5f60718".
+                "000000000000000000000103".
             credential_type: nfc or fingerprint; for example "nfc".
             credential_id: The enrolled card or fingerprint id; for example
-                "66b2c3d4e5f60718293a4b5c".
+                "00000000000000000000010a".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()

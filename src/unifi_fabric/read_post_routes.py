@@ -22,7 +22,7 @@ each placeholder one segment that in no decoding round holds ``/``, ``\\``, ``?`
 
 Consumers (one classifier everywhere):
 
-* :func:`unifi_fabric.read_only.is_write_request` - read-only mode (``UNIFI_READ_ONLY``),
+* :func:`unifi_fabric.read_only.is_write_request` - read-only mode (``UNIFI_WRITE_POLICY=deny``),
   dry-run, the audit log and additive-key stripping. A listed route or read command is a
   read; every other POST/PUT/PATCH/DELETE is a write. The generic connector relay passes
   ``always_write``, so a relayed POST is a write whatever its path and body.
@@ -31,7 +31,7 @@ Consumers (one classifier everywhere):
   cannot be advertised as a read while sending an unlisted POST. ``_read_only_audit``
   treats a ``post_read`` call as a read and every ``client.post`` as a write, so a tool
   that mixes a listed read-POST with any write is still classified a write tool
-  (``readOnlyHint: false``), and discovery mode's ``call_read_tool``, ``UNIFI_READ_ONLY``
+  (``readOnlyHint: false``), and discovery mode's ``call_read_tool``, ``UNIFI_WRITE_POLICY=deny``
   and a read-tools-only deployment keep exactly the read tools.
 
 Adding a route: a PR of its own that adds one :class:`ReadPostRoute` with its ``evidence``
@@ -247,8 +247,13 @@ READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
         name="network-classic-stat-report",
         method="POST",
         template=_CONSOLE + "/network/api/s/{site}/stat/report/{interval}.{scope}",
-        tools=frozenset({"get_historical_stats"}),
-        evidence=(_LIVE, "interval and scope sets probed live 2026-10-10"),
+        tools=frozenset({"get_historical_stats", "list_speedtest_results"}),
+        evidence=(
+            _LIVE,
+            "interval and scope sets probed live 2026-10-10",
+            "sirkirby/unifi-mcp@7a40f40 stats_manager.py list_speedtest_results: "
+            "POST /stat/report/archive.speedtest is a read query",
+        ),
         sample=_SAMPLE_CONSOLE + "/network/api/s/default/stat/report/hourly.site",
     ),
     ReadPostRoute(
@@ -493,7 +498,7 @@ def refusal_samples() -> list[dict[str, str]]:
     """``[{method, path, expect}]`` for a read-only deployment's post-deploy check.
 
     ``expect`` is ``read`` for every allowlisted route (it must NOT be refused under
-    ``UNIFI_READ_ONLY``) and ``refused`` for every not-listed sample (it must be refused
+    ``UNIFI_WRITE_POLICY=deny``) and ``refused`` for every not-listed sample (it must be refused
     before any upstream call). Paths carry synthetic ids only.
 
     ``READ_COMMANDS`` are not sampled: a read command is a read only with its exact

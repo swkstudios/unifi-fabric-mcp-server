@@ -18,7 +18,7 @@ b. No truncation: lists longer than any drain page (``LARGE_LIST_ITEMS``) and >1
 c. Errors: a 400/403/404/500 upstream body appears verbatim in the tool error (or, for
    fan-out tools that report per-item failures, in the result).
 d. Unknown or ambiguous host/site fails fast and lists the valid choices.
-e. Write tools are refused at the chokepoint under ``UNIFI_READ_ONLY=1`` (no write
+e. Write tools are refused at the chokepoint under ``UNIFI_WRITE_POLICY=deny`` (no write
    verb reaches the transport) and reach a write verb with default flags.
 f. Description hand-offs name real tools; examples validate against the input schema;
    descriptions carry no markup.
@@ -76,7 +76,7 @@ x. A bare JSON value where an object or list is expected raises, or is passed th
    verbatim; it is never wrapped in an invented key such as ``{"data": ...}``.
 y. A cursor protocol that cycles (A, B, A, ...) or says "more" without a cursor ends in
    an error or ``incomplete: true``; never a loop or a result presented as complete.
-ba. ``UNIFI_READ_ONLY=1`` refuses every write tool before ANY upstream call, including the
+ba. ``UNIFI_WRITE_POLICY=deny`` refuses every write tool before ANY upstream call, including the
    resolution and read-before steps of tools that read first.
 bb. A free-form body dict reaches the write verbatim: a body key named like a helper
    parameter (``site``, ``host``, ``client``, ``registry``, the id argument) is sent.
@@ -101,7 +101,7 @@ bj. A literal body quoted in a description uses a value the published schema acc
    unless the same sentence says the controller rejects it.
 bk. Filter examples quote string operands; the server instructions attribute RADIUS
    profiles to the Network Integration API.
-aa. Opt-in ``UNIFI_DRY_RUN`` reaches every write tool: no write verb is sent upstream
+aa. Opt-in ``dry-run policy`` reaches every write tool: no write verb is sent upstream
    (the connector relay included, also to a Classic ``cmd/stat`` command), and no tool
    description claims there is no dry-run. No dry-run result claims a completed write
    (``deleted: true``, ``forgotten``, a status other than ``dry_run``, an HTTP status
@@ -163,7 +163,7 @@ br. Id case: every write tool given a hex id in non-canonical case (upper-case) 
    upstream spelling -- the URL and every body field (a body ``_id`` / ``id`` naming the
    record included) carry the upstream form, never the caller's. An id it forwards
    unmatched (the upstream decides) is sent exactly as the caller spelled it. Holds with
-   default flags, under ``UNIFI_DRY_RUN`` (the preview) and with several sites per console.
+   default flags, under ``dry-run policy`` (the preview) and with several sites per console.
 """
 
 from __future__ import annotations
@@ -1024,7 +1024,7 @@ async def test_d_ambiguous_host_fails_fast_listing_matches(monkeypatch, name):
 async def test_e_write_refused_at_chokepoint_when_read_only(monkeypatch, name):
     up = uh.FakeUpstream()
     with pytest.raises(ToolError) as exc:
-        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "1"})
+        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "deny"})
     assert read_only.ENV_VAR in str(exc.value), f"{name}: {exc.value}"
     assert up.writes() == [], f"{name}: write reached the transport under read-only"
 
@@ -2284,7 +2284,7 @@ def _audits_path(line: str, path: str) -> bool:
 @tool_batches("name", lambda: _lz_WRITE_TOOLS())
 async def test_n_every_write_attempt_is_audited(monkeypatch, tmp_path, name):
     log = tmp_path / "audit.log"
-    env = {"UNIFI_AUDIT_LOG": str(log)}
+    env = {"UNIFI_AUDIT_LOG": str(log), "UNIFI_AUDIT_LOG_FORMAT": "text"}
     up = uh.FakeUpstream()
     await _call(monkeypatch, name, up, env=env)
     lines = _audit_lines(log)
@@ -2328,7 +2328,12 @@ async def test_n_transport_error_names_method_and_path(monkeypatch, tmp_path, na
     log = tmp_path / "audit.log"
     up = uh.FakeUpstream(transport_error=True, error_resolution=name in PRIMARY_RESOLUTION)
     try:
-        res = await _call(monkeypatch, name, up, env={"UNIFI_AUDIT_LOG": str(log)})
+        res = await _call(
+            monkeypatch,
+            name,
+            up,
+            env={"UNIFI_AUDIT_LOG": str(log), "UNIFI_AUDIT_LOG_FORMAT": "text"},
+        )
     except ToolError as exc:
         msg = str(exc)
         args = tool_args.generated_args(_lz_TOOLS()[name])
@@ -2727,7 +2732,7 @@ _AREA_WRITE_OPT_OUTS = {
     for switch in _connector.switches.AREA_WRITE_SWITCHES
     for family in (switch.family, *switch.related_families)
 }
-_AREA_WRITE_OPT_OUTS["connector"] = "UNIFI_ENABLE_CONNECTOR_WRITE"
+_AREA_WRITE_OPT_OUTS["connector"] = "family:connector=deny"
 FAMILY = families.build_family_index()
 
 
@@ -2743,7 +2748,7 @@ def test_v_opt_out_areas_have_write_tools_and_read_only_areas_have_none():
         assert any(switch.governs(family) for family in covered), switch.env
     # Every write tool's family is governed by an area switch or is one of the families
     # without an area opt-out. InnerSpace has write tools, governed by
-    # UNIFI_ENABLE_INNERSPACE_WRITE (it is in the table above).
+    # family:innerspace=deny (it is in the table above).
     ungoverned = {"site_manager", "connector"}
     stray = [
         n
@@ -2760,7 +2765,7 @@ async def test_v_area_opt_out_refuses_before_any_upstream_call(monkeypatch, name
     env_var = _AREA_WRITE_OPT_OUTS[FAMILY[name]]
     up = uh.FakeUpstream()
     with pytest.raises(ToolError) as exc:
-        await _call(monkeypatch, name, up, env={env_var: "0"})
+        await _call(monkeypatch, name, up, env=tool_args.optout_env(env_var))
     assert env_var in str(exc.value), f"{name}: {exc.value}"
     assert up.served == [], f"{name}: upstream called before the opt-out refused: {up.served}"
 
@@ -3228,7 +3233,7 @@ async def test_z_console_visible_to_two_keys_is_read_once(monkeypatch, name):
 #       before validation or any upstream read, as property v proves).
 
 # Path parameters whose values are a closed enum in the pinned published spec. Source:
-# Protect 7.3.70 components.schemas.assetFileType (GET/POST /v1/files/{fileType}).
+# Protect 7.3.74 components.schemas.assetFileType (GET/POST /v1/files/{fileType}).
 _PINNED_PATH_ENUMS: dict[str, set[str]] = {"file_type": {"animations"}}
 _AREA_C_FAMILIES = {"protect", "mobility", "carrier"}
 
@@ -3753,7 +3758,7 @@ def _all_keys(node: Any) -> dict[str, list[Any]]:
 async def test_ba_read_only_refuses_write_tools_before_any_upstream_call(monkeypatch, name):
     up = uh.FakeUpstream()
     with pytest.raises(ToolError) as exc:
-        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "1"})
+        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "deny"})
     assert read_only.ENV_VAR in str(exc.value), f"{name}: {exc.value}"
     served = [(s.method, s.path) for s in up.served]
     assert served == [], f"{name}: upstream called before the read-only refusal: {served}"
@@ -3763,7 +3768,7 @@ async def test_ba_read_only_refuses_write_tools_before_any_upstream_call(monkeyp
 async def test_ba_read_tools_still_run_in_read_only_mode(monkeypatch, name):
     up = uh.FakeUpstream()
     try:
-        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "1"})
+        await _call(monkeypatch, name, up, env={read_only.ENV_VAR: "deny"})
     except ToolError as exc:
         assert read_only.ENV_VAR not in str(exc), f"{name}: read tool refused: {exc}"
 
@@ -4733,15 +4738,15 @@ def _dry_run_previews(obj: Any) -> list[dict]:
 
 @tool_batches("name", lambda: _lz_WRITE_TOOLS())
 async def test_aa_dry_run_sends_no_write_upstream(monkeypatch, name):
-    """Under UNIFI_DRY_RUN no write is sent AND the tool returns the preview.
+    """Under dry-run policy no write is sent AND the tool returns the preview.
 
     A tool that verifies its write (read-before / write / read-after) must return the
     preview rather than verify a write that never happened: raising "silent no-op" or
     reporting the write as unverified is the defect this guards against.
     """
     up = uh.FakeUpstream()
-    res = await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"})
-    assert up.writes() == [], f"{name}: a write reached the transport under UNIFI_DRY_RUN=1"
+    res = await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    assert up.writes() == [], f"{name}: a write reached the transport under dry-run policy=1"
     payload = uh.result_payload(res)
     previews = _dry_run_previews(payload)
     assert previews, f"{name}: no dry-run preview in the result: {str(payload)[:300]}"
@@ -4777,11 +4782,11 @@ def _completed_write_claims(payload: Any) -> list[str]:
 
 @tool_batches("name", lambda: _lz_WRITE_TOOLS())
 async def test_aa_dry_run_result_never_reports_a_completed_write(monkeypatch, name):
-    """Under UNIFI_DRY_RUN no result says the write happened: no ``deleted: true``, no
+    """Under dry-run policy no result says the write happened: no ``deleted: true``, no
     ``forgotten`` list, and a ``status`` string (when present) is ``"dry_run"``. A delete
     tool (one whose preview is a DELETE) says ``status: "dry_run"`` explicitly."""
     up = uh.FakeUpstream()
-    res = await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"})
+    res = await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
     payload = uh.result_payload(res)
     claims = _completed_write_claims(payload)
     assert claims == [], f"{name}: dry-run result claims a completed write: {claims}"
@@ -5190,7 +5195,9 @@ def test_aa_delete_contracts_cover_every_delete_tool():
 @tool_batches("name", lambda: [*_lz_DELETE_TOOLS(), "unadopt_device"])
 async def test_aa_every_delete_tool_previews_a_delete_under_dry_run(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     previews = [p["preview"] for p in _dry_run_previews(payload)]
     assert any(_is_delete_preview(p, name, up) for p in previews), (
         f"{name}: no DELETE (or v2 batch_delete POST) preview: {str(payload)[:300]}"
@@ -5303,7 +5310,7 @@ async def test_aa_every_delete_tool_returns_canonical_real_deletion_result(monke
     """
     upstream = uh.FakeUpstream()
     payload = uh.result_payload(
-        await _call(monkeypatch, name, upstream, env={"UNIFI_DRY_RUN": "0"})
+        await _call(monkeypatch, name, upstream, env={"UNIFI_WRITE_POLICY": "allow"})
     )
     assert isinstance(payload, dict), f"{name}: real delete result is not an object: {payload!r}"
     assert {"deleted", "message", "response"} <= set(payload), f"{name}: {payload!r}"
@@ -5320,7 +5327,9 @@ async def test_aa_every_delete_tool_returns_canonical_real_deletion_result(monke
 async def test_aa_delete_controller_backup_empty_classic_success_is_canonical(monkeypatch):
     upstream = uh.FakeUpstream(write_body="empty")
     payload = uh.result_payload(
-        await _call(monkeypatch, "delete_controller_backup", upstream, env={"UNIFI_DRY_RUN": "0"})
+        await _call(
+            monkeypatch, "delete_controller_backup", upstream, env={"UNIFI_WRITE_POLICY": "allow"}
+        )
     )
     assert payload["deleted"] is True
     assert payload["response"] is None
@@ -5338,7 +5347,9 @@ async def test_aa_every_delete_tool_returns_the_full_deletion_result_dry_run_sha
     unadopt_).
     """
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     if not _is_delete_tool(name):
         return
     assert isinstance(payload, dict), f"{name}: dry-run result is not an object: {payload!r}"
@@ -5357,12 +5368,14 @@ async def test_aa_every_preview_carries_the_query_params_sent_without_dry_run(mo
     """Every dry-run preview has a ``params`` key, and its value is the query string the
     same call sends upstream without dry-run (a filter, ``force``, zone ids...)."""
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await _call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await _call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     previews = _dry_run_previews(payload)
     missing = [p["preview"] for p in previews if "params" not in p["preview"]]
     assert missing == [], f"{name}: preview without params: {missing}"
     live = uh.FakeUpstream()
-    await _call(monkeypatch, name, live, env={"UNIFI_DRY_RUN": "0"})
+    await _call(monkeypatch, name, live, env={"UNIFI_WRITE_POLICY": "allow"})
     # Distinct query strings: a paged query POST (the system log, the event lists) sends
     # one POST per page with the same query, while its dry-run previews only the first.
     sent = sorted({tuple(sorted(httpx.QueryParams(w.query).multi_items())) for w in live.writes()})
@@ -5375,7 +5388,9 @@ def test_aa_no_description_denies_dry_run():
     claims = sorted(
         n for n, t in _lz_TOOLS().items() if _NO_DRY_RUN_CLAIM.search(_all_description_text(t))
     )
-    assert claims == [], f"descriptions claim there is no dry-run (UNIFI_DRY_RUN applies): {claims}"
+    assert claims == [], (
+        f"descriptions claim there is no dry-run (dry-run policy applies): {claims}"
+    )
 
 
 async def test_aa_dry_run_holds_back_a_relayed_classic_cmd_stat(monkeypatch):
@@ -5387,9 +5402,11 @@ async def test_aa_dry_run_holds_back_a_relayed_classic_cmd_stat(monkeypatch):
         "path": "network/api/s/{site}/cmd/stat",
         "body": {"cmd": "reset-dpi"},
     }
-    await _call(monkeypatch, "fabric_connector_post", up, args, env={"UNIFI_DRY_RUN": "1"})
+    await _call(
+        monkeypatch, "fabric_connector_post", up, args, env={"UNIFI_WRITE_POLICY": "dry-run"}
+    )
     sent = [s for s in up.served if s.method == "POST"]
-    assert sent == [], f"cmd/stat reached the transport under UNIFI_DRY_RUN=1: {sent}"
+    assert sent == [], f"cmd/stat reached the transport under dry-run policy=1: {sent}"
 
 
 # =========================================================================== (ab)
@@ -5853,7 +5870,8 @@ async def test_bm_masked_secret_never_written_back(monkeypatch, name):
     assert leaked == [], f"{name}: the redaction mask reached upstream: {leaked}"
     if not any(_SENTINEL in uh.all_strings(b) for b in sentinel_sent):
         return  # this tool never forwards those fields; nothing can be overwritten
-    if not sent and isinstance(payload, Exception) and "held the redaction mask" in str(payload):
+    if isinstance(payload, Exception) and "held the redaction mask" in str(payload):
+        assert sent == [], f"{name}: masked-only refusal issued an upstream write"
         # The secret was the only field the write sends (update_protect_device_password
         # sends {devicePassword}): with the mask dropped nothing is left, and the documented
         # empty-update refusal keeps the stored value. No write, nothing overwritten.
@@ -5943,7 +5961,7 @@ def test_bn_relay_lists_every_area_opt_out_and_samples_every_route_class():
     for route_class, path in _RELAY_CLASS_PATHS.items():
         assert _connector._validate_relay_path(path, None) == route_class, path
     # Protect really is reachable through the relay, so its opt-out is not vacuous here.
-    assert any(c.startswith(_AREA_PREFIX["UNIFI_PROTECT_MUTATIONS_ENABLED"]) for c in classes)
+    assert any(c.startswith(_AREA_PREFIX["family:protect=deny"]) for c in classes)
 
 
 @pytest.mark.parametrize(("env_var", "route_class", "method"), _RELAY_AREA_CASES)
@@ -5955,7 +5973,9 @@ async def test_bn_relay_honours_every_area_opt_out(monkeypatch, env_var, route_c
         "path": _RELAY_CLASS_PATHS[route_class],
         "body": {"probe": "relay"},
     }
-    call = _call(monkeypatch, _RELAY_MUTATION_TOOLS[method], up, args, env={env_var: "0"})
+    call = _call(
+        monkeypatch, _RELAY_MUTATION_TOOLS[method], up, args, env=tool_args.optout_env(env_var)
+    )
     if route_class.startswith(_AREA_PREFIX[env_var]):
         with pytest.raises(ToolError) as exc:
             await call
@@ -6010,7 +6030,7 @@ RESULT_ENVELOPE_KEYS = frozenset(
         "after",  # Protect verified updates: the object after the write, verbatim
         "subscriber",  # Carrier writes: the subscriber body, verbatim
         "device",  # Mobility writes: the device-detail body, verbatim
-        # dry-run preview (UNIFI_DRY_RUN)
+        # dry-run preview (dry-run policy)
         "dryRun",
         "preview",
         # per-item and per-key outcomes of fan-out writes and merges
@@ -6501,7 +6521,7 @@ def _br_with_body_id(name: str, args: dict[str, Any], value: str, field: str) ->
 
 _BR_STATES = {
     "default": ({}, 1),
-    "dry_run": ({"UNIFI_DRY_RUN": "1"}, 1),
+    "dry_run": ({"UNIFI_WRITE_POLICY": "dry-run"}, 1),
     "multi_site": ({}, 2),
 }
 
@@ -6794,11 +6814,21 @@ def test_record_counts_ignore_additive_projections_but_keep_upstream_duplicates(
 
 
 @pytest.mark.parametrize("body", W_BODIES)
-async def test_w_ap_write_malformed_classic_envelope_is_not_success(monkeypatch, body):
-    up = uh.FakeUpstream(write_body=body)
-    with pytest.raises(ToolError, match="Unexpected Classic response"):
-        await _call(monkeypatch, "update_device_radio", up)
+@pytest.mark.parametrize("fail_read_after", [False, True])
+async def test_w_ap_write_no_meta_preserves_response_and_reads_after(
+    monkeypatch, body, fail_read_after
+):
+    up = uh.FakeUpstream(write_body=body, fail_reads_after_write=fail_read_after)
+    payload = uh.result_payload(await _call(monkeypatch, "update_device_radio", up))
     assert len(up.writes()) == 1
+    assert payload["response"] == uh.DECODED_BODIES[body]
+    if fail_read_after:
+        assert payload["readAfterError"]
+        assert payload["_verified"] is None
+    else:
+        assert "readAfter" in payload
+        assert isinstance(payload["_verified"], bool)
+        assert "readAfterError" not in payload
 
 
 class _NonAffirmativeClassicWriteUpstream(_ProtocolWriteBodyUpstream):

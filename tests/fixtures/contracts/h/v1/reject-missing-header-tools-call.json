@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-missing-header-tools-call",
+  "description": "A header-mode tools/call without X-UniFi-Api-Key is refused",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "missing_api_key_header",
+    "upstream_calls": 0
+  }
+}

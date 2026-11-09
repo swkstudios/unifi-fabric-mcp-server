@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-env-mode-call-read-tool-with-header",
+  "description": "Environment mode refuses a discovery call_read_tool carrying X-UniFi-Api-Key",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "environment",
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "{\"alpha\":\"synthetic-key-a\"}"
+      ]
+    ],
+    "route": "call_read_tool",
+    "arguments": {
+      "name": "list_hosts",
+      "arguments": {}
+    }
+  },
+  "expected": {
+    "code": "invalid_api_key_header",
+    "upstream_calls": 0
+  }
+}

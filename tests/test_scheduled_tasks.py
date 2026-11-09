@@ -125,13 +125,14 @@ async def test_count_shortfall_never_silently_truncates(deps):
 
 
 @pytest.mark.parametrize("operation", ["create", "update", "delete"])
-async def test_real_client_dry_run_suppresses_writes(deps, operation):
+async def test_real_client_dry_run_suppresses_writes(deps, operation, monkeypatch):
     from unifi_fabric.client import UniFiClient
     from unifi_fabric.config import Settings
 
     _, registry = deps
     registry.resolve_key_for_host.return_value = None
-    client = UniFiClient(Settings(dry_run=True))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings())
     client.get = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": [deepcopy(RECORD)]})
     if operation == "create":
         result = await _create_scheduled_task(

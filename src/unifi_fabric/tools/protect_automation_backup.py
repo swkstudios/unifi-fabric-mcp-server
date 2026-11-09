@@ -4,9 +4,9 @@ The published Integration API lacks these routes, so this module calls the Prote
 application's private API (routes inventoried from the Protect 5.3.18 frontend) through
 the connector proxy. Upstream bodies pass through verbatim; additions are ``_``-prefixed.
 
-Every write is bound by ``UNIFI_READ_ONLY`` and the Protect write opt-out
-(``UNIFI_PROTECT_MUTATIONS_ENABLED=0``) before any request, and returns the client's
-``UNIFI_DRY_RUN`` preview ``{status: "dry_run", dryRun, sent: false, message, preview: {method,
+Every write is bound by ``UNIFI_WRITE_POLICY=deny`` and the Protect write opt-out
+(``family:protect=deny``) before any request, and returns the client's
+``dry-run policy`` preview ``{status: "dry_run", dryRun, sent: false, message, preview: {method,
 path, params, body}}`` (nothing sent) when dry-run is on.
 Restores are never refused or gated by this module: the upstream judges them.
 """
@@ -22,6 +22,7 @@ from ..client import (
     UniFiClient,
     UniFiConnectionError,
     is_dry_run_preview,
+    upstream_error_value,
     validate_id,
     validate_selector,
 )
@@ -99,7 +100,7 @@ async def _known(
     matches = [row for row in rows if isinstance(row, dict) and same_id(ident, row.get("id"))]
     if len(matches) != 1:
         choices = [
-            row.get("id")
+            upstream_error_value(row.get("id"))
             for row in rows
             if isinstance(row, dict) and isinstance(row.get("id"), str)
         ]
@@ -426,9 +427,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST protect/api/automations with the automation object sent verbatim. Returns: the
         upstream response unchanged. An empty object is refused before any request.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -455,14 +456,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         strict), and _readAfterError when the re-read failed; a non-object response is
         returned whole under response with those keys beside it. An empty changes object is
         refused before any request.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             automation_id: Automation id from list_protect_automations,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d1".
+                e.g. "000000000000000000000112".
             changes: Fields to change, nested as on the record, e.g. {"enabled": false}.
                 Free-form object.
             confirm: Accepted and ignored; kept for compatibility. It never gates the
@@ -486,15 +487,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the automation is removed permanently and its triggers stop running
         its actions; there is no undo.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
-        {status: "dry_run", deleted: false, message, response} when UNIFI_DRY_RUN is set,
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
+        {status: "dry_run", deleted: false, message, response} when dry-run policy is set,
         where response is the dry-run preview {status, dryRun, sent: false, message, preview:
         {method, path, params, body}} (nothing sent).
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             automation_id: Automation id from list_protect_automations,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d1".
+                e.g. "000000000000000000000112".
             confirm: Accepted and ignored; kept for compatibility. It never gates the
                 call, e.g. true.
         """
@@ -515,7 +516,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             automation_id: Automation id from list_protect_automations,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d1".
+                e.g. "000000000000000000000112".
             limit: Upstream history limit query parameter. Omit for the upstream default.
                 Example: `50`.
         """
@@ -531,9 +532,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the current configuration is replaced by the upstream defaults, and
         custom entries are lost unless recreated.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -553,14 +554,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         PATCH protect/api/automations/system-notifications/receivers with receivers sent
         verbatim. Returns: the upstream response unchanged. An empty object is refused
         before any request.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             receivers: Native receivers object, e.g.
-                {"userIds": ["66f1a2b3c4d5e6f7a8b9c0d2"]}. Free-form object.
+                {"userIds": ["000000000000000000000113"]}. Free-form object.
             confirm: Accepted and ignored; kept for compatibility. It never gates the
                 call, e.g. true.
         """
@@ -587,9 +588,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST protect/api/backups with no body; uses console storage. Returns: the upstream
         response unchanged.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -614,8 +615,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the backup is removed from console storage and can no longer be
         restored with restore_protect_backup; there is no undo.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
-        {status: "dry_run", deleted: false, message, response} when UNIFI_DRY_RUN is set,
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
+        {status: "dry_run", deleted: false, message, response} when dry-run policy is set,
         where response is the dry-run preview {status, dryRun, sent: false, message, preview:
         {method, path, params, body}} (nothing sent).
 
@@ -641,9 +642,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the console imports the backup named in the body, using console
         storage; check list_protect_backups afterwards, since what else the import changes
         is decided upstream.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -666,9 +667,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the live Protect configuration is replaced by the backup's;
         irreversible, and Protect may restart, interrupting recording while it does.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -689,9 +690,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the live Protect database is replaced by the stored dump, losing
         changes made since it; irreversible, and Protect may restart.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -731,14 +732,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: Protect starts copying the requested video to the connected cloud
         provider, using upload bandwidth and provider storage; cancel it with
         cancel_cloud_archive_task.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             archive: Native archive request object, e.g.
-                {"cameraIds": ["66f1a2b3c4d5e6f7a8b9c0d3"], "start": 1718000000000,
+                {"cameraIds": ["000000000000000000000114"], "start": 1718000000000,
                 "end": 1718003600000}. Free-form object.
             confirm: Accepted and ignored; kept for compatibility. It never gates the
                 call, e.g. true.
@@ -756,9 +757,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: Protect is authorized against the provider account and can archive
         video to it until disconnect_cloud_archive_provider revokes it.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -779,14 +780,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: the archive task stops; video it has not copied yet is not archived
         (start a new one with start_cloud_video_archive).
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             archive_id: Archive task id from start_cloud_video_archive,
-                e.g. "66f1a2b3c4d5e6f7a8b9c0d4".
+                e.g. "000000000000000000000115".
             confirm: Accepted and ignored; kept for compatibility. It never gates the
                 call, e.g. true.
         """
@@ -805,9 +806,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: Protect's authorization with the provider is revoked, so it can no
         longer archive video there until connect_cloud_archive_provider connects it again.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -831,9 +832,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: Protect authenticates to that server with the credentials sent, so
         import_unifi_video_cameras can read what it offers; no camera is imported here.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
@@ -874,9 +875,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Consequence: a legal acceptance of that agreement version is recorded upstream; it
         cannot be withdrawn through this tool.
-        Honours UNIFI_READ_ONLY and UNIFI_PROTECT_MUTATIONS_ENABLED=0, and returns a
+        Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}} (nothing sent) when UNIFI_DRY_RUN is set.
+        path, params, body}} (nothing sent) when dry-run policy is set.
 
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".

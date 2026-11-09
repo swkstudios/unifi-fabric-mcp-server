@@ -1,8 +1,8 @@
 """ROUTE-SECRET REGISTRY INVARIANT: a route secret is protected identically on every path.
 
 Every entry of :data:`unifi_fabric.route_secrets.ROUTE_SECRETS` is driven through the MCP
-surface (``server.mcp.call_tool``) twice: through each typed tool that reaches the route
-and through the generic connector relay (``fabric_connector_<method>``) on the same route.
+surface (``server.mcp.call_tool``) through the generic connector relay
+(``fabric_connector_<method>``) and the typed tools listed in ``TYPED_CALLS``.
 Each check uses a fresh synthetic sentinel (a per-run random hex marker, so every escaped
 form is caught by an exact marker search) and a real :class:`UniFiClient` on a mock
 transport:
@@ -12,8 +12,8 @@ transport:
   redaction is enabled, for both 2xx and non-2xx responses and raised errors;
 * logs and audit records: bound credentials remain masked in every configuration.
 
-A new registry entry is covered automatically for the relay; its typed tools are listed
-in :data:`TYPED_CALLS` (the completeness check fails until they are).
+A new registry entry is covered automatically for the relay; typed tools require a row
+in :data:`TYPED_CALLS` unless listed among the existing exemptions.
 """
 
 from __future__ import annotations
@@ -41,6 +41,25 @@ HOST = "console"
 SITE = "default"
 MARKER = secrets.token_hex(8)
 
+#: The camera and webhook shortcut the camera-shortcut typed rows address.
+SHORTCUT_CAMERA = "65d4f1e2a1b2c3d4e5f60718"
+SHORTCUT_ID = "66a1b2c3d4e5f60718293a4b"
+
+
+def _webhook_shortcut(value: str) -> dict[str, Any]:
+    """A webhook shortcut whose credentials (``headers`` and ``auth``) are ``value``."""
+    return {
+        "type": "webhook",
+        "name": "Gate",
+        "url": "http://192.0.2.1/",
+        "method": "POST",
+        "headers": value,
+        "body": None,
+        "auth": value,
+        "timeout": 1,
+    }
+
+
 #: Typed tools per registry entry: (tool name, method it sends, arguments builder taking
 #: the request-field sentinel). The Protect share-link typed tools land with the
 #: SHARE-FIX lane, which adds their rows here.
@@ -53,12 +72,50 @@ TYPED_CALLS: dict[str, list[tuple[str, str, Callable[[str], dict[str, Any]]]]] =
         ),
     ],
     "protect-share-link": [],
+    "protect-camera-shortcut-webhook-secrets": [
+        (
+            "create_camera_shortcut",
+            "POST",
+            lambda value: {
+                "host": HOST,
+                "camera_id": SHORTCUT_CAMERA,
+                "shortcut": {"placement": {"x": 0, "y": 0}, "shortcut": _webhook_shortcut(value)},
+            },
+        ),
+        (
+            "update_camera_shortcut",
+            "PATCH",
+            lambda value: {
+                "host": HOST,
+                "camera_id": SHORTCUT_CAMERA,
+                "body": {"id": SHORTCUT_ID, "shortcut": {"headers": value, "auth": value}},
+            },
+        ),
+    ],
+}
+
+
+def _shortcut_camera_read(req: httpx.Request) -> httpx.Response | None:
+    """The camera GET update_camera_shortcut makes around its PATCH: the camera lists the
+    shortcut the row updates (no credential in it), so the write is sent."""
+    if req.method == "GET" and req.url.path.endswith(f"/protect/api/cameras/{SHORTCUT_CAMERA}"):
+        camera = {"id": SHORTCUT_CAMERA, "shortcuts": [{"id": SHORTCUT_ID}]}
+        return httpx.Response(200, json=camera)
+    return None
+
+
+#: Typed tools that read a resource before (and after) their write: these reads are
+#: answered here, never by a test's handler, so every check drives the write itself.
+TYPED_READS: dict[str, Callable[[httpx.Request], httpx.Response | None]] = {
+    "update_camera_shortcut": _shortcut_camera_read,
 }
 
 #: Registered typed tools a registry entry names that have no row in this matrix yet.
-#: Their lanes merged after this matrix and test their secret argument in their own module
-#: tests; adding a row (with a handler their route accepts) removes the name here. The
-#: list may only shrink: a new typed tool on a registry route must add its row.
+#: Exempt typed tools have coverage in test_device_commands, test_network_mobile_wan,
+#: test_network_wifi_radio, test_protect_automation_backup, test_network_clients_guests,
+#: test_protect_ptz_doorbell, test_route_secrets, test_innerspace_internal,
+#: test_network_controller_admin, test_network_controller_insights and
+#: test_protect_users_assets. Add a matrix row to remove a name from this list.
 ROWLESS_TYPED_TOOLS = frozenset(
     {
         "advanced_adopt_device",
@@ -177,6 +234,19 @@ async def _run(
 ) -> tuple[str, str, bool]:
     """Call ``tool``; return (result-or-error text, audit text, raised)."""
     audit = tmp_path / f"audit-{next(_counter)}.jsonl"
+    if settings.pop("dry_run", False):
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    read = TYPED_READS.get(tool)
+    # Whether the last request was a read TYPED_READS answered (not the test's handler).
+    answered_read = [False]
+    if read is not None:
+        write_handler = handler
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            answer = read(req)
+            answered_read[0] = answer is not None
+            return answer or write_handler(req)
+
     c = _client(handler, audit_log=str(audit), audit_log_format="json", **settings)
     monkeypatch.setattr(server, "_client", c)
     monkeypatch.setattr(server, "_settings", c._settings)
@@ -189,7 +259,10 @@ async def _run(
             try:
                 return await original(self, *a, **kw)
             finally:
-                logging.getLogger("unifi_fabric.test").warning("after request: %s", after_log)
+                # A read TYPED_READS answered received nothing from the test's handler,
+                # so no later line can quote it yet.
+                if not answered_read[0]:
+                    logging.getLogger("unifi_fabric.test").warning("after request: %s", after_log)
 
         monkeypatch.setattr(UniFiClient, "request", request_then_log)
     try:
@@ -342,7 +415,7 @@ async def test_upstream_errors_echoing_request_fields_are_scrubbed(
             assert raised, (tool, status, text)
 
         if status == 429:
-            if method in {"PUT", "PATCH", "DELETE", "GET"}:
+            if method in {"PUT", "PATCH", "DELETE", "GET"} and tool not in TYPED_READS:
                 # Reads retry six times; writes with a read-before then mutate once.
                 expected_requests = ["GET"] * 6
                 if method != "GET":
@@ -506,7 +579,11 @@ async def test_route_scope_bodies_and_errors_follow_opt_in_but_logs_never_leak(
             continue
         expected = REDACTION_MASK if redact else value
         structured = captured[0]
-        data = structured["body"] if tool.startswith("fabric_connector_") else structured
+        if tool.startswith("fabric_connector_"):
+            data = structured["body"]
+        else:
+            # A typed write keeps the upstream body under ``response``.
+            data = structured.get("response", structured)
         assert data[field] == expected, (entry.name, tool, status, redact, structured)
         assert f'"{field}": "{expected}"' in text or f'"{field}":"{expected}"' in text, (
             entry.name,

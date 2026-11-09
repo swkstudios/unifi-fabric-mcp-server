@@ -83,6 +83,11 @@ _PROTECT_PRIVATE = (
     "published Protect spec covers /proxy/protect/integration only"
 )
 
+_EA_FIREWALL = (
+    "The Site Manager EA classic firewall-rule creation route has no published OpenAPI "
+    "path or request schema; the published Network API covers zone-based policies"
+)
+
 _INNERSPACE_PRIVATE = (
     "InnerSpace application routes (/proxy/innerspace/api/..., /proxy/innerspace/health) have "
     "no published OpenAPI spec; the published InnerSpace spec is the GET-only Integration API "
@@ -126,6 +131,9 @@ _V2_CLASSIC_LOOKUP = (
 # Tools whose every request goes to a family without a published spec. Asserted to be
 # exactly that set (test_exemptions_are_exactly_the_unspecced_tools).
 UNSPECCED_EXEMPT: dict[str, str] = {
+    "list_controller_stat_schemas": _V2,  # GET /v2/api/stats/schemas
+    "list_speedtest_results": _CLASSIC,  # POST /api/s/{site}/stat/report/archive.speedtest
+    "reboot_unifi_os_console": _CLASSIC,  # POST /api/system/reboot
     "get_camera_private": _PROTECT_PRIVATE,
     "update_camera_private": _PROTECT_PRIVATE,
     "list_ptz_presets": _PROTECT_PRIVATE,
@@ -136,6 +144,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "update_sensor_private": _PROTECT_PRIVATE,
     "export_camera_video": _PROTECT_PRIVATE,
     "reboot_protect_device": _PROTECT_PRIVATE,
+    "create_firewall_rule": _EA_FIREWALL,
     "adopt_protect_device": _PROTECT_PRIVATE,
     "unadopt_protect_device": _PROTECT_PRIVATE,
     "reboot_nvr": _PROTECT_PRIVATE,
@@ -222,6 +231,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "get_wlan_config": _CLASSIC,
     "get_wlan_group": _CLASSIC,
     "list_accounts": _CLASSIC,
+    "list_active_clients": _V2,
     "list_active_clients_stats": _CLASSIC,
     "list_client_sessions": _CLASSIC,
     "list_device_stats": _CLASSIC,
@@ -270,7 +280,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "update_vpn_server": _CLASSIC_UI_WRITE,
     "update_wan_interface": _CLASSIC_UI_WRITE,
     "update_wlan_config": _CLASSIC,
-    # GS3 P03 (protect_camera_recording): the Protect 7.3.70 spec has none of these routes.
+    # GS3 P03 (protect_camera_recording): the Protect 7.3.74 spec has none of these routes.
     "configure_camera_wifi": _PROTECT_PRIVATE,
     "delete_recordings": _PROTECT_PRIVATE,
     "export_edge_recording": _PROTECT_PRIVATE,
@@ -941,6 +951,8 @@ class Request:
 def route(path: str) -> tuple[str, str]:
     """(service-or-family, path within that API). Family names for unspecced APIs are
     prefixed ``unspecced:``; an unrecognised proxied family is ``unknown``."""
+    if re.fullmatch(r"/ea/sites/[^/]+/rest/firewallrule", path):
+        return "unspecced:ea-firewall", path
     m = _CONNECTOR.match(path)
     if m:
         rest = m.group("rest")
@@ -966,6 +978,10 @@ def _match(spec: Spec, path: str) -> tuple[str, dict[str, str]] | None:
 def violations(req: Request) -> tuple[str, list[str]]:
     """(family, problems) for one outgoing request."""
     fam, inner = route(req.path)
+    if fam == "unspecced:ea-firewall" and req.method != "POST":
+        return fam, [
+            f"{req.method} {req.path}: private EA firewall route is classified for POST only"
+        ]
     if fam.startswith("unspecced:"):
         return fam, []
     if fam == "unknown":
@@ -1162,7 +1178,7 @@ def conformance_args(name: str) -> dict[str, Any]:
     return args
 
 
-def capture(name: str) -> list[Request]:
+def capture(name: str, overrides: dict[str, Any] | None = None) -> list[Request]:
     """Every request ``name`` sends with valid arguments and default flags."""
     upstream = CapturingUpstream()
     logging.disable(logging.CRITICAL)
@@ -1172,6 +1188,7 @@ def capture(name: str) -> list[Request]:
                 mp.setenv(k, v)
             uh.install(mp, upstream)
             args = conformance_args(name)
+            args.update(overrides or {})
             asyncio.run(server.mcp.call_tool(name, args))
     finally:
         logging.disable(logging.NOTSET)
@@ -1210,6 +1227,18 @@ def classify(requests: list[Request]) -> str:
 
 
 # =========================================================================== tests
+def test_private_ea_firewall_route_classification_is_narrow():
+    assert route("/ea/sites/example/rest/firewallrule")[0] == "unspecced:ea-firewall"
+    assert route("/ea/sites/example/rest/other")[0] == "direct"
+    assert route("/ea/sites/example/rest/firewallrule/extra")[0] == "direct"
+
+    def request(method: str, path: str) -> Request:
+        return Request(method, path, "", b"", "", False)
+
+    assert violations(request("GET", "/ea/sites/example/rest/firewallrule"))[1]
+    assert violations(request("POST", "/ea/sites/example/rest/other"))[1]
+
+
 def test_vendored_specs_match_the_spec_drift_pins():
     """The vendored contracts are exactly the versions the spec-drift baseline pins."""
     import importlib.util
@@ -1246,6 +1275,7 @@ def test_exemptions_are_exactly_the_unspecced_tools():
     )
     assert by_class["none"] == set(NO_REQUEST)
     reasons = {
+        _EA_FIREWALL: "ea-firewall",
         _CLASSIC: "classic",
         _CLASSIC_UI_WRITE: "classic",
         _V2: "v2",

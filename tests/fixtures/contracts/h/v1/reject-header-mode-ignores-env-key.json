@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-header-mode-ignores-env-key",
+  "description": "Header mode never falls back to a configured UNIFI_API_KEY: a tools/call without the header is refused",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full",
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "missing_api_key_header",
+    "upstream_calls": 0
+  }
+}

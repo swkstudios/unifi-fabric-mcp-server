@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-exclude-tool-meta",
+  "description": "UNIFI_EXCLUDE=tool:search_tools names a meta tool and fails startup naming the token.",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXCLUDE": "tool:search_tools"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:UNIFI_EXCLUDE",
+    "upstream_calls": 0
+  }
+}

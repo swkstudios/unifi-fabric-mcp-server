@@ -1,11 +1,12 @@
-"""The server's one boolean switch parser and its runtime readers.
+"""The server's one boolean switch parser and the call-time write-policy readers.
 
-Every boolean environment switch is parsed here, by one function, whether it is read
-once at startup (:class:`unifi_fabric.config.Settings`) or at call time (read-only mode
-and the per-area write opt-outs, so a deployment or a test can toggle them without
-rebuilding the client). The two paths cannot disagree about a spelling: ``Settings``
-validates each boolean field with :func:`parse_bool`, and every runtime check reads
-its variable with :func:`env_flag`, which calls the same function.
+Every boolean environment switch is parsed here by :func:`parse_bool`, whether it is
+read once at startup (:class:`unifi_fabric.config.Settings`) or at call time
+(:func:`env_flag`). The write decisions (a global ``deny`` or ``dry-run`` in
+``UNIFI_WRITE_POLICY``, and the ``family:<id>`` and ``tool:<name>`` exceptions of
+``UNIFI_WRITE_EXCEPTIONS``) are read at call time through
+:func:`unifi_fabric.policy.current`, so a deployment or a test can change them without
+rebuilding the client.
 
 Accepted spellings (case-insensitive, surrounding whitespace ignored) are
 :data:`TRUE_VALUES` and :data:`FALSE_VALUES`. An unset, empty or whitespace-only value
@@ -13,8 +14,8 @@ means the switch's default. Any other value is an error naming the variable and 
 the accepted spellings (``Settings`` refuses it at startup; a runtime reader raises the
 same error rather than guessing).
 
-This module is dependency-free so the low-level client and the tool modules can import
-it without a settings cycle.
+This module imports :mod:`unifi_fabric.policy` lazily, so the low-level client and the
+tool modules can import it without a settings cycle.
 """
 
 from __future__ import annotations
@@ -71,20 +72,23 @@ def env_flag(env: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class AreaWriteSwitch:
-    """A product area's write opt-out: enabled by default, ``0`` refuses its writes."""
+    """A product area's write opt-out: the ``family:<id>=deny`` write exception."""
 
     #: The tool family (``families.build_family_index``) whose write tools it governs.
     family: str
-    #: The environment variable (also the ``Settings`` field ``UNIFI_<FIELD>``).
-    env: str
     #: The connector-relay ``routeClass`` prefix of the area's console routes.
     relay_prefix: str
     #: Additional catalog families belonging to the same application area.
     related_families: tuple[str, ...] = ()
     #: The upstream API routes of the area (regular expressions searched, ignoring case,
-    #: in the fully percent-decoded request path). The client refuses every write request to one of
-    #: them while the area is opted out, whichever tool or relay sent it.
+    #: in the fully percent-decoded request path). The client refuses every write request to
+    #: one of them while the area's family is denied, whichever tool or relay sent it.
     routes: tuple[str, ...] = ()
+
+    @property
+    def env(self) -> str:
+        """The exception token that opts the area out (also the audited reason)."""
+        return deny_token(self.family)
 
     def owns_route(self, path: str) -> bool:
         """Whether the decoded upstream request ``path`` is one of the area's routes."""
@@ -95,42 +99,51 @@ class AreaWriteSwitch:
         return family == self.family or family in self.related_families
 
     def enabled(self) -> bool:
-        """True unless the variable is set to a false spelling (read now)."""
-        return env_flag(self.env, True)
+        """True unless ``UNIFI_WRITE_EXCEPTIONS`` denies the area's family (read now)."""
+        return not family_denied(self.family)
 
 
-#: Read-only mode (opt-in, default off), read at call time by ``unifi_fabric.read_only``.
-READ_ONLY_ENV = "UNIFI_READ_ONLY"
+#: The global write policy setting; ``deny`` is read-only mode (also the audited reason).
+WRITE_POLICY_ENV = "UNIFI_WRITE_POLICY"
+#: The write exceptions setting.
+WRITE_EXCEPTIONS_ENV = "UNIFI_WRITE_EXCEPTIONS"
+#: The audited reason of a global deny (kept under its historical symbol name).
+READ_ONLY_ENV = WRITE_POLICY_ENV
+
+
+def deny_token(family: str) -> str:
+    """The ``UNIFI_WRITE_EXCEPTIONS`` item that denies ``family``'s writes."""
+    return f"family:{family}=deny"
+
+
+def _policy():  # type: ignore[no-untyped-def]
+    from . import policy
+
+    return policy.current()
+
+
+def family_denied(family: str) -> bool:
+    """True when ``UNIFI_WRITE_EXCEPTIONS`` holds ``family:<family>=deny`` now."""
+    return (f"family:{family}", "deny") in _policy().write_exceptions
+
 
 #: Every per-area write opt-out, in one table. The typed tools of each area, the
 #: connector relay's route-class check and the cross-tool invariants all read it, so an
-#: area's switch is parsed and honoured the same way everywhere.
+#: area's exception is honoured the same way everywhere.
 NETWORK_WRITES = AreaWriteSwitch(
     "network",
-    "UNIFI_ENABLE_NETWORK_WRITE",
     "network-",
     ("firewall", "clients", "devices", "vpn", "hotspot", "statistics"),
-    (r"(?:^|/)proxy/network(?:/|\Z)",),
+    (
+        r"(?:^|/)proxy/network(?:/|\Z)",
+        r"^/ea/sites/[^/]+/rest/firewallrule(?:/|\Z)",
+    ),
 )
-PROTECT_WRITES = AreaWriteSwitch(
-    "protect", "UNIFI_PROTECT_MUTATIONS_ENABLED", "protect-", (), (r"(?:^|/)proxy/protect(?:/|\Z)",)
-)
-MOBILITY_WRITES = AreaWriteSwitch(
-    "mobility", "UNIFI_ENABLE_MOBILITY_WRITE", "mobility-", (), (r"^/v1/mobility(?:/|\Z)",)
-)
-CARRIER_WRITES = AreaWriteSwitch(
-    "carrier",
-    "UNIFI_ENABLE_CARRIER_FABRIC_WRITE",
-    "carrier-",
-    (),
-    (r"^/v1/carrier(?:/|\Z)",),
-)
+PROTECT_WRITES = AreaWriteSwitch("protect", "protect-", (), (r"(?:^|/)proxy/protect(?:/|\Z)",))
+MOBILITY_WRITES = AreaWriteSwitch("mobility", "mobility-", (), (r"^/v1/mobility(?:/|\Z)",))
+CARRIER_WRITES = AreaWriteSwitch("carrier", "carrier-", (), (r"^/v1/carrier(?:/|\Z)",))
 INNERSPACE_WRITES = AreaWriteSwitch(
-    "innerspace",
-    "UNIFI_ENABLE_INNERSPACE_WRITE",
-    "innerspace-",
-    (),
-    (r"(?:^|/)proxy/innerspace(?:/|\Z)",),
+    "innerspace", "innerspace-", (), (r"(?:^|/)proxy/innerspace(?:/|\Z)",)
 )
 AREA_WRITE_SWITCHES: tuple[AreaWriteSwitch, ...] = (
     NETWORK_WRITES,
@@ -140,13 +153,30 @@ AREA_WRITE_SWITCHES: tuple[AreaWriteSwitch, ...] = (
     INNERSPACE_WRITES,
 )
 
-#: Every boolean switch read at call time, with its default. ``Settings`` declares the
-#: same variables as boolean fields with the same defaults (checked by the cross-tool
-#: invariants), so a malformed value still fails at startup.
-RUNTIME_SWITCHES: dict[str, bool] = {
-    READ_ONLY_ENV: False,
-    **{s.env: True for s in AREA_WRITE_SWITCHES},
-}
+#: The connector relay's write opt-out token (``family:connector=deny``).
+CONNECTOR_WRITE_TOKEN = deny_token("connector")
+
+
+def connector_writes_enabled() -> bool:
+    """True unless ``UNIFI_WRITE_EXCEPTIONS`` denies the connector family (read now)."""
+    return not family_denied("connector")
+
+
+def area_deny_text(area: str, token: str) -> str:
+    """The refusal text of a denied area: the exception, that no request was sent, and
+    where to change it. The current setting is appended when the refusal is raised
+    (:func:`current_value_note`)."""
+    return (
+        f"{area} writes are denied: {WRITE_EXCEPTIONS_ENV} contains {token}. No request was "
+        "sent. Writes are allowed by default. To allow them, remove that item from "
+        f"{WRITE_EXCEPTIONS_ENV} (or change it to dry-run) in the MCP client env block (and "
+        "set the plugin's Write policy option to allow if it is deny), the "
+        "environment of the shell that starts the server, or this service's "
+        "'environment:' block in the deploy docker-compose.yml (a host shell export does "
+        "not reach the container), then restart the server (recreate the container). "
+        f"{WRITE_POLICY_ENV} must not be deny either. See Enabling / disabling connector writes "
+        "in docs/CONFIGURATION.md#enabling--disabling-connector-writes."
+    )
 
 
 def opted_out_area_for_route(path: str) -> AreaWriteSwitch | None:
@@ -158,17 +188,75 @@ def opted_out_area_for_route(path: str) -> AreaWriteSwitch | None:
 
 
 def current_value_note(env: str) -> str:
-    """The note ``" Current value: ENV=<value>."`` for a set switch, else an empty string.
-
-    Only called for a switch that parsed as a boolean spelling (an opt-out is in force),
-    so the value is one of the accepted spellings, never a credential.
-    """
-    raw = os.environ.get(env)
-    if raw is None or not raw.strip():
-        return ""
-    return f" Current value: {env}={raw.strip()}."
+    """The note naming the setting that refuses now (never a free-form value)."""
+    if env == WRITE_POLICY_ENV:
+        return f" Current value: {WRITE_POLICY_ENV}=deny."
+    if env.startswith("family:"):
+        return f" Current value: {WRITE_EXCEPTIONS_ENV} includes {env}."
+    return ""
 
 
 def is_read_only() -> bool:
-    """True only when ``UNIFI_READ_ONLY`` is set to a true spelling (default off)."""
-    return env_flag(READ_ONLY_ENV, False)
+    """True when ``UNIFI_WRITE_POLICY=deny`` (default allow), read now."""
+    return _policy().write_policy == "deny"
+
+
+def governing_families(tool: str, family: str | None) -> tuple[str, ...]:
+    """Every ``family:<id>`` whose write exception reaches ``tool``, its own family first.
+
+    The reach of a ``deny`` entry, so a ``dry-run`` entry previews exactly the writes it
+    would refuse: the tool's own family, the area whose reach includes that family
+    (``family:network`` also covers ``firewall``, ``devices``, ``clients``, ``vpn``,
+    ``hotspot`` and ``statistics``), and ``connector`` for the typed tools the connector
+    switch also governs (:func:`families.connector_write_tools`).
+    """
+    from .families import connector_write_tools
+
+    found: list[str] = [family] if family else []
+    for switch in AREA_WRITE_SWITCHES:
+        if switch.governs(family) and switch.family not in found:
+            found.append(switch.family)
+    if tool in connector_write_tools() and "connector" not in found:
+        found.append("connector")
+    return tuple(found)
+
+
+def dry_run_active(*, tool: str | None = None, path: str | None = None) -> bool:
+    """True when a write now gets the dry-run preview instead of being sent.
+
+    ``UNIFI_WRITE_POLICY=dry-run`` covers every write. Otherwise a ``dry-run`` exception
+    reaching the calling tool (``tool:<name>`` or any family of
+    :func:`governing_families`, so exactly the writes the same entry set to ``deny``
+    refuses) or the area owning the decoded ``path`` applies. A deny decision is made
+    earlier (tool middleware and the request guards), so it always wins.
+    """
+    from . import policy
+
+    current = policy.current()
+    if current.write_policy == "dry-run":
+        return True
+    if not any(value == "dry-run" for _target, value in current.write_exceptions):
+        return False
+    if tool is None:
+        from .audit import current_tool
+
+        tool = current_tool()
+    if tool is not None:
+        from .families import build_family_index
+
+        family = build_family_index().get(tool) or ""
+        if policy.write_mode(current, tool_name=tool, family=family) == "dry-run":
+            return True
+        if any(
+            policy.family_exception(current, governing) == "dry-run"
+            for governing in governing_families(tool, family)
+        ):
+            return True
+    if path is not None:
+        for switch in AREA_WRITE_SWITCHES:
+            if (
+                switch.owns_route(path)
+                and policy.family_exception(current, switch.family) == "dry-run"
+            ):
+                return True
+    return False

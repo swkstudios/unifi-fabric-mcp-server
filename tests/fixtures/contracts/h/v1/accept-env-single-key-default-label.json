@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-env-single-key-default-label",
+  "description": "A single UNIFI_API_KEY is one credential labelled default",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "environment",
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "list_hosts",
+    "arguments": {},
+    "upstream": {
+      "default": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "selected_labels": [
+      "default"
+    ]
+  }
+}

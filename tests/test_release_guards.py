@@ -6,17 +6,14 @@ from __future__ import annotations
 
 import ast
 import re
-import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def _release_notes() -> str:
-    """The current release section plus every fragment that will be folded into it."""
-    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-    changelog = (ROOT / "CHANGELOG.md").read_text()
-    section = changelog.split(f"## [{version}]", 1)[1].split("\n## [", 1)[0]
+    """Published release notes and pending fragments covering retired settings."""
+    section = (ROOT / "CHANGELOG.md").read_text()
     fragments = [
         path.read_text()
         for path in sorted((ROOT / "changelog.d").glob("*.md"))
@@ -106,7 +103,7 @@ def _json_dumps_in_raise(source: str) -> list[int]:
 def test_raised_errors_never_format_upstream_data_with_json_dumps():
     offenders = [
         f"{path.relative_to(ROOT)}:{line}"
-        for path in sorted((ROOT / "src/unifi_fabric/tools").glob("*.py"))
+        for path in sorted((ROOT / "src/unifi_fabric").rglob("*.py"))
         for line in _json_dumps_in_raise(path.read_text())
     ]
     assert not offenders, f"use upstream_error_text(...) instead of json.dumps: {offenders}"

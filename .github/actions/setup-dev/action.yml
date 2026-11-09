@@ -1,0 +1,70 @@
+name: Set up the shared development environment
+description: >-
+  Restores the shared development venv at $DEV_VENV from its weekly cache, or builds it
+  from requirements.lock with hash checking when there is no hit, installs this checkout
+  editable without dependencies and puts the venv on PATH. Run actions/setup-python
+  first and pass its python-version output. The action never writes the cache: a job
+  that seeds it keeps its own actions/cache/save step and saves under the key output.
+inputs:
+  python-version:
+    description: The exact interpreter version (the python-version output of actions/setup-python).
+    required: true
+outputs:
+  cache-hit:
+    description: '"true" when the venv was restored from the cache under the exact key.'
+    value: ${{ steps.venv-cache.outputs.cache-hit }}
+  week:
+    description: The ISO week (UTC) in the key, so the venv is rebuilt from requirements.lock at least weekly.
+    value: ${{ steps.venv-key.outputs.week }}
+  python-version:
+    description: The interpreter version in the key.
+    value: ${{ steps.venv-key.outputs.python-version }}
+  key:
+    description: The cache key; a caller's save step uses exactly this value.
+    value: ${{ steps.venv-key.outputs.key }}
+runs:
+  using: composite
+  steps:
+    # The venv is cached on the exact interpreter, pyproject.toml and requirements.lock,
+    # plus the ISO week. Dependencies are installed from the hash-locked requirements on
+    # cache misses. On a hit only the project itself is re-installed (editable,
+    # --no-deps) so the import path points at this checkout.
+    - name: Cache key
+      id: venv-key
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+        PROJECT_HASH: ${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+      run: |
+        : "${DEV_VENV:?DEV_VENV must name the shared venv path}"
+        : "${PYTHON_VERSION:?python-version is required}"
+        : "${PROJECT_HASH:?pyproject.toml and requirements.lock must exist}"
+        week="$(date -u +%G-W%V)"
+        {
+          echo "week=${week}"
+          echo "python-version=${PYTHON_VERSION}"
+          echo "key=venv-${RUNNER_OS}-${DEV_VENV}-py${PYTHON_VERSION}-${week}-${PROJECT_HASH}"
+        } >> "$GITHUB_OUTPUT"
+        # Start from an empty fixed path so a reused container never mixes stale files
+        # into the restored (or freshly built) venv.
+        rm -rf "${DEV_VENV:?}"
+        mkdir -p "$(dirname "${DEV_VENV:?}")"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      id: venv-cache
+      with:
+        path: ${{ env.DEV_VENV }}
+        key: ${{ steps.venv-key.outputs.key }}
+    - name: Install dev environment
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
+      run: |
+        if [ "$CACHE_HIT" != "true" ]; then
+          rm -rf "${DEV_VENV:?}"
+          python -m venv "$DEV_VENV"
+          "$DEV_VENV/bin/python" -m pip install --require-hashes -r requirements.lock
+          "$DEV_VENV/bin/python" -m pip install --no-deps -e .
+        else
+          "$DEV_VENV/bin/python" -m pip install --no-deps -e .
+        fi
+        echo "$DEV_VENV/bin" >> "$GITHUB_PATH"

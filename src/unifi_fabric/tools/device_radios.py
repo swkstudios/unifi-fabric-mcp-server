@@ -20,14 +20,15 @@ from ..client import (
     UniFiConnectionError,
     object_records,
     upstream_error_text,
+    upstream_error_value,
     validate_id,
     validate_selector,
 )
 from ..config import APIKeyConfig
 from ..macs import colon_mac, is_mac
-from ..read_only import ReadOnlyModeError, guard_action
+from ..read_only import ReadOnlyModeError, guard_action, mark_write_denied
 from ..registry import Registry
-from ..switches import env_flag
+from ..switches import connector_writes_enabled
 from ..tool_annotations import READ_ONLY, WRITE
 from ._classic_objects import classic_rest, resolve_site_slug
 from ._device_config import require_classic_success, update_device_config
@@ -189,7 +190,8 @@ def _validated_changes(band: str, row: dict[str, Any], change: RadioChanges) -> 
             bound = row.get(capability)
             if isinstance(bound, (int, float)) and not isinstance(bound, bool) and too_far(bound):
                 raise ValueError(
-                    f"tx_power {power} for {band} is outside the device's {capability}={bound}"
+                    f"tx_power {power} for {band} is outside the device's "
+                    f"{capability}={upstream_error_value(bound)}"
                 )
     return fields
 
@@ -256,11 +258,11 @@ async def _update_device_radio(
     try:
         guard_action("update_device_radio")
     except ReadOnlyModeError:
-        client.audit_refusal(tool="update_device_radio", reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool="update_device_radio", reason="UNIFI_WRITE_POLICY")
         raise
-    if not env_flag(CONNECTOR_WRITE_ENV, True):
+    if not connector_writes_enabled():
         client.audit_refusal(tool="update_device_radio", reason=CONNECTOR_WRITE_ENV)
-        raise PermissionError(connector_write_refusal("update_device_radio"))
+        raise mark_write_denied(PermissionError(connector_write_refusal("update_device_radio")))
     validate_selector(device, "device")
     if not radios:
         raise ValueError("No fields provided in radios: supply at least one radio field to update")
@@ -294,7 +296,8 @@ async def _update_device_radio(
     if resolved.get("_id") != classic_id:
         raise ValueError(
             f"Device identity changed during resolution; read back before retrying "
-            f"({classic_id!r} -> {upstream_error_text(resolved.get('_id'), client)})"
+            f"({upstream_error_value(classic_id, client)!r} -> "
+            f"{upstream_error_text(resolved.get('_id'), client)})"
         )
     before = _radio_rows(resolved, "radio_table")
     bands = _radios_by_band(before)
@@ -302,7 +305,10 @@ async def _update_device_radio(
     desired_bands = _radios_by_band(desired)
     for band, change in parsed.items():
         if band not in ("ng", "na", "6e") or band not in bands:
-            raise ValueError(f"Unknown radio band {band!r}; valid device bands: {list(bands)}")
+            raise ValueError(
+                f"Unknown radio band {band!r}; valid device bands: "
+                f"{[upstream_error_value(b, client) for b in bands]}"
+            )
         desired_bands[band].update(_validated_changes(band, bands[band], change))
     body = {"radio_table": desired}
     path = classic_rest(host_id, site_slug, f"/device/{classic_id}")
@@ -366,9 +372,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Read back before retrying. Returns readBefore/readAfter, changed per band/field, noOp and
         radio_table_stats, with the upstream write response verbatim under response.
         _diff is the requested diff; _noOp is an alias of noOp.
-        UNIFI_DRY_RUN or dry_run=true returns status "dry_run", dryRun, sent: false, message,
+        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message,
         preview (method, path, params, body), and diff; changed/noOp are null, never write results;
-        no-op skips PUT. Honours UNIFI_READ_ONLY and UNIFI_ENABLE_CONNECTOR_WRITE.
+        no-op skips PUT. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny.
         _lookupResponse and _readBeforeResponse preserve the lookup and before envelopes;
         _readAfterResponse preserves the after envelope. readAfterError means verification
         failed on the fresh read-after; changed/noOp/_verified are null. _verified compares
@@ -391,7 +397,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 tx_power_mode?:'auto'|'low'|'medium'|'high'|'custom',tx_power?:integer,
                 min_rssi_enabled?:boolean,min_rssi?:integer}
             dry_run: Preview the exact full-table PUT body and diff without writing, e.g. true.
-                UNIFI_DRY_RUN also previews; read-only and write opt-outs still apply.
+                dry-run policy also previews; read-only and write opt-outs still apply.
         """
         client, registry = deps_fn()
         return await _update_device_radio(

@@ -19,7 +19,7 @@ def scope(target, headers=()):
     return {
         "type": "http",
         "raw_path": path,
-        "path": path.decode("ascii"),
+        "path": path.decode("ascii", errors="replace"),
         "query_string": query,
         "headers": list(headers),
         "method": "GET",
@@ -286,3 +286,15 @@ async def test_query_values_are_masked_without_changing_request(caplog):
     assert "token=" not in caplog.text
     assert "QUERY_SENTINEL" not in caplog.text
     assert "SECOND_SENTINEL" not in caplog.text
+
+
+async def test_logged_target_escapes_control_bytes(caplog):
+    """CodeQL py/clear-text-logging-sensitive-data (access_log.py): the access line is
+    rebuilt from a fixed byte table, so control bytes and non-ASCII appear only as
+    ``\\xNN`` escapes and printable ASCII, backslash included, is unchanged."""
+    caplog.set_level(logging.INFO)
+    await exercise(b"/mcp/a\x1b[31m\r\nb\\c\xc3\xa9?k=v")
+    (record,) = [r for r in caplog.records if r.name == "unifi_fabric.access"]
+    message = record.getMessage()
+    assert "/mcp/a\\x1b[31m\\x0d\\x0ab\\c\\xc3\\xa9?***" in message
+    assert all(c.isprintable() for c in message)

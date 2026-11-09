@@ -49,13 +49,13 @@ def test_text_metadata_collisions_use_completed_line_scrub(
             outcome="refused",
             status=status,
             tool="update_x",
-            reason="UNIFI_READ_ONLY",
+            reason="UNIFI_WRITE_POLICY",
         )
         expected.append(
             scrub(
                 f"{scrub('2026-10-28T00:00:00+00:00', (secret,))} method=PATCH "
                 f"path=/proxy/x outcome=refused status={status} "
-                "tool=update_x reason=UNIFI_READ_ONLY",
+                "tool=update_x reason=UNIFI_WRITE_POLICY",
                 (secret,),
             )
         )

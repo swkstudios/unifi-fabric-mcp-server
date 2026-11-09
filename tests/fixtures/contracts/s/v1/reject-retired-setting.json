@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "s",
+  "name": "reject-retired-setting",
+  "description": "A UNIFI_ setting this version does not define fails startup by name (generic unknown-setting fixture).",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_EXAMPLE_RETIRED": "1"
+    },
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "startup:retired:UNIFI_EXAMPLE_RETIRED",
+    "upstream_calls": 0
+  }
+}

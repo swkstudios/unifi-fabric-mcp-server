@@ -1,4 +1,4 @@
-"""API-source classification (app / source / access) and UNIFI_DISABLE_API_SOURCES.
+"""API-source classification (app / source / access) and UNIFI_EXCLUDE.
 
 Properties:
 
@@ -21,8 +21,7 @@ import logging
 import pytest
 
 from tests import api_sources_gen
-from unifi_fabric import _read_only_audit, api_sources, server
-from unifi_fabric.config import Settings
+from unifi_fabric import _read_only_audit, api_sources, policy, request_policy, server
 
 CONSOLE = "/v1/connector/consoles/HOST:1/proxy"
 
@@ -36,6 +35,7 @@ def _tools() -> list:
     [
         ("/v1/hosts", "site_manager/official"),
         ("/v1/isp-metrics/5m/query", "site_manager/official"),
+        ("/ea/sites/000000000000000000000001/rest/firewallrule", "site_manager/private"),
         ("/v1/mobility/workspaces/w/devices", "mobility/official"),
         ("/v1/carrier/subscribers", "carrier_fabric/official"),
         (f"{CONSOLE}/network/integration/v1/sites", "network/official"),
@@ -154,13 +154,13 @@ def test_unset_or_blank_disables_nothing(value):
         "*/private",
         "*/official/read",
         "relay",
+        "site_manager/private",
         " Network/Private ",
         "site_manager/official,protect/private",
     ],
 )
 def test_valid_selectors_parse(value):
     assert api_sources.parse_disabled_sources(value)
-    assert Settings(api_key="k", disable_api_sources=value).disable_api_sources == value
 
 
 @pytest.mark.parametrize(
@@ -169,7 +169,6 @@ def test_valid_selectors_parse(value):
         "netwrk",
         "network/private.foo",
         "protect/private.classic",
-        "site_manager/private",
         "*",
         "network/read/write",
         "network/official/private",
@@ -182,9 +181,7 @@ def test_invalid_selectors_fail_fast_listing_valid_values(value):
     assert problem and "network/private.classic" in problem and "*/write" in problem
     with pytest.raises(ValueError):
         api_sources.parse_disabled_sources(value)
-    with pytest.raises(ValueError) as exc:
-        Settings(api_key="k", disable_api_sources=value)
-    assert api_sources.DISABLE_ENV in str(exc.value)
+    assert api_sources.DISABLE_ENV in problem
 
 
 def test_unknown_value_is_never_echoed():
@@ -438,7 +435,6 @@ async def test_camera_snapshot_ts_branch_is_classified_protect_private():
 @pytest.mark.parametrize(
     "name,pair",
     [
-        ("list_clients", "network/private.v2"),
         ("list_known_clients", "network/private.v2"),
         ("restart_device", "network/private.classic"),
     ],
@@ -454,3 +450,46 @@ async def test_optional_argument_private_branches_are_classified(name, pair):
     selectors = api_sources.parse_disabled_sources(pair)
     access = api_sources.selection_access(tool)
     assert api_sources.is_disabled(api_sources.table()[name], access, selectors, tool_name=name)
+
+
+async def test_list_clients_official_private_split_classifies_and_selects_independently():
+    """The official list stays available when its private v2 counterpart is excluded."""
+    tools = {tool.name: tool for tool in await server.mcp.list_tools()}
+    assert set(tools["list_clients"].parameters["properties"]) == {
+        "host",
+        "site",
+        "offset",
+        "limit",
+        "client_type",
+        "filter",
+    }
+    assert set(tools["list_active_clients"].parameters["properties"]) == {
+        "host",
+        "site",
+        "include_matter_thread_clients",
+        "include_traffic_usage",
+        "include_unifi_devices",
+    }
+    official_paths = await api_sources_gen._paths("list_clients", tools["list_clients"])
+    private_paths = await api_sources_gen._paths(
+        "list_active_clients", tools["list_active_clients"]
+    )
+    official_pairs = api_sources.tool_pairs("list_clients", official_paths)
+    private_pairs = api_sources.tool_pairs("list_active_clients", private_paths)
+
+    assert "network/official" in official_pairs
+    assert not any(api_sources.is_private(pair.split("/", 1)[1]) for pair in official_pairs)
+    assert "network/private.v2" in private_pairs
+    assert api_sources.primary_pair(official_pairs) == "network/official"
+    assert api_sources.primary_pair(private_pairs) == "network/private.v2"
+
+    selectors = api_sources.parse_disabled_sources("network/private.v2")
+    assert not api_sources.is_disabled(official_pairs, "read", selectors, tool_name="list_clients")
+    assert api_sources.is_disabled(
+        private_pairs, "read", selectors, tool_name="list_active_clients"
+    )
+
+    catalog = request_policy.catalog_from_tools(tools.values())
+    unofficial = policy.operator_policy({"UNIFI_EXCLUDE": "unofficial"}, catalog)
+    assert policy.is_exposed(unofficial, catalog.tools["list_clients"])
+    assert not policy.is_exposed(unofficial, catalog.tools["list_active_clients"])

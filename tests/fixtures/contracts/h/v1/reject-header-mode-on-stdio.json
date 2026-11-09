@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-header-mode-on-stdio",
+  "description": "Header key mode is refused at startup on the stdio transport",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "transport": "stdio",
+    "route": "initialize"
+  },
+  "expected": {
+    "code": "startup:UNIFI_KEY_MODE",
+    "upstream_calls": 0
+  }
+}

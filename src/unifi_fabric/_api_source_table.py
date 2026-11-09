@@ -139,6 +139,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
         "network/private.v2",
     ),
     "create_firewall_policy": ("site_manager/official", "network/official"),
+    "create_firewall_rule": ("site_manager/official", "site_manager/private"),
     "create_firewall_zone_proxy": ("site_manager/official", "network/official"),
     "create_hotspot_operator": (
         "site_manager/official",
@@ -746,6 +747,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     "list_accounts": ("site_manager/official", "network/official", "network/private.classic"),
     "list_acl_rules": ("site_manager/official", "network/official"),
+    "list_active_clients": ("site_manager/official", "network/official", "network/private.v2"),
     "list_active_clients_stats": (
         "site_manager/official",
         "network/official",
@@ -778,7 +780,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
         "network/official",
         "network/private.v2",
     ),
-    "list_clients": ("site_manager/official", "network/official", "network/private.v2"),
+    "list_clients": ("site_manager/official", "network/official"),
     "list_configured_api_keys": ("server/local",),
     "list_content_filter_categories": (
         "site_manager/official",
@@ -786,6 +788,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
         "network/private.v2",
     ),
     "list_content_filters": ("site_manager/official", "network/official", "network/private.v2"),
+    "list_controller_stat_schemas": ("site_manager/official", "network/private.v2"),
     "list_countries": ("site_manager/official", "network/official"),
     "list_device_firmware": (
         "site_manager/official",
@@ -855,6 +858,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
     "list_innerspace_inventory": ("site_manager/official", "innerspace/official"),
     "list_innerspace_switches": ("site_manager/official", "innerspace/official"),
     "list_installed_applications": ("site_manager/official", "network/private.v2"),
+    "list_integration_device_tags": ("site_manager/official", "network/official"),
     "list_ips_categories": ("site_manager/official", "network/official", "network/private.v2"),
     "list_ips_events": ("site_manager/official", "network/official", "network/private.v2"),
     "list_known_clients": (
@@ -936,6 +940,11 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     "list_sites": ("site_manager/official",),
     "list_speakers": ("site_manager/official", "protect/official"),
+    "list_speedtest_results": (
+        "site_manager/official",
+        "network/official",
+        "network/private.classic",
+    ),
     "list_ssl_inspection_catalog": (
         "site_manager/official",
         "network/official",
@@ -1052,6 +1061,7 @@ TOOL_API_SOURCES: dict[str, tuple[str, ...]] = {
     "readopt_protect_device": ("site_manager/official", "protect/private"),
     "reboot_nvr": ("site_manager/official", "protect/private"),
     "reboot_protect_device": ("site_manager/official", "protect/private"),
+    "reboot_unifi_os_console": ("site_manager/official", "network/private.classic"),
     "recognize_image": ("site_manager/official", "protect/private"),
     "reconnect_client": ("site_manager/official", "network/official", "network/private.classic"),
     "recover_loop_blocked_ports": (

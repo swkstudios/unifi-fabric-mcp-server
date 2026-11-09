@@ -300,3 +300,12 @@ async def test_user_patch_sends_requested_settings_without_bootstrap_fields(clie
         "settings": {"showFeaturesIntroduction": True}
     }
     assert result["_verified"] is True
+
+
+async def test_confirm_descriptions_include_complete_execution_notice(client):
+    for name, tool in (await tools_for(client)).items():
+        confirm = tool.parameters.get("properties", {}).get("confirm")
+        if confirm is not None:
+            description = confirm["description"]
+            assert not description.rstrip().endswith("; the"), name
+            assert "call executes immediately." in description, name

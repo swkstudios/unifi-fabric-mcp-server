@@ -320,3 +320,14 @@ def test_whole_file_deletion_reports_symbol_and_doc_hit():
     )
     assert "function:important_tool" in labels(extraction)
     assert di.find_hits(extraction, {"docs/demo.md": ["Use important_tool here."]})
+
+
+def test_string_re_has_no_backtracking_blowup():
+    """CodeQL py/redos (docs_impact.py STRING_RE): an unterminated literal made of many
+    backslash pairs is rejected, and escapes still parse as before."""
+    hostile = '"' + "\\a" * 5000
+    assert di.STRING_RE.search(hostile) is None
+    match = di.STRING_RE.search(r'raise ValueError("a \"quoted\" word\\")')
+    assert match is not None
+    assert match.group(2) == r"a \"quoted\" word\\"
+    assert di.STRING_RE.search("x = 'it\\'s fine'").group(2) == "it\\'s fine"

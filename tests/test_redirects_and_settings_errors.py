@@ -33,7 +33,9 @@ _REDIRECTS = (300, 301, 302, 303, 304, 307, 308)
 @pytest.fixture
 def audit_client(tmp_path) -> tuple[UniFiClient, object]:
     log = tmp_path / "audit.log"
-    return UniFiClient(Settings(api_key="sk-redirect-test", audit_log=str(log))), log
+    return UniFiClient(
+        Settings(api_key="sk-redirect-test", audit_log=str(log), audit_log_format="text")
+    ), log
 
 
 @pytest.mark.parametrize("status", _REDIRECTS)
@@ -180,16 +182,7 @@ def test_api_key_config_ignores_bare_env(monkeypatch):
 
 
 # =========================================================================== choices
-_BOOL_ENVS = (
-    "UNIFI_ENABLE_CONNECTOR_WRITE",
-    "UNIFI_REDACT_SECRETS",
-    "UNIFI_DRY_RUN",
-    "UNIFI_READ_ONLY",
-    "UNIFI_PROTECT_MUTATIONS_ENABLED",
-    "UNIFI_ENABLE_MOBILITY_WRITE",
-    "UNIFI_ENABLE_CARRIER_FABRIC_WRITE",
-    "UNIFI_ENABLE_INNERSPACE_WRITE",
-)
+_BOOL_ENVS = ("UNIFI_REDACT_SECRETS",)
 
 
 @pytest.mark.parametrize("env", _BOOL_ENVS)

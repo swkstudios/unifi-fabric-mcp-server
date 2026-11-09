@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-header-mode-tools-list-malformed-header",
+  "description": "Header-mode tools/list never reads X-UniFi-Api-Key, so a malformed one is not refused",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "not-json"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "listed_tools": [
+      "call_read_tool",
+      "call_write_tool",
+      "describe_tool",
+      "list_tool_families",
+      "search_tools"
+    ],
+    "upstream_calls": 0
+  }
+}

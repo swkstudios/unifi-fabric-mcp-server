@@ -261,7 +261,8 @@ async def test_every_write_returns_the_standard_dry_run_preview(name, args, meth
 
 @pytest.mark.parametrize("name,args,method,route,attr", WRITES, ids=WRITE_IDS)
 @pytest.mark.parametrize(
-    "switch,value", [("UNIFI_READ_ONLY", "1"), ("UNIFI_PROTECT_MUTATIONS_ENABLED", "0")]
+    "switch,value",
+    [("UNIFI_WRITE_POLICY", "deny"), ("UNIFI_WRITE_EXCEPTIONS", "family:protect=deny")],
 )
 async def test_every_write_obeys_the_operator_opt_out_before_any_request(
     monkeypatch, name, args, method, route, attr, switch, value
@@ -542,7 +543,7 @@ async def test_upload_form_field_and_content_type_are_used_as_given():
 
 
 async def test_upload_dry_run_end_to_end_previews_the_part_and_sends_nothing(monkeypatch):
-    monkeypatch.setenv("UNIFI_DRY_RUN", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     client = UniFiClient(Settings(api_key="synthetic-test-key"))
     try:
         with respx.mock(base_url="https://api.ui.com", assert_all_called=False) as mock:

@@ -27,7 +27,7 @@ labels: bug
 
 | Item | Value |
 |------|-------|
-| Server version / image tag | <!-- e.g. v0.7.0 or ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0 --> |
+| Server version / image tag | <!-- e.g. v0.7.1 or ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1 --> |
 | Transport | <!-- stdio / streamable-http / sse --> |
 | Auth mode | <!-- none / bearer / oauth --> |
 | Python version (if not Docker) | <!-- python3 --version --> |

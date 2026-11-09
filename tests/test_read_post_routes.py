@@ -2,7 +2,7 @@
 
 Properties:
 
-* every allowlisted route classifies read (and passes UNIFI_READ_ONLY); every mutation of
+* every allowlisted route classifies read (and passes UNIFI_WRITE_POLICY); every mutation of
   it (extra or missing segment, changed literal, other method, encoded separator, trailing
   slash) and every not-listed sample classifies write and is refused under read-only;
 * the routes the catalog sends as read-POSTs are exactly the allowlisted ones, sent only by
@@ -68,7 +68,7 @@ def _mutations(path: str) -> list[tuple[str, str]]:
 
 @pytest.mark.parametrize("route", rp.READ_POST_ROUTES, ids=IDS)
 def test_listed_route_is_a_read_and_passes_read_only(route, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     assert route.matches("POST", route.sample)
     assert rp.read_post_route("post", route.sample + "?x=1") is route
     assert rp.read_post_route("POST", route.sample + "?x=1?y#z") is route
@@ -80,7 +80,7 @@ def test_listed_route_is_a_read_and_passes_read_only(route, monkeypatch):
 
 @pytest.mark.parametrize("route", rp.READ_POST_ROUTES, ids=IDS)
 def test_every_mutation_of_a_listed_route_is_a_refused_write(route, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     variants = _mutations(route.sample)
     assert len(variants) >= 10
     for method, path in variants:
@@ -190,7 +190,7 @@ AMBIGUOUS: tuple[str, ...] = (
 
 @pytest.mark.parametrize("path", AMBIGUOUS)
 def test_ambiguous_spellings_are_refused_writes(path, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     assert rp.read_post_route("POST", path) is None, path
     assert not rp.is_read_post("POST", path)
     assert read_only.is_write_request("POST", path)
@@ -264,7 +264,7 @@ async def test_post_read_refuses_ambiguous_paths_before_any_request(monkeypatch)
 
 @pytest.mark.parametrize("path", rp.NOT_LISTED_SAMPLES)
 def test_not_listed_posts_are_refused_writes(path, monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     assert not rp.is_read_post("POST", path)
     assert read_only.is_write_request("POST", path)
     with pytest.raises(read_only.ReadOnlyModeError):
@@ -282,7 +282,7 @@ def test_refusal_samples_cover_both_sides():
 
 def test_relay_post_to_a_listed_route_stays_a_write(monkeypatch):
     # the relay passes always_write: its caller picks the path
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     with pytest.raises(read_only.ReadOnlyModeError):
         read_only.guard_request("POST", SAMPLES[0], always_write=True)
 
@@ -295,6 +295,17 @@ def test_each_entry_is_route_exact_and_evidenced():
         assert "*" not in route.template and not route.template.endswith("/")
     with pytest.raises(ValueError):
         rp.ReadPostRoute("x", "PUT", "/v1/x", frozenset({"t"}), ("e",), "/v1/x")
+
+
+def test_speedtest_archive_route_metadata_names_its_read_tool():
+    path = (
+        rp._SAMPLE_CONSOLE  # noqa: SLF001 - the allowlist's synthetic console prefix
+        + "/network/api/s/default/stat/report/archive.speedtest"
+    )
+    route = rp.read_post_route("POST", path)
+    assert route is not None
+    assert route.name == "network-classic-stat-report"
+    assert "list_speedtest_results" in route.tools
 
 
 def _tools() -> list:
@@ -343,7 +354,7 @@ async def test_post_read_refuses_unlisted_route_before_any_request(monkeypatch):
 
 @respx.mock
 async def test_post_read_sends_listed_route_under_read_only(monkeypatch):
-    monkeypatch.setenv(read_only.ENV_VAR, "1")
+    monkeypatch.setenv(read_only.ENV_VAR, "deny")
     sent = respx.post(f"{BASE}/v1/isp-metrics/1h/query").mock(
         return_value=Response(200, json={"data": {}})
     )

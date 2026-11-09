@@ -13,13 +13,13 @@ site's short name (``default``), resolved from the caller's site name or UUID.
 * Updates and deletes resolve the id in its collection first (the controller answers a
   write on an unknown id without an error), failing with every valid id listed.
 * The three log/MAC-table query routes are POSTs that are not on the read-POST allowlist,
-  so they are writes: ``UNIFI_READ_ONLY`` refuses them and ``UNIFI_DRY_RUN`` previews them.
+  so they are writes: ``UNIFI_WRITE_POLICY=deny`` refuses them and ``dry-run policy`` previews them.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeGuard
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -29,6 +29,7 @@ from ..client import (
     UniFiConnectionError,
     describe_shape,
     is_dry_run_preview,
+    upstream_error_value,
     validate_id,
 )
 from ..config import APIKeyConfig
@@ -81,12 +82,12 @@ def _by_value(choice: str) -> str:
     return choice.split("=", 1)[1]
 
 
-def _record_choice(record: dict[str, Any]) -> str | None:
+def _record_choice(record: dict[str, Any], client: UniFiClient | None = None) -> str | None:
     """A listed record's id, named by its field (``_id=...`` or ``id=...``)."""
     for field in ("_id", "id"):
         value = record.get(field)
         if isinstance(value, str) and value:
-            return f"{field}={value}"
+            return f"{field}={upstream_error_value(value, client)}"
     return None
 
 
@@ -119,7 +120,7 @@ async def _listed_record(
             for field in ("_id", "id")
         ):
             return row
-    choices = sorted(filter(None, (_record_choice(row) for row in rows)), key=_by_value)
+    choices = sorted(filter(None, (_record_choice(row, client) for row in rows)), key=_by_value)
     raise ValueError(
         f"{label} {identifier!r} not found; valid choices: {', '.join(choices) or '(none)'}. "
         "No write was sent."
@@ -366,6 +367,15 @@ async def get_port_history(
     return with_warnings(result, epoch_warnings(at=at))
 
 
+def _is_switch_query(query: object) -> TypeGuard[dict[str, Any]]:
+    """Whether ``query`` is the legacy one-switch object ``{mac: str, ports: [...]}``."""
+    return (
+        isinstance(query, dict)
+        and isinstance(query.get("mac"), str)
+        and isinstance(query.get("ports"), list)
+    )
+
+
 async def query_switch_mac_tables(
     client: UniFiClient,
     registry: Registry,
@@ -382,11 +392,7 @@ async def query_switch_mac_tables(
     """
     # Retain the legacy object input when it describes one switch; the route itself
     # always receives the array its web app sends. Other object shapes are ambiguous.
-    if (
-        isinstance(query, dict)
-        and isinstance(query.get("mac"), str)
-        and isinstance(query.get("ports"), list)
-    ):
+    if _is_switch_query(query):
         query = [query]
     if not isinstance(query, list):
         raise ValueError(
@@ -503,7 +509,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST /proxy/network/v2/api/site/{site}/energy-saving-policies with policy sent
         verbatim. Returns the upstream body verbatim. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, policy (see each parameter's description).
@@ -533,7 +539,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
         else to change fails before any request. An unknown id fails listing every valid id.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, policy_id, policy (see each parameter's description).
@@ -542,7 +548,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             policy_id: Policy _id or id from list_energy_saving_policies, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             policy: Leaves to change, e.g. {"enabled": true}. Free-form object.
         """
         client, registry = deps_fn()
@@ -561,7 +567,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -571,7 +577,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             policy_id: Policy _id or id from list_energy_saving_policies, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_energy_saving_policy(client, registry, host, site, policy_id)
@@ -603,7 +609,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         power-cycle the PoE port it watches. Never auto-retried; on a timeout, list the
         supervisors before retrying.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, supervisor (see each parameter's description).
@@ -632,7 +638,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
         else to change fails before any request. An unknown id fails listing every valid id.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, supervisor_id, supervisor (see each parameter's
@@ -642,7 +648,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             supervisor: Leaves to change, e.g. {"control_mode": "manual"}. Free-form object.
         """
         client, registry = deps_fn()
@@ -663,7 +669,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -673,7 +679,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_power_supervisor(client, registry, host, site, supervisor_id)
@@ -685,7 +691,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         POST /proxy/network/v2/api/site/{site}/power-supervisors/links with link sent
         verbatim. Returns the upstream body verbatim. Never auto-retried.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, link (see each parameter's description).
@@ -693,7 +699,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link: Link object, e.g. {"supervisor_id": "65f1c0ffee0123456789abcd",
+            link: Link object, e.g. {"supervisor_id": "000000000000000000000107",
                 "enabled": false}. Free-form object.
         """
         client, registry = deps_fn()
@@ -715,7 +721,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
         else to change fails before any request. An unknown id fails listing every valid id.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, link_id, link (see each parameter's description).
@@ -723,8 +729,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link_id: Link _id or id from GET .../power-supervisors/links, e.g.
-                "65f1c0ffee0123456789abcd".
+            link_id: Link _id or id from fabric_connector_get with path
+                network/v2/api/site/{site}/power-supervisors/links, e.g.
+                "000000000000000000000107".
             link: Leaves to change, e.g. {"enabled": false}. Free-form object.
         """
         client, registry = deps_fn()
@@ -743,7 +750,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
         empty).
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, sent: false, message and preview with method, path, params, body).
 
@@ -752,8 +759,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link_id: Link _id or id from GET .../power-supervisors/links, e.g.
-                "65f1c0ffee0123456789abcd".
+            link_id: Link _id or id from fabric_connector_get with path
+                network/v2/api/site/{site}/power-supervisors/links, e.g.
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_power_supervisor_link(client, registry, host, site, link_id)
@@ -766,11 +774,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST /proxy/network/v2/api/site/{site}/power-supervisors/{id}/system-logs with
         query sent verbatim. Returns the upstream body verbatim. This POST is not on
-        the read-POST allowlist, so it is classified as a write (UNIFI_READ_ONLY hides the tool;
-        UNIFI_ENABLE_NETWORK_WRITE=false also hides the tool). Consequence: none intended
+        the read-POST allowlist, so it is classified as a write (UNIFI_WRITE_POLICY=deny hides the
+        tool;
+        family:network=deny also hides the tool). Consequence: none intended
         (a query); it only reads logs.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, supervisor_id, query (see each parameter's description).
@@ -779,7 +788,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             query: Query body, e.g. {"limit": 25}. Free-form object.
         """
         client, registry = deps_fn()
@@ -802,7 +811,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             at: Epoch-seconds timestamp (sent as milliseconds), e.g. 1760000000.
-            device_id: Optional device id, e.g. "65f1c0ffee0123456789abcd"; omit for every
+            device_id: Optional device id, e.g. "000000000000000000000107"; omit for every
                 device of the site.
         """
         client, registry = deps_fn()
@@ -819,16 +828,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST /proxy/network/v2/api/site/{site}/ports/mac-tables with queries sent as
         a JSON array, one {mac, ports} item per switch, as the web app sends it (an object
-        body answers HTTP 400). Use queries for the array body. The legacy query object is
-        forwarded unchanged and takes precedence when present; the controller judges it.
+        body answers HTTP 400). Use queries for the array body. The legacy query takes
+        precedence when present: a {mac, ports} object is sent as the one-item array
+        [query]; any other value is forwarded unchanged and the controller judges it.
         An empty queries list or a non-object array item is refused
         before any request. Returns the upstream body verbatim (per switch, each port's
         mac_table). This POST is not on the read-POST allowlist, so it is classified as a
-        write (UNIFI_READ_ONLY hides the tool;
-        UNIFI_ENABLE_NETWORK_WRITE=false also hides the tool).
+        write (UNIFI_WRITE_POLICY=deny hides the tool;
+        family:network=deny also hides the tool).
         Consequence: none intended (a query); it only reads the MAC tables.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, and either queries (UI array) or query (legacy object).
@@ -836,8 +846,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            query: Legacy free-form object sent verbatim, taking precedence over queries.
-                Shape: {mac:string,ports:integer[]}, e.g.
+            query: Legacy free-form object, taking precedence over queries; a {mac, ports}
+                object is sent as [query]. Shape: {mac:string,ports:integer[]}, e.g.
                 {"mac": "02:00:5e:00:53:01", "ports": [1, 2]}. Use queries for the UI array.
             queries: Shape: {mac:string,ports:integer[]}[]. One item per switch, with
                 free-form object keys forwarded, e.g.
@@ -845,6 +855,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """
         client, registry = deps_fn()
         if query is not _QUERY_UNSET:
+            if _is_switch_query(query):
+                # The documented legacy object names one switch: the route deserializes a
+                # list, so it goes through the array path (sent as [query]).
+                return await query_switch_mac_tables(client, registry, host, site, query)
             key, host_id, slug = await resolve_site_slug(registry, host, site)
             return await client.post(
                 v2_site(host_id, slug, "/ports/mac-tables"), key=key, json=query
@@ -875,11 +889,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         POST /proxy/network/v2/api/site/{site}/ports/system-logs with query sent verbatim.
         Returns the upstream body verbatim. This POST is not on the read-POST
-        allowlist, so it is classified as a write (UNIFI_READ_ONLY hides the tool;
-        UNIFI_ENABLE_NETWORK_WRITE=false also hides the tool).
+        allowlist, so it is classified as a write (UNIFI_WRITE_POLICY=deny hides the tool;
+        family:network=deny also hides the tool).
         Consequence: none intended (a query); it only reads logs.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
         Required arguments: host, site, query (see each parameter's description).
@@ -907,7 +921,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device_id: Optional device id, e.g. "65f1c0ffee0123456789abcd"; omit for every
+            device_id: Optional device id, e.g. "000000000000000000000107"; omit for every
                 device of the site.
         """
         client, registry = deps_fn()
@@ -929,7 +943,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device_id: Device id, e.g. "65f1c0ffee0123456789abcd".
+            device_id: Device id, e.g. "000000000000000000000107".
             params: Optional query parameters sent as given, e.g. {"radio": "na"}. Free-form object.
         """
         client, registry = deps_fn()

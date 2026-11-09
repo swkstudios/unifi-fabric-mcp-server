@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-pair-2-3",
+  "description": "Adjacent pair (2,3): a malformed X-UniFi-Write-Policy wins over a missing X-UniFi-Api-Key in header mode",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "loud"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_policy_header",
+    "upstream_calls": 0
+  }
+}

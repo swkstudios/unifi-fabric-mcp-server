@@ -199,7 +199,7 @@ async def test_list_all_clients_reports_key_and_site_errors_together(monkeypatch
     monkeypatch.setattr(aggregation, "collect_offset", _collect)
     result = await aggregation._list_all_clients_fleet(three_key_client, AsyncMock())
 
-    assert result["errors"] == ["beta: beta sites down", "a-site2: a2 clients down"]
+    assert result["errors"] == ["beta: beta sites down", "alpha: ha/a-site2: a2 clients down"]
     assert result["_key_labels"] == ["alpha", "gamma"]
     assert result["_count"] == 2
     assert result["_sitesFailed"] == 1

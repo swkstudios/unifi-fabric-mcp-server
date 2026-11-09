@@ -27,8 +27,12 @@ import contextvars
 import hashlib
 import ipaddress
 import re
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
+
+from fastmcp import FastMCP
 
 from ..client import (
     RateLimitError,
@@ -38,6 +42,7 @@ from ..client import (
     gather_or_cancel,
 )
 from ..registry import Registry
+from ..tool_annotations import READ_ONLY
 from . import innerspace, protect, site_manager
 from ._device_wrappers import wrapper_devices
 from ._keys import context_value
@@ -158,6 +163,30 @@ def _note_withheld(field: str, reason: str) -> None:
     if not _REDACT.get():
         return
     _count(_WITHHELD.get(), field, reason)
+
+
+@contextmanager
+def _pending_withheld() -> Iterator[dict[str, dict[str, int]]]:
+    """Collect the ``_withheld`` counts made inside the block into a scratch tally instead
+    of the snapshot's, so a caller can keep them (:func:`_commit_withheld`) only once it
+    knows the record they belong to is reported, not dropped as a duplicate."""
+    pending: dict[str, dict[str, int]] = {}
+    token = _WITHHELD.set(pending)
+    try:
+        yield pending
+    finally:
+        _WITHHELD.reset(token)
+
+
+def _commit_withheld(pending: dict[str, dict[str, int]]) -> None:
+    """Add a :func:`_pending_withheld` tally to the current snapshot's ``_withheld``."""
+    collector = _WITHHELD.get()
+    if collector is None:
+        return
+    for field, reasons in pending.items():
+        per_field = collector.setdefault(field, {})
+        for reason, count in reasons.items():
+            per_field[reason] = per_field.get(reason, 0) + count
 
 
 def _note_unprojected(field: str, reason: str) -> None:
@@ -457,9 +486,15 @@ def _derived_source_id(item: dict[str, Any], kind: str) -> str | None:
     would appear and vanish with that setting; the MAC is therefore not the
     ``source_id`` directly. Instead hash ``kind`` + the
     normalized MAC with SHA-256 and expose a short, prefixed slice of the digest. This
-    is deterministic (same MAC -> same id, stable across snapshots and settings). The
+    is deterministic (same MAC -> same id, stable across snapshots). The
     ``smdev-`` prefix guarantees the value is never a bare 12-hex string and makes its
     derived origin explicit. The MAC itself is the node's separate ``mac`` field.
+
+    The digest is unkeyed, so it is only a display form of the MAC, not a secret: a MAC
+    has 24 unknown bits once its OUI is guessed, and anyone holding the id can recover
+    the MAC by hashing every candidate. It is therefore emitted only with redaction off,
+    when the MAC itself is in the snapshot too; :func:`_inventory_item` withholds the
+    whole record under ``UNIFI_REDACT_SECRETS`` instead.
     """
     mac = item.get("mac")
     if not isinstance(mac, str):
@@ -576,7 +611,7 @@ def _derive_device_type(item: dict[str, Any], kind: str) -> str:
 
 
 def _fingerprint_icon(item: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the ``unifi_fingerprint`` icon descriptor for a curated estate model.
+    """Return the ``unifi_fingerprint`` icon descriptor for a curated deployment model.
 
     Shape is ``{"kind": "unifi_fingerprint", "id": <int>}`` — the id is a UniFi
     product fingerprint the consumer resolves to a locally cached PNG. Unknown
@@ -598,15 +633,49 @@ def _fingerprint_icon(item: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def _unredacted_source_id(item: dict[str, Any], kind: str) -> str | None:
+    """The ``source_id`` :func:`_inventory_item` gives ``item`` with redaction off: its
+    ``id``, else its ``deviceId`` (verbatim, non-blank strings), else the
+    :func:`_derived_source_id`. Used only to recognise duplicates, never emitted."""
+    for key in ("id", "deviceId"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return _derived_source_id(item, kind)
+
+
+def _id_withhold_reason(plain_id: str | None) -> str | None:
+    """Why the redaction-off ``plain_id`` (:func:`_unredacted_source_id`) is withheld in
+    the current snapshot, or None (always None with redaction off)."""
+    if plain_id is None or not _REDACT.get():
+        return None
+    return _withhold_reason(plain_id.strip())
+
+
 def _inventory_item(item: object, kind: str) -> dict[str, Any] | None:
     """Project an inventory item onto a v1 topology record.
 
     ``mac`` (Protect cameras/sensors and Site Manager devices) and ``ip`` (Site Manager
     devices) are the upstream strings verbatim; under ``UNIFI_REDACT_SECRETS`` they are
     left out and counted under ``_withheld``.
+
+    A record whose only identity is its MAC gets the :func:`_derived_source_id` with
+    redaction off. Under ``UNIFI_REDACT_SECRETS`` that id would reveal the withheld MAC
+    (it is an unkeyed hash of it) and schema v1 requires a ``source_id``, so the whole
+    record is left out and counted under ``_withheld`` as ``topology.record`` /
+    ``hardware_address``.
     """
     if not isinstance(item, dict):
         _note_unprojected("topology.record", "not_an_object")
+        return None
+    if (
+        _REDACT.get()
+        and _string(item.get("id")) is None
+        and _string(item.get("deviceId")) is None
+        and _derived_source_id(item, kind) is not None
+    ):
+        # One count for the whole record; its fields are not counted again.
+        _note_withheld("topology.record", "hardware_address")
         return None
     source_id = _string(item.get("id"), "topology.source_id") or _string(
         item.get("deviceId"), "topology.source_id"
@@ -647,6 +716,13 @@ def _topology_inventory(
     ``source_id`` is likewise left out (counted under ``_unprojected`` as ``topology.record`` /
     ``no_source_id``) rather than emitted with a null id. An inventory entry that is not an
     object is counted as ``topology.record`` / ``not_an_object``.
+
+    Nothing disappears silently under ``UNIFI_REDACT_SECRETS``: a ``network_device`` that
+    is in the topology with redaction off but has to be left out under it (its id is
+    withheld with no usable fallback, or the id it falls back to is already emitted) is
+    counted once under ``_withheld`` as ``topology.record``, with the reason its own id
+    is withheld or, when its own id is kept but another record's ``deviceId`` fallback
+    took it, the reason that record's id is withheld.
     """
 
     def normalized_mac(item: Any) -> str | None:
@@ -671,7 +747,16 @@ def _topology_inventory(
                 if mac:
                     counts[mac] = counts.get(mac, 0) + 1
     inventory: list[dict[str, Any]] = []
+    # Duplicates are decided on the id each record gets with redaction off, so the same
+    # records are dropped in either mode. Under redaction a MAC-only record is never
+    # emitted (it is withheld whole), and its id still has to be remembered here, or a
+    # second listing of the same MAC would be counted as a second withheld record.
     seen_source_ids: set[str] = set()
+    # The ids actually emitted, which can differ from the redaction-off id under
+    # redaction (a withheld ``id`` falls back to ``deviceId``); schema v1 requires them
+    # to be unique within the collection. Each maps to why its record's redaction-off id
+    # is withheld (None when the record is emitted under that id).
+    emitted_source_ids: dict[str, str | None] = {}
     for kind, source in (
         ("protect_camera", cameras),
         ("protect_sensor", sensors),
@@ -680,25 +765,47 @@ def _topology_inventory(
         if not isinstance(source, list):
             continue
         for item in source:
-            record = _inventory_item(item, kind)
-            if record is None:
+            with _pending_withheld() as pending:
+                record = _inventory_item(item, kind)
+            plain_id = _unredacted_source_id(item, kind) if isinstance(item, dict) else None
+            source_id = record.get("source_id") if record is not None else None
+            mac = normalized_mac(item)
+            if kind == "network_device" and (
+                (plain_id is not None and plain_id in seen_source_ids)
+                or (mac and protect_counts.get(mac) == 1 and network_counts.get(mac) == 1)
+            ):
+                # The same hardware, already reported (e.g. under its Protect kind). This
+                # is decided on raw data only, so the record is dropped with redaction off
+                # too and its withheld counts are discarded: "unset UNIFI_REDACT_SECRETS to
+                # receive the value" would be false for it.
                 continue
-            source_id = record.get("source_id")
+            if plain_id is not None:
+                seen_source_ids.add(plain_id)
+            if (
+                kind == "network_device"
+                and record is not None
+                and plain_id is not None
+                and (not isinstance(source_id, str) or source_id in emitted_source_ids)
+            ):
+                # Present with redaction off (under ``plain_id``), but under redaction its
+                # id is withheld with no usable fallback, or the id it is emitted under
+                # collides with one already emitted. Count the whole record once, as a
+                # MAC-only record is; its per-field counts are not counted again. A kept
+                # own id can only collide with another record's fallback (an id emitted
+                # as-is is in seen_source_ids), so a reason is always found.
+                reason = _id_withhold_reason(plain_id)
+                if reason is None and isinstance(source_id, str):
+                    reason = emitted_source_ids.get(source_id)
+                _note_withheld("topology.record", reason or "network_address")
+                continue
+            _commit_withheld(pending)
+            if record is None:
+                continue  # not an object, or a MAC-only record withheld whole
             if kind == "network_device" and not isinstance(source_id, str):
                 _note_unprojected("topology.record", "no_source_id")
                 continue
-            if kind == "network_device" and source_id in seen_source_ids:
-                continue  # the same hardware, already emitted under its Protect kind
-            mac = normalized_mac(item)
-            if (
-                kind == "network_device"
-                and mac
-                and protect_counts.get(mac) == 1
-                and network_counts.get(mac) == 1
-            ):
-                continue
             if isinstance(source_id, str):
-                seen_source_ids.add(source_id)
+                emitted_source_ids[source_id] = _id_withhold_reason(plain_id)
             inventory.append(record)
     return inventory
 
@@ -1016,3 +1123,54 @@ async def preflight_placement_snapshot_capabilities(
         "required_capabilities": list(APPROVED_READ_SOURCES),
         "capabilities": capabilities,
     }
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import placement_snapshot  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the placement_snapshot tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_unifi_placement_snapshot(host: str) -> dict[str, Any]:
+        """Return a bounded, read-only UniFi topology and placement projection
+        (unifi.placement-snapshot/v1).
+
+        Unlike the other tools' whole upstream bodies, this closed schema selects, renames and
+        derives fields: a MAC-only device gets a SHA-256 source_id (withheld under redaction);
+        device_type is a closed enum.
+        Projected strings retain upstream values. GET-backed sources are InnerSpace 3D placement,
+        Protect cameras/sensors and Site Manager inventory; no connector writes occur. Provenance
+        includes a 120-second freshness contract.
+
+        Returns schema_version, generated_at, freshness, provenance, floors, walls,
+        placed_devices, topology and placement_links, plus incomplete/incompleteReason if a source
+        list stops short. Address/asset fields are included by default (topology/placed_devices
+        ip/mac and floor image/model/zip/bin URLs). Only opt-in UNIFI_REDACT_SECRETS removes
+        address/asset fields and strings identified as URL/IP/MAC/credential markers. Every removed
+        value is counted in _withheld (section.field/reason); _withheld_how_to_obtain names its
+        source tool or instructs disabling redaction. Both are absent with redaction off.
+
+        In either mode, records outside schema v1 (not_an_object, no_position, no_geometry,
+        no_source_id, not_numeric) are counted in _unprojected; _unprojected_how_to_obtain names the
+        full source read tool. Duplicate Network devices are merged onto Protect nodes; their
+        Network-only fields are omitted. For full payloads use
+        get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices.
+        Full field reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.
+
+        Required arguments: host (see parameter descriptions for identifiers).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await placement_snapshot.get_unifi_placement_snapshot(client, registry, host)
+
+    return {"get_unifi_placement_snapshot": get_unifi_placement_snapshot}

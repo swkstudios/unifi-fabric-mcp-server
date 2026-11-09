@@ -354,8 +354,7 @@ class TestPtzPatrolStop:
 
 # --- Confirm + mutation-gate guards for physical camera actions ---
 # Each tuple: (callable, extra positional args, expected POST path suffix). The gate
-# must refuse BEFORE any upstream HTTP call in both the no-confirm and the
-# mutations-disabled cases.
+# accepts an omitted confirm and refuses before HTTP when mutations are disabled.
 _CAMERA_ACTIONS = [
     (talkback_start, ("cam-1",), "/cameras/cam-1/talkback-session"),
     (disable_mic_permanently, ("cam-1",), "/cameras/cam-1/disable-mic-permanently"),
@@ -388,7 +387,7 @@ async def test_camera_action_executes_with_confirm(client, registry, fn, args, s
 async def test_camera_action_gate_disabled_beats_confirm(
     monkeypatch, client, registry, fn, args, suffix
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "off")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await fn(client, registry, "h", *args, confirm=True)
     client.request.assert_not_called()

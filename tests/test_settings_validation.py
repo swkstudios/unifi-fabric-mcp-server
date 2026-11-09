@@ -1,7 +1,7 @@
 """Settings fail fast on values that would hang, raise later, or misroute a key.
 
 Covers duplicate API key labels, the integer lower bounds, and empty-string-as-unset
-for every bool/int ``UNIFI_*`` setting (consistent with ``UNIFI_READ_ONLY``).
+for every bool/int ``UNIFI_*`` setting (consistent with ``UNIFI_WRITE_POLICY``).
 """
 
 from __future__ import annotations
@@ -21,8 +21,6 @@ _INT_ENV = {
     "UNIFI_CACHE_TTL_SECONDS": ("cache_ttl_seconds", 900),
 }
 _BOOL_ENV = {
-    "UNIFI_ENABLE_CONNECTOR_WRITE": ("enable_connector_write", True),
-    "UNIFI_DRY_RUN": ("dry_run", False),
     "UNIFI_REDACT_SECRETS": ("redact_secrets", False),
 }
 
@@ -161,11 +159,8 @@ def test_empty_value_is_treated_as_unset(monkeypatch, env, value):
 @pytest.mark.parametrize(
     ("env", "value", "expected"),
     [
-        ("UNIFI_DRY_RUN", "1", True),
-        ("UNIFI_DRY_RUN", " true ", True),
         ("UNIFI_REDACT_SECRETS", "on", True),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", "0", False),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", "off", False),
+        ("UNIFI_REDACT_SECRETS", " off ", False),
     ],
 )
 def test_set_bools_still_parse(monkeypatch, env, value, expected):

@@ -1,19 +1,11 @@
-"""Opt-in tool-family selection.
+"""Tool-family classification and a library family-list filter.
 
-The server registers its full tool roster at import time. Some MCP clients cap the
-number of advertised tools, and some operators only use a subset of product areas.
-This module lets an operator restrict the *advertised* catalog to a chosen set of
-tool families WITHOUT removing any tool from the implementation:
-
-* ``UNIFI_TOOL_FAMILIES`` **unset or empty** -> no-op: every family stays registered
-  and the advertised catalog is byte-identical to today (the full live count).
-* ``UNIFI_TOOL_FAMILIES`` set to an allowlist -> only tools whose family is named are
-  kept registered; all others are de-registered at startup.
-* ``UNIFI_DISABLED_TOOL_FAMILIES`` set to a list -> the named families are de-registered,
-  applied after the allowlist.
-* Both lists accept commas and/or whitespace between names, in any letter case. An unknown
-  name fails at startup with the list of valid families.
-* A family is NEVER off by default. Selection is strictly opt-in.
+The server's exposure settings (``UNIFI_FAMILY_ALLOW`` and the ``family:<id>`` tokens of
+``UNIFI_EXCLUDE``) are applied by :func:`unifi_fabric.policy.apply_exposure`, which uses
+:func:`build_family_index` from this module. :func:`apply_tool_family_filter` is a
+library helper kept for direct callers and the test-suite: it takes plain family-name
+lists (commas and/or whitespace, any letter case), not the ``UNIFI_EXCLUDE`` grammar, and
+the server does not call it.
 
 The families are the 13 user-facing product areas in :data:`ALL_FAMILIES`. Family
 classification is derived *statically from source* (hermetic, no import side effects):
@@ -47,15 +39,16 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-#: The allowlist variable and the opt-out list variable.
-TOOL_FAMILIES_ENV = "UNIFI_TOOL_FAMILIES"
-DISABLED_TOOL_FAMILIES_ENV = "UNIFI_DISABLED_TOOL_FAMILIES"
+#: The names :func:`apply_tool_family_filter` gives its two family lists in errors. The
+#: helper's lists are plain family names, not the ``UNIFI_EXCLUDE`` grammar.
+TOOL_FAMILIES_ENV = "family allowlist"
+DISABLED_TOOL_FAMILIES_ENV = "family exclusion list"
 
 #: The family split out by route (:data:`FIREWALL_ROUTE_RE`) rather than by module.
 FIREWALL = "firewall"
 
 # tools/ sub-module -> user-facing family. Python module names are internal; the family
-# is what an operator names in UNIFI_TOOL_FAMILIES / UNIFI_DISABLED_TOOL_FAMILIES. Modules
+# is what an operator names in UNIFI_FAMILY_ALLOW and family: exclusions. Modules
 # registered via a register(mcp, deps_fn) function and modules delegated to by server.py
 # inline wrappers are both covered. Firewall tools are moved by route afterwards.
 MODULE_FAMILY: dict[str, str] = {
@@ -159,7 +152,23 @@ _REGISTER_MODULES: tuple[str, ...] = (
     "protect_recognition_search",
     "site_config",
     "radius_profiles",
+    "connector",
+    "carrier_fabric",
+    "innerspace",
+    "mobility",
+    "placement_snapshot",
+    "recognition",
+    "site_manager",
+    "firewall_proxy",
+    "network",
+    "network_services_proxy",
+    "protect",
 )
+
+#: The registration functions of a register module: ``register``, plus ``register_2``,
+#: ``register_3``, ... where a module registers several runs of wrappers moved from
+#: server.py in their original order (scripts/codemod_move_wrappers.py).
+_REGISTER_FUNCTION_RE = re.compile(r"register(?:_[0-9]+)?")
 
 #: The 13 user-facing families, sorted: the only names the family variables accept.
 ALL_FAMILIES: tuple[str, ...] = tuple(sorted(set(MODULE_FAMILY.values()) | {FIREWALL}))
@@ -171,7 +180,7 @@ def _family_items(value: str | None) -> list[str]:
 
 
 def parse_families_env(value: str | None) -> set[str]:
-    """Parse a ``UNIFI_TOOL_FAMILIES`` / ``UNIFI_DISABLED_TOOL_FAMILIES`` value.
+    """Parse a plain family-name list (the helper lists of :func:`apply_tool_family_filter`).
 
     Returns an empty set for unset/blank input (the no-op, all-families case). Names are
     separated by commas and/or whitespace and matched in any letter case, so
@@ -389,7 +398,7 @@ def _tool_nodes() -> list[tuple[str, str, _FunctionNode, _Defs, str | None]]:
     for mod in _REGISTER_MODULES:
         rel = f"tools/{mod}.py"
         for reg in ast.walk(_module_source(rel)[0]):
-            if isinstance(reg, ast.FunctionDef) and reg.name == "register":
+            if isinstance(reg, ast.FunctionDef) and _REGISTER_FUNCTION_RE.fullmatch(reg.name):
                 nested: _Defs = {
                     sub.name: sub
                     for sub in ast.walk(reg)
@@ -401,16 +410,18 @@ def _tool_nodes() -> list[tuple[str, str, _FunctionNode, _Defs, str | None]]:
     return out
 
 
-@lru_cache(maxsize=1)
-def build_module_index() -> dict[str, str]:
-    """Return a ``tool_name -> tools module`` map (the module a tool is defined in or
-    delegates to). Internal: module names are not public family names."""
+def derive_module_index() -> dict[str, str]:
+    """Derive the ``tool_name -> tools module`` map from source (generation time).
+
+    The module a tool is defined in or delegates to. Internal: module names are not
+    public family names. The runtime reads the generated table instead
+    (:func:`build_module_index`); ``scripts/gen_tool_index.py`` writes it.
+    """
     return {name: module for name, _rel, _node, _scope, module in _tool_nodes() if module}
 
 
-@lru_cache(maxsize=1)
-def firewall_route_tools() -> frozenset[str]:
-    """Tools whose call graph names a firewall route (:data:`FIREWALL_ROUTE_RE`)."""
+def derive_firewall_route_tools() -> frozenset[str]:
+    """Derive the tools whose call graph names a firewall route, from source."""
     return frozenset(
         name
         for name, rel, node, scope, _module in _tool_nodes()
@@ -418,53 +429,102 @@ def firewall_route_tools() -> frozenset[str]:
     )
 
 
-@lru_cache(maxsize=1)
-def build_family_index() -> dict[str, str]:
-    """Return a ``tool_name -> family`` map for the whole registered roster.
+FAMILY_OVERRIDES = {
+    "list_vpn_servers": "vpn",
+    "list_site_to_site_tunnels": "vpn",
+    "list_radius_profiles": "vpn",
+    "list_device_tags": "devices",
+    "list_scheduled_tasks": "devices",
+    "get_scheduled_task": "devices",
+}
+
+
+def derive_family_index() -> dict[str, str]:
+    """Derive the ``tool_name -> family`` map from source (generation time).
 
     Parsed statically from ``server.py`` (inline ``@mcp.tool()`` wrappers, classified by
     the ``tools/`` sub-module they delegate to) and from each ``register(mcp, ...)``
     module (classified by the module itself), through :data:`MODULE_FAMILY`; then every
     tool whose call graph names a firewall route is in ``firewall``. Hermetic: reads
-    source only, never imports.
+    source only, never imports. The typed catalog records the result per tool.
     """
-    firewall = firewall_route_tools()
-    return {
+    firewall = derive_firewall_route_tools()
+    index = {
         name: FIREWALL if name in firewall else MODULE_FAMILY[module]
-        for name, module in build_module_index().items()
+        for name, module in derive_module_index().items()
     }
+    index.update(FAMILY_OVERRIDES)
+    return index
+
+
+def build_module_index() -> dict[str, str]:
+    """Return the ``tool_name -> tools module`` map (generated table, no source parse).
+
+    The shared table itself, as the cached map was before: callers must not mutate it.
+    """
+    from ._generated.tool_index import MODULE_INDEX
+
+    return MODULE_INDEX
+
+
+def firewall_route_tools() -> frozenset[str]:
+    """Tools whose call graph names a firewall route (generated table)."""
+    from ._generated.tool_index import FIREWALL_ROUTE_TOOLS
+
+    return FIREWALL_ROUTE_TOOLS
+
+
+def connector_write_tools() -> frozenset[str]:
+    """Tools whose call graph checks the connector write switch (generated table).
+
+    The generation-time derivation is ``tools_referencing("CONNECTOR_WRITE_ENV")``.
+    """
+    from ._generated.tool_index import CONNECTOR_WRITE_TOOLS
+
+    return CONNECTOR_WRITE_TOOLS
+
+
+def build_family_index() -> dict[str, str]:
+    """Return the ``tool_name -> family`` map for the whole registered roster.
+
+    Read from the generated table that mirrors the typed catalog's family per tool
+    (src/unifi_fabric/_generated/catalog.json), so it does not depend on which file a
+    wrapper lives in. The catalog files ``list_configured_api_keys`` under the reserved
+    ``meta`` family; selection keeps its baseline family until the policy selection rule for
+    meta tools lands (:data:`_generated.tool_index.SELECTION_FAMILY_OVERRIDES`).
+    """
+    from ._generated.tool_index import FAMILY_INDEX
+
+    return FAMILY_INDEX
 
 
 async def apply_tool_family_filter(
     mcp: FastMCP, families_value: str | None, disabled_value: str | None = None
 ) -> list[str]:
-    """De-register tools outside the ``UNIFI_TOOL_FAMILIES`` allowlist, then the tools of
-    every family named in ``UNIFI_DISABLED_TOOL_FAMILIES``.
+    """De-register tools outside a family allowlist, then the tools of
+    every family in a family exclusion list (library helper; the server uses policy).
 
     No-op when both lists are unset/blank (every family stays registered). Tools that
     cannot be classified are always kept (never silently hidden). Returns the list of
     removed tool names. Raises ``ValueError`` on an unknown family name in either list so a
     typo (or a retired name) fails loud at startup, listing the valid families.
     """
+    from .profiles import selection_profile
+
     allowed = parse_families_env(families_value)
     disabled = parse_families_env(disabled_value)
-    for value, variable in (
-        (families_value, TOOL_FAMILIES_ENV),
-        (disabled_value, DISABLED_TOOL_FAMILIES_ENV),
-    ):
-        problem = unknown_families_problem(value, variable)
-        if problem:
-            raise ValueError(problem)
+    # The opt-out list is applied after any allowlist; unknown names fail here.
+    profile = selection_profile(
+        allowed, disabled, allowed_value=families_value, disabled_value=disabled_value
+    )
     if not allowed and not disabled:
         return []
-    # The opt-out list is applied after any allowlist.
-    kept = (allowed or set(ALL_FAMILIES)) - disabled
+    kept = profile.families
 
     index = build_family_index()
     removed: list[str] = []
     for tool in await _list_tools(mcp):
-        family = index.get(tool.name)
-        if family is not None and family not in kept:
+        if not profile.includes(index.get(tool.name)):
             _remove_tool(mcp, tool.name)
             removed.append(tool.name)
 
@@ -479,8 +539,13 @@ async def apply_tool_family_filter(
 
 
 async def _list_tools(mcp: FastMCP) -> list:
-    """Return the registered tool objects."""
-    return list(await mcp.list_tools())
+    """Return the registered tool objects, bypassing the tools/list middleware.
+
+    Startup and shutdown read the registered catalog itself; the request-policy middleware
+    filters tools/list by the operator's exclusions, so a filtered read would hide the very
+    tools the exposure step must de-register (and later restore).
+    """
+    return list(await mcp.list_tools(run_middleware=False))
 
 
 def _remove_tool(mcp: FastMCP, name: str) -> None:

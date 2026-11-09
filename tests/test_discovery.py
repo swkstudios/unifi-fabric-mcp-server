@@ -19,7 +19,9 @@ def test_tool_mode_config():
 
 async def clone_app():
     app = FastMCP("discovery-test")
-    for tool in await server.mcp.list_tools():
+    # The registered tools, before the list middleware: a clone of already dereferenced
+    # tools would hide a describe_tool that skips the app's $ref dereferencing.
+    for tool in await server.mcp.list_tools(run_middleware=False):
         app.add_tool(tool)
     app.middleware = list(server.mcp.middleware)
     return app
@@ -156,7 +158,7 @@ async def test_registered_dispatch_and_result_equivalence(monkeypatch):
     cleanup = await apply_tool_mode(app, "discovery")
     try:
         assert await app.get_tool("list_hosts") is tool
-        monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
         async with Client(app) as client:
             indirect = await client.call_tool(
                 "call_read_tool",

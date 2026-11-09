@@ -52,8 +52,9 @@ _PATH = "/v1/connector/consoles/H/proxy/network/integration/v1/sites/S/wifi/broa
 
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
-async def test_preview_shows_input_verbatim_when_redaction_is_off(method):
-    client = UniFiClient(Settings(api_key="sk-test", dry_run=True))
+async def test_preview_shows_input_verbatim_when_redaction_is_off(method, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings(api_key="sk-test"))
     body = None if method == "DELETE" else json.loads(json.dumps(_SECRET_BODY))
     resp = await client.request(method, _PATH, json=body, params=dict(_SECRET_PARAMS))
     await client.close()
@@ -65,8 +66,9 @@ async def test_preview_shows_input_verbatim_when_redaction_is_off(method):
 
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
-async def test_preview_masks_credentials_when_redaction_is_on(method):
-    client = UniFiClient(Settings(api_key="sk-test", dry_run=True, redact_secrets=True))
+async def test_preview_masks_credentials_when_redaction_is_on(method, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings(api_key="sk-test", redact_secrets=True))
     body = None if method == "DELETE" else json.loads(json.dumps(_SECRET_BODY))
     resp = await client.request(method, _PATH, json=body, params=dict(_SECRET_PARAMS))
     await client.close()
@@ -85,7 +87,7 @@ async def test_preview_masks_credentials_when_redaction_is_on(method):
 async def test_tool_preview_follows_the_redaction_opt_in(monkeypatch, redact):
     """Through the MCP layer: a write tool carrying a credential argument."""
     name = "update_mobility_device_wireless"
-    env = {"UNIFI_DRY_RUN": "1"}
+    env = {"UNIFI_WRITE_POLICY": "dry-run"}
     if redact is None:
         monkeypatch.delenv("UNIFI_REDACT_SECRETS", raising=False)
     else:

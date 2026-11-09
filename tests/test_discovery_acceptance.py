@@ -9,10 +9,12 @@ against the same recorded-shape mock transport, so any difference is the wrapper
 from __future__ import annotations
 
 import asyncio
+import base64
 import importlib
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -62,7 +64,10 @@ def _reads() -> list[str]:
 
 def _clone() -> FastMCP:
     app = FastMCP("discovery-acceptance")
-    for tool in TOOLS.values():
+    # The registered tools as the server holds them, before the list middleware
+    # dereferences their schemas: TOOLS (a client-side tools/list) is already inlined
+    # and would hide a discovery schema that skips the app's dereferencing.
+    for tool in REGISTERED:
         app.add_tool(tool)
     app.middleware = list(server.mcp.middleware)
     return app
@@ -70,7 +75,8 @@ def _clone() -> FastMCP:
 
 @pytest.fixture(scope="module", autouse=True)
 def _catalog_apps():
-    global WRITES, READS, FAMILY, FULL, DISCOVERY
+    global REGISTERED, WRITES, READS, FAMILY, FULL, DISCOVERY
+    REGISTERED = tuple(asyncio.run(server.mcp.list_tools(run_middleware=False)))
     WRITES = _writes()
     READS = _reads()
     FAMILY = build_family_index()
@@ -303,20 +309,23 @@ async def test_b5_read_wrapper_envelope_is_byte_identical_to_a_direct_call(
     assert _envelope(wrapped) == _envelope(direct)
 
 
-# Bullet 4: per-area opt-outs, UNIFI_READ_ONLY and dry-run bind through call_write_tool
+# Bullet 4: per-area opt-outs, UNIFI_WRITE_POLICY and dry-run bind through call_write_tool
 # exactly as on a direct call (Build rules 6 and 7), and call_read_tool never runs a write.
 _AREA_OPT_OUT = {
     family: switch.env
     for switch in switches.AREA_WRITE_SWITCHES
     for family in (switch.family, *switch.related_families)
 }
-_AREA_OPT_OUT["connector"] = "UNIFI_ENABLE_CONNECTOR_WRITE"
+_AREA_OPT_OUT["connector"] = "family:connector=deny"
 
 
 def _scenarios(name: str) -> dict[str, dict[str, str]]:
-    out = {"read_only": {"UNIFI_READ_ONLY": "1"}, "dry_run": {"UNIFI_DRY_RUN": "1"}}
+    out = {
+        "read_only": {"UNIFI_WRITE_POLICY": "deny"},
+        "dry_run": {"UNIFI_WRITE_POLICY": "dry-run"},
+    }
     if FAMILY.get(name) in _AREA_OPT_OUT:
-        out["opt_out"] = {_AREA_OPT_OUT[FAMILY[name]]: "0"}
+        out["opt_out"] = tool_args.optout_env(_AREA_OPT_OUT[FAMILY[name]])
     return out
 
 
@@ -333,6 +342,17 @@ async def test_b4_write_wrapper_binds_opt_outs_read_only_and_dry_run(
         with monkeypatch.context() as m:
             _env(m, name, env)
             direct_up, wrapped_up = uh.FakeUpstream(), uh.FakeUpstream()
+            if name == "update_protect_case":
+                for upstream in (direct_up, wrapped_up):
+                    upstream.recorded_routes = {
+                        key: value
+                        for key, value in upstream.recorded_routes.items()
+                        if not (
+                            key[0] == "GET"
+                            and key[1].endswith("/api/cases")
+                            and key[3] != "protect/events_cases/cases_before.json"
+                        )
+                    }
             uh.install(m, direct_up)
             direct = await _direct(name, arguments)
             uh.install(m, wrapped_up)
@@ -340,8 +360,60 @@ async def test_b4_write_wrapper_binds_opt_outs_read_only_and_dry_run(
             assert _envelope(wrapped) == _envelope(direct), scenario
             assert wrapped_up.writes() == [] == direct_up.writes(), scenario
             if scenario == "opt_out":
-                assert wrapped.is_error and next(iter(env)) in _error_text(wrapped)
+                assert wrapped.is_error and next(iter(env.values())) in _error_text(wrapped)
                 assert wrapped_up.served == [], scenario
+            elif scenario == "read_only":
+                assert wrapped.is_error and "write_denied" in _error_text(wrapped)
+            elif scenario == "dry_run":
+                _assert_dry_run_preview(name, wrapped)
+
+
+# Generated identifiers intentionally do not match the fake inventory. Only the
+# specific target-resolution messages below may precede a preview.
+_TARGET_REFUSAL = re.compile(
+    r"^(?:"
+    r"(?:Network|network|device|Device tag|site_to_delete|Guest|Client record|Known client|"
+    r"Matter node|Recognition group|Port forward|Port profile|Static route|Traffic route|"
+    r"Traffic rule|Dynamic DNS config|Scheduled task|Site-to-site VPN tunnel|User|"
+    r"WLAN configuration) '[^']+' not found(?:\b|;)|"
+    r"Unknown client '[^']+'; valid choices:|"
+    r"network '[^']+' is neither a networkconf _id nor a network id on this site;|"
+    r"No device matching '[^']+' in /stat/device"
+    r")"
+)
+
+
+def _assert_dry_run_preview(name: str, result: Any) -> None:
+    if result.is_error:
+        prefix = f"Error calling tool '{name}': "
+        error = _error_text(result)
+        assert error.startswith(prefix) and _TARGET_REFUSAL.match(error[len(prefix) :]), (
+            name,
+            _envelope(result),
+        )
+    else:
+        assert uh.result_payload(result).get("status") == "dry_run", name
+
+
+async def test_b4_arbitrary_preview_errors_cannot_pass(monkeypatch) -> None:
+    direct, wrapped = _direct, _wrapped
+
+    async def broken_direct(*args):
+        if os.environ.get("UNIFI_WRITE_POLICY") == "dry-run":
+            return _Raised(RuntimeError("unexpected preview failure"))
+        return await direct(*args)
+
+    async def broken_wrapped(*args):
+        if os.environ.get("UNIFI_WRITE_POLICY") == "dry-run":
+            return _Raised(RuntimeError("unexpected preview failure"))
+        return await wrapped(*args)
+
+    monkeypatch.setattr(sys.modules[__name__], "_direct", broken_direct)
+    monkeypatch.setattr(sys.modules[__name__], "_wrapped", broken_wrapped)
+    with pytest.raises(AssertionError):
+        await test_b4_write_wrapper_binds_opt_outs_read_only_and_dry_run(
+            monkeypatch, "create_client_reservation"
+        )
 
 
 # --------------------------------------------------------------------------- bullet 6
@@ -558,6 +630,119 @@ def test_discovery_startup_answers_initialize(tmp_path) -> None:
         assert "error" not in response, (mode, response)
         assert response["result"]["protocolVersion"] == "2025-06-18"
         assert "tools" in response["result"]["capabilities"]
+
+
+class _StdioSession:
+    """A real stdio server from the package entry point, driven one JSON-RPC call at a time.
+
+    Stderr goes to a file, never an undrained pipe, so server logging cannot stall a reply.
+    """
+
+    def __init__(self, mode: str, stderr_path) -> None:
+        env = {
+            k: v for k, v in os.environ.items() if not k.startswith(("UNIFI_", "MCP_", "FASTMCP_"))
+        }
+        env.update(
+            UNIFI_API_KEY="stdio-describe-test-key",
+            UNIFI_TOOL_MODE=mode,
+            UNIFI_AUDIT_HMAC_KEY=base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode(),
+        )
+        self.stderr_path = stderr_path
+        with open(stderr_path, "wb") as stderr:
+            self.proc = subprocess.Popen(  # noqa: S603 - this interpreter, package entry point
+                [sys.executable, "-c", "from unifi_fabric.entrypoint import main; main()"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr,
+                env=env,
+            )
+        self.next_id = 0
+        self.request("initialize", _INITIALIZE["params"])
+        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def send(self, message: dict[str, Any]) -> None:
+        assert self.proc.stdin is not None
+        self.proc.stdin.write((json.dumps(message) + "\n").encode())
+        self.proc.stdin.flush()
+
+    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.next_id += 1
+        self.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
+        assert self.proc.stdout is not None
+        for line in iter(self.proc.stdout.readline, b""):
+            response = json.loads(line)
+            if response.get("id") == self.next_id:
+                assert "error" not in response, (method, params, response)
+                return response["result"]
+        tail = open(self.stderr_path, "rb").read()[-2000:]  # noqa: SIM115 - one short read
+        raise AssertionError(
+            f"server closed stdout during {method} (rc={self.proc.wait()}): {tail!r}"
+        )
+
+    def list_tools(self) -> dict[str, dict[str, Any]]:
+        listed: dict[str, dict[str, Any]] = {}
+        params: dict[str, Any] = {}
+        while True:
+            result = self.request("tools/list", params)
+            listed.update((tool["name"], tool) for tool in result["tools"])
+            if not result.get("nextCursor"):
+                return listed
+            params = {"cursor": result["nextCursor"]}
+
+    def call(self, name: str, arguments: dict[str, Any]) -> Any:
+        result = self.request("tools/call", {"name": name, "arguments": arguments})
+        assert not result.get("isError"), (name, arguments, result)
+        return result["structuredContent"]
+
+    def close(self) -> None:
+        self.proc.kill()
+        self.proc.wait()
+
+
+def _carries_ref(schema: Any) -> bool:
+    if isinstance(schema, dict):
+        return "$ref" in schema or "$defs" in schema or any(map(_carries_ref, schema.values()))
+    if isinstance(schema, list):
+        return any(map(_carries_ref, schema))
+    return False
+
+
+def test_b3_stdio_describe_is_the_full_mode_tools_list_entry(tmp_path) -> None:
+    """Over the real stdio entry point, describe_tool (discovery and Code Mode) returns
+    each tool's full-mode tools/list entry byte for byte, $ref schemas inlined as there.
+    """
+    session = _StdioSession("full", tmp_path / "full.stderr")
+    try:
+        full = session.list_tools()
+    finally:
+        session.close()
+    assert full.keys() == set(TOOLS)
+    assert not any(_carries_ref(tool) for tool in full.values()), "full mode lists a $ref"
+    # Non-vacuous: some registered schemas use $ref/$defs that tools/list inlines.
+    assert any(_carries_ref(tool.parameters) for tool in REGISTERED)
+
+    def describe_all(mode: str, names: list[str]) -> list[str]:
+        session = _StdioSession(mode, tmp_path / f"{mode}.stderr")
+        try:
+            return [
+                name
+                for name in names
+                if session.call("describe_tool", {"name": name}) != full[name]
+            ]
+        finally:
+            session.close()
+
+    assert describe_all("discovery", sorted(full)) == []
+    session = _StdioSession("codemode", tmp_path / "codemode-search.stderr")
+    try:
+        reads = [
+            row["name"]
+            for row in session.call("search_tools", {"query": "", "limit": None})["result"]
+        ]
+    finally:
+        session.close()
+    assert reads and set(reads) <= full.keys()
+    assert describe_all("codemode", reads) == []
 
 
 def test_memoized_source_facts_still_resolve_live_globals(tmp_path, monkeypatch) -> None:

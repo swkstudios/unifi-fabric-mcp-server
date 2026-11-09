@@ -2,7 +2,7 @@
 
 Route choice (the official published API when it can do the job, else
 the newer private API, else the older one). The official Protect Integration API pinned in
-``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.70) has no REST route for
+``tests/fixtures/spec_drift/baseline_snapshot.json`` (protect 7.3.74) has no REST route for
 any capability in this module: events are WebSocket-only there (``/v1/subscribe/events``),
 and it has no event media, favorites, cases or stream-URL routes. Its only stream route,
 ``/v1/cameras/{id}/rtsps-stream``, is already served by ``get_rtsps_stream`` /
@@ -677,7 +677,7 @@ async def export_protect_case(
 async def get_protect_case_asset_snapshot(
     client: UniFiClient, registry: Registry, host: str, case_id: str, asset_id: str
 ) -> dict[str, Any]:
-    """GET a case asset's snapshot image (hermetic: not served on the estate controller)."""
+    """GET a case asset's snapshot image (hermetic: not served on the deployment controller)."""
     validate_id(case_id, "case_id")
     validate_id(asset_id, "asset_id")
     key, host_id = await _resolve(registry, host)
@@ -764,7 +764,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             event_id: Event id from list_protect_events (24-hex or UUID); for example
-                "6acc281301811e03e42beafc".
+                "000000000000000000000e01".
         """
         client, registry = deps_fn()
         return await _get_protect_event(client, registry, host, event_id)
@@ -795,7 +795,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            event_id: Event id from list_protect_events; for example "6acc281301811e03e42beafc".
+            event_id: Event id from list_protect_events; for example "000000000000000000000e01".
             kind: Media view: thumbnail, animated_thumbnail, heatmap, smart_detect_track or
                 transcriptions; for example "thumbnail".
             width: Thumbnail or GIF width in pixels, sent as w; for example 640.
@@ -806,7 +806,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             start: GIF window start, epoch SECONDS (sent as ms); for example 1760227200.
             end: GIF window end, epoch SECONDS (sent as ms); for example 1760227260.
             camera_id: Camera id of the event, required by transcriptions; for example
-                "65d4f1e2a1b2c3d4e5f60718".
+                "000000000000000000000103".
         """
         client, registry = deps_fn()
         return await _get_protect_event_media(
@@ -845,7 +845,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns {status, response}, where response maps each id to the console's result.
         Both forms answer status: "favorited" for favorite=true and status: "unfavorited"
         for false. The Protect write opt-out and read-only mode apply before any request.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", response: PREVIEW} and sends no write.
+        With dry-run policy, returns {status: "dry_run", response: PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
 
@@ -853,16 +853,16 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             event_ids: One event id, or a non-empty list of ids for the batch route (an empty
                 list fails before any request); for example
-                "6acc281301811e03e42beafc".
+                "000000000000000000000e01".
                 Shape: string|string[]
             favorite: true to favorite, false to unfavorite; for example true.
             object_id: Single-id form only (with a list it fails before any request): favorite
                 one detected object of the event
                 (metadata.detectedThumbnails[].objectId); for example
-                "1d4432d2-7eb8-47e4-acb0-3f3e62b01d8f".
+                "00000000-0000-4000-8000-000000000e02".
             objects: List form only (with one event id it fails before any request): per-object
                 marks sent as idsWithObject, each
-                {eventId, objectId}; for example [{"eventId": "6acc...", "objectId": "1d44..."}].
+                {eventId, objectId}; for example [{"eventId": "0000...", "objectId": "0000..."}].
                 Shape: {eventId:string,objectId:string}[]
             confirm: Accepted and ignored for compatibility; for example false.
         """
@@ -898,7 +898,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Sends {name, summary?, ...fields} to POST /cases. Returns {status: "created",
         response: CASE}, where CASE is the created case with its id. Add recordings with
-        add_protect_case_asset. With UNIFI_DRY_RUN, returns {status: "dry_run", response:
+        add_protect_case_asset. With dry-run policy, returns {status: "dry_run", response:
         PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
@@ -931,18 +931,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         """Update a Protect case: rename, edit the summary, close (active=false) or reopen.
 
         Requested top-level fields are sent (PATCH /cases/{case_id}), preserving current
-        nested siblings; named arguments win. Read-back verifies all merged leaves
-        type-strictly. The case is read from
+        nested siblings; a fields key that a typed argument also sets fails before any
+        request. Read-back verifies all merged leaves type-strictly. The case is read from
         list_protect_cases before and after. Returns {status: "updated", verified, before,
         after, response}, or {status: "noop", resource} when every field already matches.
-        Passing no field fails before any request. With UNIFI_DRY_RUN, returns {status:
+        Passing no field fails before any request. With dry-run policy, returns {status:
         "dry_run", before, response: PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             name: New case name; for example "Garage break-in (closed)".
             summary: New summary; for example "Suspect identified".
             active: false closes the case, true reopens it; for example false.
@@ -971,14 +971,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         restored; the recordings themselves stay on the NVR.
 
         Sends DELETE /cases/{case_id}. Returns {deleted: true, message, response}. With
-        UNIFI_DRY_RUN, returns {status: "dry_run", deleted: false, message, response:
+        dry-run policy, returns {status: "dry_run", deleted: false, message, response:
         PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1001,7 +1001,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             page: 1-based window number counted in units of page_size (default 1); without
                 page_size, returns one native console page; resume from _nextPage with the same
                 page_size. Example: `2`.
@@ -1023,7 +1023,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
         """
         client, registry = deps_fn()
         return await _list_protect_case_assets(client, registry, host, case_id)
@@ -1050,15 +1050,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         /cases/{case_id}/assets, start and end converted from epoch SECONDS to ms. To add
         an event, pass its camera and start/end (event times are ms; divide by 1000).
         Returns {status: "created", response: {main: {success, data: ASSET}}}. The
-        console accepts asset_type "clip" only (live-probed). With UNIFI_DRY_RUN, returns
+        console accepts asset_type "clip" only (live-probed). With dry-run policy, returns
         {status: "dry_run", response: PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
-            camera_id: Camera id (an event's camera field); for example "65d4f1e2a1b2c3d4e5f60718".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
+            camera_id: Camera id (an event's camera field); for example "000000000000000000000103".
             start: Clip start, epoch SECONDS; for example 1760227200.
             end: Clip end, epoch SECONDS; for example 1760227230.
             note: Note shown on the asset; for example "Person at side door".
@@ -1106,15 +1106,15 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         when asset_type is omitted (as the Protect web app does). The asset is read from
         list_protect_case_assets before and after. Returns {status: "updated", verified,
         before, after, response} or {status: "noop", resource}. No field fails before any
-        request. With UNIFI_DRY_RUN, returns {status: "dry_run", before, response: PREVIEW}.
+        request. With dry-run policy, returns {status: "dry_run", before, response: PREVIEW}.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             asset_id: Asset id from list_protect_case_assets; for example
-                "6acc2a9500461e03e42bf50d".
+                "000000000000000000000a01".
             note: New note; for example "Confirmed: courier".
             title: New title; for example "Front door".
             include_in_export: Include the asset in case exports, sent as includeInExport;
@@ -1150,16 +1150,16 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         add_protect_case_asset. The recording itself stays on the NVR.
 
         Sends DELETE /cases/{case_id}/assets/{asset_id}. Returns {deleted: true, message,
-        response}. With UNIFI_DRY_RUN, returns {status: "dry_run", deleted: false,
+        response}. With dry-run policy, returns {status: "dry_run", deleted: false,
         message, response: PREVIEW} and sends no write.
 
         Dry-run response previews include body and params.
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             asset_id: Asset id from list_protect_case_assets; for example
-                "6acc2a9500461e03e42bf50d".
+                "000000000000000000000a01".
             confirm: Accepted and ignored for compatibility; for example false.
         """
         client, registry = deps_fn()
@@ -1176,7 +1176,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         With action "prepare" (which needs case_id), the console creates an export job and
         builds the archive without changing configuration. This read is allowed in read-only
-        mode and executes under UNIFI_DRY_RUN.
+        mode and executes under dry-run policy.
         Returns: for prepare, the export job verbatim ({id, type: "CaseExport", status,
         progressRatio, archiveFileName, ...}); for action "download" (needs export_id, the
         job id), {content_base64, content_type, size_bytes} for the finished zip. A download before
@@ -1188,10 +1188,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             action: "prepare" or "download"; for example "prepare".
             case_id: Case id from list_protect_cases, for prepare only (with download it fails
                 before any request); for example
-                "6acc2a9002b21e03e42bf4ce".
+                "000000000000000000000c01".
             export_id: Export job id returned by prepare, for download only (with prepare it
                 fails before any request); for example
-                "6acc2a97013c1e03e42bf532".
+                "000000000000000000000d01".
         """
         client, registry = deps_fn()
         return await _export_protect_case(
@@ -1210,9 +1210,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Args:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
-            case_id: Case id from list_protect_cases; for example "6acc2a9002b21e03e42bf4ce".
+            case_id: Case id from list_protect_cases; for example "000000000000000000000c01".
             asset_id: Asset id from list_protect_case_assets; for example
-                "6acc2a9500461e03e42bf50d".
+                "000000000000000000000a01".
         """
         client, registry = deps_fn()
         return await _get_protect_case_asset_snapshot(client, registry, host, case_id, asset_id)
@@ -1252,7 +1252,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Protect console name or composite id from list_hosts; for example "Home NVR".
             kind: livestream, playback, timelapse, heatmap, live_detect_track, live_alias or
                 video_prepare; for example "livestream".
-            camera_id: Camera id from list_cameras; for example "65d4f1e2a1b2c3d4e5f60718".
+            camera_id: Camera id from list_cameras; for example "000000000000000000000103".
             channel: Camera channel index (0 is the highest quality; livestream defaults
                 to 0); for example 0.
             start: Window start, epoch SECONDS (sent as ms); for example 1760227200.

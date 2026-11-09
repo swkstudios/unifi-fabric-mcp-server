@@ -1,0 +1,43 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "accept-request-exclude-family-network",
+  "description": "A request X-UniFi-Exclude: family:network under no operator exclusion removes network from exposed_families and keeps the raw token in exclusions",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Exclude",
+        "family:network"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "effective_policy": {
+      "exclusions": [
+        "family:network"
+      ],
+      "exposed_families": [
+        "carrier",
+        "clients",
+        "connector",
+        "devices",
+        "firewall",
+        "hotspot",
+        "innerspace",
+        "mobility",
+        "protect",
+        "site_manager",
+        "statistics",
+        "vpn"
+      ],
+      "write_exceptions": [],
+      "write_policy": "allow"
+    }
+  }
+}

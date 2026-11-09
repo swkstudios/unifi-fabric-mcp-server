@@ -49,6 +49,10 @@ def test_upload_uses_oidc_in_the_registered_environment() -> None:
     (publish,) = [s for s in _steps("upload") if "gh-action-pypi-publish" in s.get("uses", "")]
     ref = publish["uses"].split("@", 1)[1]
     assert len(ref) == 40 and all(c in "0123456789abcdef" for c in ref), ref
+    # v1.14.2 and earlier carry GHSA-5xjx-3w67-w9x9; the pin comment names the tag the SHA is.
+    line = next(x for x in WORKFLOW.read_text().splitlines() if publish["uses"] in x)
+    version = line.split("# v", 1)[1].split()[0]
+    assert tuple(int(n) for n in version.split(".")) >= (1, 14, 3), line
     assert "with" not in publish or not {"password", "user"} & set(publish["with"])
     text = WORKFLOW.read_text()
     for token_path in ("PYPI_API_TOKEN", "TWINE_PASSWORD", "twine upload", "secrets."):

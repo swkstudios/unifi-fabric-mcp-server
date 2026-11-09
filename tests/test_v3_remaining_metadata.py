@@ -227,17 +227,16 @@ def test_readme_documents_empty_patch_whole_body_fallback():
     before = {"status": 200, "body": {"enabled": True, "updatedAt": 1}}
     after = {"status": 200, "body": {"enabled": True, "updatedAt": 2}}
     assert connector._no_op_verdict("PATCH", 200, before, after, {}) == (False, None)
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text()
-    paragraph = next(line for line in readme.splitlines() if line.startswith("- **Read-before"))
+    usage = (Path(__file__).resolve().parents[1] / "docs" / "TOOL-USAGE.md").read_text()
+    paragraph = next(line for line in usage.splitlines() if line.startswith("- **Read-before"))
     assert "empty object" in paragraph and "whole reads" in paragraph
     assert "empty-object PATCH" in paragraph and "noOp: false" in paragraph
 
 
 def test_existing_tool_collision_fragment_is_a_fix():
-    from tests.changelog_section import current_release
+    from tests.changelog_section import section
 
-    version, release = current_release()
-    assert version == "0.7.0"
+    release = section("0.7.0")  # the published 0.7.0 entry; released sections never change
     entry = next(
         line
         for line in release.splitlines()

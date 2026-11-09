@@ -2,8 +2,8 @@
 
 A tool is read-only when its ``readOnlyHint`` annotation is true (the annotation is derived
 from the code, never hand-listed); every other tool is a write. Each count a public
-document states — "N read-only tools", "the N write tools", the InnerSpace family's write
-count and the number of write tools that take the ignored ``confirm`` argument — must
+document states — "N read-only tools", "the N write tools", the number of write tools
+that take the ignored ``confirm`` argument — must
 equal the number computed from the catalog the server registers, so a count can never
 drift from the code again.
 """
@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from tests._tool_catalog import is_read, tools
+from tests.changelog_section import current_release
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,24 +46,22 @@ PUBLIC_DOCS = (
 
 _READ_ONLY = re.compile(r"\b(\d[\d,]*) read-only tools\b")
 _WRITE = re.compile(r"\bthe (\d[\d,]*) write tools\b")
-_INNERSPACE_WRITE = re.compile(r"InnerSpace tools include (\d[\d,]*) write tools\b")
 _CONFIRM = re.compile(r"\b(\d[\d,]*) write and action tools\b")
 
 
 def _text(path: Path) -> str:
-    return " ".join(path.read_text(encoding="utf-8").split())
+    text = path.read_text(encoding="utf-8")
+    if path.name == "CHANGELOG.md":
+        text = current_release()[1]
+    return " ".join(text.split())
 
 
 def _counts() -> dict[str, int]:
-    from unifi_fabric import families
-
     catalog = tools()
-    family = families.build_family_index()
     writes = [t for t in catalog if not is_read(t)]
     return {
         "read_only": sum(1 for t in catalog if is_read(t)),
         "write": len(writes),
-        "innerspace_write": sum(1 for t in writes if family.get(t.name) == "innerspace"),
         "confirm": sum(
             1 for t in writes if "confirm" in ((t.parameters or {}).get("properties") or {})
         ),
@@ -87,10 +86,9 @@ def test_every_public_doc_exists():
     [
         (_READ_ONLY, "read_only"),
         (_WRITE, "write"),
-        (_INNERSPACE_WRITE, "innerspace_write"),
         (_CONFIRM, "confirm"),
     ],
-    ids=["read-only", "write", "innerspace-write", "confirm"],
+    ids=["read-only", "write", "confirm"],
 )
 def test_stated_counts_are_the_catalog_counts(pattern: re.Pattern[str], key: str):
     expected = _counts()[key]

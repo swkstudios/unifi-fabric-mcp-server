@@ -221,7 +221,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (classic); the tool builds {name, x_password} plus note when you pass one.
 
         Returns: the controller's Classic REST envelope {meta: {rc}, data: [operator]}
-        verbatim; the new operator's _id is data[0]._id. Under UNIFI_DRY_RUN nothing is sent:
+        verbatim; the new operator's _id is data[0]._id. Under dry-run policy nothing is sent:
         {status: "dry_run", response (the preview)}.
 
         Example call (create_hotspot_operator):
@@ -273,13 +273,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         inside list-valued fields are dropped before the write.
 
         Returns: the controller's Classic REST envelope {meta: {rc}, data: [operator]} verbatim.
-        Under UNIFI_DRY_RUN nothing is sent: {status: "dry_run", response (the preview)}.
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
         Example call (update_hotspot_operator):
             {
               "host": "my-console",
               "site": "Default",
-              "operator_id": "65f1c0ffee0123456789abcd",
+              "operator_id": "000000000000000000000107",
               "fields": {"note": "Night shift"}
             }
 
@@ -316,11 +316,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
         (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview)}.
 
         Example call (delete_hotspot_operator):
-            {"host": "my-console", "site": "Default", "operator_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "operator_id": "000000000000000000000107"}
 
         The dry-run preview contains method, path, params (query parameters), and body.
 

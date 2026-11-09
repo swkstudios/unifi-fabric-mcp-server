@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-deny-header-relay-mutation-get",
+  "description": "A request deny header refuses a state-changing GET through the relay",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "deny"
+      ]
+    ],
+    "route": "fabric_connector_get",
+    "arguments": {
+      "host": "host-a1",
+      "path": "/proxy/protect/api/cameras/cam-1/enable-control"
+    }
+  },
+  "expected": {
+    "code": "write_denied",
+    "upstream_calls": 0
+  }
+}

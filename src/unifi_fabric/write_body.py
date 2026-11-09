@@ -82,6 +82,17 @@ REQUIRED_BODY_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Unpublished schemas do not establish an empty set of required fields.
+CREATE_ACTION_BODY_PROVENANCE: dict[str, dict[str, str]] = {
+    "create_firewall_rule": {
+        "argument": "rule",
+        "operation": "POST /ea/sites/{site_id}/rest/firewallrule",
+        "schema": "unpublished",
+        "empty_body_disposition": "upstream_judged",
+    },
+}
+
+
 #: The keys the published request schema REQUIRES of the one object body of a create or
 #: action tool (for ``bulk_delete_hotspot_vouchers``: its required ``filter`` query
 #: parameter), named by the empty-body refusal so the caller learns what to send. Pinned to
@@ -425,6 +436,16 @@ class EmptyUpdateMiddleware(Middleware):
                     )
                 except ValueError as exc:
                     raise ToolError(str(exc)) from None
+                provenance = CREATE_ACTION_BODY_PROVENANCE.get(name, {})
+                if (
+                    reason is not None
+                    and body == {}
+                    and body_kind(name) == "create"
+                    and provenance.get("argument") == arg
+                    and provenance.get("schema") == "unpublished"
+                    and provenance.get("empty_body_disposition") == "upstream_judged"
+                ):
+                    reason = None
                 if reason is not None and body_kind(name) != "update" and not _dropped:
                     # A create / action body is not "a field to change": say what it needs.
                     reason = empty_body_reason(name, arg)

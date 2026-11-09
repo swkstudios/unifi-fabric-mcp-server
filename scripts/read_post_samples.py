@@ -5,7 +5,7 @@
 
 Prints JSON ``[{method, path, expect}]`` from ``unifi_fabric.read_post_routes``:
 ``expect: read`` for every allowlisted route (must NOT be refused under
-``UNIFI_READ_ONLY``) and ``expect: refused`` for not-listed POSTs (must be refused before
+``UNIFI_WRITE_POLICY=deny``) and ``expect: refused`` for not-listed POSTs (must be refused before
 any upstream call). A read-only deployment's post-deploy check samples both sides from
 this output, so the check follows the allowlist without a second copy. Paths carry
 synthetic ids; substitute the instance's console id and site before a live run. The

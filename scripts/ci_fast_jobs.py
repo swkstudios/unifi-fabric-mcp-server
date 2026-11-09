@@ -8,21 +8,23 @@ into the base branch. Job and step ``if`` conditions are evaluated with that pul
 request's context, so a job runs locally exactly when CI would run it. A workflow's
 ``pull_request`` branch filter is not applied: a change that targets a release
 integration branch reaches ``dev`` through the release pull request, where those
-workflows gate it. Only the environment-provisioning steps in ``SETUP_STEPS`` are
-replaced by the local development environment, whose Python version must match the
-workflow's, and the steps in ``CI_ONLY_STEPS`` stay in CI with a stated reason. A
+workflows gate it. Only the environment-provisioning steps in ``SETUP_STEPS`` and the
+local actions in ``SETUP_ACTIONS`` are replaced by the local development environment,
+whose Python version must match the workflow's, and the steps in ``CI_ONLY_STEPS`` stay
+in CI with a stated reason. A
 construct this runner cannot reproduce (an unknown expression context, a matrix,
-another shell) or a pull-request workflow missing from ``CI_ONLY`` stops the run with
-an error; no step is dropped silently.
+another shell, a local action outside ``SETUP_ACTIONS``) or a pull-request workflow
+missing from ``CI_ONLY`` stops the run with an error; no step is dropped silently.
 
 After the workflows, the test files in ``PREPUSH_GUARDS`` run on every pre-push.
 
 ``--full`` (``scripts/prepush.sh --full``, opt-in and advisory: it never stands in for
 CI) also runs the full suite, last: the ``FULL_SUITE_JOB`` job is lifted out of
 ``CI_ONLY`` with its ``if`` forced, so its one full-suite step runs exactly as read from
-ci.yml.
+ci.yml (it calls ``scripts/run_full_suite.sh``, which owns the pytest command).
 Only the xdist worker count may differ (``PREPUSH_XDIST_WORKERS``; default the
-workflow's), and the step runs without any credential variable (``is_credential``).
+workflow's ``--workers``), and the step runs without any credential variable
+(``is_credential``).
 """
 
 from __future__ import annotations
@@ -51,16 +53,32 @@ WORKFLOW = WORKFLOWS / "ci.yml"
 #: workflows); ci.yml is required.
 CI_ONLY: dict[str, dict[str, str]] = {
     "ci.yml": {
+        "classify": "requires GitHub event SHA contexts",
+        "test-selected": "selected test path comes from the CI classifier",
+        "ci-required": "aggregates GitHub Actions needs results",
         "test": "full suite with the coverage gate",
         "test-locked": "full suite in the exact locked environment",
         "scrub-oracle": "210,000-case scrubber acceptance corpus and its coverage floor",
         "gitleaks": "pinned secret-scanner binary over the full history",
         "docker-build": "container image build",
+        "docker-build-arm64": "native arm64 container image build on a hosted arm64 runner",
         "divergence-gate": "compares remote branch lineage with a repository token",
         "notify-matrix": "failure notification",
         "lint-public-language": "public repository text scan",
     },
     "changelog-size.yml": {},
+    "codeql.yml": {
+        "analyze": "CodeQL analysis of the python and actions languages (a matrix)",
+    },
+    "conformance.yml": {
+        "conformance": "builds the locked MCP conformance suite and runs it against a live "
+        "server once per tool mode",
+    },
+    "dependency-refresh.yml": {
+        "refresh-check": "re-resolves the seven managed pin files against PyPI",
+        "pip-audit": "queries the vulnerability database for the seven managed pin files",
+        "cap-report": "relaxed-cap resolution against PyPI, weekly and manual runs only",
+    },
     "dependabot-auto-merge.yml": {
         "dependabot-auto-merge": "approves and merges dependency updates with a repository token",
     },
@@ -93,10 +111,9 @@ CI_ONLY_STEPS: dict[tuple[str, str, str], str] = {
 
 #: Test files that run on every pre-push, whatever the change. Each checks a committed
 #: artifact against inputs spread over the tree (a stored source fingerprint, a strip
-#: list), so a stale artifact can sit on the base branch while the changed-path
-#: selection never names it, and a change the selector escalates to the full tier runs
-#: no test locally at all. Without this, the first full-suite run fails instead of the
-#: pre-push of the commit that made the artifact stale.
+#: list), so a stale artifact can sit on the base branch and no test runs locally at
+#: all. Without this, the first full-suite run fails instead of the pre-push of the
+#: commit that made the artifact stale.
 PREPUSH_GUARDS: tuple[str, ...] = ()
 GUARD_PYTEST = ("-m", "pytest", "-q", "-n", "4", "--max-worker-restart=0")
 
@@ -105,16 +122,24 @@ PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target"})
 
 #: ``--full``: the ci.yml job whose full-suite step runs locally.
 FULL_SUITE_JOB = "test"
+FULL_SUITE_STEP = "Run full suite with coverage"
 #: Variables never passed to the ``--full`` suite: the server's credential namespaces
 #: (``UNIFI_*`` holds the console API keys and live-test targets, ``MCP_*`` the bearer
 #: token and TLS key password) and any credential-shaped name.
 CREDENTIAL_PREFIXES = ("UNIFI_", "MCP_")
 CREDENTIAL_NAME = re.compile(r"API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|PRIVATE_KEY|CREDENTIAL")
-_WORKERS = re.compile(r"(?<=\s)-n\s+(\S+)(?=\s|$)")
+#: The full-suite step's worker count: ``--workers N`` of scripts/run_full_suite.sh, or
+#: pytest-xdist's ``-n N`` in a step that calls pytest itself.
+_WORKERS = re.compile(r"(?<=\s)(-n|--workers)\s+(\S+)(?=\s|$)")
 
 #: Steps that provision the CI runner's environment. Locally the development
 #: environment (installed from requirements.lock) takes their place.
 SETUP_STEPS = frozenset({"Install ruff (hash-pinned)", "Cache key", "Install dev environment"})
+#: Local composite actions that provision the CI runner's environment; locally the
+#: development environment takes their place too. Every step of each is in SETUP_STEPS
+#: or is a pinned action (tests/test_ci_fast_jobs.py). Any other local action in a fast
+#: job stops the run: its steps would be skipped without being read.
+SETUP_ACTIONS = frozenset({"./.github/actions/setup-dev"})
 
 _STATUS_FUNCTIONS = ("success()", "always()", "cancelled()", "failure()")
 _SHELLS = {
@@ -476,6 +501,10 @@ def fast_jobs(workflow: dict[str, Any], name: str = "ci.yml", full: bool = False
         if name in chain:
             raise WorkflowError(f"job dependency cycle through {name}")
         for need in _needs(jobs[name]):
+            # --full executes the coverage suite locally while its GitHub-only classifier
+            # remains CI-only.
+            if full and name == FULL_SUITE_JOB and need == "classify":
+                continue
             if need in ci_only:
                 raise WorkflowError(f"fast job {name} needs CI-only job {need}")
             visit(need, (*chain, name))
@@ -496,7 +525,7 @@ def fast_job_steps(
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """Every (job, step) the local run executes: all ``run`` steps of every fast job
     except the environment-provisioning steps in ``SETUP_STEPS`` and the steps in
-    ``CI_ONLY_STEPS``."""
+    ``CI_ONLY_STEPS``. A local action in a fast job must be one of ``SETUP_ACTIONS``."""
     for job_name in fast_jobs(workflow, name, full):
         job = workflow["jobs"][job_name]
         unsupported = {
@@ -510,9 +539,14 @@ def fast_job_steps(
         if unsupported:
             raise WorkflowError(f"{name} fast job {job_name} uses {sorted(unsupported)}")
         for step in job.get("steps", []):
+            action = str(step.get("uses", ""))
+            if action.startswith("./") and action not in SETUP_ACTIONS:
+                raise WorkflowError(f"{name} fast job {job_name} uses local action {action}")
             if "run" not in step or step.get("name") in SETUP_STEPS:
                 continue
             if (name, job_name, step.get("name")) in CI_ONLY_STEPS:
+                continue
+            if full and job_name == FULL_SUITE_JOB and step is not full_suite_step(workflow):
                 continue
             yield job_name, step
 
@@ -522,13 +556,16 @@ def step_label(step: dict[str, Any]) -> str:
 
 
 def full_suite_step(workflow: dict[str, Any]) -> dict[str, Any]:
-    """The one step of FULL_SUITE_JOB that is not environment provisioning."""
+    """The one step of FULL_SUITE_JOB named FULL_SUITE_STEP. The job's
+    other test step (the pull-request subset) is not part of ``--full``."""
     job = workflow["jobs"].get(FULL_SUITE_JOB)
     if job is None:
         raise WorkflowError(f"ci.yml has no {FULL_SUITE_JOB} job")
-    steps = [s for s in job.get("steps", []) if "run" in s and s.get("name") not in SETUP_STEPS]
+    steps = [s for s in job.get("steps", []) if "run" in s and s.get("name") == FULL_SUITE_STEP]
     if len(steps) != 1:
-        raise WorkflowError(f"ci.yml job {FULL_SUITE_JOB} has {len(steps)} test steps, not one")
+        raise WorkflowError(
+            f"ci.yml job {FULL_SUITE_JOB} has {len(steps)} full-suite steps, not one"
+        )
     return steps[0]
 
 
@@ -540,10 +577,10 @@ def full_suite_workers(script: str, override: str | None) -> tuple[str, str]:
     found = _WORKERS.findall(script)
     if len(found) != 1:
         raise WorkflowError(f"the full-suite step names {len(found)} worker counts, not one")
-    workers = found[0] if override is None else override
+    workers = found[0][1] if override is None else override
     if not re.fullmatch(r"[1-9][0-9]*", workers):
         raise WorkflowError(f"worker count {workers!r} is not a positive integer")
-    return _WORKERS.sub(f"-n {workers}", script), workers
+    return _WORKERS.sub(lambda match: f"{match.group(1)} {workers}", script), workers
 
 
 def is_credential(name: str) -> bool:
@@ -615,6 +652,24 @@ def _parse_key_values(path: Path) -> dict[str, str]:
     return values
 
 
+def setup_python_version(step: dict[str, Any], root: Path = ROOT) -> str:
+    """The Python version an ``actions/setup-python`` step asks for: its
+    ``python-version``, or the version in its ``python-version-file`` (read from the
+    checkout, as setup-python reads it)."""
+    options = step.get("with") or {}
+    version_file = options.get("python-version-file")
+    if version_file:
+        lines = [
+            line.strip()
+            for line in (root / str(version_file)).read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        if len(lines) != 1:
+            raise WorkflowError(f"{version_file} must hold exactly one Python version")
+        return lines[0]
+    return str(options.get("python-version", ""))
+
+
 def _python_version(python: Path) -> str:
     return subprocess.check_output(
         [str(python), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"], text=True
@@ -647,40 +702,42 @@ def run(
     repository = _repository()
     event = pull_request_event(repository, base, base_ref, head, head_ref, labels)
     local_python = _python_version(venv / "bin" / "python") if execute else None
-    work = Path(tempfile.mkdtemp(prefix="prepush-"))
-    event_path = work / "event.json"
-    event_path.write_text(json.dumps(event))
-    github = strict(
-        "github",
-        {
-            "event_name": "pull_request",
-            "event": event,
+    # The event file and step scripts are removed when the run ends, pass or fail.
+    with tempfile.TemporaryDirectory(prefix="prepush-") as directory:
+        work = Path(directory)
+        event_path = work / "event.json"
+        event_path.write_text(json.dumps(event))
+        github = strict(
+            "github",
+            {
+                "event_name": "pull_request",
+                "event": event,
+                "repository": repository,
+                "base_ref": base_ref,
+                "head_ref": head_ref,
+                "workspace": str(ROOT),
+            },
+        )
+        records: list[tuple[str, str, str, bool]] = []
+        common: dict[str, Any] = {
+            "github": github,
+            "event_path": event_path,
             "repository": repository,
             "base_ref": base_ref,
             "head_ref": head_ref,
-            "workspace": str(ROOT),
-        },
-    )
-    records: list[tuple[str, str, str, bool]] = []
-    common: dict[str, Any] = {
-        "github": github,
-        "event_path": event_path,
-        "repository": repository,
-        "base_ref": base_ref,
-        "head_ref": head_ref,
-        "venv": venv,
-        "local_python": local_python,
-        "execute": execute,
-        "workers": workers,
-        "out": out,
-    }
-    for name in names:
-        records += _run_workflow(workflows / name, work=work / Path(name).stem, **common)
-    _run_guards(execute=execute, venv=venv, out=out)
-    if full:
-        # Last, so every fast check has passed before the long run starts.
-        records += _run_workflow(workflows / "ci.yml", work=work / "full", only=True, **common)
-    return records
+            "venv": venv,
+            "local_python": local_python,
+            "execute": execute,
+            "workers": workers,
+            "out": out,
+        }
+        for name in names:
+            records += _run_workflow(workflows / name, work=work / Path(name).stem, **common)
+        _run_guards(execute=execute, venv=venv, out=out)
+        if full:
+            # Last, so every fast check has passed before the long run starts.
+            records += _run_workflow(workflows / "ci.yml", work=work / "full", only=True, **common)
+        return records
 
 
 def _run_guards(*, execute: bool, venv: Path, out: Callable[[str], None]) -> None:
@@ -770,7 +827,7 @@ def _run_workflow(
         for index, step in enumerate(job.get("steps", [])):
             if "uses" in step:
                 action = str(step["uses"]).split("@", 1)[0]
-                wanted = str((step.get("with") or {}).get("python-version", ""))
+                wanted = setup_python_version(step)
                 if job_runs and execute and action == "actions/setup-python" and wanted:
                     if wanted != local_python:
                         raise WorkflowError(
@@ -784,13 +841,14 @@ def _run_workflow(
                     out(f"   - {step_label(step)}: CI only ({reason})")
                 continue
             if not any(step is chosen for chosen in selected):
-                continue  # environment provisioning (SETUP_STEPS)
+                continue  # environment provisioning (SETUP_STEPS, SETUP_ACTIONS)
             label = step_label(step)
             unsupported = {"working-directory", "continue-on-error"} & set(step)
             shell = step.get("shell")
             if unsupported or shell not in _SHELLS:
                 raise WorkflowError(f"{name} step {label!r} uses {sorted(unsupported) or shell}")
-            step_runs = condition(step.get("if"), context) and job_runs
+            # --full forces the suite step's own condition (a pull-request context skips it).
+            step_runs = (step is suite or condition(step.get("if"), context)) and job_runs
             step_env = dict(job_env)
             for key, value in (step.get("env") or {}).items():
                 step_env[key] = substitute(str(value), context)

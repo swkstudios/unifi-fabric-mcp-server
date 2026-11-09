@@ -98,6 +98,15 @@ FIELD_NOTES: dict[tuple[str, str, str], str] = {
 }
 
 
+DESCRIPTION_OVERRIDES = {
+    "Transaction time in epoch milliseconds.": (
+        "Transaction time in epoch milliseconds; within the past 24 hours and no more than "
+        "5 minutes in the future."
+    ),
+    "Mic volume: a number from 0-100.": "Mic volume: 1-100; mute with isMicEnabled.",
+}
+
+
 def resolve(spec: sc.Spec, raw: Any, seen: frozenset[str]) -> tuple[dict[str, Any], frozenset[str]]:
     node = raw if isinstance(raw, dict) else {}
     while "$ref" in node:
@@ -124,13 +133,36 @@ def json_type(value: Any) -> str:
     return "array" if isinstance(value, list) else "object"
 
 
+# A period ending one of these is not a sentence end ("e.g. USD" stays whole).
+ABBREVIATIONS = ("e.g.", "i.e.", "vs.", "cf.")
+
+
 def note(text: Any) -> str:
     """The spec description's first sentence, on one line, capped."""
     line = " ".join(str(text or "").split())
-    match = re.search(r"(?<=[.!?])\s", line)
-    if match:
-        line = line[: match.start()]
+    for match in re.finditer(r"(?<=[.!?])\s", line):
+        if not line[: match.start()].lower().endswith(ABBREVIATIONS):
+            line = line[: match.start()]
+            break
     return line if len(line) <= NOTE_LIMIT else line[: NOTE_LIMIT - 1].rstrip() + "..."
+
+
+def deprecated_note(node: dict[str, Any]) -> str:
+    """The spec's whole text for a deprecated field: its effect is the point ("" if live)."""
+    if node.get("deprecated") is not True:
+        return ""
+    text = " ".join(str(node.get("description") or "").split())
+    return text if "deprecated" in text.lower() else f"Deprecated per spec. {text}".strip()
+
+
+def narrowed_note(node: dict[str, Any], target: dict[str, Any]) -> str:
+    """Bounds this field sets over the component it references ("" when it sets none)."""
+    parts = [
+        f"{key} {node[key]}"
+        for key in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum")
+        if key in node and node[key] != target.get(key)
+    ]
+    return " This route narrows it: " + ", ".join(parts) + "." if parts else ""
 
 
 def branches(node: dict[str, Any]) -> list[Any]:
@@ -449,7 +481,8 @@ def advisory(
     node, seen = resolve(spec, raw, seen)
     found = kinds(spec, node, seen)
     out: dict[str, Any] = {"anyOf": [{"type": found[0] if len(found) == 1 else found}, {}]}
-    notes = [note(node.get("description") or node.get("title"))]
+    description = deprecated_note(node) or note(node.get("description") or node.get("title"))
+    notes = [DESCRIPTION_OVERRIDES.get(description, description)]
     if "enum" in node:
         notes.append("One of: " + enum_text(node["enum"], ", ") + ".")
     props, required = fields(spec, node, seen)
@@ -457,7 +490,25 @@ def advisory(
     structured = bool(props or alts or "items" in node)
     if depth >= PROPERTY_DEPTH or (depth and not props and structured and "items" not in node):
         if structured:
-            notes.append("Shape: " + compact_outline(outline(spec, node, seen)))
+            shape = compact_outline(outline(spec, node, seen))
+            if owner == _FIREWALL and name in {"destination", "source", "ipProtocolScope"}:
+                # Bare enum tokens are strings; preserve every value and structural marker.
+                shape = re.sub(r"(?<!type:)'([A-Za-z0-9_.-]+)'", r"\1", shape)
+                legend = "bare enum values are strings"
+                if name == "ipProtocolScope":
+                    for field, alias in (
+                        ("protocolFilter", "P"),
+                        ("matchOpposite", "M"),
+                        ("ipVersion", "V"),
+                        ("typenameFilter", "T"),
+                    ):
+                        shape = shape.replace(field + ":", alias + ":").replace(
+                            field + "?:", alias + "?:"
+                        )
+                    legend += "; P=protocolFilter, M=matchOpposite, V=ipVersion, T=typenameFilter"
+                notes.append(f"Shape ({legend}): " + shape)
+            else:
+                notes.append("Shape: " + shape)
     else:
         if required:
             notes.append("Required: " + ", ".join(sorted(required)) + ".")
@@ -503,9 +554,10 @@ def fallback_note(
     """
     node, seen = resolve(spec, raw, seen)
     for branch in node.get("allOf") or []:
-        text = note(resolve(spec, branch, seen)[0].get("description"))
+        target = resolve(spec, branch, seen)[0]
+        text = note(target.get("description"))
         if text:
-            return text
+            return text + narrowed_note(node, target)
     if tags:
         return "Variant tag; one of: " + enum_text(tags, ", ") + "."
     key = (spec.service, *where)

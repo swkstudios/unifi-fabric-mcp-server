@@ -10,7 +10,10 @@ import json
 import math
 import re
 import time
+from collections.abc import Callable
 from typing import Any, cast
+
+from fastmcp import FastMCP
 
 from .. import switches
 from ..client import (
@@ -20,15 +23,18 @@ from ..client import (
     describe_shape,
     is_dry_run_preview,
     path_segment,
+    upstream_error_value,
     validate_id,
     validate_spec_id,
 )
 from ..config import APIKeyConfig
 from ..matching import id_key, name_keys, same_id, with_upstream_id
+from ..read_only import mark_write_denied
 from ..redaction import note_dropped_fields
 from ..registry import Registry, _require_native_id
 from ..route_secrets import mask_response_body
 from ..spec_limits import check_arguments
+from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import IDENTITY_FIELDS, update_problem
 from ._history_common import (
     epoch_warnings,
@@ -56,6 +62,7 @@ from ._results import (
     short_circuit_no_op,
     with_read_after_error,
 )
+from ._shared import _image_result
 
 PROTECT_PROXY_BASE = "/v1/connector/consoles/{host_id}/proxy/protect/integration/v1"
 
@@ -188,16 +195,24 @@ async def _resolve_camera_refs(
                 break
         named = list({id_key(_require_native_id(c, "id")): c for c in named}.values())
         if len(named) > 1:
-            choices = "; ".join(f"{c['name']!r} ({c['id']})" for c in named)
+            choices = "; ".join(
+                f"{upstream_error_value(c['name'], client)!r} "
+                f"({upstream_error_value(c['id'], client)})"
+                for c in named
+            )
             raise ValueError(
                 f"ambiguous camera {ref!r}: {len(named)} cameras share that name "
                 f"({choices}). Pass the camera id instead."
             )
         if not named:
-            available = sorted(c["name"] for c in cams if isinstance(c, dict) and c.get("name"))
+            available = sorted(
+                str(upstream_error_value(c["name"], client))
+                for c in cams
+                if isinstance(c, dict) and isinstance(c.get("name"), str)
+            )
             raise ValueError(
                 f"Camera {ref!r} not found on host {host_id!r}. "
-                f"Pass a camera ID or one of these names: {available}"
+                f"Pass a camera ID or one of these names: {upstream_error_value(available, client)}"
             )
         resolved.append(named[0]["id"])
     return resolved
@@ -221,7 +236,8 @@ async def list_protect_events(
     """Query historical Protect events via the private /proxy/protect/api/events REST path.
 
     start/end: REQUIRED epoch SECONDS (UTC) as integers; converted to milliseconds
-    internally. Ranges are inclusive on both ends. ``order_direction`` is sent as
+    internally. Bounds are exact millisecond instants; end excludes the remainder of its
+    second. ``order_direction`` is sent as
     ``orderDirection`` only when given ("ASC" oldest-first, "DESC" newest-first); omitted,
     the upstream's own order applies (this private endpoint has no spec, so no default is
     sent on the caller's behalf). (These are epoch seconds, not the ISO 8601 strings
@@ -361,7 +377,7 @@ def _validate_collector_limit(value: int | None, name: str) -> None:
 # feed is the WebSocket ``/v1/subscribe/devices`` bootstrap, unreachable over the
 # cloud connector — so the union of these per-family list endpoints is the REST
 # parity source. Each returns a bare JSON array of objects carrying a unique ``id``.
-# This is every device list of the vendored Protect 7.3.70 spec (each ``GET /v1/<family>``
+# This is every device list of the vendored Protect 7.3.74 spec (each ``GET /v1/<family>``
 # tagged "<Family> information & management" that returns an array);
 # tests/test_protect_collectors.py derives that set from the spec and pins it equal.
 DEVICE_FAMILIES = (
@@ -953,7 +969,7 @@ def require_nonempty_qualities(qualities: Any, *, where: str) -> list[str]:
     if not isinstance(qualities, list) or not qualities:
         raise ValueError(
             f"'qualities' must be a non-empty list (got {qualities!r}): the {where} parameter "
-            "is required with minItems 1 (Protect 7.3.70). Pass at least one of 'high', "
+            "is required with minItems 1 (Protect 7.3.74). Pass at least one of 'high', "
             "'medium', 'low', 'package'."
         )
     if not all(isinstance(q, str) and q.strip() for q in qualities):
@@ -1414,7 +1430,7 @@ async def list_protect_files(
     host: str,
     file_type: str,
 ) -> dict[str, Any]:
-    """List Protect device asset files of a given type (Protect 7.3.70: 'animations')."""
+    """List Protect device asset files of a given type (Protect 7.3.74: 'animations')."""
     validate_id(file_type, "file_type")
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
@@ -1422,7 +1438,7 @@ async def list_protect_files(
     return with_context(_list_body(data, "files"), {"_file_type": file_type})
 
 
-#: The MIME types Protect 7.3.70 POST /v1/files/{fileType} accepts for the file part,
+#: The MIME types Protect 7.3.74 POST /v1/files/{fileType} accepts for the file part,
 #: by filename extension (the spec: "image/gif, image/jpeg, image/png, audio/mpeg,
 #: audio/mp4, audio/wave, audio/x-caf"). Not mimetypes.guess_type: it answers
 #: audio/x-wav for .wav and nothing for .caf, which the spec does not list.
@@ -1501,7 +1517,7 @@ async def upload_protect_file(
         ) from exc
     key = await registry.resolve_key_for_host(host)
     host_id = await registry.resolve_host_id(host, key=key)
-    # The part's Content-Type is stated explicitly, so the UNIFI_DRY_RUN preview (field,
+    # The part's Content-Type is stated explicitly, so the dry-run policy preview (field,
     # filename, content type, size) shows exactly what is sent.
     files = {"file": (filename, io.BytesIO(raw), part_type)}
     response = await _post(client, _proxy(host_id, f"/files/{file_type}"), key=key, files=files)
@@ -1579,29 +1595,14 @@ def protect_mutations_enabled() -> bool:
     POS-ingestion* tool, legacy camera-era families included. Pure read tools
     (list/get/meta) are never gated.
 
-    DEFAULT ON: with the variable unset the family is enabled. Set
-    ``UNIFI_PROTECT_MUTATIONS_ENABLED`` to a false spelling (``switches.FALSE_VALUES``,
-    the same spellings ``Settings`` accepts) to disable every Protect mutation at the
-    deployment level. A ``confirm`` argument, where a tool has one, is ignored.
+    DEFAULT ON: writes are allowed unless ``UNIFI_WRITE_EXCEPTIONS`` holds
+    ``family:protect=deny`` (every Protect mutation refused at the deployment level). A
+    ``confirm`` argument, where a tool has one, is ignored.
     """
     return switches.PROTECT_WRITES.enabled()
 
 
-MUTATIONS_DISABLED_REASON = (
-    f"Protect mutations are opted out at the deployment level: {PROTECT_MUTATIONS_ENV} "
-    f"is set to a false value ({switches.FALSE_HINT}). No request was sent. Protect "
-    "mutations are enabled by default. To re-enable, set "
-    f"{PROTECT_MUTATIONS_ENV} to a true value ({switches.TRUE_HINT}) -- or remove the "
-    "override -- in the MCP client env block (and turn off the Claude Code plugin's "
-    "Read-only mode option if enabled), the environment of the shell that starts the "
-    "server (an export there works), or this service's 'environment:' block in the deploy "
-    "docker-compose.yml (a host shell export does not reach the container; never the "
-    "application source), then "
-    "recreate the container (restart the whole compose group if a sidecar shares its "
-    'network namespace). See the README "Enabling / disabling connector writes" '
-    "section; the same compose environment: mechanism applies to every per-area "
-    "write flag."
-)
+MUTATIONS_DISABLED_REASON = switches.area_deny_text("Protect", PROTECT_MUTATIONS_ENV)
 
 
 def _require_mutations() -> None:
@@ -1613,8 +1614,10 @@ def _require_mutations() -> None:
     the refusal the same way.
     """
     if not protect_mutations_enabled():
-        raise ValueError(
-            MUTATIONS_DISABLED_REASON + switches.current_value_note(PROTECT_MUTATIONS_ENV)
+        raise mark_write_denied(
+            ValueError(
+                MUTATIONS_DISABLED_REASON + switches.current_value_note(PROTECT_MUTATIONS_ENV)
+            )
         )
 
 
@@ -1696,7 +1699,7 @@ async def _patch(
 def _write_result(status: str, response: Any) -> dict[str, Any]:
     """The result of a Protect write or action: a status plus the upstream body verbatim.
 
-    Under ``UNIFI_DRY_RUN`` the write was never sent and ``response`` is the preview: the
+    Under ``dry-run policy`` the write was never sent and ``response`` is the preview: the
     status is then ``"dry_run"``, never the would-be ``status`` ("created", "triggered").
     """
     if is_dry_run_preview(response):
@@ -1757,7 +1760,7 @@ def _fields_to_send(fields: dict[str, Any], what: str) -> dict[str, Any]:
 
 
 def _dry_run_result(before: Any, response: Any) -> dict[str, Any]:
-    """Result of a verified update under ``UNIFI_DRY_RUN``: the preview, no read-after.
+    """Result of a verified update under ``dry-run policy``: the preview, no read-after.
 
     No write was sent, so a read-after would only show the unchanged state and report
     the update as unverified; the read-before is kept for context.
@@ -1774,7 +1777,7 @@ def _updated(
     null when the read-after failed, returned no object or an unexpected shape
     (``readAfterError`` says why), and false when a requested leaf is missing or holds
     another value. The PATCH response is kept verbatim as ``response``."""
-    verified, error = requested_leaves_verdict(fields, after, error, spec="protect-7.3.70.json")
+    verified, error = requested_leaves_verdict(fields, after, error, spec="protect-7.3.74.json")
     result = {
         "status": "updated",
         "verified": verified,
@@ -1818,7 +1821,7 @@ async def _update_item_verified(
     if isinstance(upstream_id, str) and same_id(item_id, upstream_id):
         item_path = _proxy(host_id, f"/{family}/{path_segment(upstream_id, id_name)}")
     if short_circuit_no_op(
-        client, requested_leaves_match(fields, before, spec="protect-7.3.70.json")
+        client, requested_leaves_match(fields, before, spec="protect-7.3.74.json")
     ):
         return {
             "status": "noop",
@@ -1898,9 +1901,15 @@ async def _find_arm_profile(
     return None, valid_ids
 
 
-def _unknown_arm_profile(arm_profile_id: str, host: str, valid_ids: list[Any]) -> ValueError:
+def _unknown_arm_profile(
+    arm_profile_id: str, host: str, valid_ids: list[Any], client: UniFiClient | None = None
+) -> ValueError:
     """Unknown-id error naming every arm profile id the console's list carries."""
-    choices = ", ".join(repr(i) for i in valid_ids) if valid_ids else "none (the list is empty)"
+    choices = (
+        ", ".join(repr(upstream_error_value(i, client)) for i in valid_ids)
+        if valid_ids
+        else "none (the list is empty)"
+    )
     return ValueError(
         f"Arm profile {arm_profile_id!r} not found on host {host!r}. "
         f"Valid arm_profile_id values (list_arm_profiles id): {choices}"
@@ -1925,7 +1934,7 @@ async def get_arm_profile(
     key, host_id = await _resolve(registry, host)
     profile, valid_ids = await _find_arm_profile(client, host_id, arm_profile_id, key=key)
     if profile is None:
-        raise _unknown_arm_profile(arm_profile_id, host, valid_ids)
+        raise _unknown_arm_profile(arm_profile_id, host, valid_ids, client)
     return profile
 
 
@@ -1975,14 +1984,14 @@ async def update_arm_profile(
     before, valid_ids = await _find_arm_profile(client, host_id, arm_profile_id, key=key)
     if before is None:
         # Unknown id: fail before any PATCH, naming every id the console has.
-        raise _unknown_arm_profile(arm_profile_id, host, valid_ids)
+        raise _unknown_arm_profile(arm_profile_id, host, valid_ids, client)
     # The PATCH addresses the profile the list matched by ITS id (an upper-case hex id
     # sends the upstream spelling), in the URL and in a body ``id`` naming it.
     upstream_id = str(before["id"])
     arm_profile_id_seg = path_segment(upstream_id, "arm_profile_id")
     fields = with_upstream_id(fields, "id", upstream_id)
     if short_circuit_no_op(
-        client, requested_leaves_match(fields, before, spec="protect-7.3.70.json")
+        client, requested_leaves_match(fields, before, spec="protect-7.3.74.json")
     ):
         return {
             "status": "noop",
@@ -2002,7 +2011,8 @@ async def update_arm_profile(
         found, _ids = await _find_arm_profile(client, host_id, upstream_id, key=key)
         if found is None:
             raise UniFiConnectionError(
-                f"Read-after Protect arm profile {upstream_id!r} was not found in the collection"
+                "Read-after Protect arm profile "
+                f"{upstream_error_value(upstream_id)!r} was not found in the collection"
             )
         return found
 
@@ -2036,7 +2046,7 @@ async def delete_arm_profile(
     key, host_id = await _resolve(registry, host)
     profile, valid_ids = await _find_arm_profile(client, host_id, arm_profile_id, key=key)
     if profile is None:
-        raise _unknown_arm_profile(arm_profile_id, host, valid_ids)
+        raise _unknown_arm_profile(arm_profile_id, host, valid_ids, client)
     upstream_id = str(profile["id"])
     arm_profile_id_seg = path_segment(upstream_id, "arm_profile_id")
     response = await client.delete(_proxy(host_id, f"/arm-profiles/{arm_profile_id_seg}"), key=key)
@@ -2069,7 +2079,7 @@ async def update_arm_profile_settings(
     profile, valid_ids = await _find_arm_profile(client, host_id, arm_profile_id, key=key)
     if profile is None:
         # Unknown id: fail before any PATCH, naming every id the console has.
-        raise _unknown_arm_profile(arm_profile_id, host, valid_ids)
+        raise _unknown_arm_profile(arm_profile_id, host, valid_ids, client)
     # Select the profile the list matched by ITS id (an upper-case hex id sends the
     # upstream spelling); the NVR selection is compared with the same id rule.
     upstream_id = str(profile["id"])
@@ -2607,7 +2617,7 @@ async def pos_ingest_transaction(
         raise ValueError("transaction 'amount' is required")
     amount = transaction["amount"]
     # posTransactionRequest.amount is a required, non-nullable number with minimum 0
-    # (Protect 7.3.70): null, a string, a boolean or a negative value fails fast.
+    # (Protect 7.3.74): null, a string, a boolean or a negative value fails fast.
     if (
         isinstance(amount, bool)
         or not isinstance(amount, (int, float))
@@ -2632,3 +2642,2860 @@ async def pos_ingest_transaction(
         json=transaction,
     )
     return _write_result("sent", response)
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import protect  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the protect tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_cameras(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all cameras on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of cameras verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_cameras(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_camera(
+        host: str,
+        camera_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect camera by ID.
+
+        Returns: the camera object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_camera (a partial PATCH).
+
+        Example call (get_camera):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_camera(client, registry, host, camera_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_camera(
+        host: str,
+        camera_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode,
+        HDR, smart detection).
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects such as
+        osdSettings are compared leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first),
+        response
+        (the preview)}; there is no read-after.
+
+
+        Full request shapes are in the parameter schema; detailed examples and workflows:
+        docs/TOOL-USAGE.md#update_camera.
+
+        Required arguments: host, camera_id, settings (see parameter descriptions for identifiers).
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/cameras/{id} body. Keys: name, osdSettings, ledSettings, lcdMessage, micVolume
+                (number 1-100), videoMode, hdrType, smartDetectSettings (nested keys in the
+                parameter schema and
+                docs/TOOL-USAGE.md#update_camera).
+        """
+        client, registry = deps_fn()
+        return await protect.update_camera(client, registry, host, camera_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def enable_camera_share_link(host: str, camera_id: str) -> Any:
+        """Enable a bearer share link that exposes a camera livestream to anyone with the link.
+
+        Consequence: anyone holding the link can watch the camera's live video, without signing
+        in, until it expires or disable_camera_share_link revokes it.
+
+        Cloud-only: POST protect/api/cameras/{id}/sharedStream through the Fabric connector.
+        No request body. Returns the upstream body verbatim, including null for an empty body.
+        Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream),
+        not tool parameters. The share URL/token is a bearer secret: keep it out of logs,
+        evidence and fixtures. Writes are enabled by default; family:protect=deny or
+        UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the
+        dry-run
+        preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
+        body}}. Exposure actions are sent once, never automatically retried.
+
+        Example call (enable_camera_share_link):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id from list_hosts, e.g. "my-console"; resolved to its owning
+                Fabric API key and console id before the camera request.
+            camera_id: Protect camera id from list_cameras, e.g. "00000000000000000000010b";
+                pass the full id, not a camera name or Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.enable_camera_share_link(client, registry, host, camera_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_camera_share_link(host: str, camera_id: str) -> Any:
+        """Read a camera's current livestream share link and status.
+
+        Cloud-only: GET protect/api/cameras/{id}/sharedStream through the Fabric connector.
+        No request body. Returns the upstream body verbatim. Object bodies are returned
+        directly as structured output; arrays use {result: body}, and an empty body uses
+        {result: null}. String, integer and boolean bodies have structured_content=None
+        and are returned as text content.
+        Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream),
+        not tool parameters. The share URL/token is a bearer secret: keep it out of logs,
+        evidence and fixtures. This is a read and does not enable sharing.
+
+        Example call (get_camera_share_link):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id from list_hosts, e.g. "my-console"; resolved to its owning
+                Fabric API key and console id before the camera request.
+            camera_id: Protect camera id from list_cameras, e.g. "00000000000000000000010b";
+                pass the full id, not a camera name or Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_camera_share_link(client, registry, host, camera_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def disable_camera_share_link(host: str, camera_id: str) -> Any:
+        """Disable a camera's livestream share link, revoking public viewing access.
+
+        Consequence: the existing link stops working for everyone who holds it; a new link
+        needs enable_camera_share_link.
+
+        Cloud-only: DELETE protect/api/cameras/{id}/sharedStream through the Fabric connector.
+        No request body. Returns the upstream body verbatim, including null for an empty body.
+        Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream),
+        not tool parameters. The share URL/token is a bearer secret: keep it out of logs,
+        evidence and fixtures. Writes are enabled by default; family:protect=deny or
+        UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the
+        dry-run
+        preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
+        body}}. Exposure actions are sent once, never automatically retried.
+
+        Example call (disable_camera_share_link):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id from list_hosts, e.g. "my-console"; resolved to its owning
+                Fabric API key and console id before the camera request.
+            camera_id: Protect camera id from list_cameras, e.g. "00000000000000000000010b";
+                pass the full id, not a camera name or Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.disable_camera_share_link(client, registry, host, camera_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_camera_snapshot(
+        host: str,
+        camera_id: str,
+        channel: str | None = None,
+        high_quality: bool | None = None,
+        ts: int | None = None,
+    ) -> Any:
+        """Get a snapshot from a Protect camera. Returns MCP ImageContent plus image metadata.
+
+        Returns MCP ImageContent plus text and structured metadata
+        {image_base64, content_type, size_bytes}; content_type is the upstream
+        Content-Type header (typically image/jpeg), not assumed, and null when the upstream
+        sends none. channel and high_quality are the spec's optional query parameters, sent only
+        when given. With ts the tool reads a past moment from the private Protect route
+        cameras/{id}/recording-snapshot instead of the live frame (see ts below for its
+        provenance).
+
+        Example call (get_camera_snapshot):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            channel: Optional camera channel (query channel): 'main', or 'package' for the package
+                camera of a camera whose hasPackageCamera is true. Sent verbatim; omit for the
+                controller default.
+            high_quality: Optional (query highQuality): true forces a 1080p-or-higher snapshot, false
+                does not. Omit for the controller default.
+            ts: Optional moment to snapshot, sent as query ts to the private route
+                cameras/{id}/recording-snapshot instead of the live snapshot. Provenance: probed
+                on a live console 2026-10-17 (Protect 5.3.18), where the route answered 400 without
+                ts and 404 "Recording not found" with it, so the key is accepted; the unit is
+                inferred to be epoch milliseconds and is unverified, and a returned image has not
+                been observed. Omit for the live frame. Example: `1760140800000`.
+        """
+        client, registry = deps_fn()
+        return _image_result(
+            await protect.get_camera_snapshot(
+                client, registry, host, camera_id, channel=channel, high_quality=high_quality, ts=ts
+            )
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_rtsps_stream(
+        host: str,
+        camera_id: str,
+    ) -> dict[str, Any]:
+        """Get existing RTSPS stream URLs for a Protect camera.
+
+        Returns the upstream RTSPS stream (one URL per quality) object verbatim, exactly as the API
+        answers it.
+
+        Example call (get_rtsps_stream):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_rtsps_stream(client, registry, host, camera_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_rtsps_stream(
+        host: str,
+        camera_id: str,
+        qualities: list[str],
+    ) -> dict[str, Any]:
+        """Create an RTSPS stream for a Protect camera.
+
+        Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        `qualities`: list of channel names to enable. The exhaustive set is 'high', 'medium',
+          'low', and 'package' (verified live against get_rtsps_stream, which reports exactly
+          these four channel keys). 'package' exists only on package-camera doorbells; on other
+          cameras it is null. There is NO 'highest' channel. Each value must be exactly one of
+          those spec enum values (lowercase); any other value, a different case included, fails
+          before any request.
+
+        Request body (Protect 7.3.74, POST /v1/cameras/{id}/rtsps-stream; schema "inline requestBody
+        schema") is built from scalar parameters. Required keys — qualities.
+        - qualities: array of enum high|medium|low|package
+
+        Example call (create_rtsps_stream):
+            {"host": "my-console", "camera_id": "00000000000000000000010b", "qualities": ["high"]}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            qualities: Channels to enable (at least one; an empty list fails before any request,
+                spec minItems 1); spec enum channelQuality: high|medium|low|package (package only on
+                cameras with a package lens).
+        """
+        client, registry = deps_fn()
+        return await protect.create_rtsps_stream(client, registry, host, camera_id, qualities)
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_rtsps_stream(
+        host: str,
+        camera_id: str,
+        qualities: str | list[str],
+    ) -> dict[str, Any]:
+        """Delete an RTSPS stream for a Protect camera.
+
+        Consequence: the RTSPS URL of each deleted quality stops working for every consumer; there is no
+        undo.
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview; preview.params.qualities is exactly the lowercased list the DELETE
+        would send)}.
+
+        `qualities`: one channel name, or a list of channel names, to delete (spec
+          removedQualities: a channelQuality value or a non-empty array of them). A list needs
+          at least one entry (spec minItems 1): an empty list fails before any request (it
+          would otherwise send no qualities query at all). The exhaustive set is 'high',
+          'medium', 'low', and 'package' (verified live; 'package' only on package-camera
+          doorbells). There is NO 'highest' channel. Each value must be exactly one of those
+          spec enum values (lowercase); any other value, a different case included, fails
+          before any request.
+
+        Example call (delete_rtsps_stream):
+            {"host": "my-console", "camera_id": "00000000000000000000010b", "qualities": ["high"]}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            qualities: Channel to delete ('high'), or a list of channels (at least one; an empty list
+                fails before any request); spec enum channelQuality: high|medium|low|package.
+                Shape: 'high'|'medium'|'low'|'package'|('high'|'medium'|'low'|'package')[]
+        """
+        client, registry = deps_fn()
+        response = await protect.delete_rtsps_stream(client, registry, host, camera_id, qualities)
+        return deletion_result(f"RTSPS stream for camera {camera_id} deleted.", response)
+
+    @mcp.tool(annotations=WRITE)
+    async def start_talkback_session(
+        host: str,
+        camera_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Start a talkback audio session on a Protect camera.
+
+        Consequence: audio sent to the session plays aloud from the camera's speaker.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (start_talkback_session):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.talkback_start(client, registry, host, camera_id, confirm=confirm)
+
+    @mcp.tool(annotations=WRITE)
+    async def disable_camera_mic_permanently(
+        host: str,
+        camera_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Permanently disable the microphone on a Protect camera. This cannot be undone.
+
+        Consequence: the camera's microphone cannot be re-enabled.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (disable_camera_mic_permanently):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.disable_mic_permanently(
+            client, registry, host, camera_id, confirm=confirm
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def ptz_goto_preset(
+        host: str,
+        camera_id: str,
+        slot: int,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Move a PTZ camera to a preset position slot.
+
+        Consequence: the camera physically moves, changing what it records.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (ptz_goto_preset):
+            {"host": "my-console", "camera_id": "00000000000000000000010b", "slot": 0}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            slot: PTZ preset slot to move to (path param slot): -1 is the home preset, 0 or more
+                the other presets (spec); a smaller value is refused before any request.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.ptz_goto(client, registry, host, camera_id, slot, confirm=confirm)
+
+    @mcp.tool(annotations=WRITE)
+    async def ptz_patrol_start(
+        host: str,
+        camera_id: str,
+        slot: int,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Start a PTZ patrol: the patrol saved in patrol slot 0-4 (not a preset slot).
+
+        Consequence: the camera physically moves along the patrol, changing what it records, until
+        stopped.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (ptz_patrol_start):
+            {"host": "my-console", "camera_id": "00000000000000000000010b", "slot": 0}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            slot: PTZ patrol slot number 0-4 (path param slot).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.ptz_patrol_start(
+            client, registry, host, camera_id, slot, confirm=confirm
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def ptz_patrol_stop(
+        host: str,
+        camera_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Stop the current PTZ patrol on a camera.
+
+        Consequence: the camera stops patrolling.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (ptz_patrol_stop):
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.ptz_patrol_stop(client, registry, host, camera_id, confirm=confirm)
+
+    # --- Protect Sensor Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_sensors(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all sensors on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of sensors verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_sensors(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_sensor(
+        host: str,
+        sensor_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect sensor by ID.
+
+        Returns: the sensor object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_sensor (a partial PATCH).
+
+        Example call (get_sensor):
+            {"host": "my-console", "sensor_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            sensor_id: Protect sensor id. Get it from list_sensors (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_sensor(client, registry, host, sensor_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_sensor(
+        host: str,
+        sensor_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update settings for a Protect sensor.
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects are compared
+        leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        dry-run policy sends nothing: {status: "dry_run", before (read body),
+        response (preview)}; no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/sensors/{id}; inline schema) is `settings`.
+        No required key; send only changed keys.
+        - name: string
+        - lightSettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
+          null (1-503192), highThreshold: number or null (1-503192)}
+        - humiditySettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
+          null (1-99), highThreshold: number or null (1-99)}
+        - temperatureSettings: object {isEnabled: boolean, margin: number, lowThreshold: number
+          or null (-39-124), highThreshold: number or null (-39-124)}
+        - motionSettings: object {isEnabled: boolean, sensitivity: number (0-100),
+          sensitivityWhenArmed: number (0-100)}
+        - glassBreakSettings: object {isEnabled: boolean, sensitivity: number (0-100),
+          sensitivityWhenArmed: number (0-100)}
+        - scheduleMode: enum[always|when_armed]
+        - armProfileIds: array|null
+        - hasCustomSensitivityWhenArmed: boolean
+        - alarmSettings: object {isEnabled: boolean}
+
+        Example call (update_sensor):
+            {
+              "host": "my-console",
+              "sensor_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            sensor_id: Protect sensor id. Get it from list_sensors (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/sensors/{id} body.
+        """
+        client, registry = deps_fn()
+        return await protect.update_sensor(client, registry, host, sensor_id, **settings)
+
+    # --- Protect Historical Events ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_protect_events(
+        host: str,
+        start: int,
+        end: int,
+        types: str | list[str] | None = None,
+        cameras: str | list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        order_direction: str | None = None,
+        smart_detect_types: str | list[str] | None = None,
+        categories: str | list[str] | None = None,
+        without_descriptions: bool | None = None,
+    ) -> dict[str, Any]:
+        """Query historical Protect events via private /proxy/protect/api/events; the official
+        Integration events endpoint is WebSocket-only.
+
+        Returns drained object pages preserving data and the first page's envelope fields, adding _count
+        and _warnings. A drain of bare arrays returns {result, _count} with _warnings when applicable.
+        Capped drains also carry incomplete/incompleteReason. An explicit offset/limit fetches one page
+        when offset is supplied: a bare list stays a list (without warnings); an object page
+        preserves every upstream top-level field verbatim, including data and totalCount, adding
+        only _count and _warnings. Sensor events retain sensor:null and gain _resolved_sensor from
+        metadata.sensorId.text. All event fields and identifiers are preserved.
+        Object pages carry epoch-unit and smart-detect _warnings, as drained results do.
+
+        Required host/start/end; time is integer epoch SECONDS, never ISO strings or
+        milliseconds. Negative or millisecond-magnitude times are not refused: they are
+        converted to milliseconds like any time and object results carry _warnings.
+        query_isp_metrics instead takes ISO 8601 strings. Face names are at
+        metadata.detectedThumbnails[].matchedName. types, smart_detect_types and categories are
+        forwarded as given (empty list sends no parameter); empty cameras applies no filter. Full
+        examples: docs/TOOL-USAGE.md#list_protect_events.
+
+        Required arguments: host, start, end (see parameter descriptions for identifiers).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            start: REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally.
+                Bounds are exact millisecond instants; end excludes the remainder of its second.
+                History depth is bounded by the NVR's retention.
+                (Contrast query_isp_metrics, which wants ISO 8601 strings.)
+            end: REQUIRED. Epoch SECONDS (UTC) as integers, converted to milliseconds internally. Ranges
+                are exact millisecond instants; end excludes the remainder of its second.
+                History depth is bounded by the NVR's retention. (Contrast
+                query_isp_metrics, which wants ISO 8601 strings.)
+            types: Filter by event TYPE; single value or a list. Verified-present values: motion,
+                smartDetectZone, smartAudioDetect, sensorOpened, sensorClosed, access. Smart-detect
+                subtypes (person, face, animal, alrmSpeak and so on) are not event types; pass them in
+                smart_detect_types instead. An unrecognised value returns zero events.
+                Shape: string|string[]
+            cameras: filter by camera NAME or ID; single value or list. Names resolve to IDs: an exact
+                match first, then Unicode-normalized (NFC) and case-insensitive, then ignoring
+                surrounding whitespace (case kept before case-insensitive); an unknown name errors
+                (listing the camera names as the console has them) rather than silently matching
+                nothing.
+                Shape: string|string[]
+            limit: Without offset, the event count gathered from the beginning across pages;
+                fewer only when the window ends. With offset, limit is sent unchanged as one
+                page. No size clamp is measured on this feed. _pageSize reports the requested
+                count, the size sent on each request, the observed effective size and the
+                returned count. Omit limit and offset to drain all events; the only page cap is
+                opt-in UNIFI_PAGINATE_MAX_PAGES, which marks an early stop incomplete.
+                Example: `25`.
+            offset: Zero-based starting record. Fetches one page: with limit, limit is sent
+                unchanged as that page size (not collected across pages). Omit both to drain every
+                event for the window. The opt-in UNIFI_PAGINATE_MAX_PAGES marks an early stop
+                incomplete; no default page cap applies.
+                Example: `25`.
+            order_direction: Optional sort order sent as orderDirection: "ASC" (oldest-first) or "DESC"
+                (newest-first). Omitted (default): no orderDirection is sent and the upstream's own
+                order applies.
+            smart_detect_types: filter by the smart-detect SUBTYPE — person, vehicle, animal, package,
+                face, licensePlate (on smartDetectZone events) and the audio alarms alrmSpeak,
+                alrmSiren, alrmBark, alrmCarHorn (on smartAudioDetect events). This is a distinct
+                upstream parameter from types. The API only honours it when types is also set to the
+                relevant event type(s); passing smart_detect_types alone is a silent no-op upstream:
+                it is still sent, and the result carries a _warnings entry
+                (SMART_DETECT_TYPES_WITHOUT_TYPES). Example: types="smartDetectZone",
+                smart_detect_types="person" for just person detections; types="smartAudioDetect",
+                smart_detect_types="alrmSpeak" to isolate the dominant audio-alarm noise.
+                Shape: string|string[]
+            categories: filter by event category; single value or list. Verified values: motion, smart,
+                iot, admin. Unknown values are silently ignored by the upstream API.
+                Shape: string|string[]
+            without_descriptions: when true, ask the API to omit each event's description block (~16%
+                smaller payload). Opt-in only — full-fidelity records are the default and descriptions
+                are never dropped automatically."""
+        client, registry = deps_fn()
+        return await protect.list_protect_events(
+            client,
+            registry,
+            host,
+            start,
+            end,
+            types,
+            cameras,
+            limit,
+            offset,
+            order_direction,
+            smart_detect_types=smart_detect_types,
+            categories=categories,
+            without_descriptions=without_descriptions,
+        )
+
+    # --- Protect Live-Stream Collectors (explicit poll-count REST collection) ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def collect_protect_events(
+        host: str,
+        poll_count: int = 6,
+        max_events: int | None = None,
+        since: int | None = None,
+        types: str | list[str] | None = None,
+        cameras: str | list[str] | None = None,
+        smart_detect_types: str | list[str] | None = None,
+        poll_interval_seconds: float = 2.0,
+        order_direction: str | None = None,
+    ) -> dict[str, Any]:
+        """Collect Protect events over a bounded polling window (live-feed stand-in).
+
+        The window is bounded by `poll_count` complete polls, never by elapsed time.
+        The result adds incomplete / incompleteReason when a poll's drain stopped short or a
+        later poll failed.
+
+        Protect's `/v1/subscribe/events` WebSocket feed is NOT reachable over the Fabric
+        cloud connector (a unary request/response relay — verified: an upgrade GET
+        returns 404, never 101). This tool is the REST equivalent: it polls the
+        historical-events path for `poll_count` complete polls and returns every distinct event
+        seen in one call. Read-only and stateless — each call starts fresh and holds no
+        cursor between calls.
+
+        Returns {result, _poll_count, _polls, _truncated} — result holds the verbatim upstream
+        objects, de-duplicated by event id with the LATEST object per id kept; an event with no
+        id is de-duplicated by its full record (an identical id-less event seen by several
+        polls is kept, and counted toward max_events, once). Each poll
+        drains every page; there is no page cap by default, and only the opt-in
+        UNIFI_PAGINATE_MAX_PAGES can stop a poll early (the result then carries incomplete:
+        true with the reason). When a poll fails after an earlier poll succeeded (any error: an
+        HTTP error, a 429 that outlasted the retries, a transport or shape error), polling stops
+        and the events gathered so far are returned with incomplete: true and an
+        incompleteReason carrying that poll's complete error; a failing first poll raises it.
+        An upstream 404/501 (Protect absent) is passed straight through.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            poll_count: positive integer number of complete polls in the bounded polling window
+                (default 6). An active poll is never interrupted by elapsed time; lifecycle
+                cancellation remains available.
+            max_events: Optional early stop: once this many distinct events are collected, stop and
+                flag `_truncated=true`. Default None (omit it): no limit, all requested polls complete.
+                A single poll is never truncated mid-page, so the count may slightly exceed it.
+            since: optional epoch SECONDS lower bound; defaults to the moment the call starts, so only
+                events at/after the call are collected. A negative or millisecond-magnitude value
+                (>= 1e11) is not refused: it is converted to milliseconds like any time, and the result
+                carries a _warnings entry.
+            types: same filters and validation as `list_protect_events` (camera names resolve to IDs;
+                smart_detect_types without types is sent with a _warnings entry).
+                Shape: string|string[]
+            cameras: same filters and validation as `list_protect_events` (camera names resolve to IDs;
+                smart_detect_types without types is sent with a _warnings entry).
+                Shape: string|string[]
+            smart_detect_types: same filters and validation as `list_protect_events` (camera names
+                resolve to IDs; smart_detect_types without types is sent with a _warnings entry).
+                Shape: string|string[]
+            poll_interval_seconds: pacing delay between completed polls (default 2). This never
+                bounds request duration or cancels active work.
+                Zero means no timed delay; the event loop still yields. Small values may hit
+                the shared 429 backoff, which the client handles.
+            order_direction: Optional sort order sent on every poll as orderDirection: "ASC"
+                (oldest-first) or "DESC" (newest-first). Omitted (default): no orderDirection is sent
+                and the upstream's own order applies.
+        """
+        client, registry = deps_fn()
+        return await protect.collect_protect_events(
+            client,
+            registry,
+            host,
+            poll_count=poll_count,
+            max_events=max_events,
+            since=since,
+            types=types,
+            cameras=cameras,
+            smart_detect_types=smart_detect_types,
+            poll_interval_seconds=poll_interval_seconds,
+            order_direction=order_direction,
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def collect_protect_device_changes(
+        host: str,
+        poll_count: int = 6,
+        max_changes: int | None = None,
+        poll_interval_seconds: float = 2.0,
+    ) -> dict[str, Any]:
+        """Collect Protect device add/remove/modify changes by polling every device family for
+        poll_count complete snapshots. The WebSocket subscription is unavailable through Fabric;
+        this read-only, stateless tool is its REST equivalent.
+
+        Returns {_poll_count, _polls, _truncated, changes}; each change has
+        change=added|removed|modified and the upstream device object verbatim (current for
+        added/modified, last-seen for removed). Heartbeat-only lastSeen/uptime/upSince changes are
+        ignored. Objects without id cannot be diffed: each distinct object appears verbatim in
+        unidentified as {family, device}, even if later absent; heartbeat-only differences collapse
+        to the latest form. These produce incomplete/incompleteReason.
+
+        404/501 families appear in unavailableFamilies with their complete upstream errors and
+        incomplete=true. A family unavailable in either consecutive poll is excluded from that diff,
+        preventing false additions/removals. Every family unavailable raises the upstream error. A
+        failed first poll raises; failure after a successful poll stops and returns collected
+        changes with incomplete=true and the complete poll error in incompleteReason. Other families
+        still count. Full workflow: docs/TOOL-USAGE.md#collect_protect_device_changes.
+
+        Required arguments: host (see parameter descriptions for identifiers).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            poll_count: positive integer number of complete snapshots (default 6). At least two
+                polls detect changes; elapsed time never interrupts an active snapshot.
+            max_changes: Optional early stop: once this many change records accumulate, stop and flag
+                `_truncated=true`. Default None (omit it): no limit, all requested polls complete.
+            poll_interval_seconds: pacing delay between completed polls (default 2). This never
+                bounds request duration or cancels active work.
+                Zero means no timed delay; the event loop still yields. Small values may hit
+                the shared 429 backoff, which the client handles.
+        """
+        client, registry = deps_fn()
+        return await protect.collect_protect_device_changes(
+            client,
+            registry,
+            host,
+            poll_count=poll_count,
+            max_changes=max_changes,
+            poll_interval_seconds=poll_interval_seconds,
+        )
+
+    return {
+        "list_cameras": list_cameras,
+        "get_camera": get_camera,
+        "update_camera": update_camera,
+        "enable_camera_share_link": enable_camera_share_link,
+        "get_camera_share_link": get_camera_share_link,
+        "disable_camera_share_link": disable_camera_share_link,
+        "get_camera_snapshot": get_camera_snapshot,
+        "get_rtsps_stream": get_rtsps_stream,
+        "create_rtsps_stream": create_rtsps_stream,
+        "delete_rtsps_stream": delete_rtsps_stream,
+        "start_talkback_session": start_talkback_session,
+        "disable_camera_mic_permanently": disable_camera_mic_permanently,
+        "ptz_goto_preset": ptz_goto_preset,
+        "ptz_patrol_start": ptz_patrol_start,
+        "ptz_patrol_stop": ptz_patrol_stop,
+        "list_sensors": list_sensors,
+        "get_sensor": get_sensor,
+        "update_sensor": update_sensor,
+        "list_protect_events": list_protect_events,
+        "collect_protect_events": collect_protect_events,
+        "collect_protect_device_changes": collect_protect_device_changes,
+    }
+
+
+def register_2(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the protect tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_lights(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all lights on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of lights verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_lights(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_light(
+        host: str,
+        light_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect light by ID.
+
+        Returns: the light object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_light (a partial PATCH).
+
+        Example call (get_light):
+            {"host": "my-console", "light_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            light_id: Protect light id. Get it from list_lights (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_light(client, registry, host, light_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_light(
+        host: str,
+        light_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update settings for a Protect light (brightness, sensitivity, etc.).
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects are compared
+        leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/lights/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - isLightForceEnabled: boolean
+        - lightModeSettings: object {mode: enum[always|motion|off], enableAt:
+          enum[fulltime|dark]}
+        - lightDeviceSettings: object {isIndicatorEnabled: boolean, pirDuration: number,
+          milliseconds the light stays on after motion (>= 0, e.g. 30000), pirSensitivity:
+          number (0-100), ledLevel: number (1-6)}
+
+        Example call (update_light):
+            {
+              "host": "my-console",
+              "light_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            light_id: Protect light id. Get it from list_lights (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/lights/{id} body. Keys: name, isLightForceEnabled, lightModeSettings,
+                lightDeviceSettings.
+        """
+        client, registry = deps_fn()
+        return await protect.update_light(client, registry, host, light_id, **settings)
+
+    # --- Protect Chime Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_chimes(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all chimes on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of chimes verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_chimes(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_chime(
+        host: str,
+        chime_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect chime by ID.
+
+        Returns: the chime object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_chime (a partial PATCH).
+
+        Example call (get_chime):
+            {"host": "my-console", "chime_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            chime_id: Protect chime id. Get it from list_chimes (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_chime(client, registry, host, chime_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_chime(
+        host: str,
+        chime_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update a Protect chime: name, paired cameraIds or per-camera ringSettings (volume, ringtone).
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects are compared
+        leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/chimes/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - cameraIds: array of string
+        - ringSettings: array of object {cameraId: string, repeatTimes: number (1-10),
+          ringtoneId: string, volume: number (0-100)} (every item key required)
+
+        Example call (update_chime):
+            {
+              "host": "my-console",
+              "chime_id": "00000000000000000000010b",
+              "settings": {"name": "Hallway chime"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            chime_id: Protect chime id. Get it from list_chimes (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/chimes/{id} body. Keys: name, cameraIds, ringSettings.
+        """
+        client, registry = deps_fn()
+        return await protect.update_chime(client, registry, host, chime_id, **settings)
+
+    # --- Protect Viewer Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_viewers(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all viewers on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of viewers verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_viewers(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_viewer(
+        host: str,
+        viewer_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect viewer by ID.
+
+        Returns: the viewer object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_viewer (a partial PATCH).
+
+        Example call (get_viewer):
+            {"host": "my-console", "viewer_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            viewer_id: Protect viewer id. Get it from list_viewers (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_viewer(client, registry, host, viewer_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_viewer(
+        host: str,
+        viewer_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update settings for a Protect viewer (liveview assignment, etc.).
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects are compared
+        leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/viewers/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - liveview: oneOf[liveviewId|null]
+
+        Example call (update_viewer):
+            {
+              "host": "my-console",
+              "viewer_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            viewer_id: Protect viewer id. Get it from list_viewers (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/viewers/{id} body. Keys: name, liveview.
+        """
+        client, registry = deps_fn()
+        return await protect.update_viewer(client, registry, host, viewer_id, **settings)
+
+    # --- Protect Liveview Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_liveviews(
+        host: str,
+    ) -> dict[str, Any]:
+        """List all liveviews on a Protect console.
+
+        Returns {result, _count}: result is the upstream array of liveviews verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_liveviews(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_liveview(
+        host: str,
+        liveview_id: str,
+    ) -> dict[str, Any]:
+        """Get details for a single Protect liveview by ID.
+
+        Returns: the liveview object, verbatim. To change it, pass only the fields to change as
+        `settings` to update_liveview (a partial PATCH).
+
+        Example call (get_liveview):
+            {"host": "my-console", "liveview_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            liveview_id: Protect liveview id. Get it from list_liveviews (id). Protect id (24-hex) — not
+                a Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_liveview(client, registry, host, liveview_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_liveview(
+        host: str,
+        name: str,
+        settings: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a liveview on a Protect console.
+
+        Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Request body (Protect 7.3.74, POST /v1/liveviews; schema "inline requestBody schema") is passed
+        in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout, slots.
+        - id: string
+        - modelKey: string
+        - name: string
+        - isDefault: boolean
+        - isGlobal: boolean
+        - owner: string
+        - layout: number (1-26; the number of slots)
+        - slots: array of object {cameras: array of string (camera ids), cycleMode:
+          enum[motion|time], cycleInterval: number (seconds)} (every item key required)
+        Spec POST /v1/liveviews body is allOf[liveview] whose required list includes server-side fields
+        (id, modelKey, owner); tool merges name + settings into the body. Provide layout + slots; treat
+        id/modelKey/owner requirement as spec-as-published.
+
+        Example call (create_liveview):
+            {
+              "host": "my-console",
+              "name": "Front of house",
+              "settings": {
+                "id": "00000000000000000000010b",
+                "modelKey": "liveview",
+                "isDefault": true,
+                "isGlobal": true,
+                "owner": "00000000000000000000010b",
+                "layout": 9,
+                "slots": [
+                  {
+                    "cameras": ["00000000000000000000010b"],
+                    "cycleMode": "motion",
+                    "cycleInterval": 10
+                  }
+                ]
+              }
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            name: Liveview display name (body field name).
+            settings: Rest of the body (Protect 7.3.74 POST /v1/liveviews), merged with name. Provide
+                layout, slots, id, modelKey, isDefault, isGlobal and owner, all required by the
+                published schema. Leave name out; it comes from the name argument.
+                Shape: {layout:number,slots:{cameras:string[],cycleMode:'motion'|'time',
+                cycleInterval:number}[],id:string,modelKey:string,isDefault:boolean,
+                isGlobal:boolean,owner:string}
+        """
+        client, registry = deps_fn()
+        extra = settings or {}
+        return await protect.create_liveview(client, registry, host, name, **extra)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_liveview(
+        host: str,
+        liveview_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update a liveview on a Protect console.
+
+        Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
+        resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
+        PATCH, read-after: before/after are the object read before and after the write, verified
+        is true when the read-after carries every sent leaf value (nested objects are compared
+        leaf by leaf, so a partial nested update verifies by the leaves
+        it sends; sibling keys it does not send are ignored), and response is the PATCH body
+        verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/liveviews/{id}; schema "inline requestBody schema") is
+        passed in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout,
+        slots (spec list, not checked: partial settings are sent as given).
+        - id: string
+        - modelKey: string
+        - name: string
+        - isDefault: boolean
+        - isGlobal: boolean
+        - owner: string
+        - layout: number (1-26; the number of slots)
+        - slots: array of object {cameras: array of string (camera ids), cycleMode:
+          enum[motion|time], cycleInterval: number (seconds)} (every item key required)
+
+        Example call (update_liveview):
+            {
+              "host": "my-console",
+              "liveview_id": "00000000000000000000010b",
+              "settings": {
+                "id": "00000000000000000000010b",
+                "modelKey": "liveview",
+                "name": "Lobby",
+                "isDefault": true,
+                "isGlobal": true,
+                "owner": "00000000000000000000010b",
+                "layout": 9,
+                "slots": [
+                  {
+                    "cameras": ["00000000000000000000010b"],
+                    "cycleMode": "motion",
+                    "cycleInterval": 10
+                  }
+                ]
+              }
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            liveview_id: Protect liveview id. Get it from list_liveviews (id). Protect id (24-hex) — not
+                a Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/liveviews/{id} body. Required: id, modelKey, name, isDefault, isGlobal, owner,
+                layout, slots. Spec list, not checked here: partial settings are sent as given.
+        """
+        client, registry = deps_fn()
+        return await protect.update_liveview(client, registry, host, liveview_id, **settings)
+
+    # --- Protect NVR Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_nvr(
+        host: str,
+    ) -> dict[str, Any]:
+        """Get NVR details from a Protect console.
+
+        Returns NVR hardware info, storage status, firmware version, and system health.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.get_nvr(client, registry, host)
+
+    # --- Protect File Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_protect_files(
+        host: str,
+        file_type: str,
+    ) -> dict[str, Any]:
+        """List Protect device asset files of a given type.
+
+        Returns {result, _count}: result is the upstream array of files verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count); _file_type echoes
+        the file_type argument.
+
+        Required arguments: host, file_type (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            file_type: Protect asset category (path fileType). Protect 7.3.74 documents one value,
+                'animations'; the value is passed through as given. The GET
+                endpoint does NOT validate this value — an unrecognised category returns HTTP 200 with
+                an empty list rather than an error, so a wrong value is indistinguishable from a
+                genuinely empty category. Pass a known category exactly. Letters, digits, '-' and
+                '_' only; anything else is rejected before any request.
+        """
+        client, registry = deps_fn()
+        return await protect.list_protect_files(client, registry, host, file_type)
+
+    @mcp.tool(annotations=WRITE)
+    async def upload_protect_file(
+        host: str,
+        file_type: str,
+        filename: str,
+        file_content_base64: str,
+        content_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Upload a Protect device asset file. WARNING: Uploads asset file to NVR storage.
+        Overwriting system files may not be reversible.
+
+        Consequence: the file is stored on the console and may overwrite an existing asset, which may
+        not be reversible.
+
+        Returns {status: "uploaded", response}: response is the upstream body verbatim (decoded
+        JSON, the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        `file_type`: Protect asset category. Protect 7.3.74 documents one value, 'animations';
+          the value is passed through as given and selects the upload target path
+          (/files/{file_type}). The category is not
+          validated on read-back, so pass a known category exactly.
+
+        Request body: Protect 7.3.74 POST /v1/files/{fileType} is a multipart upload; the tool builds
+        the file part from filename + file_content_base64. No JSON body. The part's Content-Type is
+        content_type when given, else the spec type of the filename extension: .gif image/gif,
+        .jpg/.jpeg image/jpeg, .png image/png, .mp3 audio/mpeg, .m4a/.mp4 audio/mp4, .wav
+        audio/wave, .caf audio/x-caf. Any other extension without content_type is rejected before
+        any request, listing these types.
+
+        Example call (upload_protect_file):
+            {
+              "host": "my-console",
+              "file_type": "animations",
+              "filename": "alert.gif",
+              "file_content_base64": "R0lGODlhAQABAAAAACw="
+            }
+
+        The dry-run preview contains method, path, params (query parameters), body (null: no JSON
+        body) and multipart: one {field, filename, contentType, sizeBytes} entry per file part
+        (field "file"), never the file bytes.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            file_type: Protect asset category (path fileType); Protect 7.3.74 documents one value,
+                'animations'. Letters, digits, '-' and '_' only; anything else is rejected before
+                any request.
+            filename: Filename for the uploaded asset; its extension selects the part's Content-Type
+                unless content_type is given.
+            file_content_base64: File bytes, standard base64 (padded). Line-wrapped base64 (MIME/PEM
+                line breaks) is accepted; a data: URL prefix is not.
+            content_type: Optional MIME type of the file part (e.g. "audio/wave"), sent as given; omit
+                it to derive the type from the filename extension.
+        """
+        client, registry = deps_fn()
+        return await protect.upload_protect_file(
+            client, registry, host, file_type, filename, file_content_base64, content_type
+        )
+
+    # --- Protect Alarm Manager Tools ---
+
+    @mcp.tool(annotations=WRITE)
+    async def trigger_alarm_webhook(
+        host: str,
+        webhook_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Trigger an alarm manager webhook by ID. WARNING: triggers physical alarm hardware.
+        Verify the webhook ID before calling; the trigger is never auto-retried.
+
+        Consequence: the alarm hardware behind the webhook acts in the real world.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (trigger_alarm_webhook):
+            {"host": "my-console", "webhook_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            webhook_id: Alarm Manager webhook id (from the Protect Alarm Manager webhook trigger; the
+                spec alarmTriggerId, a user-defined string). Any non-empty string without a control
+                character is accepted and percent-encoded into the path as one segment ("." / ".."
+                segments are refused). No list tool exists; verify before calling.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.trigger_alarm_webhook(client, registry, host, webhook_id)
+
+    # --- Protect Arm Profile & Alarm Tools ---
+    #
+    # Extended Protect Integration API families, all reached over the same
+    # Fabric connector base (…/proxy/protect/integration/v1) as the camera tools. The
+    # write/action tools are governed by the family:protect=deny env gate
+    # (default ON); the confirm argument is accepted for compatibility and no longer required.
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_arm_profiles(
+        host: str,
+    ) -> dict[str, Any]:
+        """List arm profiles on a Protect console (GET /v1/arm-profiles via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of arm profiles verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Availability requires a Protect application exposing the published Protect Integration API.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_arm_profiles(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_arm_profile(
+        host: str,
+        arm_profile_id: str,
+    ) -> dict[str, Any]:
+        """Get one arm profile by id (filters GET /v1/arm-profiles; no GET-by-id exists upstream).
+
+        Returns: the arm profile object, verbatim. To change it, pass only the fields to change as
+        `settings` to update_arm_profile (a partial PATCH). An id the list does not carry fails,
+        listing every valid arm_profile_id.
+
+        Example call (get_arm_profile):
+            {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            arm_profile_id: Protect arm profile id. Get it from list_arm_profiles (id). Protect id
+                (24-hex) — not a Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_arm_profile(client, registry, host, arm_profile_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def create_arm_profile(
+        host: str,
+        name: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create an arm profile (POST /v1/arm-profiles via Fabric proxy).
+
+        Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Request body (Protect 7.3.74, POST /v1/arm-profiles; schema "inline requestBody schema") is
+        passed in `name` + settings (merged; settings must NOT contain name). Required keys — name,
+        automations, schedules, recordEverything, activationDelay.
+        - name: string 1-255
+        - automations: array of string (automation ids)
+        - schedules: array of armSchedule objects {start: string (cron expression), end: string
+          (cron expression)} (both required)
+        - recordEverything: boolean
+        - activationDelay: one of 0|60000|300000|600000 (ms)
+
+        Example call (create_arm_profile):
+            {
+              "host": "my-console",
+              "name": "Night",
+              "settings": {
+                "automations": [],
+                "schedules": [],
+                "recordEverything": false,
+                "activationDelay": 0
+              }
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            name: REQUIRED profile name (1-255 chars), sent as the body field name. Do not repeat it
+                inside settings; a settings['name'] that differs from this value is rejected with a
+                clear error.
+            settings: Rest of the body (Protect 7.3.74 POST /v1/arm-profiles). Required: automations,
+                schedules, recordEverything, activationDelay (0|60000|300000|600000). Leave name out; it
+                comes from the name argument.
+        """
+        client, registry = deps_fn()
+        return await protect.create_arm_profile(client, registry, host, name, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_arm_profile(
+        host: str,
+        arm_profile_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update an arm profile (PATCH /v1/arm-profiles/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored). An unknown arm_profile_id fails
+        before any PATCH, listing every valid id.
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/arm-profiles/{id}; schema "inline requestBody schema")
+        is passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - automations: array of string
+        - schedules: array of armSchedule objects {start: string (cron expression), end: string
+          (cron expression)} (both required)
+        - recordEverything: boolean
+        - activationDelay: one of 0|60000|300000|600000 (ms)
+
+        Example call (update_arm_profile):
+            {
+              "host": "my-console",
+              "arm_profile_id": "00000000000000000000010b",
+              "settings": {"name": "Arm Profile"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            arm_profile_id: Protect arm profile id. Get it from list_arm_profiles (id). Protect id
+                (24-hex) — not a Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/arm-profiles/{id} body. Keys: name, automations, schedules, recordEverything,
+                activationDelay.
+        """
+        client, registry = deps_fn()
+        return await protect.update_arm_profile(client, registry, host, arm_profile_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def delete_arm_profile(
+        host: str,
+        arm_profile_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Delete an arm profile (DELETE /v1/arm-profiles/{id}). Irreversible — no undo.
+
+        Consequence: the profile can no longer be selected to arm the system.
+
+        The id is found in the arm-profile list first (as update_arm_profile does): an unknown
+        arm_profile_id fails before any DELETE, listing every valid id, and the DELETE addresses
+        the profile by the id the console listed (hex ids match case-insensitively).
+
+        Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
+        (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
+        response (the preview)}.
+
+        Example call (delete_arm_profile):
+            {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            arm_profile_id: Protect arm profile id. Get it from list_arm_profiles (id). Protect id
+                (24-hex) — not a Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.delete_arm_profile(
+            client, registry, host, arm_profile_id, confirm=confirm
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_arm_profile_settings(
+        host: str,
+        arm_profile_id: str,
+    ) -> dict[str, Any]:
+        """Select the active arm profile (PATCH /v1/arm-profiles/settings).
+
+        Returns {status: "updated", verified, before, after (the NVR armMode objects), response (the
+        PATCH body verbatim)}, or {status: "noop", reason, resource (the current armMode)}. When
+        the read-after fails or carries no armMode object, verified and after are null and
+        readAfterError says why. Under dry-run policy nothing is sent: {status: "dry_run", before
+        (the body read first), response (the preview)}; there is no read-after.
+
+        `arm_profile_id`: REQUIRED. Obtain it from `list_arm_profiles` (its id field); this
+          becomes the console's selected arm profile. The id is checked against
+          `list_arm_profiles` first: an id the list does not carry fails before any write,
+          naming the valid ids; a hex id matches case-insensitively and the body sends the
+          id as the list spells it. Reads the NVR armMode before/after (no-op if already
+          selected). Governed by family:protect=deny.
+
+        Request body (Protect 7.3.74, PATCH /v1/arm-profiles/settings; schema "inline requestBody
+        schema") is built from scalar parameters. Required keys — armProfileId.
+        - armProfileId: string
+
+        Example call (update_arm_profile_settings):
+            {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            arm_profile_id: Protect arm profile id. Get it from list_arm_profiles (id). Protect id
+                (24-hex) — not a Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.update_arm_profile_settings(client, registry, host, arm_profile_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def enable_arm(
+        host: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Enable the arm alarm using the selected profile (POST /v1/arm-profiles/enable).
+
+        Arm the alarm system using the selected arm profile.
+
+        Consequence: the alarm system is armed: sensors in the selected profile can trigger alarms.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        WARNING: arms the alarm system (physical side effects); requires a local Alarm Manager.
+
+        Example call (enable_arm):
+            {"host": "my-console"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.enable_arm(client, registry, host, confirm=confirm)
+
+    @mcp.tool(annotations=WRITE)
+    async def disable_arm(
+        host: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Disable the arm alarm (POST /v1/arm-profiles/disable). Disarms the system.
+
+        Consequence: the alarm system is disarmed: armed sensors no longer trigger alarms.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        WARNING: physical side effects; requires a local Alarm Manager.
+
+        Example call (disable_arm):
+            {"host": "my-console"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.disable_arm(client, registry, host, confirm=confirm)
+
+    # --- Protect Siren Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_sirens(
+        host: str,
+    ) -> dict[str, Any]:
+        """List sirens on a Protect console (GET /v1/sirens via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of sirens verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_sirens(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_siren(
+        host: str,
+        siren_id: str,
+    ) -> dict[str, Any]:
+        """Get one siren by id (GET /v1/sirens/{id}).
+
+        Returns: the siren object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_siren (a partial PATCH).
+
+        Example call (get_siren):
+            {"host": "my-console", "siren_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            siren_id: Protect siren id. Get it from list_sirens (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_siren(client, registry, host, siren_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_siren(
+        host: str,
+        siren_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update siren settings (PATCH /v1/sirens/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/sirens/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - volume: integer (1-100)
+        - ledSettings: object {isEnabled: boolean (required inside ledSettings)}
+
+        Example call (update_siren):
+            {
+              "host": "my-console",
+              "siren_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            siren_id: Protect siren id. Get it from list_sirens (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/sirens/{id} body. Keys: name, volume, ledSettings.
+        """
+        client, registry = deps_fn()
+        return await protect.update_siren(client, registry, host, siren_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def siren_play(
+        host: str,
+        siren_id: str,
+        confirm: bool = False,
+        duration: int | None = None,
+    ) -> dict[str, Any]:
+        """Sound a siren (POST /v1/sirens/{id}/play). WARNING: physical alarm sound.
+
+        Consequence: a loud siren sounds at the site for the chosen duration.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        The siren sounds for `duration` seconds (5/10/20/30; 5 upstream when omitted).
+        Governed by family:protect=deny.
+
+        Request body (Protect 7.3.74, POST /v1/sirens/{id}/play; schema "inline requestBody schema") is
+        built from scalar parameters. No key is required; send only the keys to change.
+        - duration: one of 5|10|20|30 (seconds)
+
+        Example call (siren_play):
+            {"host": "my-console", "siren_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            siren_id: Protect siren id. Get it from list_sirens (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            duration: Seconds to sound: 5, 10, 20, or 30 (spec sirenDurationSeconds). Default 5.
+        """
+        client, registry = deps_fn()
+        return await protect.siren_play(
+            client, registry, host, siren_id, confirm=confirm, duration=duration
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def siren_stop(
+        host: str,
+        siren_id: str,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Stop a sounding siren (POST /v1/sirens/{id}/stop). WARNING: physical action.
+
+        Consequence: the siren is silenced.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Example call (siren_stop):
+            {"host": "my-console", "siren_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            siren_id: Protect siren id. Get it from list_sirens (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.siren_stop(client, registry, host, siren_id, confirm=confirm)
+
+    @mcp.tool(annotations=WRITE)
+    async def siren_test_sound(
+        host: str,
+        siren_id: str,
+        confirm: bool = False,
+        volume: int | None = None,
+    ) -> dict[str, Any]:
+        """Test a siren's sound (POST /v1/sirens/{id}/test-sound). WARNING: physical sound.
+
+        Consequence: the siren plays a test sound aloud.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        `volume`: 1-100 (defaults to device volume upstream).
+          Governed by family:protect=deny.
+
+        Request body (Protect 7.3.74, POST /v1/sirens/{id}/test-sound; schema "inline requestBody
+        schema") is built from scalar parameters. No key is required; send only the keys to change.
+        - volume: integer (1-100)
+
+        Example call (siren_test_sound):
+            {"host": "my-console", "siren_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            siren_id: Protect siren id. Get it from list_sirens (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            volume: Test volume 1-100; omit to use the device volume.
+        """
+        client, registry = deps_fn()
+        return await protect.siren_test_sound(
+            client, registry, host, siren_id, confirm=confirm, volume=volume
+        )
+
+    # --- Protect Fob Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_fobs(
+        host: str,
+    ) -> dict[str, Any]:
+        """List fobs on a Protect console (GET /v1/fobs via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of fobs verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_fobs(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_fob(
+        host: str,
+        fob_id: str,
+    ) -> dict[str, Any]:
+        """Get one fob by id (GET /v1/fobs/{id}).
+
+        Returns: the fob object, verbatim. To change it, pass only the fields to change as `settings` to
+        update_fob (a partial PATCH).
+
+        Example call (get_fob):
+            {"host": "my-console", "fob_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            fob_id: Protect fob id. Get it from list_fobs (id). Protect id (24-hex) — not a Network
+                device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_fob(client, registry, host, fob_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_fob(
+        host: str,
+        fob_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update fob settings (PATCH /v1/fobs/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/fobs/{id}; schema "inline requestBody schema") is passed
+        in `settings`. No key is required; send only the keys to change.
+        - name: string
+
+        Example call (update_fob):
+            {
+              "host": "my-console",
+              "fob_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            fob_id: Protect fob id. Get it from list_fobs (id). Protect id (24-hex) — not a Network
+                device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/fobs/{id} body. Keys: name.
+        """
+        client, registry = deps_fn()
+        return await protect.update_fob(client, registry, host, fob_id, **settings)
+
+    # --- Protect Relay Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_relays(
+        host: str,
+    ) -> dict[str, Any]:
+        """List relays on a Protect console (GET /v1/relays via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of relays verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_relays(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_relay(
+        host: str,
+        relay_id: str,
+    ) -> dict[str, Any]:
+        """Get one relay by id (GET /v1/relays/{id}).
+
+        Returns: the relay object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_relay (a partial PATCH).
+
+        Example call (get_relay):
+            {"host": "my-console", "relay_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            relay_id: Protect relay id. Get it from list_relays (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_relay(client, registry, host, relay_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_relay(
+        host: str,
+        relay_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update relay settings (PATCH /v1/relays/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/relays/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - ledSettings: object {isEnabled: boolean}
+
+        Example call (update_relay):
+            {
+              "host": "my-console",
+              "relay_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            relay_id: Protect relay id. Get it from list_relays (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/relays/{id} body. Keys: name, ledSettings.
+        """
+        client, registry = deps_fn()
+        return await protect.update_relay(client, registry, host, relay_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def relay_activate_output(
+        host: str,
+        relay_id: str,
+        output_id: int | str,
+        confirm: bool = False,
+        state: str | None = None,
+        pulse_duration: int | None = None,
+    ) -> dict[str, Any]:
+        """Switch a relay output (POST /v1/relays/{id}/outputs/{outputId}/activate).
+
+        Consequence: whatever is wired to the relay output (door lock, gate, light) acts in the real
+        world.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        WARNING: physically switches hardware.
+
+        Request body (Protect 7.3.74, POST /v1/relays/{id}/outputs/{outputId}/activate; schema "inline
+        requestBody schema") is built from scalar parameters. No key is required; send only the keys to
+        change.
+        - state: enum[on|off]
+        - pulseDuration: integer (ms)
+
+        Example call (relay_activate_output):
+            {"host": "my-console", "relay_id": "00000000000000000000010b", "output_id": 0}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            relay_id: Protect relay id. Get it from list_relays (id). Protect id (24-hex) — not a
+                Network device UUID.
+            output_id: Output channel id on that device; spec: integer 0 or 1 (an integer, or the same
+                value as a decimal string '0'|'1'). See get_relay.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            state: 'on' or 'off'; omit to toggle (spec body state).
+            pulse_duration: Auto-off after N ms (spec body pulseDuration, >=0). The spec applies it
+                only when state is 'on'; the server sends it as given and does not check state.
+        """
+        client, registry = deps_fn()
+        return await protect.relay_activate_output(
+            client,
+            registry,
+            host,
+            relay_id,
+            output_id,
+            confirm=confirm,
+            state=state,
+            pulse_duration=pulse_duration,
+        )
+
+    # --- Protect Speaker Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_speakers(
+        host: str,
+    ) -> dict[str, Any]:
+        """List speakers on a Protect console (GET /v1/speakers via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of speakers verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_speakers(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_speaker(
+        host: str,
+        speaker_id: str,
+    ) -> dict[str, Any]:
+        """Get one speaker by id (GET /v1/speakers/{id}).
+
+        Returns: the speaker object, verbatim. To change it, pass only the fields to change as
+        `settings` to update_speaker (a partial PATCH).
+
+        Example call (get_speaker):
+            {"host": "my-console", "speaker_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            speaker_id: Protect speaker id. Get it from list_speakers (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_speaker(client, registry, host, speaker_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_speaker(
+        host: str,
+        speaker_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update speaker settings (PATCH /v1/speakers/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/speakers/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+        - volume: integer (0-100)
+        - micVolume: integer (0-100)
+        - isMicEnabled: boolean
+
+        Example call (update_speaker):
+            {
+              "host": "my-console",
+              "speaker_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            speaker_id: Protect speaker id. Get it from list_speakers (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/speakers/{id} body. Keys: name, volume, micVolume, isMicEnabled.
+        """
+        client, registry = deps_fn()
+        return await protect.update_speaker(client, registry, host, speaker_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def speaker_test_sound(
+        host: str,
+        speaker_id: str,
+        confirm: bool = False,
+        volume: int | None = None,
+    ) -> dict[str, Any]:
+        """Test a speaker's sound (POST /v1/speakers/{id}/test-sound). WARNING: physical sound.
+
+        Consequence: the speaker plays a test sound aloud.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        `volume`: 0-100 (defaults to device volume upstream).
+          Governed by family:protect=deny.
+
+        Request body (Protect 7.3.74, POST /v1/speakers/{id}/test-sound; schema "inline requestBody
+        schema") is built from scalar parameters. No key is required; send only the keys to change.
+        - volume: integer (0-100)
+
+        Example call (speaker_test_sound):
+            {"host": "my-console", "speaker_id": "00000000000000000000010b"}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            speaker_id: Protect speaker id. Get it from list_speakers (id). Protect id (24-hex) — not a
+                Network device UUID.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            volume: Test volume 0-100; omit to use the device volume.
+        """
+        client, registry = deps_fn()
+        return await protect.speaker_test_sound(
+            client, registry, host, speaker_id, confirm=confirm, volume=volume
+        )
+
+    # --- Protect Bridge Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_bridges(
+        host: str,
+    ) -> dict[str, Any]:
+        """List bridges on a Protect console (GET /v1/bridges via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of bridges verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_bridges(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_bridge(
+        host: str,
+        bridge_id: str,
+    ) -> dict[str, Any]:
+        """Get one bridge by id (GET /v1/bridges/{id}).
+
+        Returns: the bridge object, verbatim. To change it, pass only the fields to change as `settings`
+        to update_bridge (a partial PATCH).
+
+        Example call (get_bridge):
+            {"host": "my-console", "bridge_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            bridge_id: Protect bridge id. Get it from list_bridges (id). Protect id (24-hex) — not a
+                Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_bridge(client, registry, host, bridge_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_bridge(
+        host: str,
+        bridge_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update bridge settings (PATCH /v1/bridges/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/bridges/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+
+        Example call (update_bridge):
+            {
+              "host": "my-console",
+              "bridge_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            bridge_id: Protect bridge id. Get it from list_bridges (id). Protect id (24-hex) — not a
+                Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/bridges/{id} body. Keys: name.
+        """
+        client, registry = deps_fn()
+        return await protect.update_bridge(client, registry, host, bridge_id, **settings)
+
+    # --- Protect Link Station Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_link_stations(
+        host: str,
+    ) -> dict[str, Any]:
+        """List link stations on a Protect console (GET /v1/link-stations via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of link stations verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_link_stations(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_link_station(
+        host: str,
+        link_station_id: str,
+    ) -> dict[str, Any]:
+        """Get one link station by id (GET /v1/link-stations/{id}).
+
+        Returns: the link station object, verbatim. To change it, pass only the fields to change as
+        `settings` to update_link_station (a partial PATCH).
+
+        Example call (get_link_station):
+            {"host": "my-console", "link_station_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            link_station_id: Protect link station id. Get it from list_link_stations (id). Protect id
+                (24-hex) — not a Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_link_station(client, registry, host, link_station_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_link_station(
+        host: str,
+        link_station_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update link-station settings (PATCH /v1/link-stations/{id}) with read/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/link-stations/{id}; schema "inline requestBody schema")
+        is passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+
+        Example call (update_link_station):
+            {
+              "host": "my-console",
+              "link_station_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            link_station_id: Protect link station id. Get it from list_link_stations (id). Protect id
+                (24-hex) — not a Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/link-stations/{id} body. Keys: name.
+        """
+        client, registry = deps_fn()
+        return await protect.update_link_station(
+            client, registry, host, link_station_id, **settings
+        )
+
+    # --- Protect Alarm Hub Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_alarm_hubs(
+        host: str,
+    ) -> dict[str, Any]:
+        """List alarm hubs on a Protect console (GET /v1/alarm-hubs via Fabric proxy).
+
+        Returns {result, _count}: result is the upstream array of alarm hubs verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_alarm_hubs(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_alarm_hub(
+        host: str,
+        alarm_hub_id: str,
+    ) -> dict[str, Any]:
+        """Get one alarm hub by id (GET /v1/alarm-hubs/{id}).
+
+        Returns: the alarm hub object, verbatim. To change it, pass only the fields to change as
+        `settings` to update_alarm_hub (a partial PATCH).
+
+        Example call (get_alarm_hub):
+            {"host": "my-console", "alarm_hub_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            alarm_hub_id: Protect alarm hub id. Get it from list_alarm_hubs (id). Protect id (24-hex) —
+                not a Network device UUID.
+        """
+        client, registry = deps_fn()
+        return await protect.get_alarm_hub(client, registry, host, alarm_hub_id)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_alarm_hub(
+        host: str,
+        alarm_hub_id: str,
+        settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update alarm-hub settings (PATCH /v1/alarm-hubs/{id}) with read-before/no-op/read-after.
+
+        Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
+        {status: "noop", reason, resource} when every sent leaf already matches (nested objects
+        compared leaf by leaf; sibling keys not sent are ignored).
+        verified is null, with readAfterError, when the read-after fails or cannot be matched.
+        Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
+        (the preview)}; there is no read-after.
+
+        Request body (Protect 7.3.74, PATCH /v1/alarm-hubs/{id}; schema "inline requestBody schema") is
+        passed in `settings`. No key is required; send only the keys to change.
+        - name: string
+
+        Example call (update_alarm_hub):
+            {
+              "host": "my-console",
+              "alarm_hub_id": "00000000000000000000010b",
+              "settings": {"name": "Front Door"}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            alarm_hub_id: Protect alarm hub id. Get it from list_alarm_hubs (id). Protect id (24-hex) —
+                not a Network device UUID.
+            settings: Partial update (PATCH; only listed keys change); spec Protect 7.3.74 PATCH
+                /v1/alarm-hubs/{id} body. Keys: name.
+        """
+        client, registry = deps_fn()
+        return await protect.update_alarm_hub(client, registry, host, alarm_hub_id, **settings)
+
+    @mcp.tool(annotations=WRITE)
+    async def alarm_hub_trigger_output(
+        host: str,
+        alarm_hub_id: str,
+        output_id: int | str,
+        confirm: bool = False,
+        enable: bool | None = None,
+        delay: int | None = None,
+        duration: int | None = None,
+    ) -> dict[str, Any]:
+        """Trigger an alarm-hub output (POST /v1/alarm-hubs/{id}/outputs/{outputId}/trigger).
+
+        Consequence: whatever is wired to the output (siren, strobe, lock, relay) acts in the real
+        world.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        WARNING: physically triggers alarm-hub output hardware. `enable` true turns the
+        output on, false off (omit to toggle); `delay` is ms before activating; `duration` is
+        ms to stay active (0 = indefinite). Governed by family:protect=deny.
+
+        Request body (Protect 7.3.74, POST /v1/alarm-hubs/{id}/outputs/{outputId}/trigger; schema
+        "inline requestBody schema") is built from scalar parameters. No key is required; send only the
+        keys to change.
+        - enable: boolean
+        - delay: integer (ms)
+        - duration: integer (ms; 0 = indefinite)
+
+        Example call (alarm_hub_trigger_output):
+            {"host": "my-console", "alarm_hub_id": "00000000000000000000010b", "output_id": 0}
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            alarm_hub_id: Protect alarm hub id. Get it from list_alarm_hubs (id). Protect id (24-hex) —
+                not a Network device UUID.
+            output_id: Output channel id on that device; spec: integer 0 or 1 (an integer, or the same
+                value as a decimal string '0'|'1'). See get_alarm_hub.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            enable: true = on, false = off; omit to toggle.
+            delay: Milliseconds to wait before activating.
+            duration: Milliseconds to stay active (0 = indefinite).
+        """
+        client, registry = deps_fn()
+        return await protect.alarm_hub_trigger_output(
+            client,
+            registry,
+            host,
+            alarm_hub_id,
+            output_id,
+            confirm=confirm,
+            enable=enable,
+            delay=delay,
+            duration=duration,
+        )
+
+    # --- Protect User Tools (read-only) ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_protect_users(
+        host: str,
+    ) -> dict[str, Any]:
+        """List Protect users (GET /v1/users via Fabric proxy). Read-only in the Integration API.
+
+        Returns {result, _count}: result is the upstream array of users verbatim and _count its length
+        (an upstream object with a data array is returned verbatim plus _count).
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_protect_users(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_protect_user(
+        host: str,
+        user_id: str,
+    ) -> dict[str, Any]:
+        """Get one Protect user by id (GET /v1/users/{id}). Read-only.
+
+        Returns the upstream user object verbatim, exactly as the API answers it.
+
+        Example call (get_protect_user):
+            {"host": "my-console", "user_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            user_id: Protect user id. Get it from list_protect_users (id). Not a ULP (UI account) user
+                id.
+        """
+        client, registry = deps_fn()
+        return await protect.get_protect_user(client, registry, host, user_id)
+
+    # --- Protect Application Metadata ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_protect_application_info(
+        host: str,
+    ) -> dict[str, Any]:
+        """Get Protect application metadata (GET /v1/meta/info via Fabric proxy). Read-only.
+
+        Returns the upstream meta-info ({applicationVersion, ...}) object verbatim, exactly as the API
+        answers it.
+
+        Reports the Protect application version and Integration-API capabilities — the
+        authoritative check for which extended Protect families this console supports.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.get_protect_application_info(client, registry, host)
+
+    # --- Protect ULP User Tools (read-only) ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_ulp_users(
+        host: str,
+    ) -> dict[str, Any]:
+        """List ULP (UniFi account) users (GET /v1/ulp-users). Read-only.
+
+        Returns {result, _count}: result is the upstream array of ULP users verbatim and _count its
+        length (an upstream object with a data array is returned verbatim plus _count).
+
+        Distinct from `list_protect_users` (/v1/users): these are UI-account identities.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+        """
+        client, registry = deps_fn()
+        return await protect.list_ulp_users(client, registry, host)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_ulp_user(
+        host: str,
+        ulp_user_id: str,
+    ) -> dict[str, Any]:
+        """Get one ULP (UniFi account) user by id (GET /v1/ulp-users/{id}). Read-only.
+
+        Returns the upstream ULP user object verbatim, exactly as the API answers it.
+
+        Example call (get_ulp_user):
+            {"host": "my-console", "ulp_user_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            ulp_user_id: ULP (UI account) user id. Get it from list_ulp_users (id). Not a Protect user
+                id.
+        """
+        client, registry = deps_fn()
+        return await protect.get_ulp_user(client, registry, host, ulp_user_id)
+
+    # --- Protect POS Transaction Ingestion ---
+
+    @mcp.tool(annotations=WRITE)
+    async def pos_ingest_transaction(
+        host: str,
+        camera_id: str,
+        transaction: dict[str, Any],
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Ingest a POS transaction overlay onto camera footage.
+
+        Consequence: the transaction is overlaid on the camera's recorded footage.
+
+        Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
+        the text of a non-JSON body, or null when the body is empty).
+        Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+
+        Route: POST /v1/pos/cameras/{id}/transactions (Fabric proxy).
+
+        WARNING: creates a footage overlay event with no documented rollback. The transaction is
+        validated locally and carries an idempotency key; the POS write is never auto-retried.
+        `transaction`: REQUIRED posTransactionRequest object. Must include `type`
+          ('sale'|'refund'), `externalId` (per-camera unique idempotency/dedup key), and
+          `amount`; optional currency/lineItems/location/paymentTypes/timestamp pass through.
+
+        Request body (Protect 7.3.74, POST /v1/pos/cameras/{id}/transactions; schema
+        "posTransactionRequest") is passed in `transaction`. Required keys — type, externalId, amount.
+        - type: enum[sale|refund]
+        - externalId: string
+        - amount: number
+        - currency: string (uppercase ISO 4217 code, e.g. USD)
+        - lineItems: array of object, at most 200 items {title: string (1-255 characters),
+          quantity: integer (>= 1)} (both item keys required)
+        - location: object {id: string (1-255 characters, required), name: string (1-255
+          characters)}
+        - paymentTypes: array of string
+        - timestamp: integer (epoch ms; within the last 24 hours and at most 5 minutes ahead of
+          server time, else rejected)
+
+        Example call (pos_ingest_transaction):
+            {
+              "host": "my-console",
+              "camera_id": "00000000000000000000010b",
+              "transaction": {"type": "sale", "externalId": "order-1042", "amount": 24.95}
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            camera_id: Protect camera id. Get it from list_cameras (id). Protect id (24-hex) — not a
+                Network device UUID.
+            transaction: posTransactionRequest (Protect 7.3.74). Required: type ('sale'|'refund'),
+                externalId (per-camera unique dedup key), amount. Never auto-retried.
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+        """
+        client, registry = deps_fn()
+        return await protect.pos_ingest_transaction(
+            client, registry, host, camera_id, transaction, confirm=confirm
+        )
+
+    return {
+        "list_lights": list_lights,
+        "get_light": get_light,
+        "update_light": update_light,
+        "list_chimes": list_chimes,
+        "get_chime": get_chime,
+        "update_chime": update_chime,
+        "list_viewers": list_viewers,
+        "get_viewer": get_viewer,
+        "update_viewer": update_viewer,
+        "list_liveviews": list_liveviews,
+        "get_liveview": get_liveview,
+        "create_liveview": create_liveview,
+        "update_liveview": update_liveview,
+        "get_nvr": get_nvr,
+        "list_protect_files": list_protect_files,
+        "upload_protect_file": upload_protect_file,
+        "trigger_alarm_webhook": trigger_alarm_webhook,
+        "list_arm_profiles": list_arm_profiles,
+        "get_arm_profile": get_arm_profile,
+        "create_arm_profile": create_arm_profile,
+        "update_arm_profile": update_arm_profile,
+        "delete_arm_profile": delete_arm_profile,
+        "update_arm_profile_settings": update_arm_profile_settings,
+        "enable_arm": enable_arm,
+        "disable_arm": disable_arm,
+        "list_sirens": list_sirens,
+        "get_siren": get_siren,
+        "update_siren": update_siren,
+        "siren_play": siren_play,
+        "siren_stop": siren_stop,
+        "siren_test_sound": siren_test_sound,
+        "list_fobs": list_fobs,
+        "get_fob": get_fob,
+        "update_fob": update_fob,
+        "list_relays": list_relays,
+        "get_relay": get_relay,
+        "update_relay": update_relay,
+        "relay_activate_output": relay_activate_output,
+        "list_speakers": list_speakers,
+        "get_speaker": get_speaker,
+        "update_speaker": update_speaker,
+        "speaker_test_sound": speaker_test_sound,
+        "list_bridges": list_bridges,
+        "get_bridge": get_bridge,
+        "update_bridge": update_bridge,
+        "list_link_stations": list_link_stations,
+        "get_link_station": get_link_station,
+        "update_link_station": update_link_station,
+        "list_alarm_hubs": list_alarm_hubs,
+        "get_alarm_hub": get_alarm_hub,
+        "update_alarm_hub": update_alarm_hub,
+        "alarm_hub_trigger_output": alarm_hub_trigger_output,
+        "list_protect_users": list_protect_users,
+        "get_protect_user": get_protect_user,
+        "get_protect_application_info": get_protect_application_info,
+        "list_ulp_users": list_ulp_users,
+        "get_ulp_user": get_ulp_user,
+        "pos_ingest_transaction": pos_ingest_transaction,
+    }

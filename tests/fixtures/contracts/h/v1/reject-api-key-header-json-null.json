@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "reject-api-key-header-json-null",
+  "description": "An X-UniFi-Api-Key value that is JSON null is invalid",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "null"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_api_key_header",
+    "upstream_calls": 0
+  }
+}

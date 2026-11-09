@@ -16,6 +16,7 @@ from unifi_fabric.config import Settings
 from unifi_fabric.read_only import ReadOnlyModeError
 from unifi_fabric.redaction import REDACTION_MASK, install_response_redaction, write_redaction_scope
 from unifi_fabric.tools import (
+    aggregation,
     network_controller_insights,
     network_device_operations,
     network_proav_sandbox,
@@ -100,9 +101,10 @@ async def test_partial_errors_follow_redaction_policy(monkeypatch, enabled, site
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-async def test_direct_dry_run_always_scrubs_configured_key(enabled):
+async def test_direct_dry_run_always_scrubs_configured_key(enabled, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     own_key = "synthetic-configured-dry-run-key"
-    client = UniFiClient(Settings(api_key=own_key, dry_run=True, redact_secrets=enabled))
+    client = UniFiClient(Settings(api_key=own_key, redact_secrets=enabled))
     try:
         response = await client.request(
             "POST",
@@ -122,7 +124,7 @@ async def test_direct_dry_run_always_scrubs_configured_key(enabled):
 @pytest.mark.parametrize("fmt", ["text", "json"])
 @pytest.mark.parametrize("enabled", [False, True])
 async def test_refused_relay_audit_omits_query_and_fragment(monkeypatch, tmp_path, fmt, enabled):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     log = tmp_path / "audit.log"
     client = UniFiClient(
         Settings(
@@ -230,3 +232,90 @@ def test_exception_error_policy_preserves_context_and_malformed_text(enabled):
         upstream_error_text(UniFiConnectionError("plain [text] {not json}"), client)
         == "plain [text] {not json}"
     )
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("prefix", ["", "it's", 'a"b'])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "host_object",
+        "host_json",
+        "hostname_object",
+        "hostname_json",
+        "site_object",
+        "site_json",
+        "description_object",
+        "description_json",
+    ],
+)
+async def test_fleet_failure_redacts_upstream_fields(enabled, case, prefix):
+    client = UniFiClient(Settings(api_key="synthetic-key", redact_secrets=enabled))
+    registry = SimpleNamespace(_client=client)
+    body = {**BODY, "password": prefix + SECRET}
+    value = json.dumps(body) if case.endswith("_json") else body
+    host = value if case.startswith("host_") else "valid-host"
+    hostname = value if case.startswith("hostname_") else "console"
+    site_id = value if case.startswith("site_") else "00000000-0000-4000-8000-000000000001"
+    description = value if case.startswith("description_") else "site"
+    registry.get_ea_sites = AsyncMock(return_value=[{"hostId": host, "hostname": hostname}])
+    registry.get_hosts = AsyncMock(return_value=[])
+    registry.get_sites = AsyncMock(return_value=[{"id": site_id, "description": description}])
+    if case.startswith("hostname_"):
+        registry.get_sites.side_effect = RuntimeError("synthetic failure")
+    client.get = AsyncMock(side_effect=RuntimeError("synthetic failure"))
+    try:
+        with pytest.raises(RuntimeError) as caught:
+            await aggregation._list_all_clients_fleet(client, registry)
+        assert_policy(caught.value, enabled)
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("prefix", ["", "it's", 'a"b'])
+async def test_search_invalid_json_host_redacts_reason(enabled, prefix):
+    client = UniFiClient(Settings(api_key="synthetic-key", redact_secrets=enabled))
+    registry = SimpleNamespace(
+        get_ea_sites=AsyncMock(
+            return_value=[
+                {"hostId": json.dumps({**BODY, "password": prefix + SECRET}), "siteId": "site"}
+            ]
+        )
+    )
+    try:
+        with pytest.raises(RuntimeError) as caught:
+            await site_manager.search_across_sites(client, registry, "")
+        assert_policy(caught.value, enabled)
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("prefix", ["", "it's", 'a"b'])
+@pytest.mark.parametrize("partial", [False, True])
+async def test_search_json_site_id_redacts_before_repr(enabled, prefix, partial):
+    from unifi_fabric.registry import FetchedRecords
+
+    client = UniFiClient(Settings(api_key="synthetic-key", redact_secrets=enabled))
+    site_id = json.dumps({**BODY, "password": prefix + SECRET})
+    registry = SimpleNamespace(
+        get_ea_sites=AsyncMock(
+            return_value=[{"hostId": "valid-host", "siteId": site_id, "meta": {"name": "ea"}}]
+        ),
+        resolve_key_for_host=AsyncMock(return_value=None),
+        get_sites=AsyncMock(
+            return_value=FetchedRecords(
+                [{"id": "00000000-0000-4000-8000-000000000001", "description": "ea"}]
+                if partial
+                else [],
+                incomplete_reason="synthetic partial" if partial else None,
+            )
+        ),
+    )
+    try:
+        with pytest.raises(RuntimeError) as caught:
+            await site_manager.search_across_sites(client, registry, "")
+        assert_policy(caught.value, enabled)
+    finally:
+        await client.close()

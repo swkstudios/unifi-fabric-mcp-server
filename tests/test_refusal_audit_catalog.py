@@ -39,6 +39,7 @@ from unifi_fabric.redaction import REDACTION_MASK, is_credential_field
 from unifi_fabric.refusal_audit import upstream_caused
 from unifi_fabric.spec_limits import argument_problems
 from unifi_fabric.write_body import (
+    CREATE_ACTION_BODY_PROVENANCE,
     REQUIRED_BODY_KEYS,
     body_argument,
     missing_required_keys,
@@ -144,7 +145,16 @@ def _expected_invalid(name: str, args: dict[str, Any]) -> bool:
     arg = body_argument(tool)
     if arg is not None and isinstance(args.get(arg), dict):
         _, _, reason = update_problem(args[arg], f"{name} {arg!r}")
-        if reason is not None or missing_required_keys(name, args[arg]):
+        provenance = CREATE_ACTION_BODY_PROVENANCE.get(name, {})
+        upstream_judged_empty = (
+            args[arg] == {}
+            and provenance.get("argument") == arg
+            and provenance.get("schema") == "unpublished"
+            and provenance.get("empty_body_disposition") == "upstream_judged"
+        )
+        if (reason is not None and not upstream_judged_empty) or missing_required_keys(
+            name, args[arg]
+        ):
             return True
     return False
 
@@ -152,7 +162,11 @@ def _expected_invalid(name: str, args: dict[str, Any]) -> bool:
 def _records(path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return [
+        r
+        for r in (json.loads(line) for line in path.read_text().splitlines() if line.strip())
+        if r.get("event", "audit") == "audit"
+    ]
 
 
 async def _run(monkeypatch, tmp_path, name, args, env=None):
@@ -216,9 +230,9 @@ async def test_every_refused_write_is_audited_exactly_once(monkeypatch, tmp_path
     refusal_count = 0
     local_refusal_count = 0
     cases = _perturbations(name)
-    cases.append(("UNIFI_READ_ONLY=1", None))
+    cases.append(("UNIFI_WRITE_POLICY=deny", None))
     for label, args in cases:
-        env = {"UNIFI_READ_ONLY": "1"} if args is None else None
+        env = {"UNIFI_WRITE_POLICY": "deny"} if args is None else None
         call_args = tool_args.generated_args(TOOLS[name]) if args is None else args
         if args is None and name == "fabric_connector_get":
             # The generic GET tool can also read. Exercise a state-changing route so
@@ -333,7 +347,7 @@ def test_text_format_reason_is_one_parseable_field(tmp_path):
     from unifi_fabric.audit import AuditSink
 
     log = tmp_path / "audit.log"
-    sink = AuditSink(path=str(log))
+    sink = AuditSink(path=str(log), fmt="text")
     sink.record(method=None, path=None, outcome="refused", status=None, tool="t", reason='a b\n"c"')
     lines = log.read_text().splitlines()
     assert len(lines) == 1, lines

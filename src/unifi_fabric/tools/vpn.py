@@ -7,7 +7,13 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..client import UniFiClient, UniFiConnectionError, describe_shape, validate_id
+from ..client import (
+    UniFiClient,
+    UniFiConnectionError,
+    describe_shape,
+    upstream_error_value,
+    validate_id,
+)
 from ..matching import find_by_id
 from ..registry import Registry
 from ..tool_annotations import READ_ONLY, WRITE
@@ -155,12 +161,18 @@ def _select_by_id(
     if record is not None:
         # Exact identity is resolved even if later collection pages were not read.
         return record
-    valid = ", ".join(f"{r.get('name')} ({r.get('id')})" for r in records) or "(none)"
+    valid = (
+        ", ".join(
+            f"{upstream_error_value(r.get('name'))} ({upstream_error_value(r.get('id'))})"
+            for r in records
+        )
+        or "(none)"
+    )
     if isinstance(result, dict) and context_value(result, "incomplete", strict=True):
         reason = context_value(result, "incompleteReason", strict=True)
         raise ValueError(
             f"{kind} {wanted!r} was not among the {len(records)} {kind}(s) read, but the list "
-            f"is incomplete ({reason}), so it may exist past the "
+            f"is incomplete ({upstream_error_value(reason)}), so it may exist past the "
             f"pages read. Read so far: {valid}. Get ids from {list_tool} (data[].id)."
         )
     raise ValueError(
@@ -398,7 +410,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
         networkconf record]}; data[].external_id is the id list_site_to_site_tunnels reports.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -447,7 +459,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated
         networkconf record]}.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -471,6 +483,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             tunnel: Native Classic networkconf fields to change, e.g. enabled, name. Sent unchanged
                 (empty-string list placeholders dropped); an absent or null purpose is sent as
                 site-vpn, another is sent as given (an upstream error then gets a hint).
+                A purpose-only update is refused.
                 Free-form JSON object; no fixed body shape is published.
         """
         client, registry = deps_fn()
@@ -494,7 +507,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
         (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview)}.
 
         Example call (delete_site_to_site_tunnel):
@@ -575,7 +588,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
         networkconf record]}; data[].external_id is the id list_vpn_servers reports.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -585,7 +598,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
               "site": "Default",
               "name": "Remote access",
               "vpn_type": "wireguard",
-              "subnet": "192.168.13.1/24",
+              "subnet": "192.0.2.1/24",
               "enabled": false,
               "fields": {"local_port": 51820}
             }
@@ -600,7 +613,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             vpn_type: wireguard, openvpn, l2tp or pptp (case-insensitive; sent as the controller's
                 wireguard-server, openvpn-server, l2tp-server, pptp-server). Any other value is sent
                 unchanged as vpn_type.
-            subnet: Client address pool as gateway-IP/prefix, e.g. 192.168.13.1/24; sent as
+            subnet: Client address pool as gateway-IP/prefix, e.g. 192.0.2.1/24; sent as
                 ip_subnet, omitted when unset.
             enabled: Whether the new VPN server starts enabled; omitted from the body when unset
                 (the controller then applies its own default).
@@ -641,7 +654,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated
         networkconf record]}.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 
@@ -664,7 +677,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             fields: Native Classic networkconf fields to change, e.g. enabled, name, ip_subnet,
                 local_port. Sent unchanged (empty-string list placeholders dropped); an absent or
                 null purpose is sent as remote-user-vpn, another is sent as given (an upstream
-                error then gets a hint).
+                error then gets a hint). A purpose-only update is refused.
                 Free-form JSON object; no fixed body shape is published.
         """
         client, registry = deps_fn()
@@ -689,7 +702,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
         (decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview)}.
 
         Example call (delete_vpn_server):
@@ -768,7 +781,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
         radiusprofile record]}; data[].external_id is the id list_radius_profiles reports.
-        Under UNIFI_DRY_RUN nothing is sent: the result is the bare dry-run preview {status:
+        Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
         "dry_run", dryRun: true, sent: false,
         message, preview: {method, path, params, body}} in place of the upstream body.
 

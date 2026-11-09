@@ -30,10 +30,14 @@ answers with its own 400/404 rather than us pre-rejecting it.
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from typing import Any
+
+from fastmcp import FastMCP
 
 from ..client import UniFiClient, UniFiConnectionError, describe_shape, validate_id
 from ..registry import Registry
+from ..tool_annotations import READ_ONLY
 from ._history_common import (
     epoch_warnings,
     require_epoch_seconds,
@@ -48,6 +52,7 @@ from ._pagination import (
     validate_pagination,
     with_envelope,
 )
+from ._shared import _image_result
 
 RECOGNITION_PRIVATE_BASE = "/v1/connector/consoles/{host_id}/proxy/protect/api"
 
@@ -294,4 +299,202 @@ async def get_thumbnail(
         "image_base64": base64.b64encode(raw).decode(),
         "content_type": content_type,
         "size_bytes": len(raw),
+    }
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import recognition  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the recognition tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_recognition_groups(
+        host: str,
+        type: str,
+        has_name: bool | None = None,
+        page_size: int | None = None,
+        order_by: str | None = None,
+        order_direction: str | None = None,
+        page: int | None = None,
+    ) -> dict[str, Any]:
+        """List recognition groups (enrolled faces or vehicles) on a Protect console.
+
+        Returns {groups, _count} plus upstream envelope fields. Each group has a stable
+        monotonic id (for example face_90), name/matchedName, detectionsCount, and
+        createdAt/firstDetectedAt/lastDetectedAt timestamps. Names remain unchanged.
+        The private recognition API returns groups under groups, rather than data.
+
+        Default drains all links.next pages in batches up to 100. page_size=N returns
+        records [(page-1)*N, page*N): exactly N when that many exist, fewer only at the
+        end, never more. page is the 1-based window number counted in units of page_size
+        (default 1); without page_size, returns one native console page.
+        To continue, resume from _nextPage with the same page_size. _pageSize reports requested,
+        sent, effective and returned sizes. Incomplete drains carry incomplete/incompleteReason.
+
+        Args:
+            host: Console reportedState.hostname or data[].id from list_hosts, for example "my-console";
+                names match reportedState.hostname/name case-insensitively.
+            type: Recognition type, normally 'face' or 'vehicle' (singular). Forwarded
+                unchanged; plural forms return HTTP 400 from upstream.
+            has_name: When true, return named groups only. Example: true.
+            page_size: N returns records [(page-1)*N, page*N): exactly N when that many exist,
+                fewer only at the end, never more; resume from _nextPage with the same page_size.
+                Example: `100`.
+            order_by: Sort field: name, createdAt, lastDetectedAt or detectionsCount.
+                Example: 'name'. With no order_direction, upstream defaults to descending.
+            order_direction: 'asc' or 'desc', case-insensitive; effective only with
+                order_by. Unknown values return upstream HTTP 400. Example: 'asc'.
+            page: 1-based window number counted in units of page_size (default 1); without
+                page_size, returns one native console page; resume from _nextPage with the same
+                page_size. Example: `2`.
+        """
+        client, registry = deps_fn()
+        return await recognition.list_recognition_groups(
+            client, registry, host, type, has_name, page_size, order_by, order_direction, page
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_recognition_group_counts(
+        host: str,
+        type: str,
+    ) -> dict[str, Any]:
+        """Get aggregate recognition-group counts for a Protect console.
+
+        Returns totals such as totalCount, nameNotNullCount (named groups), nameIsNullCount,
+        notificationEnabledCount, and degradedCount.
+
+        Required arguments: host, type (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            type: recognition type. Use 'face' or 'vehicle' (singular — plural forms return HTTP 400
+                from upstream). Forwarded to the API as-is.
+        """
+        client, registry = deps_fn()
+        return await recognition.get_recognition_group_counts(client, registry, host, type)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_recognition_group_image(
+        host: str,
+        type: str,
+        group_id: str,
+    ) -> Any:
+        """Get a recognition group's reference crop. Returns MCP ImageContent plus image metadata.
+
+        Returns MCP ImageContent plus text and structured metadata
+        {image_base64, content_type, size_bytes}; content_type is the upstream
+        Content-Type header (typically image/jpeg), not assumed, and null when the upstream
+        sends none.
+
+        `type`: recognition type. Use 'face' or 'vehicle' (singular -- plural forms
+          return HTTP 400 from upstream). Forwarded to the API as-is.
+
+        Example call (get_recognition_group_image):
+            {"host": "my-console", "type": "face", "group_id": "face_90"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            type: 'face' or 'vehicle' (singular; plural returns HTTP 400).
+            group_id: Recognition group id, e.g. 'face_90'. Get it from list_recognition_groups (id).
+                Protect recognition id.
+        """
+        client, registry = deps_fn()
+        return _image_result(
+            await recognition.get_recognition_group_image(client, registry, host, type, group_id)
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_recognition_detections(
+        host: str,
+        type: str,
+        group_id: str,
+        page_size: int | None = None,
+        start: int | None = None,
+        end: int | None = None,
+        page: int | None = None,
+    ) -> dict[str, Any]:
+        """List one enrolled recognition group's detections (sightings) on Protect.
+
+        Returns {detections, _count} plus upstream envelope fields and epoch warnings.
+        Required group_id comes from list_recognition_groups, for example face_90. There
+        is no all-groups mode; a nonexistent group returns HTTP 404. Each detection has
+        id, eventId (list_protect_events), thumbnailId (get_thumbnail), detectedAt (epoch
+        milliseconds), cameraId and matchedGroupConfidence (0-100).
+
+        Default drains all links.next pages in batches up to 100. page_size=N returns
+        records [(page-1)*N, page*N): exactly N when that many exist, fewer only at the
+        end, never more. page is the 1-based window number counted in units of page_size
+        (default 1); without page_size, returns one native console page.
+        To continue, resume from _nextPage with the same page_size. _pageSize reports requested,
+        sent, effective and returned sizes. Incomplete drains carry incomplete/incompleteReason.
+
+        page without page_size fetches one native page, with _nextPage when more exist.
+        An explicit page keeps a bare list verbatim (no _warnings) when page_size is absent,
+        and preserves every field of an object page verbatim with epoch-unit _warnings.
+        A bare-list manual page is unchanged without _warnings; object pages preserve
+        upstream fields and add epoch warnings.
+        Examples are in docs/TOOL-USAGE.md#list_recognition_detections.
+
+        Args:
+            host: Console reportedState.hostname or data[].id from list_hosts, for example "my-console";
+                names match reportedState.hostname/name case-insensitively.
+            type: 'face' or 'vehicle' (singular); plural forms return HTTP 400 upstream.
+            group_id: Group id from list_recognition_groups, for example 'face_90'.
+            page_size: N returns records [(page-1)*N, page*N): exactly N when that many exist,
+                fewer only at the end, never more; resume from _nextPage with the same page_size.
+                Example: `100`.
+            start: Optional UTC epoch seconds start, converted to milliseconds. Negative
+                or millisecond-magnitude values add _warnings. Example: 1792972800.
+            end: Optional UTC epoch seconds end, converted to milliseconds; omit both for
+                all detections. The same magnitude warnings apply. Example: 1793059200.
+            page: 1-based window number counted in units of page_size (default 1); without
+                page_size, returns one native console page; resume from _nextPage with the same
+                page_size. Example: `2`.
+        """
+        client, registry = deps_fn()
+        return await recognition.list_recognition_detections(
+            client, registry, host, type, group_id, page_size, start, end, page
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_thumbnail(
+        host: str,
+        thumbnail_id: str,
+    ) -> Any:
+        """Get a detection thumbnail crop. Returns MCP ImageContent plus image metadata.
+
+        Returns MCP ImageContent plus text and structured metadata
+        {image_base64, content_type, size_bytes}; content_type is the upstream
+        Content-Type header (typically image/jpeg), not assumed, and null when the upstream
+        sends none.
+
+        Example call (get_thumbnail):
+            {"host": "my-console", "thumbnail_id": "00000000000000000000010b"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            thumbnail_id: Detection thumbnail id. Get it from list_recognition_detections
+                (detections[].thumbnailId).
+        """
+        client, registry = deps_fn()
+        return _image_result(await recognition.get_thumbnail(client, registry, host, thumbnail_id))
+
+    return {
+        "list_recognition_groups": list_recognition_groups,
+        "get_recognition_group_counts": get_recognition_group_counts,
+        "get_recognition_group_image": get_recognition_group_image,
+        "list_recognition_detections": list_recognition_detections,
+        "get_thumbnail": get_thumbnail,
     }

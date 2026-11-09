@@ -248,6 +248,7 @@ def test_read_after_catalog_is_complete():
         | {f"network_dpi_policy.{n}" for n in DPI_POLICY_VERIFIED}
         | {f"protect_events_cases.{n}" for n in EVENTS_CASES_VERIFIED}
         | {"network_services_proxy.update_setting", "connector.connector_write"}
+        | {"network_services_proxy.update_traffic_rule"}
         | {"network_wifi_radio.configure_wifi_wan"}
         | {"network_proav_sandbox.update_digital_twin_layout"}
         | {f"network_controller_admin.{n}" for n in ADMIN_VERIFIED}
@@ -699,6 +700,30 @@ class NcCase(Case):
         return {key: value for key, value in result.items() if not key.startswith("_")}
 
 
+class TrafficRuleCase(NcCase):
+    """update_traffic_rule: read-before from list_traffic_rules, merged v2 PUT, read-after."""
+
+    def __init__(self) -> None:
+        super().__init__("update_traffic_rule")
+        self.family = "network_services_proxy"
+
+    async def run(self, monkeypatch, before, after, *, dry_run=False, write=None):
+        client = _client(dry_run)
+        client.put.return_value = PREVIEW if dry_run else (write or dict(WRITE_RESPONSE))
+        reads: list[Any] = [[{"_id": NC_HEX_ID, **before}]]
+        if isinstance(after, BaseException):
+            reads.append(after)
+        elif isinstance(after, dict):
+            reads.append([{"_id": NC_HEX_ID, **after}])
+        else:
+            reads.append(after)
+        client.get = AsyncMock(side_effect=reads)
+        result = await network_services_proxy.update_traffic_rule(
+            client, _registry(), "h", "default", NC_HEX_ID, copy.deepcopy(self.requested)
+        )
+        return result, client.put
+
+
 class VpnDnsCase(Case):
     """N07 read-merge-write tools: the upstream body verbatim plus additive _verified."""
 
@@ -878,8 +903,6 @@ class AdminCase(Case):
         response = PREVIEW if dry_run else (write or dict(WRITE_RESPONSE))
         client = _client(dry_run)
         client.put.return_value = response
-        writer = AsyncMock(return_value=response)
-        monkeypatch.setattr(network_controller_admin, "classic_command", writer)
         reads: list[Any] = [{"data": [{"_id": ADMIN_HEX, **before}]}]
         if isinstance(after, dict):
             reads.append({"data": [{"_id": ADMIN_HEX, **after}]})
@@ -1287,6 +1310,7 @@ CASES: list[Case] = [
     *(SwitchingPowerCase(n) for n in SWITCHING_POWER_VERIFIED),
     *(SecurityCase(n) for n in SECURITY_VERIFIED),
     *(NcCase(n) for n in NC_VERIFIED),
+    TrafficRuleCase(),
     *(VpnDnsCase(n) for n in VPN_DNS_VERIFIED),
     DigitalTwinLayoutCase(),
     *(PtzDoorbellCase(n) for n in PTZ_DOORBELL_VERIFIED),
@@ -1306,9 +1330,7 @@ def _stale(case: Case) -> dict[str, Any]:
         return {"name": "synthetic old", "settings": {"enabled": False, "level": 1}}
     if isinstance(case, ProtectCase) and case.name != "update_arm_profile_settings":
         return {"name": "old", "settings": {"enabled": False, "level": 1}}
-    if isinstance(case, LifecycleCase) or (
-        isinstance(case, ProtectCase) and case.name != "update_arm_profile_settings"
-    ):
+    if isinstance(case, LifecycleCase):
         return {"name": "synthetic old", "settings": {"enabled": False, "level": 1}}
     if isinstance(case, ProtectCase):
         return {"armProfileId": PID}
@@ -1327,7 +1349,6 @@ def _stale(case: Case) -> dict[str, Any]:
     if isinstance(case, DigitalTwinLayoutCase):
         return {"name": "old", "settings": {"enabled": False, "level": 1}}
     if isinstance(case, RoutingTopologyCase):
-        return {"name": "old", "settings": {"enabled": False, "level": 1}}
         return {"name": "old", "settings": {"enabled": False, "level": 1}}
     if isinstance(case, MobileWanCase):
         return {"name": "synthetic old", "nested": {"enabled": False, "level": 1}}

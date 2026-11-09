@@ -11,13 +11,11 @@ from pathlib import Path
 
 import pytest
 from fastmcp import Client, FastMCP
-from pydantic import ValidationError
 
 from tests.test_discovery import clone_app
 from unifi_fabric import families, server
 from unifi_fabric._read_only_audit import _called_package_functions
 from unifi_fabric.api_sources import APPS as API_SOURCE_APPS
-from unifi_fabric.config import Settings
 from unifi_fabric.discovery import apply_tool_mode
 from unifi_fabric.families import (
     ALL_FAMILIES,
@@ -27,6 +25,7 @@ from unifi_fabric.families import (
     apply_tool_family_filter,
     build_family_index,
     parse_families_env,
+    unknown_families_problem,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,8 +89,6 @@ async def test_family_counts_match_readme_table():
 )
 async def test_lists_accept_commas_whitespace_and_any_case(value):
     assert parse_families_env(value) == {"network", "protect"}
-    assert Settings(api_key="k", tool_families=value).tool_families == value
-    assert Settings(api_key="k", disabled_tool_families=value).disabled_tool_families == value
     index = build_family_index()
     for allow, deny, kept in (
         (value, None, {"network", "protect"}),
@@ -110,9 +107,7 @@ async def test_lists_accept_commas_whitespace_and_any_case(value):
     [("tool_families", TOOL_FAMILIES_ENV), ("disabled_tool_families", DISABLED_TOOL_FAMILIES_ENV)],
 )
 async def test_unknown_names_fail_listing_the_valid_families(bad, field, variable):
-    with pytest.raises(ValidationError) as error:
-        Settings(api_key="k", **{field: bad})
-    message = str(error.value)
+    message = unknown_families_problem(bad, variable) or ""
     assert variable in message
     assert f"valid families: {', '.join(ALL_FAMILIES)}" in message
     unknown = [part for part in re.split(r"[\s,]+", bad) if part and part not in ALL_FAMILIES]
@@ -187,7 +182,7 @@ async def test_connector_switch_scope_is_derived():
         if not tools[n].annotations.read_only_hint
     }
     text = (ROOT / "docs" / "CONFIGURATION.md").read_text()
-    sentence = text[text.index("**Scope.** `UNIFI_ENABLE_CONNECTOR_WRITE` governs") :]
+    sentence = text[text.index("**Scope of `family:connector=deny`.** It governs") :]
     sentence = sentence[: sentence.index("All are enabled by default")]
     documented = set(re.findall(r"`(fabric_connector_[a-z]+|[a-z_]+)`", sentence)) & set(tools)
     documented = {n for n in documented if not tools[n].annotations.read_only_hint}
@@ -256,9 +251,9 @@ def test_public_surfaces_name_only_the_thirteen_families():
         text = path.read_text()
         for name in NOT_FAMILIES:
             if name in API_SOURCE_APPS:
-                continue  # an UNIFI_DISABLE_API_SOURCES app name, not a family
+                continue  # an UNIFI_EXCLUDE app name, not a family
             assert f"`{name}`" not in text, (path, name)
-    assert server.INSTRUCTIONS.count("FAMILIES") >= 2
+    assert "UNIFI_FAMILY_ALLOW" in server.INSTRUCTIONS and "UNIFI_EXCLUDE" in server.INSTRUCTIONS
 
 
 async def _check_selection(mode, allowed, disabled):
@@ -318,3 +313,24 @@ async def test_disabled_family_removed_from_every_catalog(mode, family):
 )
 async def test_overlapping_allow_and_deny_can_empty_catalog(mode, allowed, disabled):
     assert await _check_selection(mode, allowed, disabled) == set()
+
+
+def test_crud_groups_share_a_family():
+    from collections import defaultdict
+
+    groups = defaultdict(dict)
+    for name, family in build_family_index().items():
+        verb, _, resource = name.partition("_")
+        if verb in {"list", "get", "create", "update", "delete"}:
+            if verb == "list" and resource.endswith("s"):
+                resource = resource[:-1]
+            groups[resource][name] = family
+    # Site Manager inventories span consoles; similarly named Network and Device
+    # Management tools operate on different API resources.
+    separate_apis = {"site", "device"}
+    split = {
+        resource: members
+        for resource, members in groups.items()
+        if resource not in separate_apis and len(set(members.values())) > 1
+    }
+    assert not split, split

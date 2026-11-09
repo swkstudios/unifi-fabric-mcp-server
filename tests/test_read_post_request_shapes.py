@@ -125,7 +125,7 @@ async def test_read_flow_body_preserves_mask_and_additive_looking_fields(monkeyp
                 return httpx.Response(200, json={"data": []})
             return super().__call__(request)
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     upstream = FlowProbe(replay_recordings=False)
     client = uh.install(monkeypatch, upstream)
     body = {"x_passphrase": "***REDACTED***", "_future": {"nested": [1, None, True]}}

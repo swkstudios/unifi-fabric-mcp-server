@@ -1,0 +1,3 @@
+# Inputs for .github/install-build-requirements.txt (see dependencies/manifest.toml).
+build
+hatchling

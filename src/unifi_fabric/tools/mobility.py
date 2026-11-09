@@ -16,9 +16,9 @@ upstream error verbatim (HTTP 401/403 with the gateway's ``code`` / ``message``
 / ``traceId`` body) — the server does not mask it.
 
 Reads are typed pass-throughs. The three documented ``PUT`` writes (device name,
-LAN/DHCP, wireless) share one flow: the area opt-out
-(``UNIFI_ENABLE_MOBILITY_WRITE``, enabled by default) is checked first, then the
-arguments are validated, a read-before snapshots the device, an already-applied change
+LAN/DHCP, wireless) share one flow: the area opt-out (writes are enabled by default; the
+``UNIFI_WRITE_EXCEPTIONS`` entry ``family:mobility=deny`` refuses them) is checked first,
+then the arguments are validated, a read-before snapshots the device, an already-applied change
 returns ``status="no_op"`` without writing, and a read-after reports the outcome. The
 LAN/DHCP endpoint is a documented partial update; device-name and wireless send the
 full documented body. Every write result has the same shape: ``changed`` maps each
@@ -31,7 +31,11 @@ is ignored.
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Callable
 from typing import Any, cast
+
+from fastmcp import FastMCP
+from pydantic import Field
 
 from .. import switches
 from ..argument_errors import echoed_input
@@ -45,7 +49,8 @@ from ..client import (
     validate_id,
 )
 from ..config import APIKeyConfig
-from ..read_only import guard_request
+from ..read_only import guard_request, mark_write_denied
+from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import require_update_fields
 from ._keys import (
     context_value,
@@ -72,6 +77,7 @@ from ._results import (
     short_circuit_no_op,
     with_read_after_error,
 )
+from ._shared import _nullable_default
 
 #: Cloud gateway base for the Mobility resource family (served from api.ui.com).
 MOBILITY_BASE = "/v1/mobility"
@@ -83,34 +89,14 @@ _MAX_PAGE_SIZE = 200
 # Optional nullable request fields distinguish omission from an explicit JSON null.
 _UNSET: Any = object()
 
-#: Environment opt-out for the three Mobility PUT writes. Read and write are enabled by
-#: default: an *unset* variable leaves writes ENABLED. Set the variable to a falsey value
-#: ("0"/"false"/"no"/"off") for a read-only deployment of the Mobility area.
+#: The write exception that opts out the three Mobility PUT writes (``family:mobility=deny``).
 WRITE_ENABLED_ENV = switches.MOBILITY_WRITES.env
 
-DISABLED_MSG = (
-    "Mobility writes are opted out: environment variable "
-    f"{WRITE_ENABLED_ENV} is set to a false value ({switches.FALSE_HINT}). "
-    "No request was sent. Writes are enabled by default. To re-enable, set "
-    f"{WRITE_ENABLED_ENV} to a true value ({switches.TRUE_HINT}) -- or remove the override -- "
-    "in the MCP client env block (and turn off the Claude Code plugin's "
-    "Read-only mode option if enabled), the environment of the shell that starts the "
-    "server (an export there works), or this service's 'environment:' block "
-    "in the deploy docker-compose.yml "
-    "(a host shell export does not reach the container; never the application source), "
-    "then recreate the container "
-    "(restart the whole compose group if a sidecar shares its network namespace). "
-    'See the README "Enabling / disabling connector writes" section; the same '
-    "compose environment: mechanism applies to every per-area write flag."
-)
+DISABLED_MSG = switches.area_deny_text("Mobility", WRITE_ENABLED_ENV)
 
 
 def writes_enabled() -> bool:
-    """True unless the write opt-out env var is explicitly set to a falsey value.
-
-    Enabled by default (unset -> enabled). Set the variable to a falsey value
-    (``0``/``false``/``no``/``off``) for a read-only deployment of this area.
-    """
+    """True unless ``UNIFI_WRITE_EXCEPTIONS`` denies this area's family (read now)."""
     return switches.MOBILITY_WRITES.enabled()
 
 
@@ -172,7 +158,13 @@ async def _drain(
         )
         if "raw" in collected:
             return collected["raw"]
-        return mark_incomplete({**collected["envelope"], "data": collected["items"]}, collected)
+        return mark_incomplete(
+            with_context(
+                {**collected["envelope"], "data": collected["items"]},
+                {"_count": len(collected["items"])},
+            ),
+            collected,
+        )
     if offset is not None:
         # limit is None here: a set limit returned through collect_batch above.
         page = await client.get(path, key=key, params={"offset": offset})
@@ -206,7 +198,9 @@ def _require_writes() -> None:
     """Refuse a Mobility write before any upstream call when the area is opted out."""
     guard_request("PUT", "v1/mobility/workspaces/{workspace}/devices/{device}")
     if not writes_enabled():
-        raise ValueError(DISABLED_MSG + switches.current_value_note(WRITE_ENABLED_ENV))
+        raise mark_write_denied(
+            ValueError(DISABLED_MSG + switches.current_value_note(WRITE_ENABLED_ENV))
+        )
 
 
 async def _owning_device(
@@ -465,8 +459,10 @@ def _device_from_body(raw: Any, path: str) -> dict[str, Any]:
 # --- Writes ------------------------------------------------------------------
 #
 # Each of the three documented PUT resources follows the same guarded flow, in order:
-#   1. env gate     — the write opt-out (enabled by default; set 0 for read-only)
-#                     refuses before any validation or upstream call when disabled;
+#   1. env gate     — the write opt-out (writes enabled by default; the
+#                     UNIFI_WRITE_EXCEPTIONS entry family:mobility=deny or
+#                     UNIFI_WRITE_POLICY=deny makes them read-only) refuses before
+#                     any validation or upstream call when set;
 #   2. validate     — enforce the documented field constraints locally;
 #   3. read-before  — GET the device detail (proves it exists; snapshot state);
 #   4. no-op detect — if the change is fully observable in the detail AND already
@@ -480,7 +476,7 @@ def _device_from_body(raw: Any, path: str) -> dict[str, Any]:
 
 
 def _dry_run_result(before_body: dict[str, Any], response: Any) -> dict[str, Any]:
-    """Result of a guarded write under ``UNIFI_DRY_RUN``: the preview, no read-after.
+    """Result of a guarded write under ``dry-run policy``: the preview, no read-after.
 
     No write was sent, so a read-after would only show the unchanged device and report
     the change as unverified; ``device`` is the read-before GET body verbatim.
@@ -764,3 +760,385 @@ async def update_mobility_device_wireless(
         response,
         error,
     )
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import mobility  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the mobility tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_mobility_workspaces(
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """List UniFi Mobility workspaces visible to the authenticated API key.
+
+        Returns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus
+        _count; incomplete / incompleteReason when total exceeds the rows returned. With several keys:
+        {data, _count, _key_labels, byKey} plus errors.
+
+        A workspace is a mobility "cloud site" (workspace_id, workspace_name, is_owner,
+        status). Returned verbatim. Not query-paginated by the API. Mobility identity is
+        workspace-based and independent of the console host/site model.
+
+        Args:
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to cover
+                every configured key: results are merged, each record carries an additive _keyLabel, and
+                a key that fails is reported under errors.
+        """
+        client, _ = deps_fn()
+        return await mobility.list_mobility_workspaces(client, key_label=key_label)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_mobility_admins(
+        workspace_id: str,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """List the admins of a Mobility workspace (mobility permissions only).
+
+        Returns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus
+        _count; incomplete / incompleteReason when total exceeds the rows returned.
+
+        Each admin carries name, email, status, is_owner and a permissions object
+        exposing the umr (Mobile Routing) level (ALL/VIEW_ONLY/NONE); permissions is
+        null for a pending invite. Returned verbatim.
+
+        Example call (list_mobility_admins):
+            {"workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await mobility.list_mobility_admins(client, workspace_id, key_label=key_label)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_mobility_devices(
+        workspace_id: str,
+        key_label: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """List the UMR devices in a Mobility workspace.
+
+        Returns {data, _count} plus the first page's other envelope fields (httpStatusCode,
+        traceId); total (the upstream total, never computed) only when the upstream sent an
+        integer one; incomplete / incompleteReason when the drain stopped short.
+
+        Each device is the lightweight summary (id, name, model, state,
+        firmware_version, mac_address). Offset-paginated by the API (limit/offset, 200
+        max); every page is drained. Pass offset alone to fetch a single manual page (the
+        upstream page body verbatim).
+
+        Example call (list_mobility_devices):
+            {"workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is gathered
+                across pages of at most 200 starting at offset. Omit offset and limit to drain
+                all.
+                Example: `25`."""
+        client, _ = deps_fn()
+        return await mobility.list_mobility_devices(
+            client, workspace_id, key_label=key_label, offset=offset, limit=limit
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_mobility_device(
+        workspace_id: str,
+        device_id: str,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Get full detail for one UMR device in a Mobility workspace.
+
+        Returns the upstream response object verbatim: the complete DeviceDetail
+        (WAN/cellular/WiFi/VPN/subscription/GPS, counts, and the summary fields) under data,
+        beside every other envelope field the API sends.
+
+        Example call (get_mobility_device):
+            {
+              "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            device_id: Mobility device UUID. Get it from list_mobility_devices (same workspace).
+                Mobility id — not a Network device UUID.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await mobility.get_mobility_device(
+            client, workspace_id, device_id, key_label=key_label
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_mobility_clients(
+        workspace_id: str,
+        device_id: str,
+        key_label: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """List the clients associated with a UMR device.
+
+        Returns {data, _count} plus the first page's other envelope fields (httpStatusCode,
+        traceId); total (the upstream total, never computed) only when the upstream sent an
+        integer one; incomplete / incompleteReason when the drain stopped short.
+
+        Each client carries mac, name, type (WIRED/WIRELESS), connection_status,
+        ip_address, is_blocked and (wireless only) a wifi_experience score.
+        Offset-paginated by the API (limit/offset, 200 max); every page is drained. Pass
+        offset alone to fetch a single manual page (the upstream page body verbatim).
+
+        Example call (list_mobility_clients):
+            {
+              "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+
+        limit requests a total, gathered automatically in batches up to 200;
+        _pageSize reports requested count, actual sent sizes per request,
+        observed effective size and returned count, without capping the total.
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            device_id: Mobility device UUID. Get it from list_mobility_devices (same workspace).
+                Mobility id — not a Network device UUID.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+            offset: Optional zero-based starting record; alone, fetch one page manually.
+                Example: `25`.
+            limit: Without offset, the record count gathered from the start in pages of at
+                most 200; fewer only when the collection ends. With offset, limit is gathered
+                across pages of at most 200 starting at offset. Omit offset and limit to drain
+                all.
+                Example: `25`."""
+        client, _ = deps_fn()
+        return await mobility.list_mobility_clients(
+            client, workspace_id, device_id, key_label=key_label, offset=offset, limit=limit
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_mobility_device_name(
+        workspace_id: str,
+        device_id: str,
+        name: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename a UMR device (guarded write). WARNING: mutates live device config.
+
+        Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool} for the
+        fields observable in the device detail (null when the read-after fails; readAfterError says
+        why), device (the read-after device-detail GET body verbatim, {data, httpStatusCode,
+        traceId}), response (the PUT body verbatim; null for the documented 204)}, or {status:
+        "no_op", reason, device (the GET body read first)}.
+        Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response
+        (the preview)}; verified is absent (there is no read-after).
+
+        Sends the full documented body {"name": name} (1-32 chars). Guarded, in order: the Mobility
+        write opt-out (family:mobility=deny refuses first; writes are enabled by default),
+        read-before, no-op detection (returns status="no_op" when already named this), write, and a
+        read-after verification.
+
+        Request body (Mobility 1.0.0, PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}
+        (updateDeviceName); schema "UpdateDeviceNameReq") is built from scalar parameters. Required keys
+        — name.
+        - name: string
+
+        Example call (update_mobility_device_name):
+            {
+              "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "name": "Van 12"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            device_id: Mobility device UUID. Get it from list_mobility_devices (same workspace).
+                Mobility id — not a Network device UUID.
+            name: New device name, 1-32 chars (spec UpdateDeviceNameReq.name).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await mobility.update_mobility_device_name(
+            client, workspace_id, device_id, name, confirm=confirm, key_label=key_label
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_mobility_device_network(
+        workspace_id: str,
+        device_id: str,
+        host_address: str | None = Field(default_factory=lambda: mobility._UNSET),
+        dhcp_mode: str | None = Field(default_factory=lambda: mobility._UNSET),
+        dhcp_range_start: str | None = Field(default_factory=lambda: mobility._UNSET),
+        dhcp_range_stop: str | None = Field(default_factory=lambda: mobility._UNSET),
+        dhcp_lease_time: int | None = Field(default_factory=lambda: mobility._UNSET),
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a UMR device's LAN / DHCP settings (guarded write). Mutates live config.
+
+        Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null}
+        for every requested field (null for fields absent from the pinned device-detail schema;
+        the whole map is null on read-after failure, with readAfterError), device
+        (the read-after device-detail GET body verbatim, {data, httpStatusCode,
+        traceId}), response (the PUT body verbatim; null for the documented 204)}, or {status:
+        "no_op", reason, device (the GET body read first)}.
+        Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first),
+        response
+        (the preview)}; verified is absent (there is no read-after).
+
+        DOCUMENTED partial update: only provided fields are applied (WAN/IPv6/InternetSource are
+        not configurable here). At least one field is required. The Mobility docs differ on PUT
+        semantics (full replacement vs this endpoint's documented partial merge); if the console
+        applies full replacement, unsent LAN/DHCP fields can be reset. Add
+        family:mobility=deny to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only. dhcp_mode is 'dhcp' (enabled) or
+        'none' (disabled); IPs must be dotted-quad IPv4 (spec format: ipv4; a leading-zero octet
+        such as 192.168.01.1 is refused before any request); dhcp_lease_time is seconds
+        (0 = infinite). Guarded, in order: the Mobility write opt-out
+        (family:mobility=deny refuses first), read-before, no-op detection on the
+        observable host_address, write, read-after.
+
+        Each field is nullable: explicit null is forwarded as null; an omitted field stays omitted
+        (unchanged).
+
+        Full request shapes are in the parameter schema; detailed examples and workflows:
+        docs/TOOL-USAGE.md#update_mobility_device_network.
+
+        Required arguments: workspace_id, device_id (see parameter descriptions for identifiers).
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            device_id: Mobility device UUID. Get it from list_mobility_devices (same workspace).
+                Mobility id — not a Network device UUID.
+            host_address: Optional new LAN gateway IPv4 (spec UpdateNetworkReq).
+            dhcp_mode: Optional 'dhcp' or 'none'.
+            dhcp_range_start: Optional DHCP pool start IPv4.
+            dhcp_range_stop: Optional DHCP pool end IPv4.
+            dhcp_lease_time: Optional lease seconds (>=0; 0 = infinite).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        host_address = _nullable_default(host_address, mobility._UNSET)
+        dhcp_mode = _nullable_default(dhcp_mode, mobility._UNSET)
+        dhcp_range_start = _nullable_default(dhcp_range_start, mobility._UNSET)
+        dhcp_range_stop = _nullable_default(dhcp_range_stop, mobility._UNSET)
+        dhcp_lease_time = _nullable_default(dhcp_lease_time, mobility._UNSET)
+        client, _ = deps_fn()
+        return await mobility.update_mobility_device_network(
+            client,
+            workspace_id,
+            device_id,
+            host_address=host_address,
+            dhcp_mode=dhcp_mode,
+            dhcp_range_start=dhcp_range_start,
+            dhcp_range_stop=dhcp_range_stop,
+            dhcp_lease_time=dhcp_lease_time,
+            confirm=confirm,
+            key_label=key_label,
+        )
+
+    @mcp.tool(annotations=WRITE)
+    async def update_mobility_device_wireless(
+        workspace_id: str,
+        device_id: str,
+        ssid: str,
+        password: str,
+        confirm: bool = False,
+        key_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a UMR device's WiFi SSID + password (guarded write). Mutates live config.
+
+        Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null}
+        for every requested field (null for fields absent from the pinned device-detail schema;
+        the whole map is null on read-after failure, with readAfterError), device
+        (the read-after device-detail GET body verbatim, {data, httpStatusCode,
+        traceId}), response (the PUT body verbatim; null for the documented 204)}. It never returns
+        no_op. Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first),
+        response (the preview)}; verified is absent (there is no read-after).
+
+        Both fields are required by the API (channel/TX power/security protocol are not configurable
+        here). ssid is 1-32 chars; password is a WPA2-PSK secret of 8-63 chars. Guarded, in order:
+        the Mobility write opt-out (family:mobility=deny refuses first), read-before,
+        write, read-after. There is no no-op short-circuit (the password is not observable, so an
+        unchanged config cannot be proven). The supplied password is not echoed back in the result;
+        under dry-run policy the preview body shows the request as it would be sent, password
+        included (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on, like every
+        credential field of every dry-run preview).
+
+        Request body (Mobility 1.0.0, PUT
+        /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}/wireless (updateDeviceWireless); schema
+        "UpdateWirelessReq") is built from scalar parameters. Required keys — ssid, password.
+        - ssid: string
+        - password: string
+
+        Example call (update_mobility_device_wireless):
+            {
+              "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "ssid": "Fleet-WiFi",
+              "password": "correct-horse-9"
+            }
+
+        The dry-run preview contains method, path, params (query parameters), and body.
+
+        Args:
+            workspace_id: Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).
+            device_id: Mobility device UUID. Get it from list_mobility_devices (same workspace).
+                Mobility id — not a Network device UUID.
+            ssid: New SSID, 1-32 chars (spec UpdateWirelessReq.ssid).
+            password: New WPA2-PSK, 8-63 chars (spec UpdateWirelessReq.password).
+            confirm: Ignored. The call runs when made; there is no confirmation step.
+            key_label: Optional configured API-key label (see list_configured_api_keys). Omit to use
+                whichever configured key owns the object: every key is tried and the first that answers
+                is used.
+        """
+        client, _ = deps_fn()
+        return await mobility.update_mobility_device_wireless(
+            client, workspace_id, device_id, ssid, password, confirm=confirm, key_label=key_label
+        )
+
+    return {
+        "list_mobility_workspaces": list_mobility_workspaces,
+        "list_mobility_admins": list_mobility_admins,
+        "list_mobility_devices": list_mobility_devices,
+        "get_mobility_device": get_mobility_device,
+        "list_mobility_clients": list_mobility_clients,
+        "update_mobility_device_name": update_mobility_device_name,
+        "update_mobility_device_network": update_mobility_device_network,
+        "update_mobility_device_wireless": update_mobility_device_wireless,
+    }

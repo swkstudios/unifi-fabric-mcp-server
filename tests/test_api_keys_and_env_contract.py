@@ -24,6 +24,7 @@ import respx
 from httpx import Response
 from pydantic import BaseModel, ValidationError
 
+from tests.retired_names import migration_table_names
 from unifi_fabric import config
 from unifi_fabric.client import RateLimitError, UniFiClient
 from unifi_fabric.config import APIKeyConfig, MCPTransportSettings, Settings
@@ -82,8 +83,11 @@ _ENV_NAME = re.compile(r"\b((?:UNIFI|MCP|FASTMCP)_[A-Z0-9_]*[A-Z0-9_])")
 def _documented_env_names() -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     for doc in _PUBLIC_DOCS:
-        for name in _ENV_NAME.findall(doc.read_text()):
-            found.setdefault(name, []).append(doc.name)
+        text = doc.read_text()
+        retired = migration_table_names(doc, text)
+        for name in _ENV_NAME.findall(text):
+            if name not in retired:
+                found.setdefault(name, []).append(doc.name)
     return found
 
 
@@ -295,7 +299,7 @@ class TestCallerValidationRegexGate:
         source.mkdir(parents=True)
         tests = tmp_path / "tests"
         tests.mkdir()
-        (tests / "test_release_notes.py").write_text(
+        (tests / "test_changelog_prose.py").write_text(
             'import re\nre.search(r"Affected tools: (.*?)\\.(?: |$)", changelog)\n'
         )
         monkeypatch.setitem(_dollar_anchored_patterns.__globals__, "ROOT", tmp_path)

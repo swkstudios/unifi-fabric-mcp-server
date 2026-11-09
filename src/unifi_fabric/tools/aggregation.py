@@ -18,6 +18,8 @@ from ..client import (
     log_reason,
     nullable_object_records,
     object_records,
+    upstream_error_text,
+    upstream_error_value,
     validate_host_id,
     validate_spec_id,
     wrong_type_error,
@@ -169,6 +171,7 @@ async def _get_all_host_site_pairs(
     key: APIKeyConfig | None = None,
     skipped: list[dict[str, str]] | None = None,
     incomplete: list[str] | None = None,
+    claimed_hosts: set[str] | None = None,
 ) -> list[dict[str, str]]:
     """Build a list of {hostId, siteId, hostName, siteName} for every site.
 
@@ -214,15 +217,15 @@ async def _get_all_host_site_pairs(
             skips.append(
                 {
                     "hostId": "",
-                    "siteId": str(site.get("siteId") or site.get("id") or ""),
+                    "siteId": site.get("siteId") or site.get("id") or "",
                     "reason": "Site Manager site record has no hostId",
                 }
             )
             continue
         try:
-            validate_host_id(host_id, "hostId")
+            validate_host_id(host_id, "hostId", client=registry._client)
         except ValueError as exc:
-            skips.append({"hostId": str(host_id), "reason": str(exc)})
+            skips.append({"hostId": host_id, "reason": upstream_error_text(exc, registry._client)})
             continue
         host_map.setdefault(
             id_key(host_id),
@@ -231,6 +234,8 @@ async def _get_all_host_site_pairs(
 
     pairs = []
     for host_id, host_name in host_map.values():
+        if claimed_hosts is not None and id_key(host_id) in claimed_hosts:
+            continue
         try:
             proxy_sites = await registry.get_sites(host_id, key=key)
         except Exception as exc:
@@ -241,7 +246,11 @@ async def _get_all_host_site_pairs(
                 log_reason(exc),
             )
             skips.append(
-                {"hostId": host_id, "hostName": str(host_name), "reason": f"site list: {exc}"}
+                {
+                    "hostId": host_id,
+                    "hostName": host_name,
+                    "reason": f"site list: {upstream_error_text(exc, registry._client)}",
+                }
             )
             continue
         site_reason = incomplete_reason(proxy_sites)
@@ -250,28 +259,26 @@ async def _get_all_host_site_pairs(
             skips.append(
                 {
                     "hostId": host_id,
-                    "hostName": str(host_name),
+                    "hostName": host_name,
                     "reason": f"site list incomplete: {site_reason}",
                 }
             )
-            partial.append(f"{host_name} site list: {site_reason}")
+            partial.append(f"{host_id} ({host_name}) site list: {site_reason}")
         for proxy_site in proxy_sites:
             site_id = proxy_site.get("id") or proxy_site.get("_id", "")
             site_name = proxy_site.get("description") or proxy_site.get("name") or site_id
             if not site_id:
-                skips.append(
-                    {"hostId": host_id, "hostName": str(host_name), "reason": "site has no id"}
-                )
+                skips.append({"hostId": host_id, "hostName": host_name, "reason": "site has no id"})
                 continue
             try:
-                _assert_uuid(site_id)
+                _assert_uuid(site_id, client=registry._client)
             except ValueError as exc:
                 skips.append(
                     {
                         "hostId": host_id,
-                        "hostName": str(host_name),
-                        "siteId": str(site_id),
-                        "reason": str(exc),
+                        "hostName": host_name,
+                        "siteId": site_id,
+                        "reason": upstream_error_text(exc, registry._client),
                     }
                 )
                 continue
@@ -280,7 +287,7 @@ async def _get_all_host_site_pairs(
                     "hostId": host_id,
                     "siteId": site_id,
                     "hostName": host_name,
-                    "siteName": str(site_name),
+                    "siteName": site_name,
                 }
             )
     return pairs
@@ -371,17 +378,31 @@ async def _list_all_clients_fleet(
     jobs: list[tuple[dict[str, str], APIKeyConfig | None, str | None]] = []
     queued: set[tuple[str, str]] = set()
     answering: list[str | None] = []
+    claimed_hosts: set[str] = set()
     for label, key in scopes:
         try:
+            key_skipped: list[dict[str, str]] = []
+            key_partial: list[str] = []
             pairs = await _get_all_host_site_pairs(
-                registry, key=key, skipped=skipped, incomplete=partial
+                registry,
+                key=key,
+                skipped=key_skipped,
+                incomplete=key_partial,
+                claimed_hosts=claimed_hosts,
             )
+            if multi and label is not None:
+                for item in key_skipped:
+                    item["keyLabel"] = label
+                key_partial = [f"{label}: {reason}" for reason in key_partial]
+            skipped.extend(key_skipped)
+            partial.extend(key_partial)
         except Exception as exc:
             if not multi:
                 raise
             errors.append(key_error(label, exc))
             continue
         answering.append(label)
+        claimed_hosts.update(id_key(pair["hostId"]) for pair in pairs)
         for pair in pairs:
             # A console visible to more than one key is queried once (first key in
             # configuration order), so its clients are never returned twice.
@@ -397,10 +418,11 @@ async def _list_all_clients_fleet(
         reasons = "; ".join(
             errors
             + [
-                f"{s.get('hostId')}"
-                + (f" ({s['hostName']})" if s.get("hostName") else "")
-                + (f" site {s['siteId']}" if s.get("siteId") else "")
-                + f": {s.get('reason')}"
+                (f"{upstream_error_value(s['keyLabel'], client)}: " if s.get("keyLabel") else "")
+                + f"{upstream_error_value(s.get('hostId'), client)}"
+                + (f" ({upstream_error_value(s['hostName'], client)})" if s.get("hostName") else "")
+                + (f" site {upstream_error_value(s['siteId'], client)}" if s.get("siteId") else "")
+                + f": {upstream_error_value(s.get('reason'), client)}"
                 for s in skipped
             ]
         )
@@ -418,7 +440,13 @@ async def _list_all_clients_fleet(
             )
             object_records(collected["items"], f"clients of site {pair['siteId']}")
         except Exception as exc:
-            return {"clients": [], "error": f"{pair['siteName']}: {exc}"}
+            error_prefix = f"{label}: " if multi else ""
+            return {
+                "clients": [],
+                "error": f"{error_prefix}{upstream_error_value(pair['hostId'], client)}/"
+                f"{upstream_error_value(pair['siteName'], client)}: "
+                f"{upstream_error_text(exc, client)}",
+            }
         envelope = collected.get("envelope") or {}
         context = {
             "_hostId": pair["hostId"],
@@ -431,7 +459,8 @@ async def _list_all_clients_fleet(
             with_context(c, context) if isinstance(c, dict) else c for c in collected["items"]
         ]
         reason = (
-            f"{pair['siteName']}: {collected['incompleteReason']}"
+            f"{f'{label}: ' if multi else ''}{pair['hostId']}/{pair['siteName']}: "
+            f"{collected['incompleteReason']}"
             if collected["incomplete"]
             else None
         )
@@ -705,7 +734,7 @@ async def _list_api_keys(client: UniFiClient) -> dict[str, Any]:
     Returns key labels and whether each is an organization key, without
     exposing the actual key values.
     """
-    configs = client._settings.get_key_configs()
+    configs = client._key_configs()
     keys = []
     for cfg in configs:
         keys.append(

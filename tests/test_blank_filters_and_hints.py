@@ -8,8 +8,9 @@
   ``attrs`` and ``sites`` (an empty list in the body), ``host_ids`` (no parameter).
 * Every epoch-seconds argument of every tool takes a negative or millisecond-magnitude
   value: it is sent (converted to milliseconds where the endpoint needs them) and the
-  result carries a ``_warnings`` entry naming it. Derived from the tool schemas: a new
-  epoch argument is covered on registration.
+  existing history tools add a ``_warnings`` entry; speedtest passes the upstream
+  result through unchanged. Derived from the tool schemas: a new epoch argument is
+  covered on registration.
 * ``smart_detect_types`` without ``types`` is sent, with a ``_warnings`` entry.
 * An empty ``sites`` ISP query is sent as given; an upstream error gets a hint appended
   and keeps the upstream text.
@@ -230,7 +231,12 @@ def test_epoch_sweep_covers_every_history_tool():
     value=lambda: ([-1, MILLISECONDS_HINT_AT, 1_700_000_000_000]),
 )
 async def test_epoch_value_is_sent_with_a_warning(monkeypatch, name, arg, value):
-    up = uh.FakeUpstream(replay_recordings=False)
+    upstream_warning = [{"code": "UPSTREAM_WARNING", "message": "preserve me"}]
+    body = {"data": [{"time": 123}], "_warnings": upstream_warning}
+    up = uh.FakeUpstream(
+        replay_recordings=False,
+        classic_rc_body=body if name == "list_speedtest_results" else None,
+    )
     got = _payload(await _call(monkeypatch, name, up, args=_args(name, **{arg: value})))
     assert any(not s.resolution for s in up.served), f"{name}: nothing sent"
     sent = [str(value), str(value * 1000)]
@@ -245,10 +251,17 @@ async def test_epoch_value_is_sent_with_a_warning(monkeypatch, name, arg, value)
         if not isinstance(v, (dict, list))
     ]
     assert any(wire in sent for wire in on_wire), f"{name}.{arg}={value} not sent: {on_wire}"
-    warnings = got.get("_warnings") if isinstance(got, dict) else None
-    assert warnings and any(
-        w.get("argument") == arg and w.get("value") == value for w in warnings
-    ), got
+    if name == "list_speedtest_results":
+        served = [s for s in up.served if s.path.endswith("/report/archive.speedtest")]
+        assert len(served) == 1
+        assert served[0].sent_json[arg] == value * 1000
+        assert served[0].body["_warnings"] == upstream_warning
+        assert got == served[0].body
+    else:
+        warnings = got.get("_warnings") if isinstance(got, dict) else None
+        assert warnings and any(
+            w.get("argument") == arg and w.get("value") == value for w in warnings
+        ), got
 
 
 @lazy_parametrize(("name", "arg"), lambda: _lz_EPOCH_ARGS())

@@ -154,10 +154,15 @@ class TestGetBinary:
 # --- Backoff / rate-limit ---
 
 
+async def _no_sleep(_delay: float) -> None:
+    return None
+
+
 class TestBackoff:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_retries_on_429_then_succeeds(self, client):
+    async def test_retries_on_429_then_succeeds(self, client, monkeypatch):
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
         route = respx.get(f"{BASE}/ea/hosts")
         route.side_effect = [
             Response(429),
@@ -170,7 +175,8 @@ class TestBackoff:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_raises_after_max_retries(self, client):
+    async def test_raises_after_max_retries(self, client, monkeypatch):
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
         respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(429))
         with pytest.raises(RateLimitError, match="Rate limited after"):
             await client.request("GET", "/ea/hosts", max_retries=1)
@@ -178,22 +184,61 @@ class TestBackoff:
     @respx.mock
     @pytest.mark.asyncio
     async def test_final_429_carries_the_last_upstream_body(self, client, monkeypatch):
-        async def _no_sleep(_delay):
-            return None
-
         monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
-        respx.post(f"{BASE}/v1/x").mock(
+        respx.get(f"{BASE}/v1/x").mock(
             side_effect=[
                 Response(429, json={"message": "first"}),
                 Response(429, json={"message": "quota: retry after 60s", "code": "rl"}),
             ]
         )
         with pytest.raises(RateLimitError) as exc_info:
-            await client.request("POST", "/v1/x", max_retries=1)
+            await client.request("GET", "/v1/x", max_retries=1)
         msg = str(exc_info.value)
-        assert "POST /v1/x" in msg and "HTTP 429" in msg
+        assert "GET /v1/x" in msg and "HTTP 429" in msg
         assert "quota: retry after 60s" in msg and '"code":"rl"' in msg
         assert "first" not in msg
+
+    @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_a_write_is_sent_once_whatever_max_retries_says(
+        self, client, monkeypatch, method
+    ):
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
+        route = respx.route(method=method, url=f"{BASE}/v1/x").mock(
+            side_effect=[Response(429, json={"message": "slow down"}), Response(200, json={})]
+        )
+        with pytest.raises(RateLimitError):
+            await client.request(method, "/v1/x", json={"a": 1}, max_retries=3)
+        assert route.call_count == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_a_read_post_is_sent_once_whatever_max_retries_says(self, client, monkeypatch):
+        from unifi_fabric.read_only import is_write_request
+        from unifi_fabric.read_post_routes import READ_POST_ROUTES
+
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
+        path = next(r.sample for r in READ_POST_ROUTES if r.name == "network-classic-stat-session")
+        assert not is_write_request("POST", path, {})  # a read, yet not a GET
+        route = respx.post(f"{BASE}{path}").mock(
+            side_effect=[Response(429), Response(200, json={})]
+        )
+        with pytest.raises(RateLimitError):
+            await client.request("POST", path, json={}, max_retries=3)
+        assert route.call_count == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_a_state_changing_get_is_sent_once_whatever_max_retries_says(
+        self, client, monkeypatch
+    ):
+        monkeypatch.setattr("unifi_fabric.client.asyncio.sleep", _no_sleep)
+        path = "/v1/connector/consoles/h1/proxy/protect/api/cameras/c1/enable-control"
+        route = respx.get(f"{BASE}{path}").mock(side_effect=[Response(429), Response(200, json={})])
+        with pytest.raises(RateLimitError):
+            await client.request("GET", path, max_retries=3)
+        assert route.call_count == 1
 
     @respx.mock
     @pytest.mark.asyncio
@@ -261,7 +306,7 @@ class TestErrorMessages:
     @respx.mock
     @pytest.mark.asyncio
     async def test_error_body_complete_and_not_truncated(self, client):
-        uuid_in_body = "660f9511-f30c-52e5-b827-557766551111"
+        uuid_in_body = "00000000-0000-5000-8000-557766551111"
         long_detail = "d" * 5000
         body = f'{{"error": "not found", "id": "{uuid_in_body}", "detail": "{long_detail}"}}'
         respx.get(f"{BASE}/ea/hosts").mock(return_value=Response(404, text=body))
@@ -599,6 +644,22 @@ class TestValidateHostId:
             validate_host_id("abc def", "host_id")
 
 
+def _assert_transport_chain_hidden(error: BaseException) -> None:
+    """The httpx exception (whose request carries the API key header) is not chained.
+
+    ``raise ... from None`` sets ``__suppress_context__``, so a traceback, log record or
+    error reporter that honours it never renders the httpx error or its request;
+    ``__cause__`` alone is None with or without ``from None``.
+    """
+    import traceback
+
+    assert error.__cause__ is None
+    assert error.__suppress_context__ is True
+    rendered = "".join(traceback.format_exception(error))
+    assert "httpx" not in rendered and "During handling" not in rendered, rendered
+    assert "sk-single-test" not in rendered
+
+
 class TestAuthHeaderNotLeaked:
     """Authorization headers must never appear in exception messages or repr output."""
 
@@ -648,7 +709,7 @@ class TestAuthHeaderNotLeaked:
         respx.get(f"{BASE}/ea/hosts").mock(side_effect=httpx.TimeoutException("timed out"))
         with pytest.raises(UniFiConnectionError) as exc_info:
             await client.get("/ea/hosts")
-        assert exc_info.value.__cause__ is None
+        _assert_transport_chain_hidden(exc_info.value)
         assert "sk-single-test" not in str(exc_info.value)
         assert "sk-single-test" not in repr(exc_info.value)
 
@@ -658,7 +719,7 @@ class TestAuthHeaderNotLeaked:
         respx.get(f"{BASE}/ea/hosts").mock(side_effect=httpx.ConnectError("connection refused"))
         with pytest.raises(UniFiConnectionError) as exc_info:
             await client.get("/ea/hosts")
-        assert exc_info.value.__cause__ is None
+        _assert_transport_chain_hidden(exc_info.value)
         assert "sk-single-test" not in str(exc_info.value)
         assert "sk-single-test" not in repr(exc_info.value)
 
@@ -668,7 +729,7 @@ class TestAuthHeaderNotLeaked:
         respx.get(f"{BASE}/ea/hosts").mock(side_effect=httpx.NetworkError("network failure"))
         with pytest.raises(UniFiConnectionError) as exc_info:
             await client.get("/ea/hosts")
-        assert exc_info.value.__cause__ is None
+        _assert_transport_chain_hidden(exc_info.value)
         assert "sk-single-test" not in str(exc_info.value)
         assert "sk-single-test" not in repr(exc_info.value)
 
@@ -723,13 +784,14 @@ class TestRouteSecretWiring:
         assert "SENTINEL-OVPN-KEY" in resp.text
 
     @pytest.mark.asyncio
-    async def test_dry_run_preview_masks_registered_request_fields(self):
+    async def test_dry_run_preview_masks_registered_request_fields(self, monkeypatch):
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
         path = "/network/v2/api/site/default/matter/nodes"
         body = {"setup_code": "SENTINEL-SETUP-CODE", "name": "visible"}
-        on = UniFiClient(Settings(api_key="sk-t", dry_run=True, redact_secrets=True))
+        on = UniFiClient(Settings(api_key="sk-t", redact_secrets=True))
         text = (await on.request("POST", path, json=body)).text
         assert "SENTINEL-SETUP-CODE" not in text and "visible" in text
-        off = UniFiClient(Settings(api_key="sk-t", dry_run=True))
+        off = UniFiClient(Settings(api_key="sk-t"))
         assert "SENTINEL-SETUP-CODE" in (await off.request("POST", path, json=body)).text
 
 

@@ -14,4 +14,4 @@ def test_delete_description_states_the_deletion_result_dry_run_shape(name):
     assert "deleted: false" in description, description
     assert "response" in description, description
     # the bare client preview is no longer the advertised dry-run result
-    assert "message, preview:" not in description.split("UNIFI_DRY_RUN", 1)[1].split("response")[0]
+    assert "message, preview:" not in description.split("dry-run policy", 1)[1].split("response")[0]

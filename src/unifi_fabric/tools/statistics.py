@@ -12,6 +12,7 @@ from ..client import (
     UniFiConnectionError,
     describe_shape,
     object_records,
+    upstream_error_value,
     validate_id,
     validate_selector,
 )
@@ -19,6 +20,7 @@ from ..macs import is_mac, normalize_mac, record_mac
 from ..matching import id_key, same_id
 from ..read_post_routes import post_read
 from ..registry import Registry
+from ..selector_args import check_selector
 from ..tool_annotations import READ_ONLY
 from ._classic_objects import v2_site
 from ._history_common import (
@@ -32,6 +34,7 @@ from ._keys import with_context
 from .clients import resolve_list_source, v2_flag_params
 
 _CLASSIC_STAT_BASE = "/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat"
+_MODERN_STATS_BASE = "/v1/connector/consoles/{host_id}/proxy/network/v2/api/stats"
 
 # /stat/report path is "{interval}.{scope}", e.g. "hourly.ap". Every interval and scope
 # the controller accepts, from live read-only probes of each candidate on Network 11.0.81:
@@ -44,6 +47,14 @@ REPORT_SCOPES = ("site", "ap", "user", "gw", "sw", "device", "speedtest", "isp")
 
 def _classic_stat(host_id: str, site_slug: str, path: str) -> str:
     return _CLASSIC_STAT_BASE.format(host_id=host_id, site_slug=site_slug) + path
+
+
+async def _list_controller_stat_schemas(client: UniFiClient, registry: Registry, host: str) -> Any:
+    """Return the schemas exposed by the Network 11.x statistics engine."""
+    check_selector("host", host)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    return await client.get(_MODERN_STATS_BASE.format(host_id=host_id) + "/schemas", key=key)
 
 
 # Every stat read returns the controller's Classic envelope {"meta": {...}, "data": [...]}
@@ -223,6 +234,43 @@ async def _get_historical_stats(
     return with_warnings(response, epoch_warnings(start=start, end=end))
 
 
+async def _list_speedtest_results(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    start: int,
+    end: int,
+) -> Any:
+    """Read the legacy archive of speed-test results for an epoch-seconds window."""
+    start_ms = seconds_to_millis(require_epoch_seconds(start, "start"))
+    end_ms = seconds_to_millis(require_epoch_seconds(end, "end"))
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    body = {
+        "attrs": [
+            "xput_download",
+            "xput_upload",
+            "latency",
+            "time",
+            "interface_name",
+            "wan_networkgroup",
+        ],
+        "start": start_ms,
+        "end": end_ms,
+    }
+    try:
+        return await post_read(
+            client,
+            _classic_stat(host_id, site_slug, "/report/archive.speedtest"),
+            key=key,
+            json=body,
+        )
+    except UniFiConnectionError as exc:
+        raise translate_host_not_found(exc, host) from exc
+
+
 #: ``list_known_clients`` sources: Classic ``/stat/alluser`` (default) and the controller's
 #: v2 client history (Network 11.0.81 web UI, GET
 #: /proxy/network/v2/api/site/{site}/clients/history).
@@ -366,7 +414,10 @@ def _valid_choices(records: list[dict[str, Any]]) -> str:
     out = []
     for r in records:
         label = r.get("name") or r.get("hostname") or "(unnamed)"
-        out.append(f"{label} (mac={r.get('mac')}, _id={r.get('_id')}, id={r.get('id')})")
+        out.append(
+            f"{upstream_error_value(label)} (mac={upstream_error_value(r.get('mac'))}, "
+            f"_id={upstream_error_value(r.get('_id'))}, id={upstream_error_value(r.get('id'))})"
+        )
     return "; ".join(out) or "(none)"
 
 
@@ -511,7 +562,7 @@ async def _get_device_port_state(
                     "_source": "/stat/device",
                     "_port": row,
                 }
-        valid_ports = [row.get("port_idx") for row in ports]
+        valid_ports = [upstream_error_value(row.get("port_idx")) for row in ports]
         raise ValueError(
             f"Device {device_id!r} has no port_idx={port_idx} in its /stat/device "
             f"port_table; valid port_idx values: {valid_ports or '(none)'}."
@@ -577,6 +628,23 @@ async def _get_device_stp_state(
 
 def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     """Register all statistics MCP tools."""
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_controller_stat_schemas(host: str) -> Any:
+        """List schemas supported by a controller's Network 11.x statistics engine.
+
+        GET /v2/api/stats/schemas through the selected console. Each upstream schema can
+        describe its name, keys, values, and nested groups. Returns the upstream body verbatim;
+        FastMCP wraps an array in result for MCP clients.
+        Network versions without the modern statistics engine may return an upstream 404.
+
+        Required argument: host (see the parameter description).
+
+        Args:
+            host: Console name or id from list_hosts, e.g. "my-console".
+        """
+        client, registry = deps_fn()
+        return await _list_controller_stat_schemas(client, registry, host)
 
     @mcp.tool(annotations=READ_ONLY)
     async def get_site_statistics(
@@ -920,6 +988,39 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         return await _get_historical_stats(
             client, registry, host, site, interval, scope, start, end, attrs
         )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_speedtest_results(
+        host: str,
+        site: str,
+        start: int,
+        end: int,
+    ) -> Any:
+        """List archived WAN speed-test results for a site and time window.
+
+        Reads the private Classic REST POST /stat/report/archive.speedtest route. It
+        requests download/upload throughput, latency, result time, interface name and WAN
+        network group. Network 11 may keep its current history on a newer private v2 route;
+        an empty archive is returned unchanged.
+
+        Returns the controller's complete response body verbatim. No fields are filtered,
+        masked, projected or truncated.
+
+        Required arguments: host, site, start, end (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts
+                (data[].reportedState.hostname or reportedState.name, case-insensitive,
+                e.g. "my-console") or the long data[].id (MAC:numericId composite).
+            site: Network site name or UUID; resolved server-side. Get it from
+                list_local_sites (name or id). Names like "Default" work.
+            start: Inclusive window start as an integer epoch-seconds timestamp. The tool
+                converts it to the route's required epoch milliseconds.
+            end: Inclusive window end as an integer epoch-seconds timestamp. The tool
+                converts it to the route's required epoch milliseconds.
+        """
+        client, registry = deps_fn()
+        return await _list_speedtest_results(client, registry, host, site, start, end)
 
     @mcp.tool(annotations=READ_ONLY)
     async def list_known_clients(

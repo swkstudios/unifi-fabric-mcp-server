@@ -5,7 +5,7 @@ reference the image by digest rather than a mutable tag to ensure reproducibilit
 and guard against tag mutation:
 
 <!-- install-case: readme-docker-01 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-docker-01 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-docker-01 -->
 ```bash
 # Pull by digest instead of :latest or a version tag
 docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
@@ -14,7 +14,7 @@ docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
 You can find the digest for a given release on the package page or via (the image must be present locally; run `docker pull` first):
 
 <!-- install-case: readme-docker-02 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-docker-02 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-docker-02 -->
 ```bash
 docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
 docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
@@ -37,7 +37,7 @@ docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabr
 **Implications:**
 - Cache is reset on container restart (this is safe and expected)
 - Multiple server instances can run in parallel without coordination (streamable-http is stateless in the image; `sse` and `FASTMCP_STATELESS_HTTP=false` keep per-client sessions, so a load balancer needs sticky sessions)
-- No data loss risk from container updates or replacements
+- The container is stateless except the opt-in audit file (`UNIFI_AUDIT_LOG`): replacing it loses only audit history that is not on a persistent volume
 - Scaling is stateless and simple
 
 
@@ -46,22 +46,22 @@ docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabr
 Run the server as a container. The MCP client connects over HTTP to the `/mcp` endpoint and sends a bearer token, so only clients that hold the token can use your UniFi key.
 
 <!-- install-case: readme-install-24 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-24 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-install-24 -->
 ```bash
 # Generate a random token once and keep it: the server checks it and your MCP client sends it.
 export MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
 docker run -e UNIFI_API_KEY="your-api-key-here" -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN \
-  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
 ```
 
 `-e MCP_BEARER_TOKEN` with no `=value` passes the variable from your shell, so the token is not written into the command. `-p 127.0.0.1:3000:3000` publishes the port on this machine only; use `-p 3000:3000` to serve other machines, and add TLS for anything beyond a trusted LAN ([AUTH-TLS.md](AUTH-TLS.md)).
 
-> **Tip:** The explicit image tag above pins this release. `:latest` and the short form `:X.Y` move **only** when a clean release tag (`vX.Y.Z`, no pre-release suffix) is published; a pre-release tag never moves them. For production deployments, pin by digest instead; see [Docker Deployment](../README.md#docker-deployment).
+> **Tip:** The explicit image tag above pins this release. `:latest` and the short form `:X.Y` move **only** when a clean release tag (`vX.Y.Z`, no pre-release suffix) is published; a pre-release tag never moves them. For production deployments, pin by digest instead, as shown at the top of this guide.
 
-For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use, and expands `${MCP_BEARER_TOKEN}` from the environment it starts in). For all projects, use the user-scoped configuration supported by your client, keeping the token in the environment rather than passing its value as a command argument. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp). Other clients take the same `Authorization` header in their HTTP server entry.
+For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use, and expands `${MCP_BEARER_TOKEN}` from the environment it starts in). For all projects, use the user-scoped configuration supported by your client, keeping the token in the environment rather than passing its value as a command argument. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp). The entry holds no credential value: `${MCP_BEARER_TOKEN}` is read from your environment, and the UniFi API key stays in the container's environment (`-e UNIFI_API_KEY`), never in the client entry. The server listens at `/mcp` on the published port, and the entry's `type` is `http`. Other clients take the same `Authorization` header in their HTTP server entry.
 
 <!-- install-case: readme-install-25 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-25 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-install-25 -->
 ```json
 {
   "mcpServers": {
@@ -77,7 +77,7 @@ For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks 
 **Verify it works:**
 
 <!-- install-case: readme-install-26 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-26 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-install-26 -->
 ```bash
 curl -s -w "\nHTTP:%{http_code}\n" \
   -X POST -H "Content-Type: application/json" \
@@ -98,9 +98,9 @@ A browser page on another site cannot drive the server: a request whose `Origin`
 Without `MCP_AUTH_MODE` and `MCP_BEARER_TOKEN` the server accepts every request: anyone who can reach the port can call every tool, writes included, with your UniFi key. Use it only on loopback or on a network where every host is trusted. When it serves HTTP on a non-loopback address with no auth (the image binds `0.0.0.0`), the server prints a startup `WARNING` naming the fix.
 
 <!-- install-case: readme-install-27 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.0 case=readme-install-27 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=readme-install-27 -->
 ```bash
-docker run -e UNIFI_API_KEY="your-api-key-here" -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+docker run -e UNIFI_API_KEY="your-api-key-here" -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
 ```
 
 The client entry is the one above without `headers`, and the `curl` check without the `Authorization` line.

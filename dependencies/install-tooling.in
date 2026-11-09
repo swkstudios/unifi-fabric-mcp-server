@@ -1,0 +1,9 @@
+# Inputs for .github/install-tooling-requirements.txt (see dependencies/manifest.toml).
+# PyYAML, pytest and pytest-xdist take requirements.lock's versions through the constraint.
+build
+uv
+pipx
+pytest
+pytest-xdist
+PyYAML
+pip-audit

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-pair-3-4",
+  "description": "Adjacent pair (3,4): a missing X-UniFi-Api-Key in header mode wins over a key_label argument",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "route": "list_hosts",
+    "arguments": {
+      "key_label": "alpha"
+    }
+  },
+  "expected": {
+    "code": "missing_api_key_header",
+    "upstream_calls": 0
+  }
+}

@@ -23,7 +23,7 @@ async def test_r1_discovery_action_get_refusal_names_the_switch_that_applies(
 ):
     from unifi_fabric.discovery import apply_tool_mode
 
-    monkeypatch.setenv("UNIFI_READ_ONLY", str(int(read_only)))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny" if read_only else "allow")
     app = FastMCP("relay-round3")
 
     @app.tool(annotations=WRITE)
@@ -55,10 +55,10 @@ async def test_r1_discovery_action_get_refusal_names_the_switch_that_applies(
         # The dispatcher the old text pointed at is not listed in read-only mode.
         assert read_only_message("fabric_connector_get", tool=True) in message
         assert "Use call_write_tool" not in message
-        assert message.endswith("call_write_tool is not listed while read-only mode is on.")
+        assert message.endswith('call_write_tool is not listed while read-only mode is on."}}')
     else:
         assert "Use call_write_tool(name='fabric_connector_get', arguments=...) instead" in message
-        assert "UNIFI_READ_ONLY" not in message.split("instead", 1)[0]
+        assert "UNIFI_WRITE_POLICY" not in message.split("instead", 1)[0]
 
 
 @pytest.mark.parametrize("action", ["enable-control", "disable-control"])

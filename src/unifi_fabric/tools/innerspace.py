@@ -23,7 +23,10 @@ from __future__ import annotations
 
 import base64
 import re
+from collections.abc import Callable
 from typing import Any
+
+from fastmcp import FastMCP
 
 from ..client import (
     UniFiClient,
@@ -35,6 +38,7 @@ from ..client import (
     validate_selector,
 )
 from ..registry import Registry
+from ..tool_annotations import READ_ONLY
 from ._pagination import verbatim_list_result
 
 # Documented "UniFi InnerSpace Integration API" (v1.3.23) connector base. This is
@@ -236,7 +240,15 @@ async def _fetch_project_document(
                     + " | ".join(upstream_errors)
                 )
             raise  # non-forbidden (5xx/timeout/network): surface immediately
-        project = _validated_project(raw, path)
+        try:
+            project = _validated_project(raw, path)
+        except UniFiConnectionError as exc:
+            if upstream_errors:
+                exc.add_note(
+                    f"The documented integration path GET {integration_path}?mode={normalized} "
+                    "was rejected first: " + " | ".join(upstream_errors)
+                )
+            raise
         return raw, project
 
     raise _NamespaceForbiddenError(
@@ -518,9 +530,7 @@ def _extract_list(raw: Any, key: str) -> list[dict[str, Any]]:
     )
 
 
-def _integration_namespace_error(
-    host: str, full_path: str, upstream: Exception
-) -> UniFiConnectionError:
+def _integration_namespace_error(full_path: str, upstream: Exception) -> UniFiConnectionError:
     """The two-cause namespace-403 hint, appended to the verbatim upstream error."""
     return _NamespaceForbiddenError(
         f"{upstream}\n\nInnerSpace request to GET {full_path} was rejected with 'host not found' "
@@ -564,7 +574,7 @@ async def _fetch_integration_list(
         raw = await client.get(full_path, key=key, params=_site_params(site_id))
     except UniFiConnectionError as exc:
         if _is_namespace_forbidden(str(exc)):
-            raise _integration_namespace_error(host, full_path, exc) from exc
+            raise _integration_namespace_error(full_path, exc) from exc
         raise
     return verbatim_list_result(raw, _extract_list(raw, array_key), full_path)
 
@@ -713,7 +723,7 @@ async def get_innerspace_asset(
         content, content_type = await client.get_binary(full_path, key=key)
     except UniFiConnectionError as exc:
         if _is_namespace_forbidden(str(exc)):
-            raise _integration_namespace_error(host, full_path, exc) from exc
+            raise _integration_namespace_error(full_path, exc) from exc
         raise
     return {
         "_plan_id": plan_id,
@@ -722,4 +732,275 @@ async def get_innerspace_asset(
         "size_bytes": len(content),
         "path": full_path,
         "image_base64": None if metadata_only else base64.b64encode(content).decode(),
+    }
+
+
+# Tool modules the wrappers below delegate to, imported after this module's
+# own definitions so a module importing from this one never sees it half-built.
+from . import innerspace  # noqa: E402
+
+
+def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
+    """Register the innerspace tool wrappers moved from server.py, in order.
+
+    Returns the registered wrapper functions by name; server.py re-exports them.
+    """
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_innerspace_summary(
+        host: str,
+        mode: str = "3D",
+    ) -> dict[str, Any]:
+        """Inventory a console's InnerSpace floor-plan project without the full payload.
+
+        Returns counts and structure: shape breakdown by type (wall / device / map /
+        scale), per-floor plans with each plan's own scale, product and wall-material /
+        attenuation-type dictionary sizes, and project metadata. Call this before
+        get_innerspace_project when you only need to know what's present. Surfaces the
+        multi-floor caveat: floors do not share a coordinate origin. Top-level keys: mode,
+        shape_total, shape_counts, wall_variants, plan_count, plans, plan_scales, product_count,
+        wall_type_count, attenuation_object_type_count (null when the document has no
+        attenuationObjectTypes), project, multi_floor, and multi_floor_note when there are
+        several plans.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            mode: '3D' (default; device shapes carry real metric mounting heights) or '2D'.
+        """
+        client, registry = deps_fn()
+        return await innerspace.get_innerspace_summary(client, registry, host, mode)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_innerspace_project(
+        host: str,
+        mode: str = "3D",
+        user_email: str | None = None,
+        site_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Return the full InnerSpace floor-plan project geometry for a console.
+
+        The complete (~66 KB) project document: shapes, plans, products, wall types,
+        and attenuation-object types. The upstream response object is returned verbatim
+        (the documented API wraps the project under data; the legacy path returns it bare),
+        including device meta.mac / meta.ip and floor-plan image/asset URLs. Prefer
+        get_innerspace_summary first
+        if you only need an inventory — this payload is large.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            mode: '3D' (default; device shapes carry real metric mounting heights) or '2D' (device
+                shapes flattened to z=0). 3D is the only mode with real heights.
+            user_email: Optional userEmail query of the legacy /api/project route, e.g.
+                "admin@example.com". When it or site_id is given the legacy route is used.
+            site_id: Optional siteId query of the legacy /api/project route, e.g. "default".
+        """
+        client, registry = deps_fn()
+        return await innerspace.get_innerspace_project(
+            client, registry, host, mode, user_email, site_id
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_innerspace_devices(
+        host: str,
+        mode: str = "3D",
+    ) -> dict[str, Any]:
+        """List placed device shapes from a console's InnerSpace floor-plan.
+
+        Returns {shapes, _mode, _count}: shapes holds the project's device shapes verbatim, _mode the
+        normalized mode argument and _count the number of shapes.
+
+        Each mounted device's placement: mount, productId, title, position, and
+        rotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including
+        device meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting
+        heights; mode='2D' flattens positions to z=0.
+
+        Required arguments: host (see each parameter's description).
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            mode: '3D' (default) or '2D'.
+        """
+        client, registry = deps_fn()
+        return await innerspace.list_innerspace_devices(client, registry, host, mode)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_innerspace_floor_plans(
+        host: str,
+        site_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List a console's InnerSpace floor plans (documented Integration API).
+
+        Returns the upstream body verbatim (floor_plans and every other top-level key the API sends)
+        plus the additive _count of floor_plans.
+
+        Each floor plan carries id, name, floor_number, image_url (an asset path — fetch
+        with get_innerspace_asset), ppm (pixels per metre, the scale for interpreting
+        coordinates/heights), width/height (image pixels), origin_x/origin_y, and site_id
+        when filtered. Returned verbatim.
+
+        Example call (list_innerspace_floor_plans):
+            {"host": "my-console"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site_id: Optional filter: Network site UUID matched against each InnerSpace record's product
+                siteId. Get it from list_local_sites (id).
+        """
+        client, registry = deps_fn()
+        return await innerspace.list_innerspace_floor_plans(client, registry, host, site_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_innerspace_access_points(
+        host: str,
+        site_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List placed access points from a console's InnerSpace floor plans (Integration API).
+
+        Returns the upstream body verbatim (access_points and every other top-level key the API sends)
+        plus the additive _count of access_points.
+
+        Each AP carries id, name, model (SKU), mac, serial, floor_plan_id, x/y (pixels on
+        the floor-plan image), height (mounting height in metres), azimuth (antenna
+        orientation, 0-360 degrees), mount, and status. Returned verbatim, including
+        mac/serial.
+
+        Example call (list_innerspace_access_points):
+            {"host": "my-console"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site_id: Optional filter: Network site UUID matched against each InnerSpace record's product
+                siteId. Get it from list_local_sites (id).
+        """
+        client, registry = deps_fn()
+        return await innerspace.list_innerspace_access_points(client, registry, host, site_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_innerspace_switches(
+        host: str,
+        site_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List placed switches from a console's InnerSpace floor plans (Integration API).
+
+        Returns the upstream body verbatim (switches and every other top-level key the API sends) plus
+        the additive _count of switches.
+
+        Each switch carries id, name, model, type (switch), mac, serial, floor_plan_id,
+        x/y (pixels on the floor-plan image), and status. Returned verbatim, including
+        mac/serial.
+
+        Example call (list_innerspace_switches):
+            {"host": "my-console"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site_id: Optional filter: Network site UUID matched against each InnerSpace record's product
+                siteId. Get it from list_local_sites (id).
+        """
+        client, registry = deps_fn()
+        return await innerspace.list_innerspace_switches(client, registry, host, site_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def list_innerspace_inventory(
+        host: str,
+        site_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List UNPLACED device inventory for a console's InnerSpace project (Integration API).
+
+        Returns the upstream body verbatim (devices and every other top-level key the API sends) plus
+        the additive _count of devices.
+
+        Devices known to the project but not yet positioned on a floor plan. Each carries
+        id, name, model, mac, and serial. Returned verbatim, including mac/serial. The
+        response array key is 'devices'.
+
+        Example call (list_innerspace_inventory):
+            {"host": "my-console"}
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            site_id: Optional filter: Network site UUID matched against each InnerSpace record's product
+                siteId. Get it from list_local_sites (id).
+        """
+        client, registry = deps_fn()
+        return await innerspace.list_innerspace_inventory(client, registry, host, site_id)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_innerspace_asset(
+        host: str,
+        plan_id: str,
+        filename: str,
+        metadata_only: bool = False,
+    ) -> dict[str, Any]:
+        """Download a floor-plan asset (image) from a console's InnerSpace project.
+
+        Returns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the asset bytes
+        complete, base64-encoded, with the upstream Content-Type and size; _plan_id / _filename echo the
+        arguments.
+
+        Fetches the binary asset from the documented …/integration/v1/assets/{planId}/
+        {filename} endpoint (a floor plan's image_url resolves here). The complete bytes are
+        returned base64-encoded under image_base64 whatever the size (no size cap). Pass
+        metadata_only=true to leave out the bytes: the same keys come back with
+        image_base64=null. content_type is the upstream media type (typically image/jpeg or
+        image/png), or null when the upstream sends no Content-Type.
+
+        `plan_id`: the id in the {planId} segment of the floor plan's image_url -- i.e. the
+          value between '/assets/' and the trailing '/{filename}'. This is the asset-group
+          UUID and is NOT the floor plan's own 'id' field (they differ); passing the plan
+          'id' returns HTTP 404. Parse both plan_id and filename from image_url (from
+          list_innerspace_floor_plans) rather than constructing them from the plan id.
+
+        Example call (get_innerspace_asset):
+            {
+              "host": "my-console",
+              "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "filename": "plan.png"
+            }
+
+        Args:
+            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
+                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
+                (MAC:numericId composite). One console serves both Network and Protect.
+            plan_id: Asset-group UUID parsed from a floor plan's image_url
+                (/assets/{planId}/{filename}). NOT the floor plan id. From list_innerspace_floor_plans.
+            filename: Filename segment from the floor plan's image_url (after /assets/{planId}/), as
+                the plain (decoded) name, e.g. "2DPreview.svg"; the tool percent-encodes it. If that
+                segment carries %XX escapes, pass it percent-decoded ("my%20plan.png" -> "my plan.png"),
+                or the escapes are sent literally (%25XX).
+            metadata_only: Optional. True leaves out the image bytes: every other key is returned
+                and image_base64 is null. Default false: the full image is returned.
+        """
+        client, registry = deps_fn()
+        return await innerspace.get_innerspace_asset(
+            client, registry, host, plan_id, filename, metadata_only=metadata_only
+        )
+
+    return {
+        "get_innerspace_summary": get_innerspace_summary,
+        "get_innerspace_project": get_innerspace_project,
+        "list_innerspace_devices": list_innerspace_devices,
+        "list_innerspace_floor_plans": list_innerspace_floor_plans,
+        "list_innerspace_access_points": list_innerspace_access_points,
+        "list_innerspace_switches": list_innerspace_switches,
+        "list_innerspace_inventory": list_innerspace_inventory,
+        "get_innerspace_asset": get_innerspace_asset,
     }

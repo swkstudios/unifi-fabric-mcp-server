@@ -43,7 +43,7 @@ async def test_both_tools_are_registered_writes_with_documented_ids() -> None:
         assert {"host", "site", "profile_id"} <= set(tool.parameters["required"]), name
         description = tool.description or ""
         assert "list_radius_profiles" in description, name
-        assert "UNIFI_DRY_RUN" in description, name
+        assert "dry-run policy" in description, name
     assert "Consequence" in (tools["delete_radius_profile"].description or "")
 
 
@@ -83,7 +83,7 @@ async def test_an_unknown_id_sends_no_write_and_lists_the_valid_ids(monkeypatch,
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_dry_run_previews_without_writing(monkeypatch, name) -> None:
     up = uh.FakeUpstream()
-    result = await _call(monkeypatch, name, up, _args(name), env={"UNIFI_DRY_RUN": "true"})
+    result = await _call(monkeypatch, name, up, _args(name), env={"UNIFI_WRITE_POLICY": "dry-run"})
     assert _writes(up) == []
     text = json.dumps(result.structured_content or result.content, default=str)
     assert "dry_run" in text

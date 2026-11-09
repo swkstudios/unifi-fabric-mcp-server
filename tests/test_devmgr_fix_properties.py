@@ -76,7 +76,7 @@ async def test_every_scheduled_path_rejects_classic_failure(operation, rc):
         async def upstream(request):
             return httpx.Response(200, json=envelope)
 
-        client = UniFiClient(Settings(api_key="synthetic-scheduled-path", dry_run=False))
+        client = UniFiClient(Settings(api_key="synthetic-scheduled-path"))
         transport = httpx.AsyncClient(
             base_url="https://example.invalid", transport=httpx.MockTransport(upstream)
         )
@@ -205,9 +205,10 @@ async def test_adoption_secret_error_follows_opt_in_but_log_always_masks(
         }
     ],
 )
-async def test_physical_preview_has_consequence_and_actual_shape(name, args):
+async def test_physical_preview_has_consequence_and_actual_shape(name, args, monkeypatch):
     _, registry = dependencies()
-    client = UniFiClient(Settings(dry_run=True))
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    client = UniFiClient(Settings())
     client._get_client = AsyncMock(side_effect=AssertionError("must not open transport"))
     with patch.object(commands, "_device_mac", AsyncMock(return_value=MAC)):
         result = await getattr(commands, name)(client, registry, "h", "s", *args)
@@ -221,7 +222,7 @@ async def test_physical_preview_has_consequence_and_actual_shape(name, args):
 
     doc = (await server.mcp.get_tool(name)).description or ""
     assert "Consequence:" in doc
-    assert "UNIFI_DRY_RUN" in doc
+    assert "dry-run policy" in doc
     assert "dryRun" in doc and "message" in doc
     await client.close()
 
@@ -250,9 +251,7 @@ async def test_direct_adoption_client_error_follows_opt_in_but_log_always_masks(
         return httpx.Response(400, text=echoed)
 
     _, registry = dependencies()
-    client = UniFiClient(
-        Settings(dry_run=False, api_key="synthetic-test-api-key", redact_secrets=redact)
-    )
+    client = UniFiClient(Settings(api_key="synthetic-test-api-key", redact_secrets=redact))
     transport = httpx.AsyncClient(
         base_url="https://example.invalid", transport=httpx.MockTransport(upstream)
     )
@@ -329,7 +328,7 @@ async def test_scheduled_registered_docs_describe_actual_preview():
     }
     for tool in tools:
         assert "Consequence:" in tool.description
-        assert "UNIFI_DRY_RUN" in tool.description
+        assert "dry-run policy" in tool.description
         assert "dryRun" in tool.description and "message" in tool.description
 
 
@@ -377,20 +376,17 @@ METADATA_READS = {
         }
     ],
 )
-@pytest.mark.parametrize("settings", [{"dry_run": True}, {"read_only": True}])
-async def test_metadata_post_reads_execute_with_safety_modes(name, args, settings, monkeypatch):
+@pytest.mark.parametrize("policy", ["dry-run", "deny"])
+async def test_metadata_post_reads_execute_with_safety_modes(name, args, policy, monkeypatch):
     """A metadata command (list-available, speedtest-status, list-backups) is a read: its
     exact (route, command) pair is a listed read command (read_post_routes.READ_COMMANDS), so
-    under UNIFI_DRY_RUN and under UNIFI_READ_ONLY alike it is sent exactly once and the
+    under dry-run policy and under UNIFI_WRITE_POLICY alike it is sent exactly once and the
     upstream envelope is returned verbatim."""
     import httpx
 
     from unifi_fabric import read_only
 
-    if settings.get("read_only"):
-        monkeypatch.setenv(read_only.ENV_VAR, "1")
-    else:
-        monkeypatch.delenv(read_only.ENV_VAR, raising=False)
+    monkeypatch.setenv(read_only.ENV_VAR, policy)
     received = []
     envelope = {"meta": {"rc": "ok"}, "data": [{"metadata": "kept"}]}
 
@@ -399,7 +395,7 @@ async def test_metadata_post_reads_execute_with_safety_modes(name, args, setting
         return httpx.Response(200, json=envelope)
 
     _, registry = dependencies()
-    client = UniFiClient(Settings(api_key="synthetic-test-api-key", **settings))
+    client = UniFiClient(Settings(api_key="synthetic-test-api-key"))
     transport = httpx.AsyncClient(
         base_url="https://example.invalid", transport=httpx.MockTransport(upstream)
     )
@@ -606,11 +602,11 @@ async def test_sdk_settings_key_classic_error_scrubbed(configuration, representa
         return httpx.Response(200, json=envelope)
 
     settings = (
-        Settings(api_key="synthetic-sdk-base-key", dry_run=False)
+        Settings(api_key="synthetic-sdk-base-key")
         if configuration == "selected-key"
-        else Settings(api_key=secret, dry_run=False)
+        else Settings(api_key=secret)
         if configuration == "api_key"
-        else Settings(api_keys=[APIKeyConfig(key=secret, label="sdk-test")], dry_run=False)
+        else Settings(api_keys=[APIKeyConfig(key=secret, label="sdk-test")])
     )
     client = UniFiClient(settings)
     _, registry = dependencies()
@@ -676,11 +672,11 @@ async def test_sdk_settings_key_classic_success_follows_own_secret_policy(
         return httpx.Response(200, json=envelope)
 
     settings = (
-        Settings(api_key="synthetic-sdk-base-key", dry_run=False)
+        Settings(api_key="synthetic-sdk-base-key")
         if configuration == "selected-key"
-        else Settings(api_key=secret, dry_run=False)
+        else Settings(api_key=secret)
         if configuration == "api_key"
-        else Settings(api_keys=[APIKeyConfig(key=secret, label="sdk-test")], dry_run=False)
+        else Settings(api_keys=[APIKeyConfig(key=secret, label="sdk-test")])
     )
     client = UniFiClient(settings)
     _, registry = dependencies()
@@ -713,7 +709,7 @@ SERVER_KEY = "synthetic-server-key-0001"
 def _real_client(upstream, api_key=SERVER_KEY):
     import httpx
 
-    client = UniFiClient(Settings(api_key=api_key, dry_run=False))
+    client = UniFiClient(Settings(api_key=api_key))
     transport = httpx.AsyncClient(
         base_url="https://example.invalid", transport=httpx.MockTransport(upstream)
     )
@@ -777,7 +773,7 @@ async def test_call_scoped_error_response_follows_opt_in(redact):
         return httpx.Response(400, json={"error": f"bad password {CALLER_SECRET}"})
 
     client, transport = _real_client(upstream, api_key=SERVER_KEY)
-    client._settings = Settings(api_key=SERVER_KEY, dry_run=False, redact_secrets=redact)
+    client._settings = Settings(api_key=SERVER_KEY, redact_secrets=redact)
     try:
         with secret_scope([CALLER_SECRET]):
             with pytest.raises(Exception) as raised:

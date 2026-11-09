@@ -56,6 +56,12 @@ _RE_FUNCS = {
 #: position (``.match`` / ``.fullmatch``), where the leading repeat cannot be retried
 #: from every later start.
 MATCH_ONLY = {
+    "[\\w.-]+':": "redaction: tool header is only match()ed at an already found key position",
+    "[\\w./@$+-]+": "redaction: lone finditer class consumes whole runs; no failing suffix",
+    "[^,;&\\n\\r)\\]}]+": "redaction: bare pair value only match()ed at a found value position",
+    "[^\\s,;&)\\]}]+": "redaction: bare scalar only match()ed at a found value position",
+    "\\\\*[\\\"']": "redaction: opening value quote only match()ed at a found value position",
+    "\\s*[:=]\\s*": "redaction: key separator only match()ed after a closing key quote",
     r"[A-Za-z0-9]*": "secret_scrub: matched at a found position to skip a letter/digit run",
     r"[A-Za-z0-9+/_-]*": "secret_scrub: matched at a found position to expand a base64 token",
     r"=*": "secret_scrub: matched at the token end to take its padding",
@@ -82,6 +88,17 @@ def _expression(source: str) -> str:
 #: Exact nonliteral call expressions, scoped to the function that owns the proof.
 #: A new Name/Attribute expression, even in one of these files, fails closed.
 DYNAMIC = {
+    (
+        "redaction.py",
+        "",
+        "compile",
+        _expression(
+            '(r"(?P<q>\\\\*[\\"\'])"\n'
+            '    r"|(?:(?<![\\w\\\\\\"\'-])|(?<=\\\\[nrt]))"\n'
+            'rf"(?P<bare>(?:[\\w.:/@$+-]|{_ERROR_KEY_ESCAPE}){{1,{_ERROR_KEY_MAX // 4}}})"\n'
+            '    r"[ \\t]?=(?!=)[ \\t]?")'
+        ),
+    ): "constant key grammar and bounded key length; compiled module global is exhaustively linted",
     (
         "_instructions_audit.py",
         "_name_in_text",

@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "contract": "c",
+  "name": "reject-invalid-signature",
+  "description": "A HandlerRef whose adapter is not the declared async handler(request_context, validated_arguments, dependencies)",
+  "kind": "reject",
+  "input": {
+    "tool_specs": [
+      {
+        "base": "get_camera",
+        "handler": "unifi_fabric._generated.adapters.protect:get_camera"
+      }
+    ]
+  },
+  "expected": {
+    "code": "startup:catalog:invalid_signature",
+    "registered": 0
+  }
+}

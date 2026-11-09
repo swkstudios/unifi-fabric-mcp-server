@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-tools-list-malformed-policy-header",
+  "description": "A tools/list request with a malformed X-UniFi-Write-Policy returns the invalid_policy_header JSON-RPC error",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "loud"
+      ]
+    ],
+    "route": "tools/list"
+  },
+  "expected": {
+    "code": "invalid_policy_header",
+    "upstream_calls": 0
+  }
+}

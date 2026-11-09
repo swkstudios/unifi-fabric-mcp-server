@@ -665,7 +665,8 @@ _SETTINGS_CASES = {
     "object not a list": {"UNIFI_API_KEYS": json.dumps({"key": KEY_BETA})},
     "malformed JSON": {"UNIFI_API_KEYS": '[{"key": ' + json.dumps(KEY_ALPHA) + ", oops"},
     "bad bound with key set": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_MAX_CONCURRENCY": "0"},
-    "bad bool with key set": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_DRY_RUN": "maybe"},
+    "bad bool with key set": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_REDACT_SECRETS": "maybe"},
+    "bad write policy with key set": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_WRITE_POLICY": KEY_ALPHA},
     "bad log level with key set": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_LOG_LEVEL": "LOUD"},
     "bad audit format": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_AUDIT_LOG_FORMAT": "xml"},
     "bad base url": {"UNIFI_API_KEY": KEY_SINGLE, "UNIFI_API_BASE_URL": f"x{KEY_ALPHA.strip()}"},
@@ -768,7 +769,7 @@ def test_models_repr_and_str_never_show_secrets(monkeypatch, tmp_path):
     monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
     transport = MCPTransportSettings(bearer_token=BEARER, tls_key_password=TLS_PASSWORD)
     settings = Settings(api_key=KEY_SINGLE, api_keys=_KEYS)
-    sink = AuditSink(path=str(tmp_path / "a"), secrets=ALL_SENTINELS)
+    sink = AuditSink(path=str(tmp_path / "a"), secrets=ALL_SENTINELS, fmt="text")
     for obj in (transport, settings, *_KEYS, sink):
         _assert_clean(type(obj).__name__, repr(obj) + str(obj))
 
@@ -1052,15 +1053,26 @@ def test_scrubber_masks_every_form(secret):
 
 
 def test_env_secrets_are_scrubbed_without_settings(monkeypatch):
+    audit_hmac_key = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode()
     for name, value in (
         ("UNIFI_API_KEY", KEY_SINGLE),
+        ("UNIFI_AUDIT_HMAC_KEY", audit_hmac_key),
         ("MCP_BEARER_TOKEN", BEARER),
         ("MCP_TLS_KEY_PASSWORD", TLS_PASSWORD),
     ):
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("UNIFI_API_KEYS", _keys_env({"key": KEY_BETA}))
-    text = " | ".join(repr(s) for s in (KEY_SINGLE, BEARER, TLS_PASSWORD, KEY_BETA))
+    text = " | ".join(repr(s) for s in (KEY_SINGLE, audit_hmac_key, BEARER, TLS_PASSWORD, KEY_BETA))
     assert leaks(scrub(text)) == []
+
+
+def test_audit_hmac_key_is_a_configured_secret():
+    from unifi_fabric.secret_scrub import configured_secrets
+
+    text = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode()
+    settings = Settings(audit_hmac_key=text)
+    assert text in configured_secrets(settings)
+    assert scrub(f"key={text}", configured_secrets(settings)) == "key=***"
 
 
 def test_scrubber_matches_whole_tokens_of_every_secret():

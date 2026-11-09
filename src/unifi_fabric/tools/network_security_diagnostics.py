@@ -1,7 +1,7 @@
 """Network SSL inspection, IPS, system-log, diagnostics and IP/Thread topology tools (GS3 N11).
 
 Every route is a Network v2 frontend route (``/proxy/network/v2/api/site/{site}/...``)
-from the Network 11.0.81 route inventory: the pinned Network spec (10.6.106) publishes no
+from the Network 11.0.81 route inventory: the pinned Network spec (11.0.97) publishes no
 operation for any of them, and v2 is preferred over the Classic ``rest/setting`` groups
 (route preference official > v2 > classic). Request bodies the inventory marks dynamic
 are free-form object arguments, passed through as given; no key is invented. Responses
@@ -23,6 +23,7 @@ from ..client import (
     is_dry_run_preview,
     path_segment,
     upstream_error_text,
+    upstream_error_value,
     validate_id,
 )
 from ..config import APIKeyConfig
@@ -32,6 +33,7 @@ from ..read_only import ReadOnlyModeError, guard_action
 from ..redaction import drop_masked_fields, note_dropped_fields
 from ..registry import Registry
 from ..selector_args import check_selector
+from ..switches import READ_ONLY_ENV
 from ..tool_annotations import READ_ONLY, WRITE
 from ..write_body import IDENTITY_FIELDS, require_unmasked_fields, require_update_fields
 from ._classic_objects import resolve_site_slug, v2_site
@@ -102,11 +104,11 @@ def _flag(value: Any, name: str) -> bool:
 
 
 def _write_gate(client: UniFiClient, tool: str) -> None:
-    """Refuse a write under ``UNIFI_READ_ONLY`` before any resolution or read-before."""
+    """Refuse a write under ``UNIFI_WRITE_POLICY=deny`` before any resolution or read-before."""
     try:
-        guard_action(tool)
+        guard_action("POST")
     except ReadOnlyModeError:
-        client.audit_refusal(tool=tool, reason="UNIFI_READ_ONLY")
+        client.audit_refusal(tool=tool, reason=READ_ONLY_ENV)
         raise
 
 
@@ -149,7 +151,7 @@ def _stopped_short(body: Any) -> str | None:
     that fails on such a listing says so instead of reporting the record as absent.
     """
     if isinstance(body, dict) and body.get("incomplete") is True:
-        return str(body.get("incompleteReason") or "no reason given")
+        return str(upstream_error_value(body.get("incompleteReason") or "no reason given"))
     return None
 
 
@@ -198,7 +200,11 @@ async def _require_record(
     record = _find(records, wanted)
     if record is not None:
         return record, _ids(record)[0]
-    valid = "; ".join(f"{r.get('name')!r} (id={_ids(r)[0]})" for r in records if _ids(r))
+    valid = "; ".join(
+        f"{upstream_error_value(r.get('name'))!r} (id={upstream_error_value(_ids(r)[0])})"
+        for r in records
+        if _ids(r)
+    )
     reason = _stopped_short(body)
     short = (
         f" The listing stopped short after {len(records)} records ({reason}), so the "
@@ -916,9 +922,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         ssl-inspection/certificates and "generate" POSTs ssl-inspection/certificates/generate.
         certificate is a free-form JSON object sent exactly as given: the route inventory records
         the body as dynamic, so no field is required or added by this tool. Private key and
-        passphrase fields are route secrets: errors and logs never carry them and previews mask them
+        passphrase fields are route secrets: logs always scrub them; errors and previews mask them
         only under UNIFI_REDACT_SECRETS. Returns the upstream body verbatim (a JSON array arrives as
-        {result: [...]}). With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun,
+        {result: [...]}). With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun,
         sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
         Args:
@@ -926,7 +932,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
             mode: Required upload or generate, e.g. "generate".
             certificate: Required free-form JSON object sent as the request body, as the
-                Network UI builds it, e.g. {"name": "mcp-gs3-n11-ca"}.
+                Network UI builds it, e.g. {"name": "example-ca"}.
         """
         return await create_ssl_inspection_certificate(*deps(), host, site, mode, certificate)
 
@@ -937,13 +943,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: irreversible; clients that trust this CA lose it for inspection. Required
         arguments: host, site, certificate_id. The id is resolved in the certificate list first: an
         unknown id fails listing the valid ids and sends no DELETE. Returns {deleted, message,
-        response} with the upstream body. With UNIFI_DRY_RUN, returns {status: "dry_run", deleted:
+        response} with the upstream body. With dry-run policy, returns {status: "dry_run", deleted:
         false, message, response} with the preview (method, path, params, body) under response.
 
         Args:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
-            certificate_id: Required certificate id, e.g. "65f0c0ffee0000000000aa01".
+            certificate_id: Required certificate id, e.g. "000000000000000000000105".
         """
         return await delete_ssl_inspection_certificate(*deps(), host, site, certificate_id)
 
@@ -954,14 +960,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: inspected TLS sessions are re-signed with this CA; clients that do not trust it
         see certificate errors. Required arguments: host, site, certificate_id. The id is resolved
         in the certificate list first. Sent once and never retried. Returns the upstream body
-        verbatim. With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent:
+        verbatim. With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent:
         false, message,
         preview: {method, path, params, body}} and sends nothing.
 
         Args:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
-            certificate_id: Required certificate id, e.g. "65f0c0ffee0000000000aa01".
+            certificate_id: Required certificate id, e.g. "000000000000000000000105".
         """
         return await activate_ssl_inspection_certificate(*deps(), host, site, certificate_id)
 
@@ -986,7 +992,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required arguments: host, site, profile. profile is a free-form JSON object sent exactly as
         given (the route inventory records the body as dynamic); read list_ssl_inspection_catalog
         with catalog "profile-defaults" for the fields. Returns the upstream body verbatim (a JSON
-        array arrives as {result: [...]}). With UNIFI_DRY_RUN, returns a dry-run preview {status:
+        array arrives as {result: [...]}). With dry-run policy, returns a dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
 
@@ -994,7 +1000,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
             profile: Required free-form profile object, shaped like the profile-defaults
-                catalog, e.g. {"name": "mcp-gs3-n11-profile"}.
+                catalog, e.g. {"name": "example-profile"}.
         """
         return await create_ssl_inspection_profile(*deps(), host, site, profile)
 
@@ -1011,14 +1017,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         type-strictly), _unverifiedFields when false and _readAfterError when the read-back failed;
         when UNIFI_REDACT_SECRETS is enabled, fields holding the redaction mask are not sent
         and are listed in _redactedFieldsNotSent.
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message, preview: {method, path, params, body}} and sends nothing.
 
         Args:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
-            profile_id: Required profile id, e.g. "65f0c0ffee0000000000bb01".
-            changes: Required fields to change, e.g. {"name": "mcp-gs3-n11-profile-2"}.
+            profile_id: Required profile id, e.g. "000000000000000000000106".
+            changes: Required fields to change, e.g. {"name": "example-profile-2"}.
                 Free-form object.
         """
         return await update_ssl_inspection_profile(*deps(), host, site, profile_id, changes)
@@ -1030,13 +1036,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: irreversible; rules using the profile lose it. Required arguments: host, site,
         profile_id. The id is resolved in the profile list first: an unknown id fails listing the
         valid ids and sends no DELETE. Returns {deleted, message, response} with the upstream body.
-        With UNIFI_DRY_RUN, returns {status: "dry_run", deleted: false, message, response} with the
+        With dry-run policy, returns {status: "dry_run", deleted: false, message, response} with the
         preview (method, path, params, body) under response.
 
         Args:
             host: Required console name or id from list_hosts, e.g. "my-console".
             site: Required Network site name, id or slug from list_local_sites, e.g. "default".
-            profile_id: Required profile id, e.g. "65f0c0ffee0000000000bb01".
+            profile_id: Required profile id, e.g. "000000000000000000000106".
         """
         return await delete_ssl_inspection_profile(*deps(), host, site, profile_id)
 
@@ -1063,7 +1069,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body (a non-object body under response) plus _readAfter, _verified (true only when every
         requested leaf matches type-strictly), _unverifiedFields when false and _readAfterError when
         the read-back failed; when UNIFI_REDACT_SECRETS is enabled, fields holding the redaction
-        mask are not sent and are listed in _redactedFieldsNotSent. With UNIFI_DRY_RUN, returns
+        mask are not sent and are listed in _redactedFieldsNotSent. With dry-run policy, returns
         a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
         params, body}} and sends nothing.
 
@@ -1109,7 +1115,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Consequence: the gateway downloads and loads new signatures; inspection can pause while the
         engine reloads. Required arguments: host, site. Sent once and never retried; read
         get_ips_signature_status for progress. Returns the upstream body verbatim (a JSON array
-        arrives as {result: [...]}). With UNIFI_DRY_RUN, returns a dry-run preview {status:
+        arrives as {result: [...]}). With dry-run policy, returns a dry-run preview {status:
         "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
         nothing.
 
@@ -1142,7 +1148,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _verified (true only when every requested leaf matches type-strictly), _unverifiedFields
         when false and _readAfterError when the read-back failed; when UNIFI_REDACT_SECRETS is
         enabled, fields holding the redaction mask are not sent and are listed in
-        _redactedFieldsNotSent. With UNIFI_DRY_RUN, returns a dry-run
+        _redactedFieldsNotSent. With dry-run policy, returns a dry-run
         preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
         body}} and sends nothing.
 
@@ -1159,7 +1165,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Required arguments: host, site. body is an optional free-form JSON object sent exactly as
         given (the route inventory records the body as dynamic). Returns the upstream body verbatim
-        (a JSON array arrives as {result: [...]}). With UNIFI_DRY_RUN, returns a dry-run preview
+        (a JSON array arrives as {result: [...]}). With dry-run policy, returns a dry-run preview
         {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
         sends nothing.
 
@@ -1184,7 +1190,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         host, site, action. start POSTs pcap-start with {cmd: "pcap-start"} plus options (free-form,
         sent as given); stop POSTs pcap-stop/{capture_id} with {cmd: "pcap-stop"}. Sent once and
         never retried. Returns the upstream body verbatim (a JSON array arrives as {result: [...]}).
-        With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
+        With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
         message, preview: {method, path, params, body}} and sends nothing.
 
         Args:
@@ -1224,7 +1230,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         arguments: host, site, action, target. POSTs ping-start/{target} or ping-stop/{target};
         target is the path segment the Network UI uses for the test and is sent as one encoded
         segment. options is a free-form body sent as given. Sent once and never retried. Returns the
-        upstream body verbatim. With UNIFI_DRY_RUN, returns a dry-run preview {status: "dry_run",
+        upstream body verbatim. With dry-run policy, returns a dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
         Args:

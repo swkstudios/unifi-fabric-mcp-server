@@ -23,7 +23,7 @@ The client chokepoint may carry the same rule (``client.classic_rc_error`` /
 ``client.ClassicApiError``). This module uses those when they exist (so there is one rule
 and one error type) and always applies the stricter command-local affirmative-success rule.
 The shared check may allow responses without a Classic envelope on other API routes.
-``UNIFI_DRY_RUN`` is respected: the client returns
+``dry-run policy`` is respected: the client returns
 its ``status: "dry_run"`` preview and this helper returns that preview unchanged (never a
 success or a false error).
 """
@@ -202,7 +202,7 @@ async def classic_command(
 
     Every input is validated before the request. Returns the controller's
     ``{meta, data}`` body verbatim on success, or the client's dry-run preview unchanged
-    under ``UNIFI_DRY_RUN``. Raises ``ValueError`` on invalid input (no request),
+    under ``dry-run policy``. Raises ``ValueError`` on invalid input (no request),
     :class:`ClassicCommandError` on HTTP 2xx without ``meta.rc == "ok"`` (full upstream
     body in the message), and the client's errors otherwise. ``allow_empty_success`` is
     reserved for Classic commands whose documented successful response has no body.

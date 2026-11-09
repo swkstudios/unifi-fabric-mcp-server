@@ -8,7 +8,6 @@ through, and registry record lists with non-object items are a shape error."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -349,7 +348,7 @@ def test_object_records_names_the_request_and_item():
 @pytest.mark.parametrize(
     "tool", ["get_site_health_summary", "list_all_clients", "query_isp_metrics", "list_sites"]
 )
-async def test_v1_sites_list_of_scalars_or_nulls_is_a_shape_error(monkeypatch, tool, shape):
+async def test_v1_sites_scalars_or_nulls_raise_or_preserve_upstream_data(monkeypatch, tool, shape):
     up = uh.FakeUpstream(item_shape=shape)
     uh.install(monkeypatch, up)
     from tests import tool_args
@@ -360,8 +359,14 @@ async def test_v1_sites_list_of_scalars_or_nulls_is_a_shape_error(monkeypatch, t
     except ToolError as exc:
         assert "Unexpected" in str(exc) and "has no attribute" not in str(exc)
         return
-    text = json.dumps(uh.result_payload(res))
-    assert "has no attribute" not in text
+    result = uh.result_payload(res)
+    bodies = [served.body for served in up.served if served.path == "/v1/sites"]
+    if tool == "list_sites":
+        assert len(bodies) == 1
+        assert result["data"] == bodies[0]["data"]
+        assert result["_count"] == len(bodies[0]["data"])
+    else:
+        assert result in bodies
 
 
 async def test_registry_never_caches_a_list_with_non_object_items():

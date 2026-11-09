@@ -5,7 +5,7 @@ collection's list first. The controller answers a DELETE on an unknown id with H
 without the check a deletion that never happened is reported. The set of such tools is
 derived from the registry (every write tool whose PUT/DELETE lands on a Classic or v2 item
 route named by one of its arguments), and each one, given an id absent from its list, sends
-no write and fails listing the valid ids, with and without UNIFI_DRY_RUN.
+no write and fails listing the valid ids, with and without dry-run policy.
 
 The purpose-scoped networkconf updates pin ``purpose`` in the body through one helper,
 so ``purpose: null`` is never forwarded.
@@ -101,6 +101,9 @@ def _item_writes(up: uh.FakeUpstream) -> list[uh.Served]:
 
 
 _ID_WRITE_SEEN: dict[str, str | None] = {}
+_ID_WRITE_FAILURES: dict[str, str] = {}
+# Explicit exceptions require a reason; no generated write calls are exempt.
+_ALLOWED_FAILURES: dict[str, str] = {}
 
 
 async def _id_write_arg_for(name: str) -> str | None:
@@ -122,7 +125,8 @@ async def _id_write_arg_for(name: str) -> str | None:
             uh.install(mp, up)
             try:
                 await uh.server.mcp.call_tool(name, args)
-            except Exception:  # noqa: BLE001 - a tool that fails here writes nothing
+            except Exception as exc:  # noqa: BLE001 - report every failed generated call
+                _ID_WRITE_FAILURES[name] = str(exc)
                 failed = True
         if not failed:
             for served in _item_writes(up):
@@ -152,6 +156,7 @@ async def _derive() -> dict[str, str]:
         arg = await _id_write_arg_for(name)
         if arg is not None:
             out[name] = arg
+    assert set(_ID_WRITE_FAILURES) == set(_ALLOWED_FAILURES), _ID_WRITE_FAILURES
     return out
 
 
@@ -181,7 +186,7 @@ async def test_absent_id_sends_no_write_and_lists_valid_ids(monkeypatch, name, d
     arg = await _id_write_arg_for(name)
     args = {**tool_args.generated_args(TOOLS[name]), arg: ABSENT_ID}
     up = uh.FakeUpstream()
-    env = {"UNIFI_DRY_RUN": "1"} if dry_run else None
+    env = {"UNIFI_WRITE_POLICY": "dry-run"} if dry_run else None
     with pytest.raises(ToolError) as exc:
         await cti._call(monkeypatch, name, up, args, env=env)
     text = str(exc.value)
@@ -194,7 +199,9 @@ async def test_absent_id_sends_no_write_and_lists_valid_ids(monkeypatch, name, d
 @tool_batches("name", lambda: cti.WRITE_TOOLS, member=_is_resolved)
 async def test_known_id_under_dry_run_previews_after_the_resolution_read(monkeypatch, name):
     up = uh.FakeUpstream()
-    payload = uh.result_payload(await cti._call(monkeypatch, name, up, env={"UNIFI_DRY_RUN": "1"}))
+    payload = uh.result_payload(
+        await cti._call(monkeypatch, name, up, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    )
     assert up.writes() == [], name
     assert any(s.method == "GET" and not s.resolution for s in up.served), name
     preview = payload if is_dry_run_preview(payload) else (payload or {}).get("response")
@@ -212,7 +219,7 @@ async def test_unlisted_write_passes_the_id_through_without_a_resolution_read(
     of that write and no write)."""
     args = {**tool_args.generated_args(TOOLS[name]), UNLISTED[name]: ABSENT_ID}
     up = uh.FakeUpstream()
-    env = {"UNIFI_DRY_RUN": "1"} if dry_run else None
+    env = {"UNIFI_WRITE_POLICY": "dry-run"} if dry_run else None
     payload = uh.result_payload(await cti._call(monkeypatch, name, up, args, env=env))
     own_reads = [s.path for s in up.served if s.method == "GET" and not s.resolution]
     assert own_reads == [], f"{name}: resolution read before the write: {own_reads}"
@@ -248,7 +255,7 @@ async def test_unlisted_write_on_an_absent_id_reports_the_upstream_404(monkeypat
 @pytest.mark.parametrize("dry_run", [False, True])
 async def test_unknown_setting_key_fails_on_the_read(monkeypatch, dry_run):
     up = uh.FakeUpstream(fail_paths=("/rest/setting/",), error_body="api.err.Invalid")
-    env = {"UNIFI_DRY_RUN": "1"} if dry_run else None
+    env = {"UNIFI_WRITE_POLICY": "dry-run"} if dry_run else None
     with pytest.raises(ToolError) as exc:
         await cti._call(monkeypatch, "update_setting", up, env=env)
     assert "/rest/setting/" in str(exc.value), exc.value

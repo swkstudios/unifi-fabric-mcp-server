@@ -100,10 +100,10 @@ def registry() -> StubRegistry:
 
 
 def _client(monkeypatch, *, dry_run: bool = False, redact: bool = False) -> UniFiClient:
-    for var in ("UNIFI_DRY_RUN", "UNIFI_READ_ONLY", "UNIFI_REDACT_SECRETS"):
+    for var in ("UNIFI_WRITE_POLICY", "UNIFI_WRITE_EXCEPTIONS", "UNIFI_REDACT_SECRETS"):
         monkeypatch.delenv(var, raising=False)
     if dry_run:
-        monkeypatch.setenv("UNIFI_DRY_RUN", "1")
+        monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
     if redact:
         monkeypatch.setenv("UNIFI_REDACT_SECRETS", "1")
     return UniFiClient(Settings(api_key="sk-test"))

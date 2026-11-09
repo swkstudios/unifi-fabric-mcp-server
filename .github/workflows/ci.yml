@@ -12,8 +12,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Pull requests: one group per PR. Pushes to dev: one group, so a newer dev head cancels the
+  # superseded run (the :dev image publishes from the newest green head). Other pushes keep a
+  # unique group and are never cancelled.
+  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/dev') && format('{0}-push-dev', github.workflow) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev') }}
 
 env:
   # Cache the development environment inside this hosted checkout.
@@ -27,30 +30,25 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: py
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Restore pip archives
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
-      # Pinned by exact version AND hash (Linux x86_64 wheels only, no sdist build), the
-      # same pin as the release job's post-transform lint, so a new ruff release on PyPI
-      # cannot change this job's result. The version is the one requirements.lock pins,
-      # so scripts/prepush.sh lints with the same ruff; bump all three together.
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
+      # Install the hash-pinned ruff requirement from requirements.lock, shared with
+      # the dev environment and release lint jobs.
       - name: Install ruff (hash-pinned)
         run: |
           set -euo pipefail
           RUFF_REQ="${RUNNER_TEMP}/ruff-requirements.txt"
-          cat > "$RUFF_REQ" <<'EOF'
-          ruff==0.17.2 \
-              --hash=sha256:c60f93fec7142dba5b8f487f94bf2f6231dae24dc11e4c48648347c8b0720004 \
-              --hash=sha256:2d086be452eed686aa51271ecf2cbe5037956517cc6ee39a17b4489ac12f8bbe
-          EOF
+          python scripts/extract_ruff_requirements.py --lock requirements.lock --out "$RUFF_REQ"
           pip install --require-hashes --only-binary :all: --no-deps -r "$RUFF_REQ"
           ruff --version
-      - run: ruff check src/ tests/ scripts/ .github/scripts/
-      - run: ruff format --check src/ tests/ scripts/ .github/scripts/
+      - run: ruff check src/ tests/ scripts/ .github/scripts/ tools/
+      - run: ruff format --check src/ tests/ scripts/ .github/scripts/ tools/
       # Pass-through guard: the server returns complete upstream data (see CLAUDE.md).
       # Fail if any removed response-filtering helper reappears in src/. This is an
       # exact name-check, not a semantic proof; the data-survival unit tests are the
@@ -69,12 +67,15 @@ jobs:
           echo "No runtime response redaction helpers in src/ — pass-through invariant holds."
       - name: Enforce no-timeout policy
         run: python scripts/check_no_timeouts.py
+      # The pull-request concurrency block has one source, .github/workflow-headers.toml.
+      - name: Workflow headers match their source
+        run: python scripts/gen_workflow_headers.py --check
       - name: Save pip archives (default branch only)
         if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
 
 
   typecheck:
@@ -86,54 +87,30 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Restore pip archives
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      # One shared dev environment for typecheck, docs and test: the venv is cached on
-      # the exact interpreter, pyproject.toml and requirements.lock, plus the ISO week so
-      # the unpinned dev tools (ruff, mypy, pytest, ...) are re-resolved to their latest
-      # releases at least weekly. On a hit only the project itself is re-installed
-      # (editable, --no-deps) so the import path points at this checkout.
-      - name: Cache key
-        id: venv-key
-        run: |
-          echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-          # Start from an empty fixed path so a reused container never mixes stale files
-          # into the restored (or freshly built) venv.
-          rm -rf "${DEV_VENV:?}"
-          mkdir -p "$(dirname "${DEV_VENV:?}")"
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: venv-cache
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+      - name: Set up the shared dev environment
+        id: dev
+        uses: ./.github/actions/setup-dev
         with:
-          path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Install dev environment
-        run: |
-          if [ "${{ steps.venv-cache.outputs.cache-hit }}" != "true" ]; then
-            rm -rf "${DEV_VENV:?}"
-            python -m venv "$DEV_VENV"
-            "$DEV_VENV/bin/python" -m pip install --require-hashes -r requirements.lock
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          else
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          fi
-          echo "$DEV_VENV/bin" >> "$GITHUB_PATH"
+          python-version: ${{ steps.py.outputs.python-version }}
       - run: '"$DEV_VENV/bin/python" -m mypy src/unifi_fabric --ignore-missing-imports'
       - name: Save shared dev environment (default branch only)
-        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.venv-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.dev.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: ${{ steps.dev.outputs.key }}
       - name: Save pip archives (default branch only)
         if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
 
 
   docs:
@@ -146,41 +123,17 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Restore pip archives
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      # One shared dev environment for typecheck, docs and test: the venv is cached on
-      # the exact interpreter, pyproject.toml and requirements.lock, plus the ISO week so
-      # the unpinned dev tools (ruff, mypy, pytest, ...) are re-resolved to their latest
-      # releases at least weekly. On a hit only the project itself is re-installed
-      # (editable, --no-deps) so the import path points at this checkout.
-      - name: Cache key
-        id: venv-key
-        run: |
-          echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-          # Start from an empty fixed path so a reused container never mixes stale files
-          # into the restored (or freshly built) venv.
-          rm -rf "${DEV_VENV:?}"
-          mkdir -p "$(dirname "${DEV_VENV:?}")"
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: venv-cache
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+      - name: Set up the shared dev environment
+        id: dev
+        uses: ./.github/actions/setup-dev
         with:
-          path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Install dev environment
-        run: |
-          if [ "${{ steps.venv-cache.outputs.cache-hit }}" != "true" ]; then
-            rm -rf "${DEV_VENV:?}"
-            python -m venv "$DEV_VENV"
-            "$DEV_VENV/bin/python" -m pip install --require-hashes -r requirements.lock
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          else
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          fi
-          echo "$DEV_VENV/bin" >> "$GITHUB_PATH"
+          python-version: ${{ steps.py.outputs.python-version }}
       - run: '"$DEV_VENV/bin/python" scripts/gen_tools_doc.py --check'
       # README/CHANGELOG catalog sizes and tool counts are generated, never hand-edited.
       - name: Catalog figures (README and CHANGELOG) match the runtime
@@ -204,19 +157,19 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Save shared dev environment (default branch only)
-        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.venv-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.dev.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: ${{ steps.dev.outputs.key }}
       - name: Save pip archives (default branch only)
         if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
 
-  # Full tier: test and test-locked share one if-predicate.
+  # The full tier runs for main/release candidates and conservative classifier escalation.
   test:
     name: test
     if: ${{ !cancelled() }}
@@ -229,66 +182,45 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Restore pip archives
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Cache key
-        id: venv-key
-        run: |
-          echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-          # Start from an empty fixed path so a reused container never mixes stale files
-          # into the restored (or freshly built) venv.
-          rm -rf "${DEV_VENV:?}"
-          mkdir -p "$(dirname "${DEV_VENV:?}")"
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: venv-cache
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+      - name: Set up the shared dev environment
+        id: dev
+        uses: ./.github/actions/setup-dev
         with:
-          path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Install dev environment
-        run: |
-          if [ "${{ steps.venv-cache.outputs.cache-hit }}" != "true" ]; then
-            rm -rf "${DEV_VENV:?}"
-            python -m venv "$DEV_VENV"
-            "$DEV_VENV/bin/python" -m pip install --require-hashes -r requirements.lock
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          else
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          fi
-          echo "$DEV_VENV/bin" >> "$GITHUB_PATH"
+          python-version: ${{ steps.py.outputs.python-version }}
       # Coverage gate: calibrated just below the measured full-suite line coverage
       # (97.95%: 9961 statements, 204 missed, full suite 2026-10-11) so it catches regressions
       # without failing on the current tree.
       # Raise it as coverage grows, never lower it to make a run pass; do NOT chase 100% —
       # see the project testing documentation for calibration guidance.
+      # Every event that runs this job (pull request, push, merge group, dispatch) runs the
+      # whole suite with the coverage gate; there is no event-conditioned subset step.
       - name: Run full suite with coverage
-        run: >-
-          "$DEV_VENV/bin/python" -m pytest tests/ -v -n 4 --dist loadgroup
-          --max-worker-restart=0
-          --cov=src/unifi_fabric --cov-report=term --cov-fail-under=97
+        run: bash scripts/run_full_suite.sh "$DEV_VENV/bin/python" --workers 4
       - name: Save shared dev environment (default branch only)
-        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.venv-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && steps.dev.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: ${{ steps.dev.outputs.key }}
       - name: Save pip archives (default branch only)
         if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
 
 
 
   # The 210,000-case scrubber acceptance corpus and its aggregate coverage floor. Both are
   # opt-in inside tests/test_secret_scrub_oracle.py (the corpus skips unless selected), so
   # the full-suite jobs never run them. Runs in parallel with test, on every run where test
-  # runs, and additionally on a PR into the integration branch that changes the oracle, its
-  # generator or the scrubber (test-tier output scrub_oracle). No timeout, retry or skip.
+  # runs. No timeout, retry or skip.
   scrub-oracle:
     name: scrub-oracle
     if: ${{ !cancelled() }}
@@ -302,37 +234,18 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Restore pip archives
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Cache key
-        id: venv-key
-        run: |
-          echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-          rm -rf "${DEV_VENV:?}"
-          mkdir -p "$(dirname "${DEV_VENV:?}")"
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: venv-cache
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+      - name: Set up the shared dev environment
+        id: dev
+        uses: ./.github/actions/setup-dev
         with:
-          path: ${{ env.DEV_VENV }}
-          key: venv-${{ runner.os }}-${{ env.DEV_VENV }}-py${{ steps.py.outputs.python-version }}-${{ steps.venv-key.outputs.week }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
-      - name: Install dev environment
-        run: |
-          if [ "${{ steps.venv-cache.outputs.cache-hit }}" != "true" ]; then
-            rm -rf "${DEV_VENV:?}"
-            python -m venv "$DEV_VENV"
-            "$DEV_VENV/bin/python" -m pip install --require-hashes -r requirements.lock
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          else
-            "$DEV_VENV/bin/python" -m pip install --no-deps -e .
-          fi
-          echo "$DEV_VENV/bin" >> "$GITHUB_PATH"
+          python-version: ${{ steps.py.outputs.python-version }}
       - name: Scrubber corpus, 50 chunks of 4,200 cases (210,000)
-        env:
-          UNIFI_SCRUB_ORACLE_SLOW: "1"
         run: >-
           "$DEV_VENV/bin/python" -m pytest tests/test_secret_scrub_oracle.py
           -m slow -n 4 -q --durations=10 --max-worker-restart=0
@@ -341,7 +254,7 @@ jobs:
           UNIFI_SCRUB_CORPUS_AGGREGATE: "1"
         run: >-
           "$DEV_VENV/bin/python" -m pytest
-          tests/test_secret_scrub_oracle.py::test_slow_coverage_floor -q
+          tests/test_secret_scrub_oracle.py::test_slow_coverage_floor -m slow -q
 
   test-locked:
     name: test-locked
@@ -353,16 +266,14 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Install exact locked test environment
         run: |
           set -euo pipefail
           python -m pip install --require-hashes --no-deps -r requirements.lock
           python -m pip install --no-deps -e .
       - name: Run full locked suite
-        run: >-
-          python -m pytest tests/ -v -n 4 --dist loadgroup
-          --max-worker-restart=0 --cov=src/unifi_fabric --cov-report=term --cov-fail-under=97
+        run: bash scripts/run_full_suite.sh python --workers 4
 
   # Phase G: primary secret-scanning gate. Runs in CI on every push and PR so a
   # secret is caught at the source, before it can ever reach a build artifact or a
@@ -382,9 +293,6 @@ jobs:
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest
-    env:
-      GITLEAKS_VERSION: "8.30.1"
-      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -394,16 +302,10 @@ jobs:
       - name: Install gitleaks (pinned, checksum-verified)
         run: |
           set -euo pipefail
-          tmp="$(mktemp -d)"
-          curl -sSL -o "$tmp/gitleaks.tar.gz" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  $tmp/gitleaks.tar.gz" | sha256sum -c -
-          tar -xzf "$tmp/gitleaks.tar.gz" -C "$tmp" gitleaks
-          sudo install -m 0755 "$tmp/gitleaks" /usr/local/bin/gitleaks
-          gitleaks version
+          bash scripts/install_gitleaks.sh
 
-      # File scan of the checked-out working tree (the final squashed/mirrored
-      # state). --redact ensures no secret value is ever written to the logs.
+      # File scan of the checked-out working tree. --redact ensures no secret value
+      # is ever written to the logs.
       - name: Secret scan -- working tree (file scan)
         run: gitleaks detect --no-git --source . --redact --exit-code 1 -v
 
@@ -434,7 +336,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: Assert no real secrets/PII in fixtures and example configs
         run: python3 .github/scripts/check_fixtures_sanitization.py
 
@@ -453,7 +355,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version-file: .python-version
       - name: server.json / pyproject version + identifier tag guard
         run: python3 scripts/check_server_json_version.py
       # The image is published for linux/amd64 and linux/arm64 and its build installs
@@ -462,14 +364,80 @@ jobs:
       - name: Every locked package has a linux x86_64 and aarch64 CPython 3.12 wheel
         run: bash scripts/check_lock_wheels.sh
 
+  # The linux/arm64 half of the image check, run natively on a GitHub-hosted arm64 runner
+  # (no QEMU), as Publish's build-arm64 leg does on its hosted arm64 runner: build the
+  # arm64 image, check its platform, boot it and send the README initialize call. A
+  # self-hosted amd64 worker without the arm64 binfmt handler cannot boot this image
+  # (exec format error). The required `docker-build` check below waits for this job and
+  # fails unless it succeeded, so this half still gates under the required name.
+  docker-build-arm64:
+    name: docker-build-arm64
+    runs-on: ubuntu-24.04-arm
+    env:
+      PLATFORM: linux/arm64
+      ARCH: arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Require a native arm64 runner
+        # The boot test below must run natively: an amd64 runner here would need QEMU.
+        env:
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
+          RUNNER_NAME_LABEL: ${{ runner.name }}
+        run: |
+          echo "runner: ${RUNNER_NAME_LABEL} (${RUNNER_ARCH_NAME}, $(uname -m))"
+          if [ "$RUNNER_ARCH_NAME" != "ARM64" ] || [ "$(uname -m)" != "aarch64" ]; then
+            echo "::error::the linux/arm64 image check must run on a native arm64 runner"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # Match Publish: run the docker-container buildkitd in the Docker daemon's
+          # own network namespace.
+          driver-opts: network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+
+      - name: Build and load the linux/arm64 image (no push)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          platforms: ${{ env.PLATFORM }}
+          load: true
+          tags: unifi-fabric-mcp-server:ci-arm64
+          network: host
+          allow: network.host
+          cache-from: type=gha,scope=ci-arm64
+          cache-to: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && 'type=gha,mode=max,scope=ci-arm64' || '' }}
+
+      - name: Check the built image platform
+        run: |
+          BUILT="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "unifi-fabric-mcp-server:ci-${ARCH}")"
+          echo "built image platform: ${BUILT}"
+          if [ "$BUILT" != "$PLATFORM" ]; then
+            echo "::error::built ${BUILT}, expected ${PLATFORM}"
+            exit 1
+          fi
+
+      - name: Boot the linux/arm64 image natively and send the README initialize call
+        run: bash scripts/smoke_image.sh unifi-fabric-mcp-server:ci-arm64 linux/arm64
+
   # Build the production image on a PR (no push) so a broken image build fails the PR
   # rather than the Publish workflow. Same Dockerfile and buildx setup as Publish: both
   # platforms are built here on one amd64 worker (the Dockerfile cross-builds; no
   # emulation), the result is checked as a two-platform image index, and the amd64
-  # image is booted and answers the README initialize call. Publish builds each
-  # platform natively and boots each one before pushing.
+  # image is booted and answers the README initialize call. The linux/arm64 image is
+  # booted natively by docker-build-arm64; this required check waits for it and fails
+  # unless it succeeded (it runs, rather than skipping, when that job fails, so a failed
+  # arm64 half reports a failed `docker-build`, never a skipped one).
   docker-build:
     name: docker-build
+    needs: [docker-build-arm64]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -517,29 +485,16 @@ jobs:
       - name: Test TLS reverse proxy Host routing in stateful and stateless modes
         run: bash scripts/proxy_container_smoke.sh unifi-fabric-mcp-server:ci-amd64
 
-      # The linux/arm64 image boots here under QEMU user-mode emulation. Only this test
-      # uses emulation; the build above does not, so an emulation problem cannot change
-      # the image. Publish boots the arm64 image natively before pushing it.
-      - name: Set up QEMU for the linux/arm64 boot test
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          image: tonistiigi/binfmt:qemu-v10.0.4@sha256:8f58e6214f4cc9dc83ce8f5acad1ece508eb6b20e696a8c1e9f274481982c541
-          platforms: arm64
-
-      - name: Load the linux/arm64 image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          labels: org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/arm64
-          load: true
-          tags: unifi-fabric-mcp-server:ci-arm64
-          network: host
-          allow: network.host
-          cache-from: type=gha
-
-      - name: Boot the linux/arm64 image under emulation and send the README initialize call
-        run: bash scripts/smoke_image.sh unifi-fabric-mcp-server:ci-arm64 linux/arm64
+      - name: Require the native linux/arm64 image check (docker-build-arm64)
+        if: ${{ !cancelled() }}
+        env:
+          ARM64_RESULT: ${{ needs.docker-build-arm64.result }}
+        run: |
+          echo "docker-build-arm64: ${ARM64_RESULT}"
+          if [ "$ARM64_RESULT" != "success" ]; then
+            echo "::error::the linux/arm64 image check (docker-build-arm64) did not succeed: ${ARM64_RESULT}"
+            exit 1
+          fi
 
   # Required check `changelog-check`: a PR that modifies src/ must also update
   # CHANGELOG.md or a changelog.d fragment, because src/ changes that affect user-visible behavior should be
@@ -583,11 +538,11 @@ jobs:
             exit 0
           fi
 
-          if echo "$changed" | grep -Eq '^(CHANGELOG\.md|changelog\.d/[^/]+\.(added|changed|fixed|security)\.md)$'; then
+          if echo "$changed" | grep -Eq '^(CHANGELOG\.md|changelog\.d/[^/]+\.(added|changed|removed|fixed|security)\.md)$'; then
             echo "Changelog entry is updated — check passed."
           else
             echo "::error::This PR modifies src/ without a changelog entry."
-            echo "::error::Add a changelog.d fragment (added, changed, fixed, or security), or update CHANGELOG.md."
+            echo "::error::Add a changelog.d fragment (added, changed, removed, fixed, or security), or update CHANGELOG.md."
             echo "::error::If this change has no user-visible effect (test-only, refactor, CI-only),"
             echo "::error::add the 'skip-changelog' label to this PR instead."
             exit 1

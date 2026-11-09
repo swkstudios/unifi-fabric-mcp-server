@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 import pytest
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from tests import upstream_harness as uh
 from unifi_fabric import server
@@ -43,6 +44,7 @@ TOOL_NAMES = {
     "check_controller_firmware_update",
     "manage_firmware_cache",
     "get_latest_firmware_versions",
+    "reboot_unifi_os_console",
 }
 READS = {"get_support_file", "get_latest_firmware_versions"}
 
@@ -60,6 +62,31 @@ async def _call(
 
 def _main(up: uh.FakeUpstream) -> list[uh.Served]:
     return [s for s in up.served if not s.resolution]
+
+
+async def test_reboot_console_posts_without_body_and_passes_response_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, up = await _call(
+        monkeypatch,
+        "reboot_unifi_os_console",
+        {"host": HOST, "confirm": True},
+    )
+    (write,) = up.writes()
+    assert write.method == "POST"
+    assert write.path.endswith("/proxy/network/api/system/reboot")
+    assert write.sent_json is None
+    assert result == write.body
+
+
+async def test_reboot_console_rejects_empty_host_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    up = uh.FakeUpstream()
+    uh.install(monkeypatch, up)
+    with pytest.raises(ToolError, match="host.*must not be empty"):
+        await server.mcp.call_tool("reboot_unifi_os_console", {"host": ""})
+    assert up.served == []
 
 
 # (tool, arguments, method, path suffix after /proxy/network, body sent)
@@ -227,12 +254,14 @@ async def test_support_file_generation_status_and_download(
 async def test_unknown_device_mac_fails_listing_choices_without_a_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    up = uh.FakeUpstream()
+    uh.install(monkeypatch, up)
     with pytest.raises(Exception, match=r"Unknown device MAC '02:00:5e:00:00:ff'.*valid: .*aa"):
-        await _call(
-            monkeypatch,
+        await server.mcp.call_tool(
             "generate_support_file",
             {"host": HOST, "site": SITE, "mac": "02:00:5e:00:00:ff"},
         )
+    assert up.writes() == []
 
 
 async def test_update_my_admin_profile_merges_nested_leaves_and_verifies(
@@ -318,7 +347,7 @@ async def test_invalid_input_fails_before_any_request(
 ) -> None:
     up = uh.FakeUpstream()
     uh.install(monkeypatch, up)
-    with pytest.raises(Exception):  # noqa: B017 - the refusal text is checked by the policy test
+    with pytest.raises(ToolError):
         await server.mcp.call_tool(name, args)
     assert up.served == []
 
@@ -426,7 +455,9 @@ async def test_non_first_key_owned_host_routes_to_that_key(
     monkeypatch.setattr(multikey_client, "_get_client", http_session)
     await admin.cancel_controller_backup(multikey_client, multikey_registry, HOST, SITE, "b")
     await admin.cancel_controller_backup(multikey_client, multikey_registry, HOST, SITE, "b")
+    await admin.reboot_unifi_os_console(multikey_client, multikey_registry, HOST)
     served = [s for s in up.served if not s.resolution]
-    assert len(served) == 2 and all(s.api_key == "k-beta" for s in served)
+    assert len(served) == 3 and all(s.api_key == "k-beta" for s in served)
     assert any(s.path.endswith("/cmd/backup") for s in served)
+    assert any(s.path.endswith("/api/system/reboot") for s in served)
     await multikey_client.close()

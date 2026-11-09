@@ -11,7 +11,15 @@ def _validate_api_key_configuration() -> None:
     from pydantic import ValidationError
 
     from .config import Settings
+    from .header_credentials import HEADER_MODE, StartupRefusal, key_mode
 
+    try:
+        if key_mode() == HEADER_MODE:
+            # Header mode starts without a stored key; server.main checks the transport.
+            return
+    except StartupRefusal as refusal:
+        print(refusal.token, file=sys.stderr)
+        raise SystemExit(1) from None
     try:
         key_configs = Settings().get_key_configs()
     except ValueError as exc:
@@ -25,7 +33,7 @@ def _validate_api_key_configuration() -> None:
         reason = "; ".join(" ".join(item.split()) for item in reasons if item.strip())
         print(
             f"unifi-fabric-mcp: invalid configuration: {reason or type(exc).__name__}. "
-            "See README#configuration",
+            "See docs/CONFIGURATION.md",
             file=sys.stderr,
         )
         raise SystemExit(1) from None
@@ -34,7 +42,7 @@ def _validate_api_key_configuration() -> None:
     print(
         "UNIFI_API_KEY is not set — get a key at https://unifi.ui.com "
         "(Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS; "
-        "see README#get-your-api-key",
+        "see README#1-join-your-fabric-and-create-an-api-key",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -143,6 +151,13 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-V"):
         print(f"unifi-fabric-mcp {_version()}")
         raise SystemExit(0)
+    # The one startup gate, before any settings model loads (every command below reads
+    # the settings): a retired name or a blank/malformed policy setting prints its startup
+    # token as the last stderr line (a retired name also the migration line) and exits 2.
+    from .config import startup_gate
+
+    startup_gate()
+
     if len(sys.argv) > 1 and sys.argv[1] == "placement-snapshot":
         from .placement_snapshot_cli import main as placement_snapshot_main
 

@@ -21,10 +21,11 @@ from ..client import (
     UniFiConnectionError,
     describe_shape,
     upstream_error_text,
+    upstream_error_value,
     validate_id,
 )
 from ..matching import id_key, name_keys
-from ..read_only import guard_action
+from ..read_only import guard_action, mark_write_denied
 from ..redaction import note_dropped_fields
 from ..registry import Registry
 from ..selector_syntax import name_reason
@@ -250,8 +251,8 @@ DEVICE_TYPES = Literal["camera", "sensor"]
 def _guard(method: str) -> None:
     guard_action(method)
     protect._require_mutations()
-    if not switches.env_flag(connector.CONNECTOR_WRITE_ENV, True):
-        raise ValueError(connector.connector_write_refusal(method))
+    if not switches.connector_writes_enabled():
+        raise mark_write_denied(ValueError(connector.connector_write_refusal(method)))
 
 
 async def _resolve(
@@ -297,7 +298,10 @@ async def _resolve(
             if matches:
                 break
     if len(matches) != 1:
-        choices = "; ".join(f"{v.get('name')!r} ({v.get('id')})" for v in records)
+        choices = "; ".join(
+            f"{upstream_error_value(v.get('name'))!r} ({upstream_error_value(v.get('id'))})"
+            for v in records
+        )
         raise ValueError(
             f"{'Ambiguous' if matches else 'Unknown'} {collection[:-1]} {ref!r}; "
             f"valid choices: {choices}"
@@ -636,6 +640,11 @@ async def unadopt_protect_device(
         result["_noOp"] = None
         result["noOp"] = None
         result.pop("changed", None)
+    elif isinstance(after, dict):
+        result["_verified"] = False
+        result["_noOp"] = None
+        result["noOp"] = None
+        result.pop("changed", None)
     return result
 
 
@@ -686,7 +695,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Result status is the upstream HTTP number.
 
         Example call (get_camera_private):
-            {"host": "my-console", "camera_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -694,7 +703,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "66d025b301ebc903e80003ea", or an unambiguous camera name such as "Front Door".
+                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
         """
         client, registry = deps_fn()
         return await _get_camera_private(client, registry, host, camera_id)
@@ -703,7 +712,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
     async def list_ptz_presets(host: str, camera_id: str) -> dict[str, Any]:
         """List PTZ presets, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras
         reject this route: the console answers HTTP 500 (a console-side limit), and the upstream
-        status and body are returned unchanged.
+        status and body are returned unchanged, with an additive _hint about PTZ capability.
 
         Returns method, routeClass, scope, path, resolvedPath, status, contentType and
         body; binary responses use bodyBase64 and sizeBytes.
@@ -711,7 +720,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Result status is the upstream HTTP number.
 
         Example call (list_ptz_presets):
-            {"host": "my-console", "camera_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -719,7 +728,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "66d025b301ebc903e80003ea", or an unambiguous camera name such as "Front Door".
+                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
         """
         client, registry = deps_fn()
         return await _list_ptz_presets(client, registry, host, camera_id)
@@ -735,7 +744,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Result status is the upstream HTTP number.
 
         Example call (list_ptz_patrols):
-            {"host": "my-console", "camera_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -743,7 +752,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "66d025b301ebc903e80003ea", or an unambiguous camera name such as "Front Door".
+                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
         """
         client, registry = deps_fn()
         return await _list_ptz_patrols(client, registry, host, camera_id)
@@ -759,7 +768,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Result status is the upstream HTTP number.
 
         Example call (get_sensor_private):
-            {"host": "my-console", "sensor_id": "66d025b301ebc903e80003eb"}
+            {"host": "my-console", "sensor_id": "00000000000000000000010c"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -767,7 +776,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "66d025b301ebc903e80003eb", or an unambiguous sensor name such as
+                "00000000000000000000010c", or an unambiguous sensor name such as
                 "Back Door".
         """
         client, registry = deps_fn()
@@ -818,12 +827,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         noOp is unknown. Failed read-back leaves _verified and _noOp null; readAfterError and
         _verificationWarning explain failed or unproven verification.
 
-        Under UNIFI_DRY_RUN no write is sent. Status is "dry_run"; body contains the exact
+        Under dry-run policy no write is sent. Status is "dry_run"; body contains the exact
         merged preview {status, dryRun, sent: false, message, preview: {method, path, params,
         body}}. _verified remains null; otherwise status is the upstream HTTP number.
 
         Example call (update_camera_private):
-            {"host":"my-console","camera_id":"66d025b301ebc903e80003ea",
+            {"host":"my-console","camera_id":"00000000000000000000010b",
              "settings":{"recordingSettings":{"mode":"always"}}}
 
         Args:
@@ -858,7 +867,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
         explain failed or unproven read-back.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
@@ -900,7 +909,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
         explain failed or unproven read-back.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
@@ -909,7 +918,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Example call (update_sensor_private):
             {
               "host": "my-console",
-              "sensor_id": "66d025b301ebc903e80003eb",
+              "sensor_id": "00000000000000000000010c",
               "settings": {
                 "mountType": "door"
               }
@@ -921,7 +930,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "66d025b301ebc903e80003eb", or an unambiguous sensor name such as
+                "00000000000000000000010c", or an unambiguous sensor name such as
                 "Back Door".
             settings: Typed partial private settings, e.g.
                 {"mountType":"door","ledSettings":{"isEnabled":true}}; additional controller fields
@@ -953,7 +962,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Example call (export_camera_video):
             {
               "host": "my-console",
-              "camera_id": "66d025b301ebc903e80003ea",
+              "camera_id": "00000000000000000000010b",
               "start": 1735689600,
               "end": 1735689610
             }
@@ -964,7 +973,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "66d025b301ebc903e80003ea", or an unambiguous camera name such as "Front Door".
+                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
             start: Clip start in epoch seconds, e.g. 1735689600; converted to controller
                 milliseconds.
             end: Clip end in epoch seconds, e.g. 1735689610; converted to controller
@@ -995,14 +1004,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body; binary responses use bodyBase64 and sizeBytes.
         Write metadata includes writeEnabled; _warnings describes operational risks.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
         Result status is the upstream HTTP number or dry_run for a preview.
 
         Example call (reboot_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -1012,7 +1021,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             device_type: Protect resource kind, singular: "camera" or "sensor" (the route
                 adds the plural collection, e.g. protect/api/cameras).
             device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "66d025b301ebc903e80003ea", or an unambiguous device name such as
+                e.g. "00000000000000000000010b", or an unambiguous device name such as
                 "Front Door".
         """
         client, registry = deps_fn()
@@ -1034,14 +1043,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body; binary responses use bodyBase64 and sizeBytes.
         Write metadata includes writeEnabled; _warnings describes operational risks.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
         Result status is the upstream HTTP number or dry_run for a preview.
 
         Example call (adopt_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -1051,7 +1060,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             device_type: Protect resource kind, singular: "camera" or "sensor" (the route
                 adds the plural collection, e.g. protect/api/cameras).
             device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "66d025b301ebc903e80003ea", or an unambiguous device name such as
+                e.g. "00000000000000000000010b", or an unambiguous device name such as
                 "Front Door".
         """
         client, registry = deps_fn()
@@ -1076,14 +1085,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         with the device still present gives noOp null and noOpReason "deletion not confirmed".
         Other failed read-backs set readAfterError and leave _verified and _noOp null.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
         Result status is the upstream HTTP number or dry_run for a preview.
 
         Example call (unadopt_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "66d025b301ebc903e80003ea"}
+            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -1093,7 +1102,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             device_type: Protect resource kind, singular: "camera" or "sensor" (the route
                 adds the plural collection, e.g. protect/api/cameras).
             device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "66d025b301ebc903e80003ea", or an unambiguous device name such as
+                e.g. "00000000000000000000010b", or an unambiguous device name such as
                 "Front Door".
         """
         client, registry = deps_fn()
@@ -1112,7 +1121,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body; binary responses use bodyBase64 and sizeBytes.
         Write metadata includes writeEnabled; _warnings describes operational risks.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
@@ -1145,14 +1154,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body; binary responses use bodyBase64 and sizeBytes.
         Write metadata includes writeEnabled; _warnings describes operational risks.
 
-        Under UNIFI_DRY_RUN no upstream write is sent: status is "dry_run" and body
+        Under dry-run policy no upstream write is sent: status is "dry_run" and body
         contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}}.
 
         Result status is the upstream HTTP number or dry_run for a preview.
 
         Example call (clear_sensor_tamper):
-            {"host": "my-console", "sensor_id": "66d025b301ebc903e80003eb"}
+            {"host": "my-console", "sensor_id": "00000000000000000000010c"}
 
         Args:
             host: Console name or id: the short name from list_hosts
@@ -1160,7 +1169,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 "my-console") or the long data[].id (MAC:numericId composite). One console
                 serves both Network and Protect.
             sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "66d025b301ebc903e80003eb", or an unambiguous sensor name such as
+                "00000000000000000000010c", or an unambiguous sensor name such as
                 "Back Door".
         """
         client, registry = deps_fn()

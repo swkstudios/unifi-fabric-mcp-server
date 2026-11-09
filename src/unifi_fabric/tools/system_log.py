@@ -3,8 +3,8 @@
 Network 11.x keeps its event history in the v2 system log, read with POST
 ``/proxy/network/v2/api/site/{site}/system-log/{class}`` and a JSON query body. These POSTs are
 classified as writes until their exact raw routes
-are approved in a separate read-POST allowlist PR. UNIFI_READ_ONLY refuses these tools
-before any upstream request; UNIFI_DRY_RUN returns a write preview without sending the POST. The
+are approved in a separate read-POST allowlist PR. UNIFI_WRITE_POLICY=deny refuses these tools
+before any upstream request; dry-run policy returns a write preview without sending the POST. The
 Classic routes
 older controllers used are gone on Network 11.0.81: ``stat/event`` and ``stat/ips/event``
 answer HTTP 404 ``api.err.NotFound`` and ``list/alarm`` answers HTTP 400
@@ -265,7 +265,7 @@ def _window(start: int | None, end: int | None) -> dict[str, Any]:
     """Epoch-second start / end as the system log's millisecond timestamps (only those given).
 
     A non-integer value is refused (the shared epoch-type rule); a negative value or one that
-    looks like milliseconds is sent as given and reported by :func:`_epoch_hints`."""
+    looks like milliseconds is still multiplied by 1000 and reported by :func:`_epoch_hints`."""
     out: dict[str, Any] = {}
     if start is not None:
         out["timestampFrom"] = require_epoch_seconds(start, "start") * 1000
@@ -276,7 +276,14 @@ def _window(start: int | None, end: int | None) -> dict[str, Any]:
 
 def _epoch_hints(result: Any, start: int | None, end: int | None) -> Any:
     """``result`` with the shared ``_warnings`` entries for implausible start / end values."""
-    return with_warnings(result, epoch_warnings(start=start, end=end))
+    warnings = epoch_warnings(start=start, end=end)
+    for warning in warnings:
+        warning["sent_as"] = warning["value"] * 1000
+        warning["message"] = (
+            f"{warning['argument']}={warning['value']} is interpreted as epoch seconds and "
+            f"multiplied by 1000; sent as {warning['sent_as']} milliseconds. Pass epoch seconds."
+        )
+    return with_warnings(result, warnings)
 
 
 async def _vpn_user_connection_log(
@@ -394,8 +401,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (nextAiCategory, activity_keys, change_keys, systemLogDeviceTypes, clientType,
         guestAuthorizationMethod, threatTypes, triggerTypes); query_body can override them.
 
-        UNIFI_READ_ONLY or UNIFI_ENABLE_NETWORK_WRITE=false hides this tool before requests
-        (not read-POST allowlisted). UNIFI_DRY_RUN previews the first page without sending:
+        UNIFI_WRITE_POLICY=deny or family:network=deny hides this tool before requests
+        (not read-POST allowlisted). dry-run policy previews the first page without sending:
         {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
         body}}.
 
@@ -464,8 +471,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         view: str | None = None,
         vpn_user_id: str | None = None,
     ) -> Any:
-        """List the site's network events (device, client, admin, security, update and other
-        entries of the system log), every page drained, in the order the controller returns.
+        """List site network events from the system log, draining every page in controller order.
 
         Network 11.x keeps events in the system log (the Classic stat/event route answers
         HTTP 404 on Network 11.0.81). This reads class "all" of POST
@@ -478,8 +484,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         (the web UI's route), returned verbatim. For a raw query use get_system_log.
 
         Consequence: none intended. Read POSTs are classed as writes (not read-POST
-        allowlisted). UNIFI_READ_ONLY or UNIFI_ENABLE_NETWORK_WRITE=false hides the whole tool.
-        UNIFI_DRY_RUN previews the first page without sending a POST:
+        allowlisted). UNIFI_WRITE_POLICY=deny or family:network=deny hides the whole tool.
+        dry-run policy previews the first page without sending a POST:
         {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}.
 
@@ -489,9 +495,10 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         controller's count; incomplete / incompleteReason appear when the opt-in
         UNIFI_PAGINATE_MAX_PAGES cap, repeated entries, an early empty page, or a short declared
         total stopped the drain. Unprovable pagination metadata raises a clear error; use
-        get_system_log with an explicit page to inspect it. _warnings appears when
-        start or end is negative or looks like milliseconds (sent as given). Without start / end
-        the whole retained log is read (tens of thousands of entries on a busy site).
+        get_system_log with an explicit page to inspect it. _warnings flags a negative or
+        millisecond-like start / end (still multiplied by 1000; _warnings includes sent_as).
+        Without start / end the whole retained log is read (tens of thousands of entries
+        on a busy site).
 
         Example call (list_network_events):
             {
@@ -516,7 +523,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
                 Example: `device-alert`.
             vpn_user_id: Optional VPN user id: reads that user's VPN connection log (query
                 vpnUserId, a GET) instead of a class; start, end and view do not apply.
-                Example: `65f1c0ffee0123456789abcd`.
+                Example: `000000000000000000000107`.
         """
         client, registry = deps_fn()
         return await _list_network_events(
@@ -542,9 +549,9 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         no entries) and timestampFrom / timestampTo from start / end when given.
 
         These POST queries are treated as writes pending a separately approved read-POST
-        allowlist PR. UNIFI_READ_ONLY and UNIFI_ENABLE_NETWORK_WRITE=false hide the tool
+        allowlist PR. UNIFI_WRITE_POLICY=deny and family:network=deny hide the tool
         before any upstream request.
-        UNIFI_DRY_RUN returns {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy returns {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}} for the first page without sending a POST.
 
         Returns {data: [event, ...], total_element_count, incomplete?, incompleteReason?}: each
@@ -553,9 +560,8 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         ...); incomplete / incompleteReason appear when the opt-in UNIFI_PAGINATE_MAX_PAGES cap,
         repeated entries, an early empty page, or a short declared total stopped the drain.
         Unprovable pagination metadata raises a clear error; use get_system_log with an explicit
-        page to inspect it. _warnings appears when start or end is negative or looks like
-        milliseconds (sent as given). Without start / end the whole retained log is
-        read.
+        page to inspect it. _warnings flags a negative or millisecond-like start / end
+        (still multiplied by 1000). Without start / end the whole retained log is read.
 
         Example call (list_ips_events):
             {

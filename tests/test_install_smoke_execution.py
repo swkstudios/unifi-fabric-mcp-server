@@ -402,8 +402,8 @@ def test_full_catalog_probe_does_not_enable_read_only(monkeypatch, tmp_path):
     code, _report = _simulated_main(monkeypatch, tmp_path, "Linux", docker_ok=True, targets=targets)
     assert code == 0
     assert targets
-    assert all("UNIFI_READ_ONLY" not in target["good_env"] for target in targets)
-    assert all("UNIFI_READ_ONLY" not in target["wrong_env"] for target in targets)
+    assert all("UNIFI_WRITE_POLICY" not in target["good_env"] for target in targets)
+    assert all("UNIFI_WRITE_POLICY" not in target["wrong_env"] for target in targets)
 
 
 DOCKER_CLAIMS = {"readme-install-24", "readme-install-25", "readme-install-27"}
@@ -641,7 +641,7 @@ def test_install_command_waits_for_exit_and_preserves_real_failure(monkeypatch):
             smoke.checked(["fake-install"])
 
 
-@pytest.mark.parametrize("script", ["install_smoke.py", "gen_catalog_figures.py", "demo/demo.py"])
+@pytest.mark.parametrize("script", ["install_smoke.py", "gen_catalog_figures.py"])
 def test_local_ci_steps_have_no_elapsed_work_limits(script):
     import ast
 

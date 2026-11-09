@@ -14,5 +14,13 @@
     "citation": "https://docs.docker.com/reference/dockerfile/#healthcheck",
     "verdict": "public-platform-healthcheck",
     "added": "2026-10-23"
+  },
+  {
+    "path": "src/unifi_fabric/code_mode.py",
+    "pattern": "\"max_feed_duration_secs\": CPU_SECONDS_LIMIT,",
+    "class": "sandbox-interpreter-cpu",
+    "citation": "https://github.com/pydantic/monty/blob/1.4.0/packages/pydantic-monty/README.md#resource-limits",
+    "verdict": "public-code-mode-interpreter-cpu",
+    "added": "2026-11-03"
   }
 ]

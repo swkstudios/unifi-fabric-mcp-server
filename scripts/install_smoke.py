@@ -29,6 +29,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import _install_probe
 from extract_install_cases import (
     DOCKER_DEFERRED_REASON,
     PLATFORM_ONLY,
@@ -39,6 +40,7 @@ from extract_install_cases import (
 
 PACKAGE = "unifi-fabric-mcp-server"
 ENTRY = "unifi-fabric-mcp"
+PUBLISHED_VERSION_FILE = ROOT / "scripts/published-version.txt"
 WRONG_KEY = "install-test-invalid-key"
 GOOD_MOCK_KEY = "install-test-synthetic-key"
 # A documented path is taken literally, so any character a shell would expand or
@@ -66,34 +68,10 @@ def docker_env() -> dict[str, str]:
     return env
 
 
-class _MockAPI(http.server.BaseHTTPRequestHandler):
-    """Site Manager stand-in: a valid key lists one synthetic host, anything else is 401."""
-
-    def do_GET(self) -> None:  # noqa: N802 - http.server API
-        if self.headers.get("X-API-KEY") != GOOD_MOCK_KEY:
-            body = {"code": "unauthorized", "message": "Unauthorized", "statusCode": 401}
-            self._send(401, body)
-        elif self.path.split("?", 1)[0] == "/v1/hosts":
-            self._send(200, {"data": [{"id": "0" * 32, "type": "console"}], "httpStatusCode": 200})
-        else:
-            self._send(200, {"data": [], "httpStatusCode": 200})
-
-    def _send(self, status: int, body: dict) -> None:
-        raw = json.dumps(body).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
-
-    def log_message(self, *_args: object) -> None:
-        return
-
-
 def start_mock() -> tuple[http.server.ThreadingHTTPServer, str]:
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", 0), _MockAPI)  # noqa: S104 - Docker mock
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server, f"http://127.0.0.1:{server.server_address[1]}"
+    """The synthetic Site Manager upstream (scripts/_install_probe.py), bound to
+    every interface: a Docker container reaches it through the host gateway."""
+    return _install_probe.start_mock(GOOD_MOCK_KEY, bind=_install_probe.ALL_INTERFACES)
 
 
 # --------------------------------------------------------------------- MCP stdio probe
@@ -286,12 +264,17 @@ def checked(argv: list[str], *, env: dict | None = None, cwd: Path | None = None
         raise RuntimeError(f"{argv[0]} failed ({result.returncode}): {result.stderr[-1000:]}")
 
 
-def repin(argv: list[str], wheel: Path, version: str) -> list[str]:
+def published_version() -> str:
+    return PUBLISHED_VERSION_FILE.read_text().strip()
+
+
+def repin(argv: list[str], wheel: Path, version: str, *, published: str = "") -> list[str]:
+    accepted = {version} | ({published} if published else set())
     found = False
     result = []
     for value in argv:
         if value.startswith(PACKAGE):
-            if value != f"{PACKAGE}=={version}":
+            if value not in {f"{PACKAGE}=={pin}" for pin in accepted}:
                 raise ValueError(f"outdated or invalid package pin: {value}")
             result.append(str(wheel))
             found = True
@@ -315,20 +298,20 @@ def validate_key_wiring(server: dict) -> dict[str, str]:
             raise ValueError("client API key must use the documented placeholder")
     elif "UNIFI_API_KEY" not in forwarded:
         raise ValueError("client does not configure or forward UNIFI_API_KEY")
-    if set(env) - {"UNIFI_API_KEY", "UNIFI_READ_ONLY", "FASTMCP_TRANSPORT", "UNIFI_TOOL_MODE"}:
+    if set(env) - {"UNIFI_API_KEY", "UNIFI_WRITE_POLICY", "FASTMCP_TRANSPORT", "UNIFI_TOOL_MODE"}:
         raise ValueError("unexpected client environment setting")
-    if set(forwarded) - {"UNIFI_API_KEY", "UNIFI_READ_ONLY", "UNIFI_TOOL_MODE"}:
+    if set(forwarded) - {"UNIFI_API_KEY", "UNIFI_WRITE_POLICY", "UNIFI_TOOL_MODE"}:
         raise ValueError("unexpected client environment forwarding")
     if env.get("FASTMCP_TRANSPORT", "stdio") != "stdio":
         raise ValueError("client launcher must declare stdio")
     out = {}
-    if "UNIFI_READ_ONLY" in env:
-        value = env["UNIFI_READ_ONLY"]
-        if value == "${user_config.read_only}":
-            value = "1"
-        if value not in {"0", "1"}:
-            raise ValueError("invalid client read-only setting")
-        out["UNIFI_READ_ONLY"] = value
+    if "UNIFI_WRITE_POLICY" in env:
+        value = env["UNIFI_WRITE_POLICY"]
+        if value == "${user_config.write_policy}":
+            value = "deny"
+        if value not in {"allow", "dry-run", "deny"}:
+            raise ValueError("invalid client write policy setting")
+        out["UNIFI_WRITE_POLICY"] = value
     return out
 
 
@@ -346,7 +329,7 @@ def client_settings(case: dict) -> dict[str, str]:
     return validate_key_wiring(next(iter(servers.values())))
 
 
-def parsed_launcher(case: dict, wheel: Path, version: str) -> list[str]:
+def parsed_launcher(case: dict, wheel: Path, version: str, *, published: str = "") -> list[str]:
     body, mode = case["body"], case["mode"]
     if mode == "codex":
         config = tomllib.loads(body)
@@ -361,7 +344,7 @@ def parsed_launcher(case: dict, wheel: Path, version: str) -> list[str]:
                 argv = shlex.split(line, comments=True)
                 if "--" not in argv:
                     raise ValueError("Antigravity command must declare its MCP launcher")
-                return repin(argv[argv.index("--") + 1 :], wheel, version)
+                return repin(argv[argv.index("--") + 1 :], wheel, version, published=published)
     elif mode == "plugin":
         if not (
             "claude --plugin-dir ./plugins/claude" in body
@@ -379,20 +362,30 @@ def parsed_launcher(case: dict, wheel: Path, version: str) -> list[str]:
         validate_key_wiring(server)
     elif server.get("env") or server.get("env_vars"):
         raise ValueError("Antigravity plugin must inherit the synthetic shell environment")
-    return repin([server["command"], *server.get("args", [])], wheel, version)
+    return repin([server["command"], *server.get("args", [])], wheel, version, published=published)
 
 
-def prepare(case: dict, wheel: Path, sdist: Path, version: str, work: Path, pipx: str) -> list[str]:
+def prepare(
+    case: dict,
+    wheel: Path,
+    sdist: Path,
+    version: str,
+    work: Path,
+    pipx: str,
+    *,
+    published: str = "",
+) -> list[str]:
     mode, body = case["mode"], case["body"]
     if mode in {"desktop", "codex", "plugin", "antigravity"}:
-        return parsed_launcher(case, wheel, version)
+        return parsed_launcher(case, wheel, version, published=published)
     if mode == "uvx":
         line = next((line for line in body.splitlines() if line.startswith("uvx ")), "")
-        return repin(shlex.split(line), wheel, version)
+        return repin(shlex.split(line), wheel, version, published=published)
     if mode == "pipx":
         line = next((line for line in body.splitlines() if line.startswith("pipx install ")), "")
         argv = shlex.split(line, comments=True)
-        if len(argv) != 3 or argv[-1] != f"{PACKAGE}=={version}":
+        accepted = {version} | ({published} if published else set())
+        if len(argv) != 3 or argv[-1] not in {f"{PACKAGE}=={pin}" for pin in accepted}:
             raise ValueError("expected documented pinned pipx install")
         home = (work / case["id"]).resolve()
         env = {
@@ -419,11 +412,13 @@ def prepare(case: dict, wheel: Path, sdist: Path, version: str, work: Path, pipx
         checked([pipx, "install", str(wheel)], env=env)
         return [str(home / "bin" / launch[0])]
     if mode in {"pip", "source"}:
-        return prepare_sequence(case, sdist, version, work)
+        return prepare_sequence(case, sdist, version, work, published=published)
     raise ValueError(f"unsupported executable mode {mode}")
 
 
-def prepare_sequence(case: dict, sdist: Path, version: str, work: Path) -> list[str]:
+def prepare_sequence(
+    case: dict, sdist: Path, version: str, work: Path, *, published: str = ""
+) -> list[str]:
     """Execute README setup argv, substituting only local source/package artifacts.
 
     The final argv is taken from the block itself and launched by the stdio probe.
@@ -549,7 +544,7 @@ def prepare_sequence(case: dict, sdist: Path, version: str, work: Path) -> list[
             if argv[1:4] == ["-m", "pip", "install"]:
                 if argv[4:] == ["-e", "."] and source:
                     checked(argv, cwd=cwd, env=env)
-                elif argv[4:] == [f"{PACKAGE}=={version}"]:
+                elif argv[4:] in [[f"{PACKAGE}=={pin}"] for pin in {version, published} if pin]:
                     checked([*argv[:4], str(sdist)], cwd=cwd, env=env)
                 else:
                     raise ValueError("unexpected documented pip installation")
@@ -580,7 +575,7 @@ def docker_launcher(wheel: Path, work: Path) -> tuple[list[str], str]:
     for name in (
         "UNIFI_API_KEY",
         "UNIFI_API_BASE_URL",
-        "UNIFI_READ_ONLY",
+        "UNIFI_WRITE_POLICY",
         "UNIFI_TOOL_MODE",
         "FASTMCP_TRANSPORT",
     ):
@@ -588,7 +583,7 @@ def docker_launcher(wheel: Path, work: Path) -> tuple[list[str], str]:
     return [*cmd, image], image
 
 
-def validate_docker_case(case: dict, version: str) -> bool:
+def validate_docker_case(case: dict, version: str, published: str = "") -> bool:
     """Validate original run options; only image and test environment are substituted."""
     body = case["body"]
     if case["language"] == "json":
@@ -604,7 +599,9 @@ def validate_docker_case(case: dict, version: str) -> bool:
     if not command:
         raise ValueError("expected documented Docker run")
     argv = shlex.split(command[1].replace("\\\n", " "))
-    if argv[-1] != f"ghcr.io/swkstudios/unifi-fabric-mcp-server:{version}":
+    if argv[-1] not in {
+        f"ghcr.io/swkstudios/unifi-fabric-mcp-server:{pin}" for pin in {version, published} if pin
+    }:
         raise ValueError("unexpected Docker image pin or entrypoint")
     opts = argv[2:-1]
     env = {}
@@ -799,9 +796,18 @@ def docker_session(image: str, env: dict, authenticated: bool, expected_names: s
 
 
 def check_docker(
-    case: dict, image: str, version: str, target: dict, expected_names: set[str]
+    case: dict,
+    image: str,
+    version: str,
+    target: dict,
+    expected_names: set[str],
+    published: str = "",
 ) -> dict:
-    authenticated = validate_docker_case(case, version)
+    authenticated = (
+        validate_docker_case(case, version, published)
+        if published
+        else validate_docker_case(case, version)
+    )
     good = docker_session(image, target["good_env"], authenticated, expected_names)
     wrong = docker_session(image, target["wrong_env"], authenticated, expected_names)
     missing = docker_session(image, {}, authenticated, expected_names)
@@ -809,7 +815,7 @@ def check_docker(
     for key in (
         "UNIFI_API_KEY",
         "UNIFI_API_BASE_URL",
-        "UNIFI_READ_ONLY",
+        "UNIFI_WRITE_POLICY",
         "UNIFI_TOOL_MODE",
         "FASTMCP_TRANSPORT",
     ):
@@ -858,6 +864,7 @@ def main() -> int:
     if not wheel.is_file() or not sdist.is_file():
         raise ValueError("both locally built artifacts are required")
     version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    published = published_version()
     expected_names = set(re.findall(r"^### `([^`]+)`", (ROOT / "docs/TOOLS.md").read_text(), re.M))
     expect = len(expected_names)
     cases = extract_cases()
@@ -865,7 +872,7 @@ def main() -> int:
     codex_plugin = json.loads((ROOT / "plugins/codex/.mcp.json").read_text())
     for server in codex_plugin["mcpServers"].values():
         validate_key_wiring(server)
-        repin([server["command"], *server.get("args", [])], wheel, version)
+        repin([server["command"], *server.get("args", [])], wheel, version, published=published)
     cases.append(
         {
             "id": "codex-plugin-manifest",
@@ -950,16 +957,24 @@ def main() -> int:
                     continue
                 try:
                     if case["mode"] == "docker":
-                        validate_docker_case(case, version)
+                        validate_docker_case(case, version, published)
                         if image is None:
                             _, image = docker_launcher(wheel, work)
-                        result = check_docker(case, image, version, target, expected_names)
+                        result = check_docker(
+                            case, image, version, target, expected_names, published
+                        )
                     else:
                         cmd = prepare(
-                            case, wheel, sdist, version, work, shutil.which("pipx") or "pipx"
+                            case,
+                            wheel,
+                            sdist,
+                            version,
+                            work,
+                            shutil.which("pipx") or "pipx",
+                            published=published,
                         )
                         settings = client_settings(case)
-                        settings.pop("UNIFI_READ_ONLY", None)
+                        settings.pop("UNIFI_WRITE_POLICY", None)
                         configured_target = {
                             key: {**value, **settings} for key, value in target.items()
                         }

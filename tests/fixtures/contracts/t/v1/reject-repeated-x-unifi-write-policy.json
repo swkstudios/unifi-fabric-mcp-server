@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "reject-repeated-x-unifi-write-policy",
+  "description": "X-UniFi-Write-Policy sent twice is never merged and refuses before dispatch",
+  "kind": "reject",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "deny"
+      ],
+      [
+        "X-UniFi-Write-Policy",
+        "dry-run"
+      ]
+    ],
+    "route": "list_hosts",
+    "arguments": {}
+  },
+  "expected": {
+    "code": "invalid_policy_header",
+    "upstream_calls": 0
+  }
+}

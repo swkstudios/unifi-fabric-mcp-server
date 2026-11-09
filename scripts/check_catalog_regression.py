@@ -46,7 +46,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))
-from mcp_navigation import decode, domain_catalog, full_mode_catalog  # noqa: E402
+from mcp_navigation import (  # noqa: E402
+    decode,
+    domain_catalog,
+    full_mode_catalog,
+    require_catalog_parity,
+)
 
 from unifi_fabric._catalog_audit import (  # noqa: E402  (path set above)
     DEFAULT_GATEWAY_SLUG,
@@ -67,20 +72,11 @@ def registered_tool_names() -> list[str]:
 
 
 def require_schema_parity(catalog: list[dict], expected: list[dict]) -> None:
-    """A five-tool advertisement cannot replace complete hidden inventory evidence."""
-    actual = {
-        tool["name"]: {key: tool.get(key) for key in ("inputSchema", "outputSchema", "annotations")}
-        for tool in catalog
-    }
-    baseline = {
-        tool["name"]: {key: tool.get(key) for key in ("inputSchema", "outputSchema", "annotations")}
-        for tool in expected
-    }
-    if len(actual) != len(catalog) or set(actual) != set(baseline):
-        raise ValueError("hidden catalog names differ from full-mode baseline")
-    mismatches = sorted(name for name in actual if actual[name] != baseline[name])
-    if mismatches:
-        raise ValueError(f"hidden catalog schemas differ from full-mode baseline: {mismatches}")
+    """A five-tool advertisement cannot replace complete hidden inventory evidence.
+
+    One rule for every caller: the shared check in ``scripts/mcp_navigation.py``.
+    """
+    require_catalog_parity(catalog, expected)
 
 
 def load_snapshot_names(path: str, *, expected_catalog: list[dict] | None = None) -> list[str]:

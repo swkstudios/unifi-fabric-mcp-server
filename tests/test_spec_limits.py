@@ -346,7 +346,7 @@ def test_area_opt_out_and_read_only_answer_before_a_spec_limit():
     """The opt-out / read-only refusal comes first: an out-of-range value on a refused
     tool reports the refusal, not the limit (and sends nothing)."""
     args = {**sc.conformance_args("siren_test_sound"), "volume": 0}
-    for env in ({"UNIFI_PROTECT_MUTATIONS_ENABLED": "0"}, {"UNIFI_READ_ONLY": "1"}):
+    for env in ({"UNIFI_WRITE_EXCEPTIONS": "family:protect=deny"}, {"UNIFI_WRITE_POLICY": "deny"}):
         with pytest.MonkeyPatch.context() as mp:
             for k, v in env.items():
                 mp.setenv(k, v)

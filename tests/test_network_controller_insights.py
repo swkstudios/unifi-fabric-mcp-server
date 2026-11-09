@@ -14,6 +14,7 @@ import ast
 import asyncio
 import inspect
 import json
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -81,7 +82,28 @@ def registry(key: APIKeyConfig | None = None) -> AsyncMock:
     )
 
 
+@pytest.fixture(autouse=True)
+def _write_policy_env_reset(monkeypatch):
+    """Start every test without a write policy; ``_modes`` sets one for a client's modes."""
+    # setenv first so the teardown removes a value a helper set directly in os.environ
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "allow")
+    monkeypatch.delenv("UNIFI_WRITE_POLICY")
+
+
+def _modes(settings: dict) -> dict:
+    """Express the retired ``dry_run`` / ``read_only`` client modes as the write policy."""
+    settings = dict(settings)
+    dry = settings.pop("dry_run", False)
+    deny = settings.pop("read_only", False)
+    if deny:
+        os.environ["UNIFI_WRITE_POLICY"] = "deny"
+    elif dry:
+        os.environ["UNIFI_WRITE_POLICY"] = "dry-run"
+    return settings
+
+
 def client(handler, **settings: Any) -> UniFiClient:
+    settings = _modes(settings)
     c = UniFiClient(Settings(api_key="test-key", **settings))
     c._clients[("beta", _key_fingerprint("test-key"))] = httpx.AsyncClient(
         base_url="https://api.ui.com", transport=httpx.MockTransport(handler)
@@ -671,7 +693,7 @@ async def test_ups_upstream_error_reason_kept():
     reason = {"errorCode": 400, "code": "api.err.UpsConsoleNotFound", "message": "not found"}
     up = Upstream({("POST", f"{V2}/ups/unpair"): httpx.Response(400, json=reason)})
     with pytest.raises(UniFiConnectionError, match="UpsConsoleNotFound"):
-        await run(up, nci.set_ups_pairing, "unpair", "00:00:00:00:00:00")
+        await run(up, nci.set_ups_pairing, "unpair", "00:00:5e:00:53:01")
 
 
 @pytest.mark.parametrize(
@@ -785,7 +807,7 @@ async def test_dry_run_preview_masks_the_ups_password_only_under_redact_secrets(
 
 @pytest.mark.parametrize("name", sorted(WRITE_TOOLS))
 async def test_read_only_mode_refuses_every_write_before_any_request(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = GenericUpstream()
     with pytest.raises(Exception, match="read-only mode"):
@@ -795,7 +817,7 @@ async def test_read_only_mode_refuses_every_write_before_any_request(name, monke
 
 @pytest.mark.parametrize("name", sorted(READ_TOOLS))
 async def test_read_only_mode_leaves_reads_working(name, monkeypatch):
-    monkeypatch.setenv("UNIFI_READ_ONLY", "1")
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     fn, args, kwargs = CALLS[name]
     up = GenericUpstream()
     await run(up, fn, *args, **kwargs)
@@ -1260,7 +1282,7 @@ async def test_review_parallel_requests_do_not_share_submitted_secret_scope():
             return httpx.Response(400, json={"message": f"rejected {secret}"})
         return httpx.Response(200, json={"message": secret})
 
-    c, _ = cold_client(answer)
+    c, _ = cold_client(answer, redact_secrets=True)
     try:
         task = asyncio.create_task(
             c.request("POST", f"{V2}/ups/pair", json={"password": secret}, raise_on_error=False)
@@ -1271,7 +1293,7 @@ async def test_review_parallel_requests_do_not_share_submitted_secret_scope():
         finally:
             release.set()
         response = await task
-        assert secret in response.text
+        assert secret not in response.text
     finally:
         await c.close()
 

@@ -20,7 +20,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..client import UniFiClient, validate_selector
+from ..client import UniFiClient, upstream_error_value, validate_selector
 from ..config import APIKeyConfig
 from ..matching import name_matches, same_id
 from ..registry import Registry
@@ -49,26 +49,33 @@ async def _console_sites(
     return _classic_data(await client.get(path, key=key), path)
 
 
-def _describe_sites(sites: list[dict[str, Any]]) -> str:
+def _describe_sites(sites: list[dict[str, Any]], client: UniFiClient | None = None) -> str:
     return (
-        "; ".join(f"{s.get('desc')!r} (name={s.get('name')}, _id={s.get('_id')})" for s in sites)
+        "; ".join(
+            f"{upstream_error_value(s.get('desc'), client)!r} "
+            f"(name={upstream_error_value(s.get('name'), client)}, "
+            f"_id={upstream_error_value(s.get('_id'), client)})"
+            for s in sites
+        )
         or "(none)"
     )
 
 
-def _select_site(sites: list[dict[str, Any]], wanted: str, arg: str) -> dict[str, Any]:
+def _select_site(
+    sites: list[dict[str, Any]], wanted: str, arg: str, client: UniFiClient | None = None
+) -> dict[str, Any]:
     """The site whose _id, name (slug) or desc (display name) is ``wanted``."""
     by_id = [s for s in sites if same_id(wanted, s.get("_id")) or s.get("name") == wanted]
     matches = by_id or name_matches(sites, wanted, lambda s: s.get("desc"))
     if len({id(s) for s in matches}) > 1:
         raise ValueError(
-            f"{arg} {wanted!r} matches {len(matches)} sites: {_describe_sites(matches)}. "
+            f"{arg} {wanted!r} matches {len(matches)} sites: {_describe_sites(matches, client)}. "
             "Pass its _id."
         )
     if not matches:
         raise ValueError(
             f"{arg} {wanted!r} not found by _id, name or display name; sites: "
-            f"{_describe_sites(sites)}. Get them from list_local_sites or list_sites."
+            f"{_describe_sites(sites, client)}. Get them from list_local_sites or list_sites."
         )
     listed_record_id(matches[0], arg)
     return matches[0]
@@ -109,7 +116,7 @@ async def _delete_site(
     validate_selector(site_to_delete, "site_to_delete")
     key, host_id, site_slug = await resolve_site_slug(registry, host, site)
     sites = await _console_sites(client, host_id, key)
-    target = _select_site(sites, site_to_delete, "site_to_delete")
+    target = _select_site(sites, site_to_delete, "site_to_delete", client)
     target_id = listed_record_id(target, "site_to_delete")
     response = await with_upstream_hint(
         client.post(
@@ -139,7 +146,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Not yet live-tested on a multi-site console.
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [the new site {_id,
-        name (its URL slug), desc}]} (under UNIFI_DRY_RUN, the dry-run preview {status:
+        name (its URL slug), desc}]} (under dry-run policy, the dry-run preview {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query
         parameters), body}} instead).
 
@@ -177,7 +184,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         URL addresses. Verified on Network 11.0.81 with the current name (accepted, rc ok).
 
         Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        UNIFI_DRY_RUN, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
+        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params (query parameters), body}} instead). Read
         list_local_sites afterwards to see the new name.
 
@@ -220,7 +227,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         nothing to delete; not yet live-tested on a multi-site console.
 
         Returns {deleted: true, message, response}; response is the upstream body verbatim.
-        Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false, message,
+        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
         response (the preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params (query parameters), body}})}.
 

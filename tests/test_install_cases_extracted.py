@@ -85,6 +85,15 @@ def test_valid_pin_is_replaced_with_local_artifact(tmp_path):
     assert result[2] == str(wheel)
 
 
+def test_published_pin_is_accepted_but_older_pin_is_rejected(tmp_path):
+    wheel = tmp_path / "local.whl"
+    launcher = ["uvx", "--from", "unifi-fabric-mcp-server==0.7.0", "unifi-fabric-mcp"]
+    assert smoke.repin(launcher, wheel, "0.7.1", published="0.7.0")[2] == str(wheel)
+    launcher[2] = "unifi-fabric-mcp-server==0.6.9"
+    with pytest.raises(ValueError, match="outdated or invalid"):
+        smoke.repin(launcher, wheel, "0.7.1", published="0.7.0")
+
+
 def test_broken_desktop_json_fails(tmp_path):
     with pytest.raises(ValueError):
         smoke.parsed_launcher(
@@ -182,7 +191,7 @@ def test_same_count_with_wrong_catalog_names_fails(monkeypatch):
     "server",
     [
         {"env": {"MISSPELLED_API_KEY": "your-api-key-here"}},
-        {"env_vars": ["MISSPELLED_API_KEY", "UNIFI_READ_ONLY"]},
+        {"env_vars": ["MISSPELLED_API_KEY", "UNIFI_WRITE_POLICY"]},
         {"env": {"UNIFI_API_KEY": "your-api-key-here", "FASTMCP_TRANSPORT": "broken"}},
     ],
 )
@@ -194,8 +203,8 @@ def test_client_key_wiring_mutations_fail(server):
 def test_client_inline_key_and_forwarded_key_are_valid():
     assert smoke.validate_key_wiring({"env_vars": ["UNIFI_API_KEY"]}) == {}
     assert smoke.validate_key_wiring(
-        {"env": {"UNIFI_API_KEY": "your-api-key-here", "UNIFI_READ_ONLY": "1"}}
-    ) == {"UNIFI_READ_ONLY": "1"}
+        {"env": {"UNIFI_API_KEY": "your-api-key-here", "UNIFI_WRITE_POLICY": "deny"}}
+    ) == {"UNIFI_WRITE_POLICY": "deny"}
 
 
 def test_removed_plugin_launcher_marker_fails(tmp_path):

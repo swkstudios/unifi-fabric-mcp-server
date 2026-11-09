@@ -344,7 +344,7 @@ def test_committed_baseline_surfaces_network_console_gap() -> None:
     assert not report.is_clean  # Legacy evidence is unavailable, independently of the gap.
     gap_names = {d.name for d in report.console_gaps}
     assert "network" in gap_names
-    assert "console runs v10.7.99" in report.summary()
+    assert "console runs v11.1.99" in report.summary()
 
 
 def test_committed_baseline_console_versions_are_synthetic_not_real() -> None:
@@ -377,9 +377,9 @@ def test_synthetic_next_week_drift_is_caught_in_every_class() -> None:
     baseline = _load_baseline()
     payload = snapshot_to_dict(baseline)
     services = payload["services"]
-    # Version bump on network (to a value distinct from BOTH the baseline 10.6.106 and the
-    # recorded console 10.7.99, so this service shows version drift AND a console gap).
-    services["network"]["version"] = "10.7.0"
+    # Version bump on network (to a value distinct from BOTH the baseline 11.0.97 and the
+    # recorded console 11.1.99, so this service shows version drift AND a console gap).
+    services["network"]["version"] = "11.1.0"
     # InnerSpace grows a write route (the key case) and loses one implemented GET.
     services["innerspace"]["endpoints"]["POST /v1/project"] = "newsig"
     del services["innerspace"]["endpoints"]["GET /v1/switches"]
@@ -406,15 +406,15 @@ def test_synthetic_next_week_drift_is_caught_in_every_class() -> None:
     # version drift + changed endpoint present
     network_diff = next(d for d in report.service_diffs if d.name == "network")
     assert network_diff.version_changed
-    assert network_diff.console_gap  # 10.7.0 published vs 10.7.99 console
+    assert network_diff.console_gap  # 11.1.0 published vs 11.1.99 console
     protect_diff = next(d for d in report.service_diffs if d.name == "protect")
     assert protect_diff.changed_endpoints
 
     # Render the full drift summary and assert every class surfaces in the text.
     summary = report.summary()
     assert "SPEC DRIFT" in summary
-    assert "VERSION_DRIFT 10.6.106 -> 10.7.0" in summary
-    assert "CONSOLE_GAP: published v10.7.0, console runs v10.7.99" in summary
+    assert "VERSION_DRIFT 11.0.97 -> 11.1.0" in summary
+    assert "CONSOLE_GAP: published v11.1.0, console runs v11.1.99" in summary
     assert "NEW      POST /v1/project (WRITE capability)" in summary
     assert "REMOVED  GET /v1/switches (BREAKAGE: implemented)" in summary
     assert "CHANGED" in summary

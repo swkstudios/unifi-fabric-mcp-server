@@ -141,7 +141,7 @@ def write_verbs_for(fn: Callable[..., Any]) -> set[str]:
     stack: list[Callable[..., Any]] = [fn]
     while stack:
         cur = stack.pop()
-        key = getattr(cur, "__code__", cur)
+        key = cur
         if key in seen:
             continue
         seen.add(key)
@@ -151,8 +151,9 @@ def write_verbs_for(fn: Callable[..., Any]) -> set[str]:
 
 
 #: Source evidence that a function talks to the UniFi upstream: it obtains the client
-#: through ``_require()`` or calls a method on a ``client``.
-_UPSTREAM_RE = re.compile(r"\b_require\(|\bclient\.\w+\(")
+#: through ``_require()`` or calls a method on a ``client``. ``client._key_configs()`` only
+#: reads the configured (or request-supplied) key list: local state, not the upstream.
+_UPSTREAM_RE = re.compile(r"\b_require\(|\bclient\.(?!_key_configs\()\w+\(")
 
 
 @functools.cache
@@ -171,7 +172,7 @@ def reaches_upstream(fn: Callable[..., Any]) -> bool:
     stack: list[Callable[..., Any]] = [fn]
     while stack:
         cur = stack.pop()
-        key = getattr(cur, "__code__", cur)
+        key = cur
         if key in seen:
             continue
         seen.add(key)
@@ -229,7 +230,7 @@ def is_destructive(fn: Callable[..., Any]) -> bool:
     stack: list[Callable[..., Any]] = [fn]
     while stack:
         cur = stack.pop()
-        key = getattr(cur, "__code__", cur)
+        key = cur
         if key in seen:
             continue
         seen.add(key)

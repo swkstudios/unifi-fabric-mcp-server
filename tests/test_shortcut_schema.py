@@ -3,7 +3,7 @@
 Linked bodies and type literals: official unifi-protect apt package 5.3.48
 (SHA256 cd2f88e273e89161e1a9a742b4da9f8c2f708f53c415d6bf36b200164f10d454),
 UI 5.3.18 f5afa0f4eccbb98bfb70.531.js Shortcuts builder at offset 2741234.
-Webhook timeout: Protect 7.3.70 rr070 AJV required-property error. The complete
+Webhook timeout: Protect 7.3.74 rr070 AJV required-property error. The complete
 webhook recipe retains its explicit nullable headers/body/auth and name/url/method.
 """
 

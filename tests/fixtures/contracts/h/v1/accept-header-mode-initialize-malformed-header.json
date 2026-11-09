@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "contract": "h",
+  "name": "accept-header-mode-initialize-malformed-header",
+  "description": "Header-mode initialize never reads X-UniFi-Api-Key, so a malformed one is not refused",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_KEY_MODE": "header"
+    },
+    "headers": [
+      [
+        "X-UniFi-Api-Key",
+        "not-json"
+      ]
+    ],
+    "route": "initialize"
+  },
+  "expected": {
+    "upstream_calls": 0
+  }
+}

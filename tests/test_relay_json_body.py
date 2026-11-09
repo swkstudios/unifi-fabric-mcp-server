@@ -39,7 +39,9 @@ async def test_catalog_relay_forwards_every_json_value(monkeypatch, name, body):
 @pytest.mark.parametrize("name", NAMES)
 async def test_catalog_array_dry_run_preview(monkeypatch, name):
     up = uh.FakeUpstream()
-    result = await cti._call(monkeypatch, name, up, args(name, []), env={"UNIFI_DRY_RUN": "1"})
+    result = await cti._call(
+        monkeypatch, name, up, args(name, []), env={"UNIFI_WRITE_POLICY": "dry-run"}
+    )
     payload = json.loads(result.content[0].text)
     assert payload["status"] == "dry_run"
     assert payload["body"]["preview"]["body"] == []
@@ -53,19 +55,23 @@ async def test_catalog_array_dry_run_preview(monkeypatch, name):
 @pytest.mark.parametrize(
     ("env", "path"),
     [
-        ("UNIFI_READ_ONLY", "network/api/s/{site}/rest/networkconf/test-id"),
-        ("UNIFI_ENABLE_CONNECTOR_WRITE", "network/api/s/{site}/rest/networkconf/test-id"),
-        ("UNIFI_PROTECT_MUTATIONS_ENABLED", "protect/api/cameras/test-id"),
-        ("UNIFI_ENABLE_MOBILITY_WRITE", "mobility/api/test-id"),
-        ("UNIFI_ENABLE_CARRIER_FABRIC_WRITE", "carrier/api/test-id"),
-        ("UNIFI_ENABLE_INNERSPACE_WRITE", "innerspace/api/test-id"),
+        ("UNIFI_WRITE_POLICY", "network/api/s/{site}/rest/networkconf/test-id"),
+        ("family:connector=deny", "network/api/s/{site}/rest/networkconf/test-id"),
+        ("family:protect=deny", "protect/api/cameras/test-id"),
+        ("family:mobility=deny", "mobility/api/test-id"),
+        ("family:carrier=deny", "carrier/api/test-id"),
+        ("family:innerspace=deny", "innerspace/api/test-id"),
     ],
 )
 async def test_catalog_array_optouts_before_resolution(monkeypatch, name, env, path):
     up = uh.FakeUpstream()
-    value = "1" if env == "UNIFI_READ_ONLY" else "0"
+    setting = (
+        {"UNIFI_WRITE_POLICY": "deny"}
+        if env == "UNIFI_WRITE_POLICY"
+        else {"UNIFI_WRITE_EXCEPTIONS": env}
+    )
     with pytest.raises(ToolError, match=env):
-        await cti._call(monkeypatch, name, up, args(name, [], path), env={env: value})
+        await cti._call(monkeypatch, name, up, args(name, [], path), env=setting)
     assert up.served == []
 
 
@@ -111,7 +117,7 @@ async def test_catalog_array_dry_run_opt_in_redaction(monkeypatch, name):
         name,
         up,
         args(name, [{"password": "synthetic-value"}]),
-        env={"UNIFI_DRY_RUN": "1", "UNIFI_REDACT_SECRETS": "1"},
+        env={"UNIFI_WRITE_POLICY": "dry-run", "UNIFI_REDACT_SECRETS": "1"},
     )
     assert "synthetic-value" not in str(result)
     assert not [s for s in up.served if s.method != "GET"]

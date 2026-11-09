@@ -4,10 +4,9 @@ Covers arm profiles (+settings/enable/disable), sirens, fobs, relays, speakers, 
 link stations, alarm hubs, Protect users, ULP users, application metadata, and POS
 transaction ingestion. Every test is hermetic — no live credentials, HTTP fully mocked —
 and asserts the exact Fabric proxy URL/method, owning-key routing, upstream pass-through
-(including unknown/future fields), unsupported-endpoint error propagation, the confirm
-guards (with no-request behaviour), the read-before/no-op/read-after settings flow, the
-UNIFI_PROTECT_MUTATIONS_ENABLED env gate, that side-effecting writes disable 429
-auto-retry (max_retries=0), and the POS idempotency/validation guardrails.
+(including unknown/future fields), unsupported-endpoint error propagation, optional
+confirm arguments, the read-before/no-op/read-after settings flow, the
+family:protect=deny env gate, and the POS idempotency/validation guardrails.
 """
 
 from __future__ import annotations
@@ -213,7 +212,7 @@ async def test_family_update_noop_skips_write(client, registry, _l, _g, upd_fn, 
 async def test_family_update_gate_disabled_no_request(
     monkeypatch, client, registry, _l, _g, upd_fn, family, _p, _idn
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await upd_fn(client, registry, "h", "x", name="new")
     client.get.assert_not_called()
@@ -257,7 +256,7 @@ async def test_unsupported_action_error_propagates(client, registry):
         await enable_arm(client, registry, "h", confirm=True)
 
 
-# --- Physical action confirm guards (all writes disable 429 auto-retry) -------------
+# --- Physical actions -------------
 
 # (fn, args, kwargs, expected_url_suffix, expected_body)
 _ACTIONS = [
@@ -278,9 +277,7 @@ _ACTIONS = [
 
 
 @pytest.mark.parametrize("fn,args,kwargs,suffix,body", _ACTIONS)
-async def test_action_executes_with_confirm_no_retry(
-    client, registry, fn, args, kwargs, suffix, body
-):
+async def test_action_executes_with_confirm(client, registry, fn, args, kwargs, suffix, body):
     result = await fn(client, registry, "h", *args, **kwargs)
     assert_write(client, "POST", f"{BASE}{suffix}", key=None, json=body)
     assert result == {"status": "sent", "response": {}}
@@ -298,7 +295,7 @@ async def test_action_runs_without_confirm(client, registry, fn, args, kwargs, s
 async def test_action_gate_disabled_beats_confirm(
     monkeypatch, client, registry, fn, args, kwargs, suffix, body
 ):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "off")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await fn(client, registry, "h", *args, **kwargs)  # confirm=True present
     client.request.assert_not_called()
@@ -422,7 +419,7 @@ async def test_update_arm_profile_equal_nested_leaf_is_noop(client, registry):
     assert result["status"] == "noop"
 
 
-async def test_create_arm_profile_url_and_body_no_retry(client, registry):
+async def test_create_arm_profile_url_and_body(client, registry):
     client.request.return_value = resp({"id": "arm-9", "name": "Night"})
     result = await create_arm_profile(
         client,
@@ -457,7 +454,7 @@ async def test_create_arm_profile_empty_name_rejected(client, registry):
 
 
 async def test_create_arm_profile_gate_disabled(monkeypatch, client, registry):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "false")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await create_arm_profile(client, registry, "h", "Night")
     client.request.assert_not_called()
@@ -486,7 +483,7 @@ async def test_delete_arm_profile_runs_without_confirm(client, registry):
     assert result == {"deleted": True, "message": "Arm profile arm-1 deleted.", "response": None}
 
 
-async def test_delete_arm_profile_with_confirm_no_retry(client, registry):
+async def test_delete_arm_profile_with_confirm(client, registry):
     client.get.return_value = [{"id": "arm-1"}]  # found in the list first
     result = await delete_arm_profile(client, registry, "h", "arm-1", confirm=True)
     client.delete.assert_called_once_with(f"{BASE}/arm-profiles/arm-1", key=None)
@@ -501,7 +498,7 @@ async def test_delete_arm_profile_unknown_id_sends_no_delete(client, registry):
 
 
 async def test_delete_arm_profile_gate_disabled(monkeypatch, client, registry):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "no")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await delete_arm_profile(client, registry, "h", "arm-1", confirm=True)
     client.delete.assert_not_called()
@@ -537,7 +534,7 @@ async def test_arm_settings_noop_when_already_selected(client, registry):
 
 
 async def test_arm_settings_gate_disabled(monkeypatch, client, registry):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await update_arm_profile_settings(client, registry, "h", "arm-2")
     client.get.assert_not_called()
@@ -591,7 +588,7 @@ def _txn(**over):
     return base
 
 
-async def test_pos_ingest_url_body_no_retry(client, registry):
+async def test_pos_ingest_url_body(client, registry):
     client.request.return_value = resp({"id": "evt-1"})
     txn = _txn(currency="USD", lineItems=[{"title": "Coffee", "quantity": 1}])
     result = await pos_ingest_transaction(client, registry, "h", "cam-1", txn, confirm=True)
@@ -607,7 +604,7 @@ async def test_pos_ingest_runs_without_confirm(client, registry):
 
 
 async def test_pos_ingest_gate_disabled(monkeypatch, client, registry):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, "0")
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", PROTECT_MUTATIONS_ENV)
     with pytest.raises(ValueError, match="(?i)writes|mutation|disabled|opted"):
         await pos_ingest_transaction(client, registry, "h", "cam-1", _txn(), confirm=True)
     client.request.assert_not_called()
@@ -651,19 +648,23 @@ async def test_pos_ingest_rejects_bad_camera_id(client, registry):
 
 
 def test_gate_default_on_when_unset(monkeypatch):
-    monkeypatch.delenv(PROTECT_MUTATIONS_ENV, raising=False)
+    monkeypatch.delenv("UNIFI_WRITE_EXCEPTIONS", raising=False)
     assert protect_mutations_enabled() is True
 
 
-@pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "off", "Off"])
+@pytest.mark.parametrize(
+    "value", [PROTECT_MUTATIONS_ENV, f"family:network=dry-run;{PROTECT_MUTATIONS_ENV}"]
+)
 def test_gate_off_values(monkeypatch, value):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, value)
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", value)
     assert protect_mutations_enabled() is False
 
 
-@pytest.mark.parametrize("value", ["1", "true", "yes", "on", "", "   "])
+@pytest.mark.parametrize(
+    "value", ["family:protect=dry-run", "family:network=deny", "tool:create_network=deny"]
+)
 def test_gate_on_values(monkeypatch, value):
-    monkeypatch.setenv(PROTECT_MUTATIONS_ENV, value)
+    monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", value)
     assert protect_mutations_enabled() is True
 
 

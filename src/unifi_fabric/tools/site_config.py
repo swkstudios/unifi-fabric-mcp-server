@@ -30,6 +30,7 @@ from ..client import (
     describe_shape,
     is_dry_run_preview,
     strip_additive_keys,
+    upstream_error_value,
     validate_id,
     validate_selector,
 )
@@ -151,10 +152,15 @@ def _select_config_record(
 
 def _valid_config_records(records: list[dict[str, Any]], coll: _Collection) -> str:
     def ids(r: dict[str, Any]) -> str:
-        return ", ".join(f"{f}={r.get(f)}" for f in coll.id_fields if r.get(f) is not None)
+        return ", ".join(
+            f"{f}={upstream_error_value(r.get(f))}" for f in coll.id_fields if r.get(f) is not None
+        )
 
     return (
-        "; ".join(f"{_config_label(r, coll.label_fields)!r} ({ids(r)})" for r in records)
+        "; ".join(
+            f"{upstream_error_value(_config_label(r, coll.label_fields))!r} ({ids(r)})"
+            for r in records
+        )
         or "(none)"
     )
 
@@ -551,15 +557,16 @@ async def _set_client_user_group(
             "clients; valid: "
             + (
                 "; ".join(
-                    f"{r.get('name') or r.get('hostname')!r} (mac={r.get('mac')}, "
-                    f"_id={r.get('_id')})"
+                    f"{upstream_error_value(r.get('name') or r.get('hostname'), client)!r} "
+                    f"(mac={upstream_error_value(r.get('mac'), client)}, "
+                    f"_id={upstream_error_value(r.get('_id'), client)})"
                     for r in users
                 )
                 or "(none)"
             )
             + ". No write was sent."
         )
-    user_id = listed_record_id(record, "client")
+    user_id = listed_record_id(record, "client", client=client)
     return await client.post(
         classic_rest(host_id, site_slug, "").removesuffix("/rest") + f"/upd/user/{user_id}",
         key=key,
@@ -601,7 +608,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         an unknown id). To change it, pass the fields to change as `group` to update_user_group.
 
         Example call (get_user_group):
-            {"host": "my-console", "site": "Default", "group_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -625,7 +632,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the created group with _id]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -657,12 +664,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the updated group]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
         Example call (update_user_group):
-            {"host": "my-console", "site": "Default", "group_id": "64b1f0c2e4b0a1b2c3d4e5f6",
+            {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101",
              "group": {"qos_rate_max_down": 20000}}
 
         Args:
@@ -691,11 +698,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim. Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false,
+        verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
         message, response (the preview with method, path, params (query parameters), body)}.
 
         Example call (delete_user_group):
-            {"host": "my-console", "site": "Default", "group_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -722,7 +729,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         {usergroup_id}.
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the updated client record]}.
-        Under UNIFI_DRY_RUN nothing is sent: the bare dry-run preview {status: "dry_run",
+        Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run",
         dryRun: true, sent: false, message,
         preview: {method, path, params, body}}.
 
@@ -752,7 +759,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         an unknown id). To change it, pass the fields to change as `route` to update_static_route.
 
         Example call (get_static_route):
-            {"host": "my-console", "site": "Default", "route_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "route_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -778,7 +785,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the created route with _id]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -818,12 +825,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, {meta: {rc}, data: [the updated route]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
         Example call (update_static_route):
-            {"host": "my-console", "site": "Default", "route_id": "64b1f0c2e4b0a1b2c3d4e5f6",
+            {"host": "my-console", "site": "Default", "route_id": "000000000000000000000101",
              "route": {"enabled": false}}
 
         Args:
@@ -852,11 +859,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim. Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false,
+        verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
         message, response (the preview with method, path, params (query parameters), body)}.
 
         Example call (delete_static_route):
-            {"host": "my-console", "site": "Default", "route_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "route_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -891,7 +898,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         {_id, name, x_password, group_policy, filter_ids, ...}]; its _id is the id
         list_accounts shows. Additive _warnings on that account (NO_ID_RETURNED,
         NOT_STORED_AS_SENT: field names only) report a write that did not land as sent.
-        Under UNIFI_DRY_RUN nothing is sent: the bare dry-run preview {status: "dry_run",
+        Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run",
         dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
         Example call (create_radius_account):
@@ -931,12 +938,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, a one-element JSON array [the updated account].
         Additive _warnings on that account (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names
-        only) report a write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent:
+        only) report a write that did not land as sent. Under dry-run policy nothing is sent:
         the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
         preview: {method, path, params, body}}.
 
         Example call (update_radius_account):
-            {"host": "my-console", "site": "Default", "account_id": "64b1f0c2e4b0a1b2c3d4e5f6",
+            {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101",
              "account": {"vlan": 30}}
 
         Args:
@@ -965,12 +972,12 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         as deleted. The body sent is a one-element batch of ids, [_id].
 
         Returns {deleted: true, message, response}; response is the upstream body verbatim
-        (null: the controller answers with no body). Under UNIFI_DRY_RUN nothing is deleted:
+        (null: the controller answers with no body). Under dry-run policy nothing is deleted:
         {status: "dry_run", deleted: false, message, response (the preview with method,
         path, params (query parameters), body)}.
 
         Example call (delete_radius_account):
-            {"host": "my-console", "site": "Default", "account_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -1041,7 +1048,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns: the upstream body verbatim, the created group {_id, external_id, name,
         device_macs, ...} (HTTP 201).
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -1074,7 +1081,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Returns: the upstream body verbatim, the updated group object.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -1108,7 +1115,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         never reported as deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim (null for the HTTP 204 answer). Under UNIFI_DRY_RUN nothing is deleted:
+        verbatim (null for the HTTP 204 answer). Under dry-run policy nothing is deleted:
         {status: "dry_run", deleted: false, message, response (the preview with method, path,
         params (query parameters), body)}.
 
@@ -1146,14 +1153,14 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns: the upstream envelope verbatim, {meta: {rc}, data: [the created profile]},
         each profile plus the additive _resolved_networks key (see list_port_profiles).
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
         Example call (create_port_profile):
             {"host": "my-console", "site": "Default", "profile": {"name": "Cameras",
              "forward": "native", "tagged_vlan_mgmt": "block_all",
-             "native_networkconf_id": "64b1f0c2e4b0a1b2c3d4e5f6", "poe_mode": "auto"}}
+             "native_networkconf_id": "000000000000000000000101", "poe_mode": "auto"}}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -1178,11 +1185,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim. Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false,
+        verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
         message, response (the preview with method, path, params (query parameters), body)}.
 
         Example call (delete_port_profile):
-            {"host": "my-console", "site": "Default", "profile_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "profile_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
@@ -1209,7 +1216,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Returns: the upstream body verbatim, {meta: {rc}, data: [the created config with
         _id]}.
         Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-        write that did not land as sent. Under UNIFI_DRY_RUN nothing is sent: the bare dry-run
+        write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}.
 
@@ -1247,11 +1254,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         deleted.
 
         Returns {deleted: true, message, response}; response is the upstream DELETE body
-        verbatim. Under UNIFI_DRY_RUN nothing is deleted: {status: "dry_run", deleted: false,
+        verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
         message, response (the preview with method, path, params (query parameters), body)}.
 
         Example call (delete_dynamic_dns):
-            {"host": "my-console", "site": "Default", "ddns_id": "64b1f0c2e4b0a1b2c3d4e5f6"}
+            {"host": "my-console", "site": "Default", "ddns_id": "000000000000000000000101"}
 
         Args:
             host: Console name or id: the short name from list_hosts (data[].reportedState.hostname

@@ -488,7 +488,8 @@ def test_tools_are_registered_in_their_families():
         "create_dynamic_dns", "delete_dynamic_dns",
     }  # fmt: skip
     assert new <= names
-    assert not {"create_firewall_rule", "update_firewall_rule", "delete_firewall_rule"} & names
+    assert "create_firewall_rule" in names
+    assert not {"update_firewall_rule", "delete_firewall_rule"} & names
     # firewall-group writes are the official traffic-matching-list tools (NET-A-FIX5)
     assert not {"create_firewall_group", "update_firewall_group", "delete_firewall_group"} & names
     assert {

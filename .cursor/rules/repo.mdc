@@ -1,0 +1,8 @@
+---
+description: Pointer to the repository guide for AI agents
+alwaysApply: true
+---
+
+The rules for working in this repository are in AGENTS.md at the repository root. Read it before changing anything.
+
+Orientation: llms.txt is the index, docs/AI-CHANGES.md is the tool-change recipe, CONTRIBUTING.md is the contributor guide.

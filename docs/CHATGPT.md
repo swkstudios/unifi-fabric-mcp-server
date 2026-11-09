@@ -25,7 +25,7 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
 
 1. **Run the server with OAuth on HTTP.** Use the Docker image or `uvx` with these variables (the `/mcp` path matters: the advertised resource is `MCP_OAUTH_BASE_URL` plus `/mcp`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:7bb79c7ee98ee6627c7533892f7363c5376e37dbea251ea066c906fe7ae723d4 support=0.7.0 citation=file:src/unifi_fabric/server.py@sha256:7bb79c7ee98ee6627c7533892f7363c5376e37dbea251ea066c906fe7ae723d4 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac support=0.7.1 citation=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac -->
 <!-- install-case: docs-chatgpt-1 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    export UNIFI_API_KEY="your-api-key-here"
@@ -37,16 +37,16 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
    export MCP_OAUTH_JWKS_URI="https://idp.example.com/.well-known/jwks.json"
 export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host header your proxy forwards
    export MCP_OAUTH_REQUIRED_SCOPES="fabric:read"                    # optional; advertised to ChatGPT
-   uvx --from unifi-fabric-mcp-server==0.7.0 unifi-fabric-mcp
+   uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp
    ```
 
    `MCP_ALLOWED_HOSTS` matters when the server listens on loopback behind a reverse proxy: the Host check then refuses any other host name with `421 Misdirected Request`. List your public host name (see [Host and Origin validation](AUTH-TLS.md#host-and-origin-validation)).
 
-   Consider `UNIFI_READ_ONLY=1` until you trust the setup; it hides write-only tools and refuses write and action requests. The generic GET connector remains available for ordinary reads. Writes are on by default.
+   Consider `UNIFI_WRITE_POLICY=deny` until you trust the setup; it hides write-only tools and refuses write and action requests. The generic GET connector remains available for ordinary reads. Writes are on by default.
 
 2. **Check discovery from outside.** Both must work over HTTPS:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:7bb79c7ee98ee6627c7533892f7363c5376e37dbea251ea066c906fe7ae723d4 support=0.7.0 citation=file:src/unifi_fabric/server.py@sha256:7bb79c7ee98ee6627c7533892f7363c5376e37dbea251ea066c906fe7ae723d4 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac support=0.7.1 citation=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac -->
 <!-- install-case: docs-chatgpt-2 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    curl -s https://unifi-mcp.example.com/.well-known/oauth-protected-resource/mcp
@@ -71,9 +71,12 @@ The server publishes the authorization-server issuer exactly as configured in `M
   get in, and a scope named `fabric:read` does not disable write tools on its own. To restrict writes per token, set `MCP_OAUTH_WRITE_SCOPE`
   (opt-in, unset by default): a write tool, or a `fabric_connector_get` call to a known state-changing
   GET route, is then refused before it runs unless the caller's token also carries that scope; read
-  tools need only the admission scopes. All admitted clients use the deployment's configured UniFi
-  key(s), tool catalog and write settings. For an instance with no write path at all, run it with
-  `UNIFI_READ_ONLY=1`; use separate instances and keys when callers need different UniFi permissions.
+  tools need only the admission scopes. All admitted clients share the deployment's tool catalog and
+  write settings and, in the default key mode, its configured UniFi key(s) (`UNIFI_KEY_MODE=header`
+  takes keys from a request header instead, see
+  [Header key mode](CONFIGURATION.md#header-key-mode-unifi_key_mode)). For an instance with no
+  write path at all, run it with
+  `UNIFI_WRITE_POLICY=deny`; use separate instances and keys when callers need different UniFi permissions.
   See [Scopes and write access](AUTH-OAUTH.md#scopes-and-write-access).
 - Prefer the Secure MCP Tunnel over a public port. With a public URL, you can also restrict the server to [ChatGPT's published egress IP ranges](https://developers.openai.com/api/docs/guides/ip-addresses) or require ChatGPT's mTLS client certificate at your proxy ([OpenAI: Authentication](https://developers.openai.com/apps-sdk/build/auth)).
 - Keep your UniFi API key on the server only; it never goes to ChatGPT. Tool results (device lists, Wi-Fi passphrases and other credential fields the API returns) do go to ChatGPT; set `UNIFI_REDACT_SECRETS=1` to mask credential fields.

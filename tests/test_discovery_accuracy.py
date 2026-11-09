@@ -103,3 +103,49 @@ async def test_poll_count_collector_retains_polling_window_discoverability(prefi
         limit=5,
     )
     assert "collect_protect_events" in [row["name"] for row in results]
+
+
+@pytest.mark.parametrize("query", ["list firewall zones", "firewall zone ids"])
+async def test_firewall_zone_list_is_discoverable(query):
+    from unifi_fabric.discovery import SearchIndex
+
+    catalog = {tool.name: tool for tool in await server.mcp.list_tools()}
+    index = SearchIndex(catalog, build_family_index())
+    rows = index.search(query, family=None, writes=None, write_names=set(), limit=5)
+    assert "list_firewall_zones_proxy" in [row["name"] for row in rows]
+
+
+async def test_query_fixture_matches_generator():
+    import importlib.util
+
+    path = FIXTURES.parents[1] / "scripts" / "gen_discovery_queries.py"
+    spec = importlib.util.spec_from_file_location("gen_discovery_queries", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    generated = await module.generate()
+    assert (json.dumps(generated, indent=2) + "\n").encode() == (
+        FIXTURES / "discovery_queries.json"
+    ).read_bytes()
+
+
+@pytest.mark.parametrize("prefix", ["I need to", "Help me"])
+async def test_integration_device_tags_purpose_is_discoverable_in_discovery_mode(prefix):
+    """Collection reads must not be crowded out by WiFi or tag assignment writes."""
+    app = FastMCP("integration-device-tags-discovery")
+    for tool in await server.mcp.list_tools():
+        app.add_tool(tool)
+    cleanup = await apply_tool_mode(app, "discovery")
+    try:
+        async with Client(app) as client:
+            result = await client.call_tool(
+                "search_tools",
+                {
+                    "query": (
+                        f"{prefix} list the Network Integration device-tag collection for a site"
+                    ),
+                    "limit": 5,
+                },
+            )
+            assert "list_integration_device_tags" in [row["name"] for row in result.data]
+    finally:
+        cleanup()

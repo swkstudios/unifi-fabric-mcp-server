@@ -123,3 +123,24 @@ async def test_integration_assertions_use_upstream_envelope(
         AsyncMock(return_value={"data": [{"id": "first"}], "_count": 1}),
     )
     await method(*args)
+
+
+async def test_clients_multi_key_skips_claimed_host_and_labels_failures(
+    multikey_client, multikey_registry
+):
+    async def ea_sites(*, key):
+        return [{"hostId": "shared"}] + ([{"hostId": "broken"}] if key.label == "beta" else [])
+
+    async def sites(host, *, key):
+        if host == "broken":
+            raise ValueError("synthetic site failure")
+        return [{"id": "11111111-0000-4000-8000-000000000001", "name": "site"}]
+
+    multikey_registry.get_ea_sites = AsyncMock(side_effect=ea_sites)
+    multikey_registry.get_hosts = AsyncMock(return_value=[])
+    multikey_registry.get_sites = AsyncMock(side_effect=sites)
+    multikey_client.get = AsyncMock(return_value={"data": [], "totalCount": 0})
+    result = await _list_all_clients_fleet(multikey_client, multikey_registry)
+    assert [c.args[0] for c in multikey_registry.get_sites.await_args_list] == ["shared", "broken"]
+    assert result["_skipped"][0]["keyLabel"] == "beta"
+    assert result["_skipped"][0]["hostId"] == "broken"

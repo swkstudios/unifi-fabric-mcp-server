@@ -51,7 +51,7 @@ from typing import Any
 #     (ordering is changed through ``set_firewall_policy_ordering``, never by writing
 #     ``index`` back). Verified live: a policy round-trip PUT rejects ``$.index``
 #     even after ``id``/``metadata`` are removed. ACL rules are the exception: the
-#     published "ACL rule update" schema (Network 10.6.106) lists ``index`` as a
+#     published "ACL rule update" schema (Network 11.0.97) lists ``index`` as a
 #     request property, so ``update_acl_rule`` keeps it (``keep={"index"}``).
 #
 # The set is deliberately a *fixed, known* list rather than "strip whatever the

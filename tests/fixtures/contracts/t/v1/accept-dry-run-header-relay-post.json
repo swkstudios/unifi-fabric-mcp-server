@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "contract": "t",
+  "name": "accept-dry-run-header-relay-post",
+  "description": "A request dry-run header tightens an allow operator and sends no mutation",
+  "kind": "accept",
+  "input": {
+    "env": {
+      "UNIFI_API_KEY": "synthetic-key-a",
+      "UNIFI_TOOL_MODE": "full"
+    },
+    "headers": [
+      [
+        "X-UniFi-Write-Policy",
+        "dry-run"
+      ]
+    ],
+    "route": "fabric_connector_post",
+    "arguments": {
+      "host": "host-a1",
+      "path": "/proxy/network/integration/v1/sites"
+    },
+    "upstream": {
+      "default": {
+        "status": "ok",
+        "consoles": [
+          {
+            "id": "host-a1",
+            "name": "HQ"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "upstream_mutations": 0
+  }
+}

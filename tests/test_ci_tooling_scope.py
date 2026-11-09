@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_DIRS = ("src/", "tests/", "scripts/", ".github/scripts/")
+PYTHON_DIRS = ("src/", "tests/", "scripts/", ".github/scripts/", "tools/")
 
 
 def test_ci_lint_and_format_cover_every_python_tree():

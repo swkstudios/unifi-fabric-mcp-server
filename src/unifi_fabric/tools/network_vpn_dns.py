@@ -3,7 +3,7 @@ and connections, the OpenVPN client configuration, WireGuard users, Teleport inv
 and site VPNs.
 
 Route choice: the official published API when it can do the job, else the newer v2 API,
-else the Classic API. No published Network spec (10.6.106) has a route for any operation
+else the Classic API. No published Network spec (11.0.97) has a route for any operation
 in this module, so (routes from the Network 11.0.81 web-app route inventory,
 ``tests/fixtures/private_api/inventory_network_11.0.81.json``):
 
@@ -23,7 +23,7 @@ Integration route ``/v1/sites/{siteId}/dns/policies`` with its own ids and schem
 two routes differ, so both are offered.
 
 Every response body is passed through verbatim; additions are ``_``-prefixed keys. Request
-bodies with no published schema are free-form and sent as given. Under ``UNIFI_DRY_RUN``
+bodies with no published schema are free-form and sent as given. Under ``dry-run policy``
 every write returns the client's dry-run preview and sends nothing. Credentials these
 routes carry (WireGuard keys, Teleport tokens, the OpenVPN configuration, IPsec
 pre-shared keys) are listed in ``route_secrets.ROUTE_SECRETS``: passed through by default,
@@ -46,6 +46,7 @@ from ..client import (
     decode_body,
     describe_shape,
     is_dry_run_preview,
+    upstream_error_value,
     validate_id,
 )
 from ..config import APIKeyConfig
@@ -400,7 +401,9 @@ def _require_user_refs(items: list[Any], tool: str) -> list[str]:
     return refs
 
 
-def _select_users(body: Any, path: str, refs: list[str]) -> list[dict[str, Any]]:
+def _select_users(
+    body: Any, path: str, refs: list[str], client: UniFiClient | None = None
+) -> list[dict[str, Any]]:
     """The listed user record of every ref from ONE list body (unknown refs list choices)."""
     rows = body.get("data") if isinstance(body, dict) else body
     if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
@@ -411,7 +414,14 @@ def _select_users(body: Any, path: str, refs: list[str]) -> list[dict[str, Any]]
     by_id = {str(r.get("_id")).lower(): r for r in rows if isinstance(r.get("_id"), str)}
     missing = [ref for ref in refs if ref.lower() not in by_id]
     if missing:
-        valid = "; ".join(f"{r.get('name')!r} (_id={r.get('_id')})" for r in rows) or "(none)"
+        valid = (
+            "; ".join(
+                f"{upstream_error_value(r.get('name'), client)!r} "
+                f"(_id={upstream_error_value(r.get('_id'), client)})"
+                for r in rows
+            )
+            or "(none)"
+        )
         raise ValueError(
             f"WireGuard user(s) {', '.join(repr(m) for m in missing)} not found; valid: "
             f"{valid}. Get ids from list_wireguard_users (_id). No write was sent."
@@ -437,7 +447,7 @@ async def update_wireguard_users(
     ]
     key, host_id, slug, classic_id = await _vpn_server(client, registry, host, site, server_id)
     list_path = v2_site(host_id, slug, f"/wireguard/{classic_id}/users")
-    current = _select_users(await client.get(list_path, key=key), list_path, refs)
+    current = _select_users(await client.get(list_path, key=key), list_path, refs, client)
     ids = [listed_record_id(record, "users._id") for record in current]
     merged = [_merge(record, change) for record, change in zip(current, changes, strict=True)]
     response = await client.put(f"{list_path}/batch", key=key, json=cast(Any, merged))
@@ -445,7 +455,7 @@ async def update_wireguard_users(
         return response
 
     async def read_after() -> dict[str, Any]:
-        rows = _select_users(await client.get(list_path, key=key), list_path, ids)
+        rows = _select_users(await client.get(list_path, key=key), list_path, ids, client)
         return {user_id: row for user_id, row in zip(ids, rows, strict=True)}
 
     after, error = await safe_read_after(read_after)
@@ -477,7 +487,7 @@ async def delete_wireguard_users(
     refs = _require_user_refs(users, "delete_wireguard_users")
     key, host_id, slug, classic_id = await _vpn_server(client, registry, host, site, server_id)
     list_path = v2_site(host_id, slug, f"/wireguard/{classic_id}/users")
-    _select_users(await client.get(list_path, key=key), list_path, refs)
+    _select_users(await client.get(list_path, key=key), list_path, refs, client)
     response = await client.post(f"{list_path}/batch_delete", key=key, json=cast(Any, users))
     result = deletion_result(f"{len(refs)} WireGuard user(s) deleted.", response)
     if is_dry_run_preview(response):
@@ -727,7 +737,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and record. Request body: no published schema; record is
         free-form and sent verbatim, named as list_static_dns_records returns records
         (for example key, value, record_type and enabled). An empty record fails before
-        any request. Returns the upstream body verbatim. Dry-run (UNIFI_DRY_RUN) returns a
+        any request. Returns the upstream body verbatim. Dry-run (dry-run policy) returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
@@ -756,18 +766,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         PUT. An empty update fails before any request. Returns the upstream body verbatim
         plus _verified (type-strict comparison of every requested leaf in a read-after)
         and _readAfter, or _readAfterError; a non-object write body is returned whole under
-        response with those keys beside it. Dry-run (UNIFI_DRY_RUN) returns a dry-run
+        response with those keys beside it. Dry-run (dry-run policy) returns a dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}; nothing is sent.
 
         Example call (update_static_dns_record):
-            {"host": "my-console", "site": "Default", "record_id": "65f1c0ffee0123456789abcd",
+            {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107",
              "record": {"value": "192.0.2.21"}}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
-            record_id: Record _id from list_static_dns_records, e.g. "65f1c0ffee0123456789abcd".
+            record_id: Record _id from list_static_dns_records, e.g. "000000000000000000000107".
             record: Fields to change, e.g. {"value": "192.0.2.21"}. Free-form object.
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -783,17 +793,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and record_id. record_id is resolved in
         list_static_dns_records first; an unknown id fails listing every record and
         nothing is deleted. Returns {deleted, message, response} with the upstream body
-        verbatim. Dry-run (UNIFI_DRY_RUN) returns {status: "dry_run", deleted: false,
+        verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false,
         message, response}, where response is the dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
         Example call (delete_static_dns_record):
-            {"host": "my-console", "site": "Default", "record_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
-            record_id: Record _id from list_static_dns_records, e.g. "65f1c0ffee0123456789abcd".
+            record_id: Record _id from list_static_dns_records, e.g. "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         return await delete_static_dns_record(*deps(), host, site, record_id)
@@ -844,7 +854,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the whole object POSTed. An empty update fails before any request. Returns the
         upstream body verbatim plus _verified (type-strict leaf comparison of a
         read-after) and _readAfter, or _readAfterError (a non-object write body is returned
-        whole under response with those keys beside it). Dry-run (UNIFI_DRY_RUN) returns a
+        whole under response with those keys beside it). Dry-run (dry-run policy) returns a
         dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
@@ -903,13 +913,13 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         a binary body comes back as {bodyBase64, contentType, sizeBytes}.
 
         Example call (get_openvpn_client_config):
-            {"host": "my-console", "site": "Default", "server_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: VPN server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
         """
         return await get_openvpn_client_config(*deps(), host, site, server_id)
 
@@ -923,17 +933,17 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and server_id. Sent once, never retried automatically.
         server_id is resolved among the site's VPN servers first; an unknown id fails
         listing every server and nothing is sent. Returns the upstream body verbatim.
-        Dry-run (UNIFI_DRY_RUN) returns a dry-run preview {status: "dry_run", dryRun: true, sent:
+        Dry-run (dry-run policy) returns a dry-run preview {status: "dry_run", dryRun: true, sent:
         false, message, preview: {method, path, params, body}}; nothing is sent.
 
         Example call (restart_vpn_server):
-            {"host": "my-console", "site": "Default", "server_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: VPN server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         return await restart_vpn_server(*deps(), host, site, server_id)
@@ -954,7 +964,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: Optional WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
         """
         return await list_wireguard_users(*deps(), host, site, server_id)
 
@@ -989,19 +999,19 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         array of user objects sent verbatim (the web app's batch body), named as
         list_wireguard_users returns users. Keys are passed through and masked only under
         UNIFI_REDACT_SECRETS. server_id is resolved among the site's VPN servers first. Returns the
-        upstream body verbatim. Dry-run (UNIFI_DRY_RUN) returns a dry-run preview {status:
+        upstream body verbatim. Dry-run (dry-run policy) returns a dry-run preview {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}};
         nothing is sent.
 
         Example call (create_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "65f1c0ffee0123456789abcd",
+            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
              "users": [{"name": "laptop-01", "interface_ip": "192.0.2.10"}]}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             users: Non-empty free-form array of user objects (an empty list fails before any
                 request), e.g. [{"name": "laptop-01"}].
             confirm: Ignored; accepted for compatibility. The call executes when made.
@@ -1027,20 +1037,20 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         leaf by leaf is PUT as one array. Returns the upstream body verbatim plus
         _verified (type-strict, every requested leaf of every user) and _readAfter, or
         _readAfterError (a non-object write body is returned whole under response with those
-        keys beside it). Dry-run (UNIFI_DRY_RUN) returns a dry-run preview {status:
+        keys beside it). Dry-run (dry-run policy) returns a dry-run preview {status:
         "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
         Example call (update_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "65f1c0ffee0123456789abcd",
-             "users": [{"_id": "65f1c0ffee0123456789abce", "name": "laptop-02"}]}
+            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
+             "users": [{"_id": "000000000000000000000108", "name": "laptop-02"}]}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             users: Non-empty array of _id plus fields to change (an empty list fails before any
-                request), e.g. [{"_id": "65f1c0ffee0123456789abce", "name": "laptop-02"}].
+                request), e.g. [{"_id": "000000000000000000000108", "name": "laptop-02"}].
                 Shape: {_id:string,...}[]; the other keys of each entry are the fields to change
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -1061,22 +1071,22 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         verbatim (no published schema): user _id strings or user objects carrying _id,
         from list_wireguard_users. Every _id is resolved in the server's user list first;
         an unknown _id fails listing every user and nothing is deleted. Returns {deleted,
-        message, response} with the upstream body verbatim. Dry-run (UNIFI_DRY_RUN)
+        message, response} with the upstream body verbatim. Dry-run (dry-run policy)
         returns {status: "dry_run", deleted: false, message, response}, where response is
         the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 
         Example call (delete_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "65f1c0ffee0123456789abcd",
-             "users": ["65f1c0ffee0123456789abce"]}
+            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
+             "users": ["000000000000000000000108"]}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             users: Non-empty list of user _ids or objects with _id (an empty list fails before
-                any request), e.g. ["65f1c0ffee0123456789abce"].
+                any request), e.g. ["000000000000000000000108"].
                 Shape: (string|{_id:string,...})[]; each entry is sent as given
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -1092,7 +1102,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         through Teleport until it is used or revoked (revoke_teleport_invitation).
         Required: host and site. The web app sends no body; body is optional, free-form
         and sent verbatim when given. Returns the upstream body verbatim (the token and
-        invitation link, masked only under UNIFI_REDACT_SECRETS). Dry-run (UNIFI_DRY_RUN)
+        invitation link, masked only under UNIFI_REDACT_SECRETS). Dry-run (dry-run policy)
         returns a dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
         {method, path, params, body}}; nothing is sent.
 
@@ -1117,18 +1127,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and invitation_id (from query_teleport_invitations). No GET
         route lists invitations by id, so the id is sent as given and the controller
         judges it. Returns {deleted, message, response} with the upstream body verbatim.
-        Dry-run (UNIFI_DRY_RUN) returns {status: "dry_run", deleted: false, message,
+        Dry-run (dry-run policy) returns {status: "dry_run", deleted: false, message,
         response}, where response is the dry-run preview {status: "dry_run", dryRun, sent: false,
         message, preview: {method, path, params, body}}; nothing is sent.
 
         Example call (revoke_teleport_invitation):
-            {"host": "my-console", "site": "Default", "invitation_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "invitation_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             invitation_id: Invitation id from query_teleport_invitations,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
         return await revoke_teleport_invitation(*deps(), host, site, invitation_id)
@@ -1145,7 +1155,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
 
         Required: host and site. A read sent as POST (Consequence: none intended; it only
         reads the history): it is not on the read-POST allowlist, so it is classed as a
-        write: UNIFI_READ_ONLY refuses it, and under UNIFI_DRY_RUN it returns a dry-run
+        write: UNIFI_WRITE_POLICY=deny refuses it, and under dry-run policy it returns a dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}} of the first page and sends nothing.
         Without a requested total every page is read (pageNumber 0, 1, ... to the end)
@@ -1193,18 +1203,18 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the id is sent as given and the controller judges it. body is optional and
         free-form (the web app builds one; its shape is not published) and is sent
         verbatim when given. Returns {deleted, message, response} with the upstream body
-        verbatim. Dry-run (UNIFI_DRY_RUN) returns {status: "dry_run", deleted: false,
+        verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false,
         message, response}, where response is the dry-run preview {status: "dry_run",
         dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
         Example call (remove_teleport_client):
-            {"host": "my-console", "site": "Default", "client_id": "65f1c0ffee0123456789abcd"}
+            {"host": "my-console", "site": "Default", "client_id": "000000000000000000000107"}
 
         Args:
             host: Console name or id (list_hosts), e.g. "my-console".
             site: Network site name or UUID, e.g. "Default".
             client_id: Teleport client id from list_vpn_connections,
-                e.g. "65f1c0ffee0123456789abcd".
+                e.g. "000000000000000000000107".
             body: Optional free-form request body, e.g. {"name": "guest-laptop"}.
             confirm: Ignored; accepted for compatibility. The call executes when made.
         """
@@ -1237,7 +1247,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site and params. Request body: no published schema and no
         captured body; params is free-form and sent verbatim beside cmd. Success requires
         meta.rc ok; any other answer raises with the full upstream body. Returns the
-        Classic {meta, data} envelope verbatim. Dry-run (UNIFI_DRY_RUN) returns a dry-run
+        Classic {meta, data} envelope verbatim. Dry-run (dry-run policy) returns a dry-run
         preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
         params, body}}; nothing is sent.
 
@@ -1262,7 +1272,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         Required: host, site, name and vpn_site. Sends {cmd: delete-site-vpn, name, site:
         vpn_site} as the web app does; the controller judges both values. Success
         requires meta.rc ok; any other answer raises with the full upstream body. Returns
-        {deleted, message, response} with the envelope verbatim. Dry-run (UNIFI_DRY_RUN)
+        {deleted, message, response} with the envelope verbatim. Dry-run (dry-run policy)
         returns {status: "dry_run", deleted: false, message, response}, where response is
         the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
@@ -1297,7 +1307,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         rebuild-site-vpn with name and site (vpn_site) when given (the web app's
         enable/disable body) plus any free-form params (rebuild has no captured body).
         Success requires meta.rc ok; any other answer raises with the full upstream body.
-        Returns the Classic {meta, data} envelope verbatim. Dry-run (UNIFI_DRY_RUN) returns
+        Returns the Classic {meta, data} envelope verbatim. Dry-run (dry-run policy) returns
         a dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
         path, params, body}}; nothing is sent.
 

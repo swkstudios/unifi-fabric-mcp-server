@@ -21,7 +21,7 @@ console (multi-key: the first key that owns the host wins).
   inventory (only the matrix reads), so a group id is passed through for the upstream
   to judge, and a group update is the complete group body (nothing to read or merge).
 * The multicast ``clients`` / ``history`` views are POSTs that are not on the read-POST
-  allowlist, so they are writes: ``UNIFI_READ_ONLY`` refuses them and ``UNIFI_DRY_RUN``
+  allowlist, so they are writes: ``UNIFI_WRITE_POLICY=deny`` refuses them and ``dry-run policy``
   previews them.
 * The Classic ``stat/portforward`` read is a success only on HTTP 2xx with
   ``meta.rc == "ok"`` (affirmative; the full upstream body is in the error otherwise).
@@ -523,7 +523,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             snapshot_id: Snapshot identifier (letters, digits, - and _), e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await get_proav_snapshot(client, registry, host, site, snapshot_id)
@@ -539,7 +539,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         free-form: the route inventory records no body keys, so none is required here.
         Consequence: changes which ProAV endpoints share a stream.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -571,7 +571,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         reads a single group, so nothing is merged or read back. An empty group is refused
         before any request. Consequence: changes live ProAV stream routing.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -582,7 +582,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             kind: Group type, "audio" or "video", e.g. "audio".
-            group_id: Group id, e.g. "65f1c0ffee0123456789abcd".
+            group_id: Group id, e.g. "000000000000000000000107".
             group: Free-form complete group object, e.g. {"name": "lobby-wall"}.
         """
         client, registry = deps_fn()
@@ -598,7 +598,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         deleted, message and the upstream body as response. Never auto-retried.
         Consequence: the group is removed permanently and its streams stop.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, message and preview with method, path, params, body).
 
@@ -610,7 +610,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             kind: Group type, "audio" or "video", e.g. "video".
-            group_id: Group id, e.g. "65f1c0ffee0123456789abcd".
+            group_id: Group id, e.g. "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_proav_group(client, registry, host, site, kind, group_id)
@@ -630,7 +630,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         The upstream body is returned verbatim. Never auto-retried. Consequence: changes
         what the physical displays of the TV wall show.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -684,7 +684,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         verbatim. Never auto-retried. Consequence: devices change which controller manages
         them; complete and rollback can disconnect devices while they re-provision.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -728,7 +728,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         verbatim. Never auto-retried. Consequence: stores a staged configuration; nothing
         is applied until apply_test_config.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -754,7 +754,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         the upstream body as response. Consequence: the staged config is removed
         permanently.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, message and preview with method, path, params, body).
 
@@ -766,7 +766,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             test_config_id: Test-config id from list_test_configs, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
         """
         client, registry = deps_fn()
         return await delete_test_config(client, registry, host, site, test_config_id)
@@ -787,7 +787,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         body is returned verbatim. Never auto-retried. Consequence: the staged
         configuration goes live on the site's devices and can interrupt traffic.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body verbatim (a JSON array arrives as result).
@@ -798,7 +798,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
             host: Console name or id from list_hosts, e.g. "my-console".
             site: Network site name or UUID from list_local_sites, e.g. "Default".
             test_config_id: Test-config id from list_test_configs, e.g.
-                "65f1c0ffee0123456789abcd".
+                "000000000000000000000107".
             action: "apply" (default) or "commit", e.g. "commit".
             body: Free-form request object as the Network UI sends it, e.g.
                 {"duration": 300}.
@@ -854,7 +854,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         _readAfterError when the read-back failed. An empty layout is refused before any
         request. Consequence: replaces the saved layout other operators see.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns a dry-run preview:
+        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
         status "dry_run", dryRun, message and preview (method, path, params, body).
 
         Returns the upstream body plus _verified and, when the read-back failed, _readAfterError;
@@ -878,7 +878,7 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         message and the upstream body as response. Never auto-retried. Consequence: the
         saved layout is removed permanently.
 
-        Under UNIFI_DRY_RUN nothing is sent and the tool returns {status: "dry_run",
+        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
         deleted: false, message, response}, where response is the dry-run preview (status,
         dryRun, message and preview with method, path, params, body).
 
@@ -937,11 +937,11 @@ def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
         both POST views (controller version was not recorded). A firmware exposing these
         routes is required; the earliest supported version is unverified. Those POSTs
         are not on the read-POST allowlist, so this tool is
-        a write: UNIFI_READ_ONLY hides the whole tool, including the client GET view.
+        a write: UNIFI_WRITE_POLICY=deny hides the whole tool, including the client GET view.
         Consequence: none intended; the POST is
         classed as a write.
 
-        Under UNIFI_DRY_RUN the POST views return a dry-run preview without sending a POST:
+        Under dry-run policy the POST views return a dry-run preview without sending a POST:
         status "dry_run", dryRun, sent=false, message and preview (method, path, params, body).
         The client GET view still reads normally.
 

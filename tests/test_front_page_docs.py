@@ -20,12 +20,19 @@ from pathlib import Path
 
 import pytest
 
-from tests.changelog_section import current_release, sections
+from tests.changelog_section import current_release, previous_release, section, sections
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+# Install pins in the docs follow the published release, which prepare_release.py
+# --published flips; between releases pyproject may already name the next version.
+PUBLISHED = (ROOT / "scripts" / "published-version.txt").read_text().strip()
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
+# Reference material the README links to: client walkthroughs and troubleshooting, and
+# every setting (read-only mode, write switches, audit log).
+CLIENT_SETUP = DOCS / "CLIENT-SETUP.md"
+CONFIGURATION = DOCS / "CONFIGURATION.md"
 PUBLIC_REPO = "https://github.com/swkstudios/unifi-fabric-mcp-server"
 
 # Markdown files a visitor can reach from GitHub's front page (internal docs ship nowhere).
@@ -57,18 +64,22 @@ def _runtime_tool_count() -> int:
     return len(server.mcp._local_provider._components)  # noqa: SLF001 - registered catalog
 
 
-def _changed_input_schema_count() -> int:
+def _changed_input_schema_count(release: str = "0.7.0") -> int:
     from tests.test_changelog_input_schemas import _diff
 
-    return len(_diff()[3])
+    return len(_diff(release)[3])
 
 
-def _added_removed_counts() -> tuple[int, int]:
-    """Tools added to and removed from the 0.6.2 catalog, recomputed from the registry."""
+def _catalog_counts(release: str = "0.7.0") -> tuple[int, int, int]:
+    """``(tools, added, removed)`` of a release against the release before it.
+
+    ``release`` is a released version (compared from the schema snapshots) or
+    ``"in-flight"`` (the registered tools against the previous release's snapshot).
+    """
     from tests.test_changelog_input_schemas import _diff
 
-    old, new = _diff()[:2]
-    return len(set(new) - set(old)), len(set(old) - set(new))
+    old, new = _diff(release)[:2]
+    return len(new), len(set(new) - set(old)), len(set(old) - set(new))
 
 
 def _flat(path: Path) -> str:
@@ -106,11 +117,27 @@ def _anchors(path: Path) -> set[str]:
 _LINK = re.compile(r"(?<!\\)\]\((?P<target>[^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
+def _released_changelog_sections(text: str) -> str:
+    """Released ``## [x.y.z] - date`` sections: frozen to their tag text (checked by
+    test_released_changelog_sections_are_unchanged), so their relative links name the
+    README as it was released and are not rewritten when the README changes."""
+    return "".join(
+        heading + body
+        for _name, heading, body in sections(text)
+        if re.search(r" - \d{4}-\d{2}-\d{2}", heading)
+    )
+
+
 def test_every_relative_link_and_anchor_resolves():
     """E-03: README linked ``#claude-desktop`` (the heading is "Use with Claude Desktop")."""
     bad = []
     for path in PUBLIC_MD:
-        for m in _LINK.finditer(_prose(_text(path))):
+        text = _prose(_text(path))
+        if path.name == "CHANGELOG.md":
+            frozen = _released_changelog_sections(text)
+            assert frozen and frozen in text, "released CHANGELOG sections not found"
+            text = text.replace(frozen, "")
+        for m in _LINK.finditer(text):
             target = m["target"]
             if re.match(r"[a-z][a-z0-9+.-]*:", target):  # http(s), mailto
                 continue
@@ -134,15 +161,17 @@ def test_hook_demo_and_quick_start_come_first():
     lines = _readme_lines()
     first_h2 = next(i for i, ln in enumerate(lines) if ln.startswith("## "))
     head = "\n".join(lines[:first_h2])
-    assert "![Demo:" in head and "docs/assets/demo.gif" in head, "demo belongs under the hook"
-    assert "scripts/demo/README.md" in head
-    assert "Manage your entire UniFi network remotely from any AI assistant" in head
-    assert "UniFi Fabric API in Ubiquiti's cloud" in head
-    quick = next(i for i, ln in enumerate(lines) if ln == "## Quick Start")
-    assert quick < 90, f"Quick Start starts at line {quick + 1}; a visitor must not scroll for it"
+    assert "docs/assets/demo.gif" not in head
+    assert '<h1 align="center">UniFi Fabric MCP Server</h1>' in head
+    assert 'href="https://youtu.be/GIzz1bKrtJk"' in head, "the demo link sits in the first screen"
+    flat = " ".join(head.split())
+    assert "connects your AI assistant to your UniFi network" in flat
+    assert "Everything goes through Ubiquiti's cloud" in flat
+    quick = next(i for i, ln in enumerate(lines) if ln == "## Installation")
+    assert quick < 90, f"Installation starts at line {quick + 1}; a visitor must not scroll for it"
     for heading in ("## Architecture", "## What is MCP?", "## Use Cases"):
         at = lines.index(heading) if heading in lines else None
-        assert at is None or at > quick, f"{heading} sits above Quick Start"
+        assert at is None or at > quick, f"{heading} sits above Installation"
     # one hook: the old stacked intro paragraphs are gone
     assert "Cloud-first UniFi management for AI agents" not in head
     assert "An MCP (Model Context Protocol) server that exposes" not in head
@@ -153,40 +182,45 @@ def test_readme_has_a_short_table_of_contents():
     lines = _readme_lines()
     first_h2 = next(i for i, ln in enumerate(lines) if ln.startswith("## "))
     head = "\n".join(lines[:first_h2])
-    for anchor in (
-        "#quick-start",
-        "#example-prompts",
-        "#available-tools",
-        "#configuration",
-        "#troubleshooting",
-    ):
-        assert f"]({anchor})" in head, anchor
+    headings = _anchors(README)
+    for anchor in ("#installation", "#how-it-works", "#security", "#more-info"):
+        assert f'href="{anchor}"' in head, anchor
+        assert anchor[1:] in headings, f"{anchor} names no README heading"
 
 
 def test_readme_is_shorter_than_it_was():
-    """E-21/I-2: long reference material lives in docs/, linked from the README."""
+    """E-21/I-2: long reference material lives in docs/, reachable from the README."""
     assert len(_readme_lines()) <= 1100, len(_readme_lines())
+    for name in ("CONFIGURATION", "AUTH-TLS", "COVERAGE", "CLIENT-SETUP"):
+        assert f"docs/{name}.md" in _text(README), f"README does not link docs/{name}.md"
+    # Deeper guides are one or more links away, through the docs the README links.
+    reached, todo = set(), [README]
+    while todo:
+        page = todo.pop()
+        for m in _LINK.finditer(_prose(_text(page))):
+            dest = (page.parent / m["target"].partition("#")[0]).resolve()
+            if dest.suffix == ".md" and dest.is_relative_to(DOCS) and dest not in reached:
+                if dest.is_file():
+                    reached.add(dest)
+                    todo.append(dest)
     for name in ("CONFIGURATION", "AUTH-TLS", "PAGINATION", "RETRY", "COVERAGE"):
         assert (DOCS / f"{name}.md").is_file(), name
-        assert f"docs/{name}.md" in _text(README), f"README does not link docs/{name}.md"
+        assert (DOCS / f"{name}.md").resolve() in reached, f"docs/{name}.md is unreachable"
 
 
-def _client_table() -> list[str]:
+def _installation() -> str:
     text = _text(README)
-    start = text.index("### Choose your client")
-    block = text[start : text.index("\n### ", start + 5)]
-    return [ln for ln in block.splitlines() if ln.startswith("|")]
+    start = text.index("## Installation")
+    return text[start : text.index("\n## ", start + 5)]
 
 
-def test_choose_your_client_table_fits_a_phone():
-    """The client table keeps two columns and includes the supported clients."""
-    rows = _client_table()
-    assert len(rows) >= 9, rows  # header, rule, seven clients
-    for row in rows:
-        cells = [c for c in row.strip("|").split("|")]
-        assert len(cells) == 2, row
+def test_installation_names_every_supported_client():
+    """Each supported client has its own collapsible setup under Installation."""
+    block = _installation()
+    titles = re.findall(r"^#### .*$|^<summary>.*</summary>$", block, re.M)
+    assert len(titles) >= 9, titles  # Claude Code plus eight collapsible setups
 
-    flat = "\n".join(rows)
+    flat = "\n".join(titles)
     for client in (
         "Claude Code",
         "Claude Desktop",
@@ -199,51 +233,18 @@ def test_choose_your_client_table_fits_a_phone():
 
 
 def test_quick_start_is_three_steps_and_names_the_key_step():
-    text = _text(README)
-    block = text[text.index("## Quick Start") : text.index("### Choose your client")]
-    steps = re.findall(r"^\d\. ", block, re.M)
-    assert steps == ["1. ", "2. ", "3. "], steps
-    assert "(#get-your-api-key)" in block
+    steps = re.findall(r"^### (\d)\. (.*)$", _installation(), re.M)
+    assert [n for n, _title in steps] == ["1", "2", "3"], steps
+    assert "API key" in steps[0][1], steps[0]
 
 
 def test_pypi_badge_is_in_the_badge_row():
     """E-26: the PyPI badge (live once the package is published)."""
-    head = "\n".join(_readme_lines()[:12])
+    head = "\n".join(_readme_lines()[:15])
     assert (
-        "[![PyPI](https://img.shields.io/pypi/v/unifi-fabric-mcp-server)]"
-        "(https://pypi.org/project/unifi-fabric-mcp-server/)"
+        '<a href="https://pypi.org/project/unifi-fabric-mcp-server/">'
+        '<img src="https://img.shields.io/pypi/v/unifi-fabric-mcp-server" alt="PyPI" /></a>'
     ) in head
-
-
-# ------------------------------------------------------------- the demo (approved v2)
-def test_demo_assets_and_sources_ship():
-    for rel in (
-        "docs/assets/demo.mp4",
-        "docs/assets/demo.gif",
-        "scripts/demo/README.md",
-        "scripts/demo/demo.py",
-        "scripts/demo/mock_api.py",
-        "scripts/demo/compose.py",
-        "scripts/demo/run.sh",
-        "scripts/demo/demo.tape",
-        "scripts/demo/fixtures.json",
-        "scripts/demo/hallway.jpg",
-        "scripts/demo/make_hallway.py",
-        "scripts/demo/background.png",
-    ):
-        assert (ROOT / rel).is_file(), rel
-    assert (ROOT / "docs/assets/demo.gif").stat().st_size < 3_000_000
-    assert (ROOT / "docs/assets/demo.mp4").read_bytes()[4:8] == b"ftyp"
-    assert (ROOT / "docs/assets/demo.gif").read_bytes()[:6] in (b"GIF87a", b"GIF89a")
-
-
-def test_demo_is_synthetic_and_dry_run():
-    """The mock refuses writes, the client runs the real server dry-run (README says so)."""
-    readme = _text(ROOT / "scripts/demo/README.md")
-    assert "UNIFI_DRY_RUN=1" in readme and "synthetic" in readme
-    demo = _text(ROOT / "scripts/demo/demo.py")
-    assert "UNIFI_DRY_RUN" in demo and "UNIFI_API_BASE_URL" in demo
-    assert "127.0.0.1" in _text(ROOT / "scripts/demo/mock_api.py")
 
 
 # --------------------------------------------------------- Claude Code install (E-01, E-04)
@@ -255,7 +256,8 @@ def test_claude_code_config_location_is_not_settings_json():
     """
     for path in (README, ROOT / "plugins/claude/README.md"):
         assert "settings.json" not in _text(path) or "mcpServers" not in _text(path), path
-    text = _text(README)
+    assert "~/.claude/settings.json" not in _text(README)
+    text = _text(CLIENT_SETUP)
     assert "~/.claude/settings.json" not in text
     assert "`.mcp.json`" in text
     assert "`.mcp.json`" in _text(DOCS / "DOCKER.md")
@@ -265,10 +267,11 @@ def test_claude_code_config_location_is_not_settings_json():
 
 def test_read_only_quick_start_connects_an_assistant():
     """E-02/CX-1: running ``uvx`` in a terminal only starts a stdio server waiting on stdin."""
-    text = _text(README)
-    assert "then ask your assistant" not in text
-    assert "unifi-fabric-mcp --version" in text
-    assert f"-e UNIFI_READ_ONLY=1 -- uvx --from unifi-fabric-mcp-server=={VERSION}" in text
+    for path in (README, CLIENT_SETUP, CONFIGURATION):
+        assert "then ask your assistant" not in _text(path), path
+    assert "unifi-fabric-mcp --version" in _text(CLIENT_SETUP)
+    pin = f"-e UNIFI_WRITE_POLICY=deny -- uvx --from unifi-fabric-mcp-server=={PUBLISHED}"
+    assert pin in _text(CONFIGURATION)
 
 
 def test_claude_marketplace_lists_the_plugin():
@@ -294,13 +297,13 @@ def test_claude_plugin_readme_states_its_prerequisites():
     assert "A nonempty `UNIFI_API_KEYS` overrides the single plugin key" in text
     assert "validated with Claude Code 2.1.296" in text
     assert "Update Claude Code before installing" in text
-    assert "../../README.md#use-with-claude-desktop" in text
+    assert "../../docs/CLIENT-SETUP.md#use-with-claude-desktop" in text
     assert "#claude-desktop)" not in text
 
 
 def test_claude_plugin_audit_log_limitation_is_disclosed():
     """CX-LOW: audit logging is best-effort (checked: an unwritable path logs a warning only)."""
-    for path in (README, ROOT / "PRIVACY.md", ROOT / "plugins/claude/README.md"):
+    for path in (CONFIGURATION, ROOT / "PRIVACY.md", ROOT / "plugins/claude/README.md"):
         assert "best-effort" in _text(path), path
 
 
@@ -327,13 +330,17 @@ def test_read_only_refusal_names_where_to_unset_it_for_every_install():
     from unifi_fabric import read_only
 
     msg = read_only.read_only_message("PUT")
-    assert "UNIFI_READ_ONLY" in msg
+    assert "UNIFI_WRITE_POLICY" in msg
     assert "docker-compose" in msg
     assert "`env`" in msg, "the MCP client's env block"
-    assert "Read-only mode" in msg, "the plugin option and the README section"
-    text = " ".join(_text(README).split())
-    assert "names the variable and its value" in text
-    assert "unset `UNIFI_READ_ONLY` in the client config's `env`" in text
+    assert "Write policy option" in msg, "the plugin option"
+    assert "Read-only mode in docs/CONFIGURATION.md#read-only-mode" in msg, (
+        "the section that documents it"
+    )
+    text = " ".join(_text(CONFIGURATION).split())
+    assert "\n## Read-only mode\n" in _text(CONFIGURATION)
+    assert "names the setting, says where to change it" in text
+    assert "unset `UNIFI_WRITE_POLICY` in the client config's `env`" in text
 
 
 # --------------------------------------------------------------------- links to the spec
@@ -346,10 +353,10 @@ def test_oauth_doc_links_a_live_authorization_spec():
 
 
 def test_no_doc_cites_the_old_network_version():
-    """E-08: everything is pinned to Network 10.6.106 (spec baseline, LAST_AUDITED.md)."""
+    """E-08: everything is pinned to Network 11.0.97 (spec baseline, LAST_AUDITED.md)."""
     for path in PUBLIC_MD:
         assert "10.3.58" not in _text(path), path
-    assert "v10.6.106/connectorput" in _text(README)
+    assert "v11.0.97/connectorput" in _text(DOCS / "TOOL-USAGE.md")
 
 
 def test_stale_placeholder_and_template_examples_are_gone():
@@ -357,7 +364,7 @@ def test_stale_placeholder_and_template_examples_are_gone():
     assert "Tier-3" not in _text(README)
     bug = _text(ROOT / ".github/ISSUE_TEMPLATE/bug_report.md")
     assert "v0.5.0" not in bug
-    assert f"v{VERSION} or ghcr.io/swkstudios/unifi-fabric-mcp-server:{VERSION}" in bug
+    assert f"v{PUBLISHED} or ghcr.io/swkstudios/unifi-fabric-mcp-server:{PUBLISHED}" in bug
 
 
 def test_tested_against_figures_say_when_they_were_measured():
@@ -369,8 +376,11 @@ def test_tested_against_figures_say_when_they_were_measured():
         text,
     )
     assert marker
+    assert f"build `{marker[1]}`, {marker[2]}" in text
+    # The README states no live-test figure; if one returns it must carry the build and date.
     readme = _text(README)
-    assert f"build `{marker[1]}`, {marker[2]}" in readme
+    if re.search(r"[Ll]ive-tested|\d+ of \d+ passed", readme):
+        assert f"build `{marker[1]}`, {marker[2]}" in readme
 
 
 def test_no_yaml_inside_a_bash_fence():
@@ -447,12 +457,16 @@ def test_last_audited_does_not_promise_automatic_markdown_updates():
 def test_changelog_has_an_unreleased_heading_above_the_in_flight_version():
     """E-14: ``## [Unreleased]`` sits above the in-flight version section."""
     names = [name for name, _h, _b in sections(_text(ROOT / "CHANGELOG.md"))]
-    assert names[0] == "Unreleased" and names[1] == VERSION, names[:3]
+    assert names[0] == "Unreleased" and names[1] in {VERSION, "0.7.0"}, names[:3]
     headings = {name: h for name, h, _b in sections(_text(ROOT / "CHANGELOG.md"))}
     # The release step dates the in-flight heading at ship; every older release is dated.
-    assert re.fullmatch(
-        rf"## \[{re.escape(VERSION)}\](?: - \d{{4}}-\d{{2}}-\d{{2}})?", headings[VERSION]
-    ), headings[VERSION]
+    assert (
+        re.fullmatch(
+            rf"## \[{re.escape(VERSION)}\](?: - \d{{4}}-\d{{2}}-\d{{2}})?", headings[names[1]]
+        )
+        if names[1] == VERSION
+        else re.fullmatch(r"## \[0\.7\.0\] - \d{4}-\d{2}-\d{2}", headings[names[1]])
+    )
     assert re.fullmatch(r"## \[0\.6\.2\] - \d{4}-\d{2}-\d{2}", headings["0.6.2"])
 
 
@@ -462,7 +476,7 @@ def test_changelog_released_sections_are_the_public_text():
     ``tests/fixtures/changelog_released_v0.6.2.md.gz`` is the suffix of the public tag's
     CHANGELOG.md that begins at ``## [0.6.2]``; everything older is unchanged since.
     """
-    # Stored gzipped: the published text quotes public issue numbers, which the mirror
+    # Stored gzipped: the published text quotes public issue numbers, which the verifier
     # verifier (rightly) refuses to find as plain text in shipped test files.
     fixture = ROOT / "tests/fixtures/changelog_released_v0.6.2.md.gz"
     stored = gzip.decompress(fixture.read_bytes())
@@ -475,27 +489,41 @@ def test_changelog_released_sections_are_the_public_text():
 
 
 def test_release_highlights_open_the_in_flight_section():
-    """I-6: the release body starts with a summary instead of a very long first bullet."""
+    """I-6: the release body starts with a summary instead of a very long first bullet.
+
+    The in-flight section (pending fragments folded) opens with its tool count and the
+    tools added and removed since the previous release, recomputed from the registry.
+    """
     version, body = current_release()
-    assert version == VERSION
+    assert version == VERSION, (version, VERSION)
     lead = body.strip().splitlines()[0]
-    assert lead.startswith("Highlights: ")
-    added, removed = _added_removed_counts()
+    tools, added, removed = _catalog_counts("in-flight")
+    assert tools == _runtime_tool_count()
+    assert lead.startswith(f"Highlights: {tools} tools ({added} added, {removed} removed)"), (
+        f"{lead[:80]}; recomputed against {previous_release()}: "
+        f"{tools} tools ({added} added, {removed} removed)"
+    )
+    assert "Breaking" in lead or "Breaking" not in body
+    assert body.index("Highlights: ") < body.index("\n### ")
+
+
+def test_released_0_7_0_highlights_state_its_catalog():
+    """The published 0.7.0 lead, recomputed from the 0.6.2 and 0.7.0 schema snapshots."""
+    lead = section("0.7.0").strip().splitlines()[0]
+    tools, added, removed = _catalog_counts("0.7.0")
+    assert lead.startswith(f"Highlights: {tools} tools ({added} added, {removed} removed)")
     for part in (
-        f"{_runtime_tool_count()} tools",
-        f"{added} added, {removed} removed",
-        "UNIFI_READ_ONLY",
+        "UNIFI_READ_ONLY",  # the published 0.7.0 lead; its section is never edited
         "Claude Code, Claude Desktop, Codex, Antigravity and Gemini CLI",
-        f"{_changed_input_schema_count()} tools",
+        f"input schemas changed for {_changed_input_schema_count('0.7.0')} tools",
         "Breaking",
     ):
         assert part in lead, part
-    assert body.index("Highlights: ") < body.index("### Added")
 
 
 def test_changelog_describes_homebrew_as_a_template():
-    """CX-LOW: the formula is a template (zero checksum); no tap exists yet."""
-    version_body = " ".join(current_release()[1].split())
+    """CX-LOW: the formula is a template (zero checksum); no tap exists yet (0.7.0 text)."""
+    version_body = " ".join(section("0.7.0").split())
     assert "Homebrew formula template" in version_body
     assert "A maintainer must set the release-archive checksum and publish a tap" in version_body
 
@@ -514,10 +542,9 @@ def test_breaking_entries_link_to_the_tag_pinned_tool_catalog():
 
 def test_active_release_docs_do_not_claim_workflow_timeouts():
     """Current release documents do not promise workflow time limits."""
-    version, body = current_release()
-    assert version == VERSION
-    assert "timeout-minutes" not in body
-    assert "hang-stop" not in body
+    for body in (current_release()[1], section("0.7.0")):
+        assert "timeout-minutes" not in body
+        assert "hang-stop" not in body
 
     migration = _text(DOCS / "MIGRATING-0.7.md")
     assert "### change-082" not in migration
@@ -531,14 +558,14 @@ def test_active_release_docs_do_not_claim_workflow_timeouts():
 
 # ------------------------------------------------------------------- environment tables
 def test_main_settings_table_lists_every_documented_switch():
-    """E-17: UNIFI_TOOL_FAMILIES, DRY_RUN, AUDIT_LOG, AUDIT_LOG_FORMAT, FASTMCP_HOST/PORT."""
+    """E-17: UNIFI_FAMILY_ALLOW, DRY_RUN, AUDIT_LOG, AUDIT_LOG_FORMAT, FASTMCP_HOST/PORT."""
     text = _text(DOCS / "CONFIGURATION.md")
     start = text.index("| Variable | Required | Default | Description |")
     table = text[start : text.index("\n\n", start)]
     names = set(re.findall(r"^\| `([A-Z_]+)` \|", table, re.M))
     for name in (
-        "UNIFI_TOOL_FAMILIES",
-        "UNIFI_DRY_RUN",
+        "UNIFI_FAMILY_ALLOW",
+        "UNIFI_WRITE_POLICY",
         "UNIFI_AUDIT_LOG",
         "UNIFI_AUDIT_LOG_FORMAT",
         "FASTMCP_HOST",
@@ -567,9 +594,9 @@ def test_copy_paste_install_commands_are_pinned():
 # ------------------------------------------------------------------- statements vs the code
 def test_source_checkout_instructions_install_first():
     """CX-3: ``python3 -m unifi_fabric.server`` fails in a clean checkout (ModuleNotFoundError)."""
-    text = _text(README)
-    assert "python3 -m unifi_fabric.server" not in text
-    assert "python3 -m pip install -e ." in text
+    for path in (README, CLIENT_SETUP):
+        assert "python3 -m unifi_fabric.server" not in _text(path), path
+    assert "AGENTS.md#setup" in _text(CLIENT_SETUP)
 
 
 def test_compose_stdio_documents_the_spawn_command():
@@ -585,7 +612,7 @@ def test_json_validation_stays_local():
     for path in PUBLIC_MD:
         text = _text(path)
         assert "jsonlint" not in text, path
-    text = _text(README)
+    text = _text(CLIENT_SETUP)
     assert 'json.loads(os.environ["UNIFI_API_KEYS"])' in text
     assert "Keep API keys out of online validators" in text
 
@@ -649,7 +676,7 @@ def test_oauth_scopes_are_documented_as_admission_not_roles():
         flat = " ".join(_text(path).split())
         assert sentence in flat, path
         assert "does not disable write tools" in flat, path
-        assert "UNIFI_READ_ONLY=1" in flat, path
+        assert "UNIFI_WRITE_POLICY=deny" in flat, path
     flat = " ".join(_text(DOCS / "AUTH-OAUTH.md").split())
     assert "Every token the server accepts can call every tool, writes included." in flat
     assert "MCP_OAUTH_WRITE_SCOPE" in flat
@@ -695,7 +722,8 @@ def test_redaction_reference_states_the_placement_exception_correctly():
 
 def test_uv_is_not_claimed_for_every_deployment():
     """CX-LOW: Docker deployments need Docker, not uv."""
-    text = " ".join(_text(README).split())
+    assert "Each needs [uv]" not in " ".join(_text(README).split())
+    text = " ".join(_text(CLIENT_SETUP).split())
     assert "Each needs [uv]" not in text
     assert "Docker deployments need Docker instead." in text
     assert "Local stdio setups use [uv](https://docs.astral.sh/uv/);" in text
@@ -750,7 +778,7 @@ def test_readme_no_longer_leads_with_changelog_content():
 
 def test_troubleshooting_names_the_errors_users_see():
     """I-4: each entry quotes the message the code produces."""
-    text = _text(README)
+    text = _text(CLIENT_SETUP)
     block = text[text.index("## Troubleshooting") :]
     for part in (
         "HTTP 403",

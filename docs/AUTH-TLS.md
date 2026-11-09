@@ -38,36 +38,36 @@ transport and parser state.
 
 ## Bearer Token Authentication (Optional)
 
-Set `MCP_BEARER_TOKEN` to require all incoming MCP requests to include an `Authorization: Bearer <token>` header. Requests with a missing or incorrect token receive a 401 response. The token is compared in constant time. It must be printable ASCII with no whitespace or control character; otherwise startup fails with a message naming the variable (the value is never shown).
+Set `MCP_BEARER_TOKEN` (with `MCP_AUTH_MODE=bearer`, or with `MCP_AUTH_MODE` unset) to require all incoming MCP requests to include an `Authorization: Bearer <token>` header. Requests with a missing or incorrect token receive a 401 response. The token is compared in constant time. It must be printable ASCII with no whitespace or control character; otherwise startup fails with a message naming the variable (the value is never shown). The token alone enables bearer authentication only when `MCP_AUTH_MODE` is unset; an explicit `MCP_AUTH_MODE` always wins, so `MCP_AUTH_MODE=none` with a token set runs without bearer authentication.
 
 Generate the token rather than choosing one, and give the same value to the server and to your MCP clients:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 openssl rand -hex 32
 ```
 
-`my-secret-token` in the examples below stands for that value. A token shorter than 32 characters is accepted but prints a startup `WARNING` (see [Startup warnings](#startup-warnings)).
+`my-secret-token` in the examples below stands for that value. In bearer mode on an HTTP transport, a token shorter than 32 characters is accepted but prints a startup `WARNING` (see [Startup warnings](#startup-warnings)); stdio has no HTTP listener and prints no startup warnings, and other auth modes do not check the token length.
 
 > **Note:** For new deployments, prefer setting `MCP_AUTH_MODE=bearer` explicitly alongside `MCP_BEARER_TOKEN`. Setting only `MCP_BEARER_TOKEN` (without `MCP_AUTH_MODE`) is supported for backward compatibility — the server automatically resolves to bearer mode when `MCP_BEARER_TOKEN` is non-empty and `MCP_AUTH_MODE` is unset — but explicit `MCP_AUTH_MODE=bearer` is the preferred selector going forward.
 
 When unset (the default), the server runs without transport-layer authentication — the same behavior as previous versions. Serving HTTP that way on a non-loopback address (the Docker image binds `0.0.0.0`) prints a startup `WARNING`: anyone who can reach the port can call every tool, writes included.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # Docker
-docker run -e UNIFI_API_KEY="..." -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+docker run -e UNIFI_API_KEY="..." -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN="my-secret-token" -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
 ```
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 # Docker Compose
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
     environment:
       UNIFI_API_KEY: your-api-key-here
       MCP_AUTH_MODE: bearer
@@ -78,7 +78,7 @@ services:
 
 **Client configuration with bearer auth:**
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-4 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -94,7 +94,7 @@ services:
 
 For `FASTMCP_TRANSPORT=sse`, use the `sse` client type pointing at the `/sse` endpoint with the same `Authorization` header:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-5 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -114,7 +114,7 @@ This uses FastMCP's `StaticTokenVerifier` — a single shared-secret pattern des
 
 Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=https` to add transport encryption on top of the shared-secret check — this is the recommended posture for private-network deployments:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-6 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # Docker — bearer auth with in-server HTTPS
@@ -127,16 +127,16 @@ docker run \
   -e MCP_TLS_KEYFILE=/certs/key.pem \
   -v /path/to/certs:/certs:ro \
   -p 3000:3000 \
-  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
 ```
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-7 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 # Docker Compose — bearer auth with in-server HTTPS
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
     environment:
       UNIFI_API_KEY: your-api-key-here
       MCP_AUTH_MODE: bearer
@@ -154,7 +154,7 @@ services:
 
 `streamable-http` transport:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-8 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -170,7 +170,7 @@ services:
 
 `sse` transport (`FASTMCP_TRANSPORT=sse`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-9 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -190,7 +190,7 @@ See [`docs/TLS.md`](TLS.md) for certificate generation and the HEALTHCHECK requi
 
 Combine `MCP_BEARER_TOKEN` with `MCP_TLS_MODE=mtls` for mutual transport identity on top of the shared-secret check. The server requires every client to present a certificate issued by your CA:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-10 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # Docker — bearer auth with mutual TLS
@@ -204,12 +204,12 @@ docker run \
   -e MCP_TLS_CA_CERTS=/certs/ca-cert.pem \
   -v /path/to/certs:/certs:ro \
   -p 3000:3000 \
-  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.0
+  ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1
 ```
 
 Most MCP clients cannot present a client certificate directly. The recommended pattern is a TLS-terminating reverse proxy that presents the client certificate toward the server; downstream MCP clients connect to the proxy over standard HTTPS with the bearer token in the `Authorization` header:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e support=0.7.0 citation=file:src/unifi_fabric/transport_security.py@sha256:66c4ba0d9048abcb13c814d21d9e7e7419fde989078c139334d8ed12497fd59e -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-auth-tls-11 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -229,7 +229,7 @@ Replace `https://proxy.example.com/mcp` with the proxy's public HTTPS address. S
 
 The HTTP transports check two request headers before authentication or any MCP handling. This blocks DNS rebinding and cross-site requests from a browser page:
 
-- **Origin.** A request with no `Origin` header passes; desktop, CLI and server-side MCP clients send none. A request with an `Origin` header passes only when the origin is loopback (`http(s)://localhost`, `127.0.0.1` or `[::1]`, any port), the origin of `MCP_OAUTH_BASE_URL`, or listed in `MCP_ALLOWED_ORIGINS`. Anything else, `Origin: null` included, gets `403` with a body naming `MCP_ALLOWED_ORIGINS` and `MCP_HOST_ORIGIN_PROTECTION`.
+- **Origin.** A request with no `Origin` header passes; desktop, CLI and server-side MCP clients send none. A request with an `Origin` header passes only when the origin is loopback (`localhost` and its subdomains, or any loopback IP literal including `127.0.0.0/8` and `[::1]`, over HTTP or HTTPS on any port), the origin of `MCP_OAUTH_BASE_URL`, or listed in `MCP_ALLOWED_ORIGINS`. Anything else, `Origin: null` included, gets `403` with a body naming `MCP_ALLOWED_ORIGINS` and `MCP_HOST_ORIGIN_PROTECTION`.
 - **Host.** With bearer or OAuth authentication and no explicit allowlist, proxy Host values are accepted on every bind address. The required token protects the MCP endpoint against unauthenticated browser access, while the Origin check above still rejects cross-site browser requests. Without authentication, FastMCP's `auto` mode requires a loopback Host on a loopback bind. Setting `MCP_ALLOWED_HOSTS` restricts Host to loopback or listed values on every bind and in every authentication mode. A rejected Host gets `421 Misdirected Request`. An unauthenticated `0.0.0.0` listener with no allowlist accepts any Host; configure authentication and an allowlist when exposing it.
 
 | Env var | Default | Description |
@@ -248,7 +248,7 @@ The server never refuses to start over these postures, but prints one `WARNING` 
 |---|---|
 | HTTP transport on a non-loopback `FASTMCP_HOST` with `MCP_AUTH_MODE=none` | Set `MCP_AUTH_MODE=bearer` and `MCP_BEARER_TOKEN` (`openssl rand -hex 32`), or `oauth`; or bind `FASTMCP_HOST=127.0.0.1`. |
 | `MCP_TLS_MODE=mtls` with `MCP_TLS_CERT_REQS=optional` and `MCP_AUTH_MODE=none`: a client without a certificate gets in unauthenticated | Set `MCP_TLS_CERT_REQS=required` (or unset it), or add `bearer` / `oauth`. |
-| `MCP_BEARER_TOKEN` shorter than 32 characters | Generate one with `openssl rand -hex 32`. |
+| `MCP_AUTH_MODE=bearer` on an HTTP transport with `MCP_BEARER_TOKEN` shorter than 32 characters | Generate one with `openssl rand -hex 32`. |
 | `MCP_OAUTH_JWKS_URI` on plain `http://` to a host that is not loopback: anyone on the path can substitute the signing keys | Use the identity provider's `https://` JWKS URI. |
 
 ## Auth × TLS Deployment Matrix
@@ -279,6 +279,14 @@ All nine cells are supported. Configuration details are in the tables below and 
 [docs/AUTH-OAUTH.md](AUTH-OAUTH.md) / [docs/TLS.md](TLS.md).
 See [SECURITY.md](../.github/SECURITY.md) for the full posture decision matrix including
 guidance on mTLS as a transport boundary.
+
+With `UNIFI_KEY_MODE=header` every tool call also carries UniFi API keys in its
+`X-UniFi-Api-Key` request header, so only the `https` and `mtls` rows (or a
+TLS-terminating proxy that does not log request headers) keep those keys off the wire
+in cleartext. Header mode does not authenticate the caller, so pair it with `bearer` or
+`oauth`. See
+[Header key mode](CONFIGURATION.md#header-key-mode-unifi_key_mode) and
+[SECURITY.md](../.github/SECURITY.md#header-key-mode).
 
 **Auth selectors**
 
