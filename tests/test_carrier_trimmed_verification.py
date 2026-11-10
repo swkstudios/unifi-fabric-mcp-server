@@ -9,7 +9,7 @@ from httpx import Response
 
 from tests import upstream_harness as uh
 from unifi_fabric import server
-from unifi_fabric.tools.carrier_fabric import CARRIER_BASE
+from unifi_fabric.families.carrier.carrier_fabric import CARRIER_BASE
 
 SID = "11111111-1111-4111-8111-111111111111"
 SUB = f"https://api.ui.com{CARRIER_BASE}/subscribers/{SID}"

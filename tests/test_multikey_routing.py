@@ -25,19 +25,19 @@ import pytest
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.families.clients.clients import _list_clients
+from unifi_fabric.families.devices.device_mgmt import _list_site_devices
+from unifi_fabric.families.hotspot.hotspot import _list_hotspot_operators
+from unifi_fabric.families.innerspace.innerspace import get_innerspace_project
+from unifi_fabric.families.network.firewall_proxy import list_acl_rules
+from unifi_fabric.families.network.network import list_networks
+from unifi_fabric.families.network.network_services_proxy import list_traffic_matching_lists
+from unifi_fabric.families.protect.protect import list_cameras
+from unifi_fabric.families.protect.recognition import get_recognition_group_counts
+from unifi_fabric.families.site_manager.site_manager import get_host
+from unifi_fabric.families.statistics.statistics import _get_site_statistics
+from unifi_fabric.families.vpn.vpn import _create_site_to_site_tunnel
 from unifi_fabric.registry import FetchedRecords, Registry
-from unifi_fabric.tools.clients import _list_clients
-from unifi_fabric.tools.device_mgmt import _list_site_devices
-from unifi_fabric.tools.firewall_proxy import list_acl_rules
-from unifi_fabric.tools.hotspot import _list_hotspot_operators
-from unifi_fabric.tools.innerspace import get_innerspace_project
-from unifi_fabric.tools.network import list_networks
-from unifi_fabric.tools.network_services_proxy import list_traffic_matching_lists
-from unifi_fabric.tools.protect import list_cameras
-from unifi_fabric.tools.recognition import get_recognition_group_counts
-from unifi_fabric.tools.site_manager import get_host
-from unifi_fabric.tools.statistics import _get_site_statistics
-from unifi_fabric.tools.vpn import _create_site_to_site_tunnel
 
 # A host owned by the NON-FIRST (beta) key, and a synthetic UUID site on it.
 _BETA_HOST_ID = "console-beta-1"
@@ -253,7 +253,7 @@ async def test_innerspace_project_routes_to_owning_key(multikey_client, multikey
 
 
 async def test_integration_device_tags_routes_to_owning_key(multikey_client, multikey_registry):
-    from unifi_fabric.tools.network import list_integration_device_tags
+    from unifi_fabric.families.network.network import list_integration_device_tags
 
     await _seed_host_caches(multikey_client, multikey_registry)
     _stub_resolution(multikey_registry, _BETA_HOST_ID)

@@ -26,7 +26,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import placement_snapshot_cli as cli
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import placement_snapshot as ps
+from unifi_fabric.families.innerspace import placement_snapshot as ps
 
 RECORDED = Path(__file__).parent / "fixtures" / "recorded"
 

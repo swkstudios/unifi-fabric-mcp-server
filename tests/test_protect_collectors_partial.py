@@ -20,8 +20,8 @@ from fastmcp.exceptions import ToolError
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.protect import protect
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import protect
 
 H = "host-col-001"
 CONSOLE = f"https://api.ui.com/v1/connector/consoles/{H}/proxy/protect"

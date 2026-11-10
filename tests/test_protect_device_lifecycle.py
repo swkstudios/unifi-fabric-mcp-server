@@ -27,8 +27,8 @@ from unifi_fabric import route_secrets as rs
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import protect_device_lifecycle as pdl
-from unifi_fabric.tools._protect_device_types import device_types_with_action
+from unifi_fabric.families.protect import protect_device_lifecycle as pdl
+from unifi_fabric.families.protect._protect_device_types import device_types_with_action
 
 HOST = "console-p01"
 PRIV = f"/v1/connector/consoles/{HOST}/proxy/protect/api"
@@ -43,7 +43,7 @@ LOCK = "000000000000000000fa0701"
 AIPORT = "000000000000000000fa0801"
 EVENT = "000000000000000000fa0901"
 MAC = "00:00:5e:00:53:01"
-LIST_ROUTES = ("/doorlocks", "/keyrings")
+LIST_ROUTES = ("/locks", "/keyrings")
 T0 = 1_760_000_000
 
 READ_TOOLS = {
@@ -66,8 +66,6 @@ WRITE_TOOLS = {
     "assign_sensor_to_bridge",
     "stop_speaker_stream",
     "play_chime_sound",
-    "set_door_lock_auto_close",
-    "calibrate_door_lock",
     "set_door_lock_state",
     "adopt_third_party_camera",
     "set_nvr_stack_membership",
@@ -251,34 +249,16 @@ CALLS: dict[str, tuple[Any, tuple[Any, ...], dict[str, Any], str, str, Any, dict
         (),
         {},
         "GET",
-        f"{PRIV}/doorlocks",
-        None,
-        {},
-    ),
-    "set_door_lock_auto_close": (
-        pdl.set_door_lock_auto_close,
-        (LOCK,),
-        {"options": {"autoCloseTimeMs": 15000}},
-        "POST",
-        f"{PRIV}/doorlocks/{LOCK}/autoClose",
-        {"autoCloseTimeMs": 15000},
-        {},
-    ),
-    "calibrate_door_lock": (
-        pdl.calibrate_door_lock,
-        (LOCK,),
-        {},
-        "POST",
-        f"{PRIV}/doorlocks/{LOCK}/calibrate",
+        f"{PRIV}/locks",
         None,
         {},
     ),
     "set_door_lock_state": (
         pdl.set_door_lock_state,
-        (LOCK, "close"),
+        (LOCK, "unlock"),
         {},
         "POST",
-        f"{PRIV}/doorlocks/{LOCK}/close",
+        f"{PRIV}/locks/{LOCK}/unlock",
         None,
         {},
     ),
@@ -361,9 +341,7 @@ async def test_each_tool_sends_its_sourced_route_body_and_query(name):
         ("assign_sensor_to_bridge", "assigned"),
         ("stop_speaker_stream", "stopped"),
         ("play_chime_sound", "played"),
-        ("set_door_lock_auto_close", "sent"),
-        ("calibrate_door_lock", "calibrating"),
-        ("set_door_lock_state", "closed"),
+        ("set_door_lock_state", "unlock_requested"),
         ("adopt_third_party_camera", "adopt_requested"),
         ("set_nvr_stack_membership", "unadopt_requested"),
     ],
@@ -376,7 +354,7 @@ async def test_action_status_names_what_was_sent(name, expected_status):
 
 async def test_list_reads_wrap_a_bare_array_with_count():
     locks = [{"id": LOCK, "lockStatus": "CLOSED", "unknown": 1}]
-    up = Upstream({("GET", f"{PRIV}/doorlocks"): locks})
+    up = Upstream({("GET", f"{PRIV}/locks"): locks})
     assert await run(up, pdl.list_door_locks) == {"result": locks, "_count": 1}
     keyrings = [{"id": DEV, "registryType": "nfc", "registryId": "00000000000000aa"}]
     up = Upstream({("GET", f"{PRIV}/keyrings"): keyrings})
@@ -451,7 +429,7 @@ async def test_metrics_array_is_wrapped_with_count():
     [
         (pdl.set_ai_port_pairing, (AIPORT, [CAM], False), f"{PRIV}/aiports/{AIPORT}/unpair"),
         (pdl.play_chime_sound, (CHIME, "buzzer"), f"{PRIV}/chimes/{CHIME}/play-buzzer"),
-        (pdl.set_door_lock_state, (LOCK, "open"), f"{PRIV}/doorlocks/{LOCK}/open"),
+        (pdl.set_door_lock_state, (LOCK, "open"), f"{PRIV}/locks/{LOCK}/unlock"),
         (pdl.set_nvr_stack_membership, (MAC, True), f"{PRIV}/nvr-stacks/adopt"),
         (pdl.control_retroactive_ai_processing, ("cancel",), None),
     ],
@@ -483,7 +461,7 @@ async def test_stack_reset_is_only_sent_for_removal(member, expected):
         ("aiprocessor", "aiprocessors"),
         ("camera", "cameras"),
         ("chime", "chimes"),
-        ("doorlock", "doorlocks"),
+        ("doorlock", "locks"),
         ("light", "lights"),
         ("linkstation", "linkstations"),
         ("sensor", "sensors"),
@@ -498,6 +476,63 @@ async def test_readopt_maps_every_type_to_its_collection(device_type, collection
     assert not up.seen[0].url.params  # reset only when given
 
 
+# ------------------------------------------------- Protect 7.x door locks (route proof)
+# Evidence: Protect 7.3.74 service.js serves GET /locks, GET/PATCH/DELETE /locks/:id and
+# POST /locks/:id/{readopt,unadopt,locate,unlock}; the 5.x /doorlocks family is gone and
+# 7.x has no lock/close, calibrate or autoClose route.
+
+
+async def test_list_door_locks_reads_the_7x_locks_collection():
+    up = Upstream({("GET", f"{PRIV}/locks"): [{"id": LOCK}]})
+    result = await run(up, pdl.list_door_locks)
+    assert result == {"result": [{"id": LOCK}], "_count": 1}
+    assert [(r.method, r.url.path) for r in up.seen] == [("GET", f"{PRIV}/locks")]
+    assert up.seen[0].content == b""
+
+
+@pytest.mark.parametrize("action", ["unlock", "open"])
+async def test_unlock_posts_the_7x_unlock_route_without_a_body(action):
+    up = Upstream()
+    result = await run(up, pdl.set_door_lock_state, LOCK, action)
+    assert [(r.method, r.url.path) for r in up.seen] == [("POST", f"{PRIV}/locks/{LOCK}/unlock")]
+    assert up.seen[0].content == b""  # holdExtraSec is absent unless given
+    assert result["status"] == "unlock_requested"
+
+
+async def test_unlock_sends_hold_extra_sec_only_when_given():
+    up = Upstream()
+    await run(up, pdl.set_door_lock_state, LOCK, "unlock", hold_extra_sec=0)
+    assert body_of(up.seen[0]) == {"holdExtraSec": 0}
+
+
+@pytest.mark.parametrize("action", ["lock", "close"])
+async def test_lock_and_close_are_refused_naming_what_7x_supports(action):
+    up = Upstream()
+    with pytest.raises(ValueError) as exc:
+        await run(up, pdl.set_door_lock_state, LOCK, action)
+    message = str(exc.value)
+    assert "Protect 7.x serves no door-lock" in message and "remote unlock" in message
+    assert "unlock" in message and "locks" in message
+    assert up.seen == []  # never a silent no-op, never a request
+
+
+@pytest.mark.parametrize("action", ["lock", "close"])
+async def test_lock_and_close_are_refused_before_the_write_switches(action, monkeypatch):
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
+    up = Upstream()
+    with pytest.raises(ValueError, match="Protect 7.x serves no door-lock"):
+        await run(up, pdl.set_door_lock_state, LOCK, action)
+    assert up.seen == []
+
+
+@pytest.mark.parametrize("kind,action", [("doorlock", "readopt"), ("doorlock", "locate")])
+async def test_generic_door_lock_actions_use_the_7x_collection(kind, action):
+    up = Upstream()
+    fn = pdl.readopt_protect_device if action == "readopt" else pdl.locate_protect_device
+    await run(up, fn, kind, LOCK)
+    assert [(r.method, r.url.path) for r in up.seen] == [("POST", f"{PRIV}/locks/{LOCK}/{action}")]
+
+
 async def test_upstream_error_reason_is_kept_in_full():
     reason = {"error": "Device 'x' not found " + "detail " * 60, "name": "NOT_FOUND", "id": DEV}
     up = Upstream({("POST", f"{PRIV}/cameras/{DEV}/readopt"): httpx.Response(404, json=reason)})
@@ -508,10 +543,10 @@ async def test_upstream_error_reason_is_kept_in_full():
 
 async def test_physical_action_429_is_sent_once_never_retried():
     up = Upstream(
-        {("POST", f"{PRIV}/doorlocks/{LOCK}/open"): httpx.Response(429, json={"error": "slow"})}
+        {("POST", f"{PRIV}/locks/{LOCK}/unlock"): httpx.Response(429, json={"error": "slow"})}
     )
     with pytest.raises(RateLimitError):
-        await run(up, pdl.set_door_lock_state, LOCK, "open")
+        await run(up, pdl.set_door_lock_state, LOCK, "unlock")
     assert len(up.seen) == 1
 
 
@@ -572,9 +607,7 @@ async def test_non_integer_epoch_fails_before_any_request(fn, args, kwargs):
         (pdl.get_sensor_readings, lambda b: (b, T0)),
         (pdl.stop_speaker_stream, lambda b: (b,)),
         (pdl.play_chime_sound, lambda b: (b, "buzzer")),
-        (pdl.set_door_lock_auto_close, lambda b: (b,)),
-        (pdl.calibrate_door_lock, lambda b: (b,)),
-        (pdl.set_door_lock_state, lambda b: (b, "open")),
+        (pdl.set_door_lock_state, lambda b: (b, "unlock")),
         (pdl.update_protect_device_settings, lambda b: ("camera", {"name": "n"}, b)),
         (pdl.update_protect_device_settings, lambda b: ("doorlock", {"name": "n"}, b)),
     ],
@@ -616,7 +649,7 @@ async def test_route_and_body_grammar_fail_before_any_request(fn, args, match):
         (pdl.control_retroactive_ai_processing, ("restart",)),
         (pdl.control_retroactive_ai_processing, ("../start",)),
         (pdl.play_chime_sound, (CHIME, "siren")),
-        (pdl.set_door_lock_state, (LOCK, "unlock")),
+        (pdl.set_door_lock_state, (LOCK, "relock")),
         (pdl.set_ai_port_pairing, (AIPORT, [CAM], "yes")),
         (pdl.set_nvr_stack_membership, (MAC, 1)),
     ],
@@ -639,7 +672,7 @@ def test_device_type_choices_are_the_sourced_action_sets():
     assert set(get_args(pdl.LocateDeviceType)) == {
         t.value for t in device_types_with_action("locate")
     }
-    from unifi_fabric.tools._protect_device_types import DEVICE_TYPES
+    from unifi_fabric.families.protect._protect_device_types import DEVICE_TYPES
 
     assert set(get_args(pdl.SettingsDeviceType)) == set(DEVICE_TYPES)
 
@@ -788,17 +821,17 @@ async def test_official_types_use_the_official_family(device_type, family):
 
 
 async def test_settings_noop_when_every_leaf_already_matches():
-    up = Upstream({("GET", f"{PRIV}/doorlocks/{LOCK}"): {"id": LOCK, "name": "same"}})
+    up = Upstream({("GET", f"{PRIV}/locks/{LOCK}"): {"id": LOCK, "name": "same"}})
     result = await run(up, pdl.update_protect_device_settings, "doorlock", {"name": "same"}, LOCK)
     assert result["status"] == "noop" and result["resource"]["name"] == "same"
     assert up.writes() == []
 
 
 async def test_private_doorlock_update_verifies_type_strictly():
-    up = Upstream({("GET", f"{PRIV}/doorlocks/{LOCK}"): {"id": LOCK, "enabled": 1}})
+    up = Upstream({("GET", f"{PRIV}/locks/{LOCK}"): {"id": LOCK, "enabled": 1}})
     result = await run(up, pdl.update_protect_device_settings, "doorlock", {"enabled": True}, LOCK)
     # 1 is not True: the write is sent and the read-after does not verify it.
-    assert up.writes()[0].url.path == f"{PRIV}/doorlocks/{LOCK}"
+    assert up.writes()[0].url.path == f"{PRIV}/locks/{LOCK}"
     assert body_of(up.writes()[0]) == {"enabled": True}
     assert result["status"] == "updated" and result["verified"] is False
     assert result["_route"] == "private"
@@ -853,7 +886,7 @@ async def test_failed_read_after_reports_null_verdict_with_reason():
             return {"id": LOCK, "name": "old"}
         return httpx.Response(500, json={"error": "boom"})
 
-    up = Upstream({("GET", f"{PRIV}/doorlocks/{LOCK}"): read})
+    up = Upstream({("GET", f"{PRIV}/locks/{LOCK}"): read})
     result = await run(up, pdl.update_protect_device_settings, "doorlock", {"name": "n"}, LOCK)
     assert result["status"] == "updated" and result["verified"] is None
     assert "boom" in result["readAfterError"]
@@ -861,7 +894,7 @@ async def test_failed_read_after_reports_null_verdict_with_reason():
 
 async def test_settings_dry_run_keeps_before_and_skips_read_after(monkeypatch):
     monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")
-    up = Upstream({("GET", f"{PRIV}/doorlocks/{LOCK}"): {"id": LOCK, "name": "same"}})
+    up = Upstream({("GET", f"{PRIV}/locks/{LOCK}"): {"id": LOCK, "name": "same"}})
     result = await run(
         up,
         pdl.update_protect_device_settings,
@@ -885,7 +918,7 @@ async def test_multikey_requests_ride_the_owning_key(multikey_client, multikey_r
 
     async def capture(path, *a, key=None, **kw):
         seen.append(key.label if key else None)
-        if path.endswith(("/doorlocks", "/keyrings")):
+        if path.endswith(("/locks", "/keyrings")):
             return []
         return {}
 
@@ -945,10 +978,10 @@ def _registered() -> dict[str, Any]:
     return {t.name: t for t in tools}
 
 
-def test_register_adds_exactly_the_twenty_two_tools():
+def test_register_adds_exactly_the_twenty_tools():
     tools = _registered()
     assert set(tools) == READ_TOOLS | WRITE_TOOLS
-    assert len(tools) == 22
+    assert len(tools) == 20
     assert "unadopt_protect_device" not in tools
 
 
@@ -994,7 +1027,7 @@ def test_closed_choices_are_schema_enums():
     props = tools["locate_protect_device"].parameters["properties"]
     assert props["device_type"]["enum"] == ["aiport", "doorlock", "light", "linkstation", "sensor"]
     props = tools["set_door_lock_state"].parameters["properties"]
-    assert props["action"]["enum"] == ["open", "close"]
+    assert props["action"]["enum"] == ["unlock", "open"]
 
 
 def test_module_raises_only_through_registered_helpers():
@@ -1016,9 +1049,9 @@ async def test_private_settings_addressing_body_id_case_noop_and_verification(
     reads = iter([before, after])
     if kind == "doorlock":
         routes = {
-            ("GET", f"{PRIV}/doorlocks/{identity.upper()}"): lambda req: next(reads),
-            ("GET", f"{PRIV}/doorlocks/{identity}"): lambda req: next(reads),
-            ("PATCH", f"{PRIV}/doorlocks/{identity}"): {},
+            ("GET", f"{PRIV}/locks/{identity.upper()}"): lambda req: next(reads),
+            ("GET", f"{PRIV}/locks/{identity}"): lambda req: next(reads),
+            ("PATCH", f"{PRIV}/locks/{identity}"): {},
         }
     else:
 

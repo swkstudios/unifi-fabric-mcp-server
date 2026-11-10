@@ -13,6 +13,34 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
+#: Tools whose default call sends no request and whose opt-in argument sends reads: the
+#: diagnostic bundle is local by default and runs its allowlisted live probes on request.
+OPT_IN_VARIANTS: dict[str, tuple[dict[str, object], ...]] = {
+    "get_server_diagnostic_bundle": ({"live_probes": ["hosts", "sites"]},),
+    # The default call captures only the recorded ``source`` view; ``recent_series`` is a
+    # second route with its own recording (``series`` has none, so it cannot be captured).
+    "get_controller_stats": (
+        {
+            "view": "recent_series",
+            "schema": "schema-0001",
+            "period": "period-0001",
+            "bucket": "bucket-0001",
+            "end": 1791773785,
+        },
+    ),
+}
+
+
+#: Declared selector values the tool refuses before any request (no route to capture):
+#: Protect 7.x serves no door-lock lock/close action, only a remote unlock.
+REFUSED_SELECTORS = {
+    ("set_door_lock_state", "action", "lock"),
+    ("set_door_lock_state", "action", "close"),
+}
+
+
+LOCAL_ONLY_TOOLS = frozenset({"list_configured_api_keys", "get_event_stream_status"})
+
 
 def generate():
     from tests import test_spec_conformance as conformance
@@ -52,8 +80,13 @@ def generate():
             properties = (conformance._tools()[name].parameters or {}).get("properties", {})
             for selector in ("action", "device_type", "output"):
                 for value in properties.get(selector, {}).get("enum", []):
+                    if (name, selector, value) in REFUSED_SELECTORS:
+                        continue
                     overrides = {selector: value, **variants.get((name, selector, value), {})}
                     requests.extend(conformance.capture(name, overrides))
+            # Opt-in arguments that add requests a default call never sends.
+            for overrides in OPT_IN_VARIANTS.get(name, ()):
+                requests.extend(conformance.capture(name, overrides))
             for request in requests:
                 path = request.path.replace(harness.HOST_ID, "{console_id}")
                 path = path.replace("probe-object", "{id}")
@@ -73,6 +106,7 @@ def generate():
                     (r"(/interfaces/ports)/1(/actions)$", r"\1/{port_idx}\2"),
                     (r"(/observability/5g/\{id\}/topology/at)/1$", r"\1/{at}"),
                     (r"(/fingerprint_devices)/1$", r"\1/{source}"),
+                    (r"(/wifiman)/192\.0\.2\.50$", r"\1/{client_ip}"),
                     (r"(/assets/\{id\})/probe\.png$", r"\1/{filename}"),
                 ):
                     path = re.sub(pattern, replacement, path)
@@ -98,8 +132,9 @@ def generate():
                 else:
                     rows.add((request.method, path, route_class))
             if not rows:
-                # Only this tool is known to inspect local key configuration.
-                if name != "list_configured_api_keys":
+                # Tools that read only this server's own state: the local key configuration
+                # and the event-stream compatibility records.
+                if name not in LOCAL_ONLY_TOOLS:
                     raise ValueError(f"No requests captured for {name}; classify explicitly")
                 tools[name] = [{"method": None, "path": None, "route_class": "local-only"}]
             else:
@@ -127,7 +162,9 @@ def generate():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "src/unifi_fabric")
+    parser.add_argument(
+        "--output-dir", type=Path, default=ROOT / "src/unifi_fabric/generated_api_facts"
+    )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     manifest = generate()

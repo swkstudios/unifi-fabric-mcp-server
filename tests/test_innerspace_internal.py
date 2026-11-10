@@ -1,4 +1,4 @@
-"""Tests for the InnerSpace internal-route tools (``tools/innerspace_internal.py``).
+"""Tests for the InnerSpace internal-route tools (``families/innerspace/innerspace_internal.py``).
 
 Every tool is called through the MCP surface against a mocked ``api.ui.com`` (respx):
 its console-proxy route and method, the body and query it sends, the upstream body
@@ -25,9 +25,9 @@ import tests.upstream_harness as uh
 from unifi_fabric import route_secrets, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.innerspace import innerspace_internal
 from unifi_fabric.redaction import REDACTION_MASK
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import innerspace_internal
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "innerspace_internal" / "synthetic.json").read_text()
@@ -1118,6 +1118,31 @@ async def test_manifest_403_preserves_error_and_explains_console_access():
     client.get.side_effect = UniFiHTTPError("HTTP 403: access denied", status=403)
     with pytest.raises(UniFiHTTPError) as caught:
         await innerspace_internal.get_innerspace_ucore_manifest(client, registry, "example")
-    assert "HTTP 403: access denied" in str(caught.value)
-    assert "console" in str(caught.value)
+    # A 403 without errors.ucore.access is not the proxy refusal: no claim about the proxy.
+    assert str(caught.value) == "HTTP 403: access denied"
+    assert caught.value.status == 403
+
+
+async def test_manifest_403_ucore_access_names_the_proxy_refusal_not_the_key():
+    """Network/InnerSpace console: GET innerspace/api/ucore/manifest answers 403
+    errors.ucore.access 'Access denied for proxy' while ucore/status answers 200."""
+    from unifi_fabric.client import UniFiHTTPError
+
+    upstream = (
+        "HTTP 403 from GET /api/ucore/manifest: "
+        '{"error":{"type":"access","code":"errors.ucore.access",'
+        '"message":"Access denied for proxy","errors":[]}}'
+    )
+    client = AsyncMock()
+    registry = AsyncMock()
+    client.get.side_effect = UniFiHTTPError(upstream, status=403)
+    with pytest.raises(UniFiHTTPError) as caught:
+        await innerspace_internal.get_innerspace_ucore_manifest(client, registry, "example")
+    message = str(caught.value)
+    assert message.startswith(upstream + "; ")
+    assert "refuses this route via the connector proxy" in message
+    assert "the key is not the cause and you cannot fix it here" in message
+    assert "ignore the key hint" not in message
+    assert "get_innerspace_ucore_status" in message
+    assert "check console permissions" not in message
     assert caught.value.status == 403

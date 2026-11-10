@@ -329,6 +329,49 @@ def client_settings(case: dict) -> dict[str, str]:
     return validate_key_wiring(next(iter(servers.values())))
 
 
+CLI_ADD = re.compile(r"^(claude|codex) mcp add ")
+#: The environment flag each client CLI documents for `mcp add`.
+CLI_ENV_FLAGS = {"claude": {"-e", "--env"}, "codex": {"--env"}}
+CLI_ENV_NAMES = {"UNIFI_API_KEY", "UNIFI_WRITE_POLICY", "UNIFI_TOOL_MODE"}
+
+
+def cli_launcher(body: str, wheel: Path, version: str, *, published: str = "") -> list[str]:
+    """The MCP launcher of a documented `claude mcp add` or `codex mcp add` registration.
+
+    The key must reach the CLI from the shell variable the documented `read -rs` prompt
+    fills (`UNIFI_API_KEY="$UNIFI_API_KEY"`), never as a literal value in the example. The
+    client stores the value and starts the launcher with it, which the smoke reproduces by
+    running the launcher with the target environment.
+    """
+    lines = [line for line in body.splitlines() if CLI_ADD.match(line)]
+    if len(lines) != 1:
+        raise ValueError("expected exactly one claude or codex mcp add command")
+    if not re.search(r"(?m)^printf [^\n]*; read -rs UNIFI_API_KEY; echo", body):
+        raise ValueError("CLI registration must set UNIFI_API_KEY with the documented key prompt")
+    argv = shlex.split(lines[0], comments=True)
+    if "--" not in argv:
+        raise ValueError("CLI registration must declare its MCP launcher")
+    split = argv.index("--")
+    client, options = argv[0], argv[3:split]
+    names, env = [], {}
+    while options:
+        option = options.pop(0)
+        if option in CLI_ENV_FLAGS[client] and options:
+            key, sep, value = options.pop(0).partition("=")
+            if not sep or key not in CLI_ENV_NAMES:
+                raise ValueError(f"unexpected CLI environment setting: {key}")
+            env[key] = value
+        elif option.startswith("-"):
+            raise ValueError(f"unsupported {client} mcp add option: {option}")
+        else:
+            names.append(option)
+    if names != ["unifi-fabric"]:
+        raise ValueError("CLI registration must name the unifi-fabric server")
+    if env.get("UNIFI_API_KEY") != "$UNIFI_API_KEY":
+        raise ValueError("CLI registration must pass UNIFI_API_KEY from the shell variable")
+    return repin(argv[split + 1 :], wheel, version, published=published)
+
+
 def parsed_launcher(case: dict, wheel: Path, version: str, *, published: str = "") -> list[str]:
     body, mode = case["body"], case["mode"]
     if mode == "codex":
@@ -345,6 +388,8 @@ def parsed_launcher(case: dict, wheel: Path, version: str, *, published: str = "
                 if "--" not in argv:
                     raise ValueError("Antigravity command must declare its MCP launcher")
                 return repin(argv[argv.index("--") + 1 :], wheel, version, published=published)
+    elif mode == "cli":
+        return cli_launcher(body, wheel, version, published=published)
     elif mode == "plugin":
         if not (
             "claude --plugin-dir ./plugins/claude" in body
@@ -376,7 +421,7 @@ def prepare(
     published: str = "",
 ) -> list[str]:
     mode, body = case["mode"], case["body"]
-    if mode in {"desktop", "codex", "plugin", "antigravity"}:
+    if mode in {"desktop", "codex", "plugin", "antigravity", "cli"}:
         return parsed_launcher(case, wheel, version, published=published)
     if mode == "uvx":
         line = next((line for line in body.splitlines() if line.startswith("uvx ")), "")
@@ -583,6 +628,13 @@ def docker_launcher(wheel: Path, work: Path) -> tuple[list[str], str]:
     return [*cmd, image], image
 
 
+#: Credentials a documented command line must never carry as a value: a `-e NAME=value`
+#: argument is visible to every local user in the process list and lands in shell history.
+ARGV_CREDENTIALS = frozenset({"UNIFI_API_KEY", "UNIFI_API_KEYS", "MCP_BEARER_TOKEN"})
+#: The documented prompt that fills UNIFI_API_KEY without echoing it or writing it to history.
+KEY_PROMPT = re.compile(r"(?m)^printf [^\n]*; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY$")
+
+
 def validate_docker_case(case: dict, version: str, published: str = "") -> bool:
     """Validate original run options; only image and test environment are substituted."""
     body = case["body"]
@@ -605,6 +657,7 @@ def validate_docker_case(case: dict, version: str, published: str = "") -> bool:
         raise ValueError("unexpected Docker image pin or entrypoint")
     opts = argv[2:-1]
     env = {}
+    assigned = set()
     port = None
     while opts:
         flag = opts.pop(0)
@@ -614,10 +667,22 @@ def validate_docker_case(case: dict, version: str, published: str = "") -> bool:
         if flag == "-p":
             port = value
         else:
-            key, _, value = value.partition("=")
+            key, sep, value = value.partition("=")
             env[key] = value
-    if port != "127.0.0.1:3000:3000" or env.get("UNIFI_API_KEY") != "your-api-key-here":
-        raise ValueError("unexpected Docker port or key placeholder")
+            if sep:
+                assigned.add(key)
+    if port != "127.0.0.1:3000:3000":
+        raise ValueError("unexpected Docker port")
+    if assigned & ARGV_CREDENTIALS:
+        raise ValueError(
+            "credential value in Docker argv: pass -e "
+            + ", -e ".join(sorted(assigned & ARGV_CREDENTIALS))
+            + " with no value so Docker reads it from the environment"
+        )
+    if "UNIFI_API_KEY" not in env:
+        raise ValueError("Docker example does not pass UNIFI_API_KEY")
+    if not KEY_PROMPT.search(body):
+        raise ValueError("Docker example must set UNIFI_API_KEY with the documented key prompt")
     if set(env) - {"UNIFI_API_KEY", "MCP_AUTH_MODE", "MCP_BEARER_TOKEN"}:
         raise ValueError("unexpected Docker environment")
     authenticated = env.get("MCP_AUTH_MODE") == "bearer"

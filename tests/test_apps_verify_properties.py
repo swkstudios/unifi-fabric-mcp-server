@@ -10,7 +10,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import carrier_fabric, mobility, protect
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.protect import protect
 
 SID = "00000000-0000-4000-8000-000000000001"
 PID = "00000000-0000-4000-8000-000000000002"

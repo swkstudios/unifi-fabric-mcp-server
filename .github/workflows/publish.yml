@@ -15,10 +15,9 @@ run-name: "Publish ${{ github.event.inputs.tag || github.ref_name }} [${{ github
 # The image name is ghcr.io/<owner>/<repository> of the repository running the workflow
 # (lower-cased for GHCR), so the same file publishes the source, public and fork images.
 #
-# Each platform leg builds its image without emulation (natively, or cross-built when
-# arm64 runs on an amd64 runner), boots it and sends the README initialize call (under
-# QEMU for an arm64 image on an amd64 runner), and pushes it by digest. The merge job
-# then creates
+# Each platform leg builds its image on a runner of its own architecture (amd64 on
+# amd64, arm64 on the native arm64 runner; no emulation anywhere), boots it, sends the
+# README initialize call and pushes it by digest. The merge job then creates
 # one image index with every tag, checks that the index lists exactly the platforms that
 # were built and, in the public repository only, signs that index digest (keyless
 # Cosign), attaches an SPDX SBOM attestation and a build-provenance attestation. The
@@ -60,10 +59,10 @@ jobs:
     # workflow_run builds only a green CI run of a push to this repository: a fork pull
     # request whose head branch carries the same name also matches the branch filter.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (!github.event.repository.private && github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository != 'swkstudios/unifi-fabric-mcp-server') ||
       (github.event.repository.private && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) ||
-      (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v'))
+      (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -125,8 +124,7 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
       - name: Build the image for this platform
-        # The Dockerfile runs every RUN step on the build platform, so this needs no
-        # emulation on any runner.
+        # Built on a runner of the target architecture; the Dockerfile needs no emulation.
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -145,20 +143,9 @@ jobs:
             echo "::error::built ${BUILT}, expected ${PLATFORM}"
             exit 1
           fi
-      - name: Set up QEMU for an arm64 image on an amd64 runner
-        # Test only: the image above was built without emulation.
-        if: env.ARCH == 'arm64' && runner.arch == 'X64'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          image: tonistiigi/binfmt:qemu-v10.0.4@sha256:8f58e6214f4cc9dc83ce8f5acad1ece508eb6b20e696a8c1e9f274481982c541
-          platforms: arm64
-      - name: Warn that the arm64 image was not built on an arm64 runner
-        if: env.ARCH == 'arm64' && runner.arch == 'X64'
-        run: echo "::warning::linux/arm64 ran on an amd64 runner, so the image is cross-built and boots under QEMU emulation."
       - name: Record the arm64 runner mode
-        # A run-attached record of how this leg ran: native on an arm64 runner, or the
-        # fallback on an amd64 runner (cross-built, booted under QEMU). It changes nothing
-        # about the build.
+        # A run-attached record of how this leg ran (the runner architecture). It changes
+        # nothing about the build.
         if: env.ARCH == 'arm64'
         env:
           RUNNER_ARCH_NAME: ${{ runner.arch }}
@@ -178,8 +165,7 @@ jobs:
           path: ${{ runner.temp }}/arm64-runner-record/arm64-runner-record.json
           if-no-files-found: error
       - name: Boot the image and send the README initialize call
-        # Every leg boots its image: natively, or an arm64 image on an amd64 runner under QEMU.
-        if: (env.ARCH == 'amd64' && runner.arch == 'X64') || env.ARCH == 'arm64'
+        # Every leg boots its own image natively, on a runner of the same architecture.
         run: bash scripts/smoke_image.sh "unifi-fabric-mcp-server:publish-${ARCH}" "${PLATFORM}"
       - name: Push the image by digest
         id: push
@@ -210,9 +196,8 @@ jobs:
     # Clean releases only: a dispatched release or a vX.Y.Z tag with no pre-release suffix.
     # It never runs for a pre-release tag, and it runs natively on the hosted arm64 runner.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') && github.repository != 'swkstudios/unifi-fabric-mcp-server') ||
-      (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
+      (!github.event.repository.private && github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') && github.repository != 'swkstudios/unifi-fabric-mcp-server')
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -274,8 +259,7 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
       - name: Build the image for this platform
-        # The Dockerfile runs every RUN step on the build platform, so this needs no
-        # emulation on any runner.
+        # Built on a runner of the target architecture; the Dockerfile needs no emulation.
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -294,20 +278,9 @@ jobs:
             echo "::error::built ${BUILT}, expected ${PLATFORM}"
             exit 1
           fi
-      - name: Set up QEMU for an arm64 image on an amd64 runner
-        # Test only: the image above was built without emulation.
-        if: env.ARCH == 'arm64' && runner.arch == 'X64'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          image: tonistiigi/binfmt:qemu-v10.0.4@sha256:8f58e6214f4cc9dc83ce8f5acad1ece508eb6b20e696a8c1e9f274481982c541
-          platforms: arm64
-      - name: Warn that the arm64 image was not built on an arm64 runner
-        if: env.ARCH == 'arm64' && runner.arch == 'X64'
-        run: echo "::warning::linux/arm64 ran on an amd64 runner, so the image is cross-built and boots under QEMU emulation."
       - name: Record the arm64 runner mode
-        # A run-attached record of how this leg ran: native on an arm64 runner, or the
-        # fallback on an amd64 runner (cross-built, booted under QEMU). It changes nothing
-        # about the build.
+        # A run-attached record of how this leg ran (the runner architecture). It changes
+        # nothing about the build.
         if: env.ARCH == 'arm64'
         env:
           RUNNER_ARCH_NAME: ${{ runner.arch }}
@@ -327,8 +300,7 @@ jobs:
           path: ${{ runner.temp }}/arm64-runner-record/arm64-runner-record.json
           if-no-files-found: error
       - name: Boot the image and send the README initialize call
-        # Every leg boots its image: natively, or an arm64 image on an amd64 runner under QEMU.
-        if: (env.ARCH == 'amd64' && runner.arch == 'X64') || env.ARCH == 'arm64'
+        # Every leg boots its own image natively, on a runner of the same architecture.
         run: bash scripts/smoke_image.sh "unifi-fabric-mcp-server:publish-${ARCH}" "${PLATFORM}"
       - name: Push the image by digest
         id: push

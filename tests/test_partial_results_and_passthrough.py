@@ -22,13 +22,15 @@ from httpx import Request, Response
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient, UniFiConnectionError, strip_additive_keys
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.network import network_services_proxy
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.registry import (
     FetchedRecords,
     PartialListingError,
     Registry,
     incomplete_reason,
 )
-from unifi_fabric.tools import network_services_proxy, protect, site_manager
 
 BASE = "https://api.ui.com"
 HOST_A = "AAAAAAAAAAAA0000:1"

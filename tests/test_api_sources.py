@@ -405,7 +405,7 @@ async def test_read_or_relay_selector_removes_mixed_get_relay(selector):
 
 @pytest.mark.parametrize("name", ["authorize_guest", "revoke_guest_access"])
 def test_guest_fallback_advertises_classic_source(name):
-    from unifi_fabric._api_source_table import TOOL_API_SOURCES
+    from unifi_fabric.generated_api_facts._api_source_table import TOOL_API_SOURCES
 
     assert "network/private.classic" in TOOL_API_SOURCES[name]
 

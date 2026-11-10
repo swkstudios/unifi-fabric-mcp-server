@@ -56,7 +56,7 @@ effective level is `CERT_NONE`); the selector is ignored.
 A single self-signed certificate (no separate CA) is enough to exercise
 `https` locally. Generate one valid for `localhost` / `127.0.0.1`:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 openssl req -x509 -newkey rsa:2048 -nodes \
@@ -78,7 +78,7 @@ both out of version control (they are dev throwaways).
 
 ## Run with in-server HTTPS
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 export FASTMCP_TRANSPORT=streamable-http
@@ -96,7 +96,7 @@ The server now listens for HTTPS on the configured host/port. Because the
 certificate is self-signed, clients must trust it explicitly — point the client
 at the certificate (or its issuing CA) rather than disabling verification:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 # Smoke-test the TLS handshake against the MCP endpoint.
@@ -137,7 +137,7 @@ Example override (adjust the port to your `FASTMCP_PORT`). A sessionless GET to
 above). Use a TLS handshake probe to verify certificate trust and listener availability
 without depending on MCP session state. In non-dev deployments replace `'127.0.0.1'` with the DNS name your cert was issued for (e.g. `'mcp.example.com'`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-4 mode=non-executable reason=deployment-or-client-interaction -->
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
@@ -185,7 +185,7 @@ commands below mint a throwaway local CA and issue a server cert (for
 locally. Nothing here is committed; keep every `*.pem`, `*.csr`, and `*.srl`
 file out of version control.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-5 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # These commands use <(...) process substitution, supported by bash and zsh.
@@ -224,7 +224,7 @@ different CAs — split them as needed.
 
 ## Run with in-server mTLS
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-6 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 export FASTMCP_TRANSPORT=streamable-http
@@ -242,7 +242,7 @@ unifi-fabric-mcp
 The server now demands a client certificate during the TLS handshake. A client
 must present its cert/key **and** trust the server CA:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-7 mode=non-executable reason=deployment-or-client-interaction -->
 ```sh
 # Succeeds: presents a client cert that chains to MCP_TLS_CA_CERTS.
@@ -282,7 +282,7 @@ container will be marked unhealthy while the server is fine. A sessionless GET t
 use a TLS handshake probe that presents the client cert without issuing any HTTP
 request. The handshake probe must present a trusted client certificate. In non-dev deployments replace `'127.0.0.1'` with the DNS name your server cert was issued for (e.g. `'mcp.example.com'`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-8 mode=non-executable reason=deployment-or-client-interaction -->
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
@@ -314,7 +314,7 @@ Once in-server HTTPS is active, the client URL must change from `http://` to `ht
 
 `streamable-http` transport:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-9 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -329,7 +329,7 @@ Once in-server HTTPS is active, the client URL must change from `http://` to `ht
 
 `sse` transport (`FASTMCP_TRANSPORT=sse`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-10 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -373,7 +373,7 @@ supply a client certificate. In practice this means:
 If your MCP client does support custom TLS configuration (e.g. a programmatic client), it
 must supply both the client certificate/key and trust the server certificate:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.1 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 support=0.7.2 citation=file:src/unifi_fabric/transport_security.py@sha256:eae785b891802c23a10c70edf379ede994598d45f54ce0758d7638a302b2cec7 -->
 <!-- install-case: docs-tls-11 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # curl equivalent of what a properly configured client would do

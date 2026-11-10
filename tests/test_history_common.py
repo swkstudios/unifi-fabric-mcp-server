@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from unifi_fabric.client import UniFiConnectionError, UniFiHTTPError, log_reason
-from unifi_fabric.tools._history_common import translate_host_not_found
+from unifi_fabric.shared_shapes._history_common import translate_host_not_found
 
 
 def test_host_not_found_keeps_full_upstream_message_and_appends_hint():

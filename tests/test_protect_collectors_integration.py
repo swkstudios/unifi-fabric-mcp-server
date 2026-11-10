@@ -23,11 +23,11 @@ import pytest_asyncio
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.protect.protect import (
     collect_protect_device_changes,
     collect_protect_events,
 )
+from unifi_fabric.registry import Registry
 
 pytestmark = [
     pytest.mark.integration,

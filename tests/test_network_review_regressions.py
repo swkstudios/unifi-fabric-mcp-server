@@ -4,11 +4,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import ClassicApiError, UniFiConnectionError
-from unifi_fabric.tools import _classic_cmd, carrier_fabric, device_mgmt, mobility
-from unifi_fabric.tools import network_clients_guests as clients
-from unifi_fabric.tools import network_dpi_policy as dpi
-from unifi_fabric.tools import network_proav_sandbox as proav
-from unifi_fabric.tools import network_security_diagnostics as diagnostics
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network import network_clients_guests as clients
+from unifi_fabric.families.network import network_dpi_policy as dpi
+from unifi_fabric.families.network import network_proav_sandbox as proav
+from unifi_fabric.families.network import network_security_diagnostics as diagnostics
+from unifi_fabric.shared_shapes import _classic_cmd
 
 
 async def test_classic_preserves_failure_metadata():
@@ -93,7 +96,7 @@ async def test_scalar_topology_failure_does_not_echo_body(monkeypatch):
 
 
 async def test_qos_case_mismatch_does_not_claim_delete(monkeypatch):
-    from unifi_fabric.tools import network_nat_qos_traffic as qos
+    from unifi_fabric.families.network import network_nat_qos_traffic as qos
 
     monkeypatch.setattr(qos, "_nc_site", AsyncMock(return_value=(None, "host", "default")))
     client = SimpleNamespace(
@@ -105,7 +108,7 @@ async def test_qos_case_mismatch_does_not_claim_delete(monkeypatch):
 
 
 async def test_wireguard_case_mismatch_does_not_claim_delete(monkeypatch):
-    from unifi_fabric.tools import network_vpn_dns as vpn
+    from unifi_fabric.families.vpn import network_vpn_dns as vpn
 
     monkeypatch.setattr(
         vpn, "_vpn_server", AsyncMock(return_value=(None, "host", "default", "server"))
@@ -122,8 +125,8 @@ async def test_wireguard_case_mismatch_does_not_claim_delete(monkeypatch):
 @pytest.mark.parametrize("readback", [[], RuntimeError("read failed")])
 @pytest.mark.parametrize("kind", ["qos", "wireguard"])
 async def test_delete_readback_success_and_error(monkeypatch, kind, readback):
-    from unifi_fabric.tools import network_nat_qos_traffic as qos
-    from unifi_fabric.tools import network_vpn_dns as vpn
+    from unifi_fabric.families.network import network_nat_qos_traffic as qos
+    from unifi_fabric.families.vpn import network_vpn_dns as vpn
 
     client = SimpleNamespace(
         get=AsyncMock(side_effect=[[{"_id": "abc"}], readback]),
@@ -151,14 +154,14 @@ async def test_batch_delete_rejects_missing_private_id(monkeypatch):
 
 
 async def test_traffic_period_error_uses_supported_example():
-    from unifi_fabric.tools import network_nat_qos_traffic as qos
+    from unifi_fabric.families.network import network_nat_qos_traffic as qos
 
     with pytest.raises(ValueError, match='e.g. "DAY"'):
         await qos.get_latest_traffic_flow_stats(None, None, "host", "site", 1)
 
 
 async def test_wan_health_error_redacts_credentials(monkeypatch):
-    from unifi_fabric.tools import network
+    from unifi_fabric.families.network import network
 
     monkeypatch.setenv("UNIFI_REDACT_SECRETS", "true")
     monkeypatch.setattr(network, "_assert_uuid", lambda _: None)

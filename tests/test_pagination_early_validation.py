@@ -7,16 +7,12 @@ import pytest
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import (
-    clients,
-    device_mgmt,
-    network,
-    network_controller_insights,
-    network_vpn_dns,
-    protect,
-    protect_recognition_search,
-    site_manager,
-)
+from unifi_fabric.families.clients import clients
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.network import network, network_controller_insights
+from unifi_fabric.families.protect import protect, protect_recognition_search
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.families.vpn import network_vpn_dns
 
 _HOST = "synthetic-console"
 _SITE = "synthetic-site"

@@ -19,8 +19,11 @@ from unifi_fabric import server, transport_security
 from unifi_fabric.audit import build_audit_sink
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, MCPTransportSettings, Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.innerspace import innerspace
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import carrier_fabric, innerspace, mobility, site_manager
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "docs_claim_ledger.py"
@@ -121,6 +124,39 @@ def _passages() -> dict[str, str]:
     start = config.index("\n## Audit log\n")
     section = config[start : config.index("<!-- BEGIN GENERATED: audit-schema -->", start)]
     return {"relay (Verbatim bodies + audit)": relay, "Optional audit log": section}
+
+
+def test_audit_chain_section_states_its_limits() -> None:
+    """The section that
+    describes the audit hash chain says it is tamper-evident, not tamper-proof, and
+    lists what it does not detect, next to the feature."""
+    config = (ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
+    start = config.index("\n### Tamper evidence (`UNIFI_AUDIT_CHAIN`)\n")
+    end = config.find("\n## ", start + 1)
+    section = config[start : end if end != -1 else len(config)]
+    assert "**tamper-evident, not tamper-proof**" in section
+    limits = section[section.index("**What it does not detect.**") :]
+    assert re.findall(r"^(\d)\. ", limits, re.M)[:6] == ["1", "2", "3", "4", "5", "6"]
+    for phrase in (
+        "A cut tail",  # 1: tail truncation
+        "replaced by an older valid copy, or deleted",  # 2: rollback or deletion
+        "Forgery by anyone who holds the key",  # 3: a key holder (actor C)
+        "symmetric (HMAC-SHA256)",  # the symmetric-key limit
+        "Records that were never written",  # 4
+        "Whether a record is true",  # 5
+        "Lines written before the chain was turned on",  # 6
+        "only an anchor",  # the external anchor
+        "where the server host cannot rewrite it",
+        "`copytruncate` can lose lines",
+        "`SEQ_GAP`",
+        "`create`-style rotation",
+        "not an independent anchor",  # the /dev/stderr note
+        "it is not an MCP tool",
+        "No option takes a key",
+    ):
+        assert phrase in section, phrase
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "tamper-evident hash chain" in readme and "unifi-fabric-audit-verify" in readme
 
 
 def test_audit_passages_carry_best_effort_qualifier() -> None:

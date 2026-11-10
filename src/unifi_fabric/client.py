@@ -4,23 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import codecs
-import hashlib
 import inspect
 import json
 import math
 import mimetypes
 import random
 import re
+import time
 from collections.abc import Awaitable
-from typing import Any
+from email.utils import parsedate_to_datetime
+from typing import Any, Final
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 import httpx
 from fastmcp.exceptions import ToolError
 
+from . import fingerprint as _fingerprint
 from . import route_secrets
 from ._paging_identity import PageHistory, page_is_repeat, page_stop, unique_page_rows
-from .audit import AuditStream, build_audit_stream
+from .audit import AuditStream, close_audit_stream, configure_audit_stream
 from .config import APIKeyConfig, Settings
 from .header_credentials import CredentialCache, header_mode_enabled, request_key_configs
 from .policy import note_upstream_call
@@ -62,8 +64,12 @@ from .selector_args import unknown_key_label_problem
 from .switches import READ_ONLY_ENV, dry_run_active
 from .write_body import require_unmasked_fields
 
-#: Gateway statuses after which a sent write may or may not have been applied.
-UNKNOWN_OUTCOME_STATUSES = frozenset({502, 503, 504})
+#: Gateway statuses after which a sent write may or may not have been applied. 408 is the
+#: Fabric connector terminating a proxied request that it had already forwarded (the Site
+#: Manager ``/v1/connector/consoles/{id}/*path`` routes document 408 for a request that
+#: does not finish within the connector's per-request limit): the console may have applied
+#: the change, so a 408 on a write is outcome unknown, like a gateway status.
+UNKNOWN_OUTCOME_STATUSES = frozenset({408, 502, 503, 504})
 
 #: Transport failures raised before the request left this process: nothing was sent.
 _NOT_SENT_ERRORS: tuple[type[httpx.HTTPError], ...] = (
@@ -286,6 +292,162 @@ def classic_rc_error(path: Any, status: Any, body: Any) -> str | None:
     if "msg" in meta:
         reason += f" (meta.msg {upstream_error_text(meta['msg'])!r})"
     return reason + ": the controller did not report success"
+
+
+class UpstreamErrorBodyError(UniFiConnectionError):
+    """A Network v2 route answered HTTP 2xx with a bare ``{"error": {...}}`` envelope.
+
+    The console can refuse a request with HTTP 200 and a body whose only member is an
+    ``error`` object (``{"error": {"code": 400, "message": "api.err.X"}}``). That is a
+    rejected request, not a success. The message carries the complete upstream body,
+    verbatim, like every other upstream error.
+    """
+
+
+#: A Network v2 route reached through the Fabric connector (``network/v2/api/...``), the
+#: surface whose refusals can arrive as an ``error`` envelope with HTTP 2xx.
+V2_ROUTE_RE = re.compile(r"^/v1/connector/consoles/[^/]+/proxy/network/v2/api(?:/|\Z)")
+
+
+def is_v2_route(path: Any) -> bool:
+    """True when ``path`` (a request path, query string ignored) is a Network v2 route."""
+    return isinstance(path, str) and V2_ROUTE_RE.match(path.split("?", 1)[0]) is not None
+
+
+def v2_error_envelope(path: Any, status: Any, body: Any) -> str | None:
+    """Why a Network v2 response is an error answered with HTTP 2xx, or ``None``.
+
+    The one rule for the whole server (typed tools through :meth:`UniFiClient.request`,
+    the generic relay through its ``_upstreamError`` marker). It matches exactly one
+    shape: a v2 route, a 2xx status, and a decoded body that is a JSON object whose ONLY
+    member is ``error``, itself an object carrying a ``code`` (a number or a string) and a
+    string ``message``. Anything else is passed through as a success body: a record or
+    list, an object with ``data`` or any other member beside ``error`` (``{"data": [...],
+    "error": {}}``), a string ``error``, an ``error`` nested deeper, a non-v2 route, a
+    non-2xx status (already an HTTP error).
+
+    ``body`` is the decoded body (:func:`decode_body`); the caller attaches it verbatim.
+    """
+    if not is_v2_route(path):
+        return None
+    if not isinstance(status, int) or isinstance(status, bool) or not 200 <= status < 300:
+        return None
+    if not isinstance(body, dict) or set(body) != {"error"}:
+        return None
+    error = body["error"]
+    if not isinstance(error, dict) or not isinstance(error.get("message"), str):
+        return None
+    code = error.get("code")
+    if isinstance(code, bool) or not isinstance(code, int | str) or code == "":
+        return None
+    return (
+        f"HTTP {status} with an error object (code {upstream_error_text(code)}, message "
+        f"{upstream_error_text(error['message'])!r}): the console did not report success"
+    )
+
+
+#: Where HTTP 408 comes from on this server's routes, and what it means. The pinned Site
+#: Manager spec documents 408 on the five ``/v1/connector/consoles/{id}/*path`` verbs: the
+#: connector terminates a proxied request that does not finish within its per-request
+#: limit, and the route needs console firmware at or above the connector minimum.
+_HINT_408 = (
+    "HTTP 408 comes from the Fabric connector (Site Manager spec, connector consoles "
+    "routes): the proxied request did not finish within the connector's request time "
+    "limit of 25 seconds, or the console is offline or restarting, or its firmware is "
+    "below the connector minimum of 5.0.3. Check the console state with list_hosts; for "
+    "a wide read send a smaller window or page size."
+)
+
+#: The same spec: "Each console is limited to 100 requests per minute".
+_HINT_429_CONNECTOR = (
+    "the Fabric connector limits each console to 100 requests per minute (Site Manager "
+    "spec, connector consoles routes); wait for the window to reopen, and prefer fewer, "
+    "larger requests (a bigger page size) over many small ones."
+)
+
+#: The same spec: "the upstream response body is limited to 10 MB; larger responses are
+#: not supported". The spec names no status for it; the connector answers 502 when it
+#: cannot return the proxied response, so a 502 on a wide read is hinted as a possible match.
+_HINT_502_CONNECTOR = (
+    "HTTP 502 from the Fabric connector: the console's response could not be returned. "
+    "Possible causes: the console is offline or restarting, or the response body is over "
+    "the connector's 10 MB limit (Site Manager spec: larger responses are not supported); "
+    "for a wide read send a smaller window or page size."
+)
+
+#: A request routed through the Fabric connector (``/v1/connector/consoles/{id}/...``).
+_CONNECTOR_ROUTE_RE = re.compile(r"^/v1/connector/consoles/[^/]+/")
+
+
+def is_connector_route(path: Any) -> bool:
+    """True when ``path`` goes through the Fabric connector (any console route)."""
+    return isinstance(path, str) and _CONNECTOR_ROUTE_RE.match(path) is not None
+
+
+def connector_rate_hint(path: Any) -> str:
+    """The per-console request limit hint for a 429 on a connector route, else ``""``."""
+    return f"\nHint: {_HINT_429_CONNECTOR}" if is_connector_route(path) else ""
+
+
+#: The Network statistics service route family (``network/v2/api/stats`` and below).
+_V2_STATS_ROUTE_RE = re.compile(r"/proxy/network/v2/api/stats(?:/|\Z)")
+
+_HINT_STATS_404 = (
+    "an HTML 404 from the Network v2 statistics routes (/v2/api/stats/*) means this "
+    "console's Network application does not serve that statistics route "
+    "(check the version with get_network_application_info)."
+)
+
+
+def _looks_like_html(text: str) -> bool:
+    head = text.lstrip()[:512].lower()
+    return head.startswith("<!doctype html") or head.startswith("<html") or "<html" in head
+
+
+def route_hint(status: int, path: str, text: str) -> str:
+    """Advice for an upstream status that has one beyond a key problem, or ``""``.
+
+    Appended after the verbatim upstream body, never in place of it: HTTP 408 (the
+    connector's 25 s request limit, an offline console or firmware below 5.0.3), HTTP 502
+    on a connector route (an unreachable console, or a response over the 10 MB limit) and an
+    HTML 404 from ``/v2/api/stats/*`` (a Network application that does not serve that route).
+    """
+    if status == 408:
+        return f"\nHint: {_HINT_408}"
+    if status == 502 and is_connector_route(path):
+        return f"\nHint: {_HINT_502_CONNECTOR}"
+    if (
+        status == 404
+        and _V2_STATS_ROUTE_RE.search(path.split("?", 1)[0])
+        and _looks_like_html(text)
+    ):
+        return f"\nHint: {_HINT_STATS_404}"
+    return ""
+
+
+def parse_retry_after(value: Any, *, now: float | None = None) -> float | None:
+    """Seconds to wait from a ``Retry-After`` header value, or ``None`` when unusable.
+
+    The header is either delay-seconds (a non-negative number) or an HTTP date; a date in
+    the past is a zero wait. A missing, empty, negative, non-finite or unparsable value is
+    ``None``: the caller keeps its own backoff.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        seconds = float(text)
+    except ValueError:
+        pass
+    else:
+        return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    try:
+        moment = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if moment.tzinfo is None:
+        return None
+    return max(0.0, moment.timestamp() - (time.time() if now is None else now))
 
 
 def wrong_type_error(name: str, value: Any, expected: str = "a string") -> ResponseShapeError:
@@ -549,8 +711,8 @@ def multipart_summary(files: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _key_fingerprint(key: str) -> str:
-    """A one-way fingerprint of an API key, for cache keys only (never logged)."""
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+    """A keyed one-way fingerprint of an API key, for cache keys only (never logged)."""
+    return _fingerprint.key_digest(key)
 
 
 #: ``message`` of the synthetic dry-run preview (see ``UniFiClient._dry_run_response``).
@@ -862,6 +1024,19 @@ def validate_spec_id(
         )
 
 
+#: The longest wait a read sleeps on its own: the top of the fixed backoff (32 s plus up
+#: to 32 s of jitter). A longer ``Retry-After`` is raised to the caller, not slept.
+RETRY_AFTER_CEILING_SECONDS: Final = 64.0
+
+
+def _retry_after_note(resp: httpx.Response) -> str:
+    """The upstream's ``Retry-After`` value as received, after the body, or ``""``."""
+    value = resp.headers.get("retry-after")
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    return f"\nRetry-After: {value.strip()}"
+
+
 def _attempts(count: int) -> str:
     """``"1 attempt"`` / ``"6 attempts"``."""
     return f"{count} attempt" + ("" if count == 1 else "s")
@@ -1006,7 +1181,7 @@ class UniFiClient:
         self._fanout_semaphore = asyncio.Semaphore(settings.max_concurrency)
         # Opt-in audit, default off -> byte-identical path. Dry-run is the write policy,
         # read per request (switches.dry_run_active).
-        self._audit_sink: AuditStream | None = build_audit_stream(settings)
+        self._audit_sink: AuditStream | None = configure_audit_stream(settings)
         # Log records (httpcore traces quote an illegal header value) are scrubbed of
         # this client's keys while it is alive.
         track_settings_holder(self)
@@ -1510,12 +1685,21 @@ class UniFiClient:
                     if is_classic_route(path) and resp.is_success
                     else None
                 )
+                # A Network v2 route reports a refusal as a bare ``{"error": {...}}`` body
+                # with HTTP 2xx: also an upstream error (:func:`v2_error_envelope`).
+                v2_error = (
+                    v2_error_envelope(path, resp.status_code, decode_body(resp))
+                    if is_v2_route(path) and resp.is_success
+                    else None
+                )
                 if is_write:
                     self._audit_write(
                         method,
                         path,
                         "classic_rc_error"
                         if classic_error is not None
+                        else "upstream_error_body"
+                        if v2_error is not None
                         else _outcome_label(resp.status_code),
                         resp.status_code,
                         body=json,
@@ -1548,9 +1732,7 @@ class UniFiClient:
                     # the request object — which contains the X-API-KEY header —
                     # is never embedded in the exception and cannot leak into logs.
                     # The body is scrubbed: an upstream may echo the key header back.
-                    hint = self._authentication_hint(resp.status_code, key)
-                    if is_write and resp.status_code in UNKNOWN_OUTCOME_STATUSES:
-                        hint += unknown_outcome_hint(path)
+                    hint = self._response_hint(resp, key, path, is_write)
                     raise UniFiHTTPError(
                         self._scrub(
                             f"HTTP {resp.status_code} from {verb} {path}: {body}" + hint,
@@ -1568,6 +1750,16 @@ class UniFiClient:
                             key,
                         )
                     )
+                if v2_error is not None and raise_on_error:
+                    body = error_body_text(
+                        resp.text, redact_secrets=bool(self._settings.redact_secrets)
+                    )
+                    raise UpstreamErrorBodyError(
+                        self._scrub(
+                            f"Upstream error body from {verb} {path}: {v2_error}: {body}",
+                            key,
+                        )
+                    )
                 # Always scrub configured server secrets. Bound route/call values are
                 # scrubbed only when the operator opted in to redaction, at every status.
                 response = self._scrubbed_response(
@@ -1575,9 +1767,7 @@ class UniFiClient:
                     key,
                     extra=call_secret_values() if self._settings.redact_secrets else (),
                 )
-                hint = self._authentication_hint(resp.status_code, key)
-                if is_write and resp.status_code in UNKNOWN_OUTCOME_STATUSES:
-                    hint += unknown_outcome_hint(path)
+                hint = self._response_hint(resp, key, path, is_write)
                 if hint:
                     response.extensions["unifi_auth_hint"] = self._scrub(hint.lstrip("; "), key)
                 return response
@@ -1591,16 +1781,50 @@ class UniFiClient:
                 raise RateLimitError(
                     self._scrub(
                         f"Rate limited after {_attempts(max_retries + 1)} on {verb} {path}: "
-                        f"HTTP 429: {body}",
+                        f"HTTP 429: {body}" + connector_rate_hint(path) + _retry_after_note(resp),
                         key,
                     )
                 )
 
-            base_delay = min(2**attempt, 32)
-            jitter = _secure_random.uniform(0, base_delay)
-            await asyncio.sleep(base_delay + jitter)
+            # The upstream's own wait (Retry-After: seconds or an HTTP date) replaces the
+            # fixed backoff when it sent a usable one, up to this client's own backoff
+            # ceiling; a longer ask is surfaced to the caller instead of slept.
+            wait = parse_retry_after(resp.headers.get("retry-after"))
+            if wait is not None and wait > RETRY_AFTER_CEILING_SECONDS:
+                body = error_body_text(
+                    resp.text, redact_secrets=bool(self._settings.redact_secrets)
+                )
+                raise RateLimitError(
+                    self._scrub(
+                        f"Rate limited on {verb} {path}: HTTP 429: {body}"
+                        + connector_rate_hint(path)
+                        + f"\nThe wait exceeds the {RETRY_AFTER_CEILING_SECONDS:g} s this "
+                        "client sleeps; retry after it." + _retry_after_note(resp),
+                        key,
+                    )
+                )
+            if wait is None:
+                base_delay = min(2**attempt, 32)
+                wait = base_delay + _secure_random.uniform(0, base_delay)
+            await asyncio.sleep(wait)
 
         raise RateLimitError("Unreachable")  # pragma: no cover
+
+    def _response_hint(
+        self, resp: httpx.Response, key: APIKeyConfig, path: str, is_write: bool
+    ) -> str:
+        """Everything this server appends after an upstream status, never in place of its body.
+
+        For a write with an uncertain outcome (a gateway status or HTTP 408) the outcome
+        clause comes first; then the status's own advice (:func:`route_hint`), then key
+        advice (401/403).
+        """
+        status = resp.status_code
+        hint = unknown_outcome_hint(path) if is_write and status in UNKNOWN_OUTCOME_STATUSES else ""
+        hint += route_hint(status, path, resp.text) if status in (404, 408, 502) else ""
+        if status == 403 and "errors.ucore.access" in resp.text:
+            return hint  # InnerSpace's proxy refusal: the key is no cause, so no key hint
+        return hint + self._authentication_hint(status, key)
 
     def _authentication_hint(self, status: int, key: APIKeyConfig) -> str:
         """Append key-specific advice without rewriting an upstream response body."""
@@ -1802,12 +2026,17 @@ class UniFiClient:
         key: APIKeyConfig | None = None,
         json: Any = None,
         params: dict[str, Any] | None = None,
+        always_write: bool = False,
     ) -> Any:
         """POST request; returns the upstream body as decoded by :func:`decode_body`.
 
         Sent once: a 429 is raised, never auto-retried (the retry rule in :meth:`request`).
+        ``always_write`` keeps the POST a write for dry-run, read-only mode and the audit log
+        even when its path is on the read-POST allowlist (see :meth:`request`).
         """
-        resp = await self.request("POST", path, key=key, json=json, params=params)
+        resp = await self.request(
+            "POST", path, key=key, json=json, params=params, always_write=always_write
+        )
         return decode_body(resp)
 
     async def post_multipart(
@@ -1994,7 +2223,7 @@ class UniFiClient:
         gathered once, the upstream total verbatim, and a reason naming the evidence.
         """
         # A local import: tools._pagination imports this module.
-        from .tools._pagination import validate_pagination
+        from .shared_shapes._pagination import validate_pagination
 
         # validate_pagination reads None as "not given"; here both values are always used,
         # so a None is checked under its printed form and refused like any non-integer.
@@ -2259,7 +2488,8 @@ class UniFiClient:
         return await gather_or_cancel(*[_bounded(c) for c in coros])
 
     async def close(self) -> None:
-        """Close all HTTP clients."""
+        """Close all HTTP clients (and stop a remote audit sink's worker)."""
+        close_audit_stream(self._audit_sink)
         for client in self._clients.values():
             await client.aclose()
         self._clients.clear()

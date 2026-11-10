@@ -48,7 +48,7 @@ area's write tools the same way, so `tools/list` and discovery offer only tools 
 can run; a hidden write called by name is refused with the entry as its reason and
 audited. With `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` the server also hides the typed write tools
 that relay through the connector (for example `update_device_radio`, `start_spectrum_scan`,
-`reboot_nvr`), not only the four relay writes.
+`reboot_protect_device`), not only the four relay writes.
 
 <!-- BEGIN GENERATED: tool-mode-defaults -->
 Defaults: `UNIFI_TOOL_MODE=discovery` (modes `full`, `discovery`, `codemode`), `UNIFI_FAMILY_ALLOW` unset (every family), `UNIFI_EXCLUDE` unset, `UNIFI_WRITE_POLICY` unset (`allow`). Discovery mode advertises 5 meta-tools (`call_read_tool`, `call_write_tool`, `describe_tool`, `list_tool_families`, `search_tools`), or 4 with `UNIFI_WRITE_POLICY=deny`.
@@ -119,8 +119,9 @@ The 13 families are `carrier`, `clients`, `connector`, `devices`, `firewall`, `h
 - **DNS & Traffic**: DNS policies, traffic rules, traffic matching lists, traffic routes
 - **Traffic Routes**: `list_traffic_routes`, `create_traffic_route`,
   `update_traffic_route`, `delete_traffic_route`
-- **Traffic Rules**: `list_traffic_rules`, `create_traffic_rule`,
-  `update_traffic_rule`, `delete_traffic_rule`
+- **Traffic Rules** (legacy, read only): `list_traffic_rules` reads rules carried over
+  from earlier Network versions; the console does not implement creating, changing or
+  deleting them
 - **Traffic Matching Lists**: `list_traffic_matching_lists`,
   `create_traffic_matching_list`, `update_traffic_matching_list`,
   `delete_traffic_matching_list`
@@ -358,7 +359,8 @@ Examples by scope; the `required` list in each tool schema is authoritative.
   so a blank one is refused (for example `session_type` of `list_client_sessions`).
 - **Time parameters are NOT uniform across tools — check each tool before passing one:**
   - Epoch SECONDS as integers (e.g. 1690000000): `list_protect_events` (start/end),
-    `collect_protect_events` (since), `list_client_sessions` (start/end),
+    `collect_protect_events` (since), `collect_network_incident_evidence` and
+    `collect_protect_incident_evidence` (start/end), `list_client_sessions` (start/end),
     `get_historical_stats` (start/end), `list_recognition_detections` (start/end).
   - ISO 8601 UTC strings (e.g. "2026-07-23T00:00:00Z"): `query_isp_metrics`
     (start_time/end_time). Passing an epoch here — as a number OR as a bare-digit string —
@@ -433,6 +435,46 @@ The tool sections that follow are mostly write tools. They are hidden and refuse
 `UNIFI_WRITE_POLICY=deny` or the `UNIFI_WRITE_EXCEPTIONS` entry `family:network=deny` (a `deny` wins over `UNIFI_WRITE_POLICY=dry-run`).
 In the default discovery mode call them through `call_write_tool` with the arguments shown in
 each example; set `UNIFI_TOOL_MODE=full` for direct calls.
+
+## update_switch_port_overrides
+
+A switch's per-port settings live in one `port_overrides` array on its device record, and the
+controller replaces the whole array on every write: a port left out reverts to its defaults.
+`update_switch_port_overrides(host, site, device, ports, remove_ports, dry_run)` changes only
+what you name and keeps the rest.
+
+- It reads the switch (`stat/device`), merges each requested field into that port's existing
+  entry by `port_idx` (a port with no override gets a new entry), drops only the ports listed
+  in remove_ports, PUTs the complete array once to `rest/device`, and reads it back.
+  Unmentioned ports, and unmentioned fields of a mentioned port, are sent exactly as read.
+- Fields are the controller's own `port_overrides` fields and pass through unchanged: a port
+  profile is `portconf_id` (from `list_port_profiles`; checked to exist before the write),
+  port monitoring (SPAN) is the controller's monitoring `op_mode` value on the analyzer port plus
+  the monitored-port key (that value followed by `_port_idx`; copy both from an
+  already-monitoring port in `get_switch_port_overrides`), aggregation is
+  `op_mode: "aggregate"` with `aggregate_num_ports` (or the member fields your controller
+  reports). Member ports that keep their own override are named in `_warnings`; list them in
+  remove_ports if your controller needs them cleared.
+- Refused before any request: a port named twice, a port both updated and removed, a
+  `port_idx` that is not a positive integer, a null field value, or no change at all. Refused
+  after the read, before any write: a port the switch does not report, a removal of a port with
+  no override, an unknown monitored-port number or `portconf_id`; each error lists the valid choices.
+- dry_run true (or `UNIFI_WRITE_POLICY=dry-run`) returns the merged array as the PUT body
+  preview, the per-port diff and `_plan`, with `_outcome: "preview"`; nothing is written.
+- After a write, `_outcome` is `verified` (every requested field, every removal and every
+  untouched port matches the fresh read), `mismatch` (`_mismatches` lists each difference) or
+  `unknown` (the PUT was answered but the read-back failed; `readAfterError`). The PUT is never
+  retried: a timeout or a 502/503/504 on the PUT is raised as an error saying the outcome is
+  unknown, because the write may have applied. In either case read back with
+  `get_switch_port_overrides` before you retry.
+
+**Concurrency boundary.** Calls to this tool for the same switch are serialized inside one
+server process: each call's read, merge, write and read-back finish before the next call reads.
+Nothing else takes that lock: the UniFi web UI or mobile app, other API clients,
+`fabric_connector_put` and other server processes or replicas can still write the same device
+between this tool's read and its PUT. Such a change is overwritten for the ports this call sends
+and is reported as a `mismatch` on read-back when it touched a port this call kept; avoid
+editing the same switch from two places at once.
 
 ## create_network
 
@@ -1159,6 +1201,74 @@ Args:
     poll_interval_seconds: delay between polls (default 2). Very small values may hit the shared
         429 backoff, which the client already handles.
 
+## Incident evidence
+
+`collect_network_incident_evidence` (Network system log) and
+`collect_protect_incident_evidence` (Protect events) read the same routes as
+`list_network_events` and `list_protect_events` for one half-open window
+(`start` inclusive, `end` exclusive, epoch seconds) and return one closed, versioned
+document instead of native entries. The JSON Schema is
+[`schemas/incident-document.v1.schema.json`](../schemas/incident-document.v1.schema.json)
+(`schema_name` `unifi-fabric-incident-evidence`, `schema_version` 1); every object in it
+rejects unknown keys. The native tools are unchanged and stay the verbatim view; each
+record keeps the native id in `provenance.record_id`.
+
+What the document states, and what it does not:
+
+- **Sources.** Each Network log class (`log_classes`, default `["all"]`) or Protect
+  camera (`cameras`; without it, one source for every camera) is its own source with its
+  own `outcome`: `complete`, `empty` (no in-window record), `partial` (with
+  `partial_reasons`), or a failure kind (`unsupported`, `permission_denied`,
+  `auth_failed`, `rejected`, `unavailable`, `parse_failed`) carrying the HTTP status
+  and the upstream message (which always names the request, method and path). One failed
+  source makes the document `partial`; every source failing makes it `failed`. A
+  failure is never reported as an empty result. An answer of 2xx that carries no
+  listing (an empty, scalar or text body, or an object of another shape) is
+  `parse_failed` with the HTTP status the console answered: a scalar or text body is
+  carried verbatim (secrets scrubbed), an object is described by its keys only.
+- **Time.** Each record's `time` names the native field (`timestamp` for Network, the
+  event `start` for Protect), its status (`in_window`, `out_of_window`, `missing`,
+  `malformed`, `ambiguous_timezone`) and its precision. A record without a usable time
+  is kept, counted as untimed and sorted last; the collection time is never used in
+  its place.
+- **Identity.** `identity.status` is `exact`, `ambiguous` or `missing`, from exact
+  identifiers in known fields only (a MAC or IP in a Network event's parameters, a
+  Protect camera or sensor id). Names and nearby timestamps never establish an
+  identity, and nothing is matched across products.
+- **Coverage.** `requested_window`, each source's `queried_window` and
+  `observed_window`, the drain state (`pagination.truncated` is `truncated` only when
+  the opt-in `UNIFI_PAGINATE_MAX_PAGES` or a stalled drain stopped it; the document then
+  also carries the repo-wide `incomplete: true` and an `incompleteReason` naming each
+  truncated source) and `retention`,
+  which is always `unknown`: neither product reports its oldest kept event, so an empty
+  source is not proof that nothing happened.
+- **Order, not cause.** Records are sorted by event time, then product, source, native
+  id and evidence id. `causality` is always `not_assessed`: two records next to each
+  other in time are only that.
+- **Stable ids.** `evidence_id` is `SOURCE_ID|id|NATIVE_ID`, or a digest of the
+  normalized fields for a record without a native id, so the same evidence read twice
+  gets the same ids in the same order. Two rows are the same record only when they are
+  identical field for field: a repeat of a native id with a different row is kept and
+  counted as `conflicting`, and id-less rows that differ anywhere are never merged (a
+  `|n:K` suffix, in read order, keeps their ids apart).
+- **Accounting.** For every source `counts.records + counts.duplicates_dropped +
+  counts.malformed == counts.retrieved`. A row that is not a JSON object is counted in
+  `malformed` and never becomes a record.
+- **Wrong type is not absent.** A safe field that is present with a value of the wrong
+  JSON type is listed in the record's `attributes.wrong_typed_fields`; an absent or null
+  field is not.
+
+Records carry safe fields only (Network: key, event, category, subcategory, severity,
+type, status, target; Protect: type, category, smart-detect types, score, end time), never
+message text, descriptions, thumbnails or raw payloads. Both collectors are reads. The
+Network collector sends only the system-log `all` query POST, which is on the read-POST
+allowlist (it fetches log rows and changes nothing), so `UNIFI_WRITE_POLICY=deny` and
+`family:network=deny` do not hide it and dry-run policy does not intercept it. Only an
+allowlisted class can be collected today (`all`, the default): any other `log_classes`
+entry is refused before any request, so use `get_system_log` for another class. A read has
+no unknown outcome, so every failure of a source, a 429, a 5xx or a transport error
+included, is recorded as that source's failure and the other sources are still read.
+
 ## list_recognition_detections
 
 List a recognition group's detections (individual sightings) on a Protect console.
@@ -1272,6 +1382,110 @@ Args:
         reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
         (MAC:numericId composite). One console serves both Network and Protect.
 
+## Protect MCP resources
+
+Clients that support MCP resources can browse Protect events and camera snapshots with
+`resources/list`, `resources/templates/list` and `resources/read`, without a tool call.
+Every read calls the read tool named below, with the same API key selection (including
+a request's `X-UniFi-Api-Key` header in header key mode), family and request-policy
+exposure, redaction setting, secret scrubbing and audit as a direct call of that tool.
+The tools themselves are unchanged.
+
+| URI | MIME | Read tool | Content |
+|---|---|---|---|
+| `unifi-protect://consoles` | `application/json` | `list_hosts` | Every console the keys can see, with its resource URIs. Start here. |
+| `unifi-protect://hosts/{host}/events/recent{?window_seconds}` | `application/json` | `list_protect_events` | The console's events for the last `window_seconds` (default 3600), newest first, every page. |
+| `unifi-protect://hosts/{host}/events/summary{?window_seconds}` | `application/json` | `list_protect_events` | Counts for the same window: by type, by camera id, by smart-detect type, ongoing, newest and oldest start. |
+| `unifi-protect://hosts/{host}/cameras/snapshots` | `application/json` | `list_cameras` | The console's cameras with `snapshot_uri` (and `package_snapshot_uri` for a package camera). |
+| `unifi-protect://hosts/{host}/cameras/{camera_id}/snapshot{?channel,high_quality}` | `image/jpeg` | `get_camera_snapshot` | One live snapshot as a binary blob with the upstream Content-Type. |
+
+`host` is a console name or id from `unifi-protect://consoles` or `list_hosts`; an
+unknown console fails with the valid choices. `camera_id` is the 24-hex Protect camera
+id. `window_seconds` is a positive whole number of seconds and `high_quality` is `true`
+or `false`; any other value fails before a request is sent. A missing or inaccessible
+camera returns the upstream error and the snapshot-index URI to read.
+
+**Freshness and coverage.** Event resources read the console's event history at read
+time; this server keeps no Protect event stream (the Protect event WebSocket is not
+reachable over the Fabric connector). Each event payload says so and states its window:
+
+- `source`: `kind` `rest-history`, the tool and route, and `streaming.available: false`.
+- `freshness`: `read_at` (UTC), `cached: false`, `updateMode: on-read`, `subscribe: false`.
+- `coverage`: the exact window (epoch seconds and ISO 8601), `event_count`, and
+  `complete`, which is false only when an operator page cap (`UNIFI_PAGINATE_MAX_PAGES`)
+  stopped the read; `envelope` then carries `incomplete` and its reason.
+
+Events are the upstream records, unchanged. The server offers no resource
+subscriptions and sends no change notifications: read again to refresh. A resource read
+also carries the cache hint `ttlMs: 0`, `cacheScope: private` on every protocol version
+that sends hints, whatever `UNIFI_MCP_CACHE_TTL` is, so a client or gateway never reuses
+or shares one caller's events or snapshots.
+
+A resource is listed only while its read tool is exposed: with `UNIFI_FAMILY_ALLOW` or
+`UNIFI_EXCLUDE` (or a request policy header) removing the Protect family, the templates
+disappear and a read is refused as `tool_not_exposed`. URIs hold only a console, a camera
+id and the options above, never a key or token.
+
+## Server diagnostics
+
+Use [`get_server_diagnostic_bundle`](#get_server_diagnostic_bundle) when a bug report needs
+facts about this MCP server: package and dependency versions, a settings summary, the effective
+write and exposure policy, the transport modes, cache counts, and a status and source for every
+section. By default it reads local state only and sends no UniFi request. It never includes key
+values or labels, tokens, file paths, URLs, hosts or identifiers, and it is never saved or sent
+anywhere: read it, then share it yourself.
+
+## get_server_diagnostic_bundle
+
+Build a sanitized diagnostic bundle about this MCP server to attach to a bug report.
+It describes the server, not your network: use `generate_support_file` /
+`get_support_file` (Network) or `create_innerspace_support_dump` for controller and
+device support files, which are separate and unchanged.
+
+- **Default: local and cached only.** With no arguments the bundle reads the installed
+  package and dependency versions, Python version and OS family, the documented
+  settings (as enums, booleans, numbers and counts), the effective write and exposure
+  policy with its digest, the transport, auth and TLS modes, the registry cache counts
+  and the number of tools in the catalog. It sends no request to any console or to the
+  Site Manager API; `collection.upstreamRequests` reports the count, 0 by default.
+- **Opt-in live probes.** `live_probes` takes only `"hosts"` (`list_hosts`,
+  `GET /v1/hosts`) and `"sites"` (`list_sites`, `GET /v1/sites`). Each runs once per
+  configured API key and reports a status, a record count, a duration and a reason such
+  as `HTTP 401`. No record is copied. An unknown probe name is refused before any
+  request, listing the valid names. Each probe drains the full list once per key, so
+  call it when diagnosing, not on a schedule: do not poll it. There is no lock or
+  cooldown; the cost is the same as one `list_hosts` plus one `list_sites` call.
+- **Partial results.** Every section has a `status` (`complete`, `partial`, `failed` or
+  `unavailable`) and a `source` (`local:settings`, `cache:registry`,
+  `live:site-manager`, ...). A section or probe that fails is reported as failed with
+  an exception type name or HTTP status, and the rest of the bundle is still returned.
+- **Credential-provider settings.** `configuration.apiKeys.providers` shows whether
+  each key-file and helper-command setting (`keyFile`, `keysFile`, `keyCommand`,
+  `keysCommand`) is set, as a boolean only: never a path, a command, an argument or
+  file content.
+- **Never collected.** API key values and labels (keys are numbered), tokens and
+  passwords, file paths, host names, IP addresses, ports, URLs (including
+  `UNIFI_API_BASE_URL`; the bundle says only whether it is customised), console, site
+  and device identifiers, upstream bodies, headers and error messages, and every
+  environment variable other than the settings it summarises. The bundle lists these
+  under `neverCollected`.
+- **Sanitization.** The bundle is built from that allowlist, then the server's central
+  scrubber removes any configured secret (API keys, `MCP_BEARER_TOKEN`,
+  `MCP_TLS_KEY_PASSWORD`) from the whole result and checks it again; `sanitization`
+  reports the outcome. If a secret were still found, every section would be withheld.
+- **Review before sharing.** The bundle exists only in the tool response. The server
+  does not save it to disk, so there is nothing to clean up, and it never sends it
+  anywhere. Read it, then share it yourself.
+
+Example: `get_server_diagnostic_bundle()` for the local bundle, or
+`get_server_diagnostic_bundle(live_probes=["hosts"])` to also check that each key can
+list its consoles.
+
+The split between cached diagnostics and an explicit allowlist of live probes follows
+the sanitized support-bundle design of
+[sirkirby/unifi-mcp](https://github.com/sirkirby/unifi-mcp/blob/7a40f40fd2af69bc5cd0c6b531888f54601cc613/packages/unifi-mcp-shared/src/unifi_mcp_shared/support_bundle.py)
+(MIT); no code was copied.
+
 ## Generic Fabric Connector Relay (guarded)
 
 Ubiquiti's official Network Cloud Connector (and the Site Manager v1.0.0 OpenAPI) document a generic method relay family — `GET | POST | PUT | PATCH | DELETE /v1/connector/consoles/{id}/*path` — that forwards a request through Fabric to a console's `/proxy/<path>` surface. The typed console tools (Network, Protect, InnerSpace) ride that connector. The Site Manager reads of hosts, sites, devices, ISP metrics and SD-WAN configs, and the Mobility and Carrier Fabric tools, call their `api.ui.com` cloud routes directly (`/v1/hosts`, `/v1/sites`, `/v1/devices`, `/v1/isp-metrics/...`, `/v1/sd-wan-configs`, `/v1/mobility/...`, `/v1/carrier/...`) without the connector. The `fabric_connector_*` family exposes the relay **directly**, as a guarded escape hatch for a controller-supported route that has no typed wrapper yet (a per-device Classic REST config route, a legacy InnerSpace save route, etc.). Verb references: [Connector PUT](https://developer.ui.com/network/v11.0.97/connectorput), [Connector PATCH](https://developer.ui.com/network/v11.0.97/connectorpatch) (documented against Network app **v11.0.97**), and the Site Manager **v1.0.0** OpenAPI.
@@ -1294,8 +1508,11 @@ Guards (all enforced, none optional):
 - **Mutation gating (read + write on by default)** — an ordinary GET read is always available. A known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write: `family:connector=deny`, `family:protect=deny` and `UNIFI_WRITE_POLICY` (`deny` or `dry-run`) apply to it as to a mutation, and it is sent once. Connector writes are **enabled by default**; a deployment opts out by setting `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` (see [Enabling / disabling connector writes](CONFIGURATION.md#enabling--disabling-connector-writes)). When opted out, a mutation is refused before the console is touched. The `confirm` argument is accepted for compatibility but is ignored.
 - **Area opt-outs apply to the relay** — a relayed mutation on a `network/` route is refused before the console is touched when `family:network=deny` opts Network out, one on a `protect/` route when `family:protect=deny` opts Protect out, and one on an `innerspace/` route when `family:innerspace=deny` opts InnerSpace out, exactly as the typed write tools of those areas are; the Mobility and Carrier Fabric opt-outs are honoured the same way for any relay route of their area (both live on Site Manager cloud routes the console relay does not reach). The refusal names the entry.
 - **No 429 auto-retry on a write** — a relayed POST/PUT/PATCH/DELETE is sent once and an HTTP 429 is raised with the upstream body (the server-wide retry rule: only a read via GET is retried; a relayed GET of a state-changing route, the Protect camera enable-control or disable-control, is sent once too), because the relay cannot tell a physical action (a siren, a relay output, a Classic `cmd`) from a settings write and a retry can repeat it. The read-before / read-after GETs keep the GET retry.
-- **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write (`readBefore` / `readAfter`), and the no-op verdict compares only what the write requests (`_no_op_verdict` in `src/unifi_fabric/tools/connector.py`). A PUT/PATCH with a JSON object body is `noOp: true` when the write and both reads answered 2xx and every leaf the body names holds the same value (type-strict) before and after; unrequested siblings never count, so an unchanged requested `enabled` beside a changed `updatedAt` is still `noOp: true`. A requested leaf that differs, appears or disappears is `noOp: false`; a requested leaf absent from both reads, or a read that is not one JSON object, is `noOp: null` with `noOpReason`. A body-less write, a non-object body, or an empty object (`{}`) falls back to comparing the two whole reads, so a change only to `updatedAt` makes an empty-object PATCH `noOp: false`. A Classic `rest/device/<_id>` write reads the site's `stat/device` list narrowed to that device and compares only the fields the body writes (`noOpBasis`). A DELETE is `noOp: false`, `changed: true` only when the read-after answers 404; one still readable afterwards is `noOp: null` ("deletion not confirmed"). `noOp` is null when it cannot be told (a rejected write, a failed or non-2xx read: `readAfterError`), and `changed` is present only beside a non-null `noOp`.
+- **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write (`readBefore` / `readAfter`), and the no-op verdict compares only what the write requests (`_no_op_verdict` in `src/unifi_fabric/families/connector/connector.py`). A PUT/PATCH with a JSON object body is `noOp: true` when the write and both reads answered 2xx and every leaf the body names holds the same value (type-strict) before and after; unrequested siblings never count, so an unchanged requested `enabled` beside a changed `updatedAt` is still `noOp: true`. A requested leaf that differs, appears or disappears is `noOp: false`; a requested leaf absent from both reads, or a read that is not one JSON object, is `noOp: null` with `noOpReason`. A body-less write, a non-object body, or an empty object (`{}`) falls back to comparing the two whole reads, so a change only to `updatedAt` makes an empty-object PATCH `noOp: false`. A Classic `rest/device/<_id>` write reads the site's `stat/device` list narrowed to that device and compares only the fields the body writes (`noOpBasis`). A DELETE is `noOp: false`, `changed: true` only when the read-after answers 404; one still readable afterwards is `noOp: null` ("deletion not confirmed"). `noOp` is null when it cannot be told (a rejected write, a failed or non-2xx read: `readAfterError`), and `changed` is present only beside a non-null `noOp`.
 - **Classic `meta.rc` errors** — a Classic route (`network/api/...`) reports its outcome in the body: HTTP 200 with `meta.rc` other than `"ok"` (e.g. `{"meta": {"rc": "error", "msg": "api.err.Invalid"}, "data": []}`) is a rejected request. The relay reports it the way it reports any upstream error status, without raising: `status` and `body` stay verbatim and the result gains `_classicRcError` (the reason, `meta.msg` included); the write then has no `noOp` / `changed` verdict. A `readBefore` / `readAfter` answered that way carries the same marker and never counts as a successful read.
+- **Network v2 `error` envelope** — a Network v2 route (`network/v2/api/...`) can refuse a request with HTTP 200 and a body whose only member is `error`, an object with a `code` and a `message` (e.g. `{"error": {"code": 400, "message": "api.err.InvalidPayload"}}`). That is a rejected request, not a success. Typed tools raise with the complete body verbatim and audit a write as `upstream_error_body`. The relay reports it without raising: `status` and `body` stay verbatim and the result gains `_upstreamError` (the reason); the write then has no `noOp` / `changed` verdict, and a `readBefore` / `readAfter` answered that way carries the same marker. Only that exact shape counts; a record or list that holds an `error` field is passed through unchanged. See [RETRY.md](RETRY.md).
+- **Fabric connector limits** — the pinned Site Manager spec limits each proxied request to 25 seconds (HTTP 408), each console to 100 requests per minute (HTTP 429) and the upstream response body to 10 MB, and requires console firmware 5.0.3 or later. A connector error that matches (a 408, a 429, or a 502 that may be a response over 10 MB) keeps its status and body verbatim and gains a hint (the relay adds it as `_hint`; a raised 429 carries it after the body). A 408 or 502 on a write means the outcome is unknown: read the resource back before retrying; the write is never retried automatically. Details and the spec sections: [RETRY.md](RETRY.md#fabric-connector-limits-http-408-429-502).
+- **HTML 404 from `/v2/api/stats/*`** — the console's Network application does not serve that statistics route. The body stays verbatim and a hint follows it.
 - **Scope guard** — an optional `scope` (`device` / `site` / `global`) is cross-checked against the path so a site-global setting route (e.g. `global_switch.stp_version`) cannot be driven by a device-scoped request.
 - **Verbatim bodies + audit** — the relayed upstream body is returned unchanged, except that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` if the body echoes them (credential fields are masked only when the operator opts in with [`UNIFI_REDACT_SECRETS`](CONFIGURATION.md#credential-redaction), which covers this relay like every tool); every relayed body carries the upstream `contentType`. JSON is returned decoded and any other text exactly as received (decoded in its declared charset, such as latin-1), under `body`. A **binary** body (a non-text Content-Type such as `image/jpeg` or `application/octet-stream`, or bytes that do not decode in the declared charset, UTF-8 when none) is returned the way the typed binary tools return bytes: complete, with no size cap, base64-encoded under `bodyBase64` with `sizeBytes`, and `body` null. The same applies to the write responses and to `readBefore` / `readAfter`. A 3xx is never followed: its response headers (`Location` included; credentials and cookies excluded) come back under `headers`, on the write and on `readBefore` / `readAfter`. Bodies are never logged. Audit is best-effort and off by default: with [`UNIFI_AUDIT_LOG`](CONFIGURATION.md#audit-log) unset (the default) a relayed mutation writes no audit record, and with it set every relayed mutation attempt is recorded in that file (fields under that heading). Separately, each attempt emits a best-effort INFO log line, `connector-relay-audit` (host, site, method, path, confirm, outcome, status). Neither contains the API key.
 - **Dry-run** — under `UNIFI_WRITE_POLICY=dry-run` (or a matching `dry-run` exception) a relayed mutation is not sent: the result's `status` is `"dry_run"` (never an HTTP status) and `body` is the preview, and the audit line says `outcome=dry_run` with no status.
@@ -1306,6 +1523,19 @@ A 4xx/5xx from the relay is returned as `status` (not raised), so an invalid-ID 
 
 1. *InnerSpace save route.* `PATCH innerspace/api/shapes/00000000-0000-0000-0000-000000000000` with an empty/invalid body. Expect a 4xx (`400/404/405/422` = route/method reachability evidence). **A 200/204 is an immediate stop condition** — do not use a real shape ID and do not issue a collection create/delete. Only after the route + schema are confirmed: one low-stakes reversible shape update, read back, restore the exact original shape, verify persistence on a fresh read. A 401/403 on the legacy namespace is auth/namespace gating, not a write path.
 2. *Per-device STP/PoE config.* Read the target switch via `network/api/s/{site}/rest/device/{id}` (scope `device`), probe with the exact current value first (a same-value write → `noOp: true`), then change only that switch's STP priority (or a harmless empty-port field), read back via `/stat/device` (the controller has no GET on `/rest/device`; the relay's own read-before/read-after use `stat/device` for this route), then restore the original value and verify. Global `global_switch.stp_version` is site-wide — the scope guard refuses it for a `device`-scoped request; keep it to a separately named site-wide path.
+
+## Fabric connector limits
+
+What the relay and the typed console tools do when the connector answers with a limit or a failure. Every line below is the behaviour of the server code; the connector's own published limits are not restated here.
+
+- **HTTP 429 on a read.** A read sent as `GET` is retried with exponential backoff and jitter: 5 retries, 6 attempts in all, with a base wait of 1, 2, 4, 8 and 16 seconds plus random jitter up to the same amount. After the last attempt the call fails with a rate-limit error that carries the upstream body.
+- **HTTP 429 on anything else.** A write (`POST`, `PUT`, `PATCH`, `DELETE`), a read that is sent as a `POST`, and a state-changing `GET` are sent once. The 429 is raised with its body and never retried, because it does not prove the request was not acted on. Every `fabric_connector_post`, `fabric_connector_put`, `fabric_connector_patch` and `fabric_connector_delete` call follows this rule.
+- **HTTP 502, 503 and 504 on a write.** The error carries an added hint that the outcome is unknown: the change may or may not have been applied, so read it back before retrying. The write is not retried.
+- **Network errors.** A timeout or connection failure raises at once, without a retry.
+- **Classic `meta.rc` errors.** A Classic route that answers HTTP 200 with a `meta.rc` other than `"ok"` is a rejected request. The typed tools raise it as an error. The `fabric_connector_*` relays return `status` and `body` verbatim and add `_classicRcError`; the write then has no `noOp` or `changed` verdict.
+- **Redirects and body size.** A 3xx is never followed: its headers (`Location` included, credentials and cookies excluded) come back under `headers`. The server adds no size cap of its own to a relayed body; a binary body comes back complete under `bodyBase64`.
+
+See [Generic Fabric Connector Relay (guarded)](#generic-fabric-connector-relay-guarded) for the guards on the relay itself.
 
 ## fabric_connector_post
 
@@ -1803,7 +2033,29 @@ In the default UNIFI_TOOL_MODE=discovery, begin with search_tools using a clear 
 `search_tools` returns 10 matches by default; `limit` takes any positive integer, or null for every match.
 <!-- END GENERATED -->
 
+The limit never hides that the list was cut. Beside the match list (`structuredContent.result`), every search result carries `more_available` (true when more tools matched than were returned) and `total_matched` (the full match count before the limit). When `more_available` is true, a second text block says so in words. Raise `limit`, pass `limit: null`, or narrow the query or `family`, rather than treating ten matches as the whole catalog. The first text block and `result` are the same list as in earlier releases; FastMCP clients still receive that list as `.data`. A client that unwraps `structuredContent` only when its sole key is `result` should unwrap whenever `_meta.fastmcp.wrap_result` is true.
+
 `family` narrows to one slug from `list_tool_families`, and `writes` selects mutations (true) or reads (false). `describe_tool` returns the same schema the tool has in full mode. `call_read_tool` refuses a write, including the state-changing GET relay routes, and names `call_write_tool` instead (with `UNIFI_WRITE_POLICY=deny`, it returns the read-only refusal, since `call_write_tool` is not listed); the target's own validation, the write policy and its exceptions, dry-run and audit apply to both. With `UNIFI_WRITE_POLICY=deny`, `call_write_tool` is not offered.
+
+### Output schemas of server-assembled tools
+
+Tools whose result this server builds itself advertise an `outputSchema` in which every field is
+described: `search_tools`, `describe_tool`, `list_tool_families`, `get_fleet_summary`,
+`list_configured_api_keys`, `search_device_fleet`, `list_all_devices`, `list_all_clients`,
+`list_all_sites_aggregated`, `compare_site_performance`, `get_innerspace_summary` and
+`get_unifi_placement_snapshot`. The results themselves are unchanged. Tools that return an
+upstream body as received still declare no fixed shape.
+
+## Reads that send a POST
+
+Some read tools send their query as a POST. A POST outside the read-POST allowlist (see
+[dry-run behavior](CONFIGURATION.md#dry-run-behavior)) is classed as a write, so the tool is
+described that way: `UNIFI_WRITE_POLICY=deny` hides the whole tool, and discovery mode runs it
+through `call_write_tool`, not `call_read_tool`. The tools are `export_traffic_flows`,
+`get_inactive_sim_slot`, `get_lte_subscription_status`, `get_multicast_insights`,
+`get_rolling_upgrade_plan`, `get_sites_overview`, `get_system_log`, `list_guests`,
+`list_ips_events`, `list_network_events`, `query_app_traffic_rates`, `query_port_system_logs`,
+`query_power_supervisor_logs`, `query_switch_mac_tables` and `query_teleport_invitations`.
 
 ## provision_device
 

@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 from tests import upstream_harness as uh
 from unifi_fabric import refusals
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import network_switching_power as power
+from unifi_fabric.families.network import network_switching_power as power
 
 HOST = "console-a"
 SITE = "Default"

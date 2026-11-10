@@ -73,14 +73,22 @@ def test_ci_only_jobs_are_the_reviewed_set():
     # repository token, a secret or the public repository stay out of the local run.
     assert set(fast.CI_ONLY_JOBS) == {
         "classify",
+        "ci-red-issue",
         "test-selected",
         "ci-required",
+        "test-prep",
+        "test-shard",
         "test",
+        "test-locked-prep",
+        "test-locked-shard",
         "test-locked",
+        "scrub-oracle-prep",
+        "scrub-oracle-shard",
         "scrub-oracle",
         "gitleaks",
         "docker-build",
         "docker-build-arm64",
+        "docker-build-amd64",
         "divergence-gate",
         "notify-matrix",
         "lint-public-language",
@@ -266,6 +274,79 @@ def test_prepush_guards_exist_and_cover_the_cross_file_artifacts():
     assert not re.search(
         r"(?<!\S)(-x|--lf|--maxfail\S*|-k|-m|--deselect\S*)(?!\S)", " ".join(fast.GUARD_PYTEST[2:])
     )
+
+
+def test_prepush_guards_include_the_docs_contract_list():
+    # A docs, README or version change must not pass pre-push while a DOCS_CONTRACT test is
+    # red, and the list has one source: pre-push consumes it instead of copying it.
+    # The public tree ships fewer test files; the transform keeps the guards it ships.
+    assert fast.DOCS_CONTRACT
+    for name in fast.docs_contract():
+        assert name in fast.PREPUSH_GUARDS, name
+    assert len(set(fast.PREPUSH_GUARDS)) == len(fast.PREPUSH_GUARDS)
+    guards_block = re.search(
+        r"PREPUSH_GUARDS: tuple\[str, \.\.\.\] = \((.*?)\n\)", HELPER.read_text(), re.S
+    )
+    assert guards_block and "*DOCS_CONTRACT" in guards_block.group(1)
+
+
+def test_ci_fast_jobs_sources_carry_no_issue_references():
+    # Public-tree rule: a bare issue number in a shipped comment resolves to nothing there.
+    pattern = re.compile(r"[Ii]ssues? #\d+|\(#\d+\)")
+    for path in (HELPER, Path(__file__)):
+        assert not pattern.search(path.read_text()), path
+
+
+def test_prepush_guards_include_the_forking_identity_test():
+    # A lane that edits gen_catalog_figures.py must not be able to skip the FORKING matrix test.
+    assert "tests/test_docs_ai_files.py" in fast.PREPUSH_GUARDS
+
+
+#: One or more existing test files per shared cause of a release candidate's full-suite
+#: failures. Each failed on that head and passes after its group's fix.
+CONTRACT_CLUSTER = {
+    "write-acceptance inventory": ("test_write_acceptance_inventory",),
+    "read and discovery contracts": (
+        "test_blank_filters_and_hints",
+        "test_invariants_envelopes_and_previews",
+        "test_live_sweep",
+    ),
+    "release documentation and generated counts": (
+        "test_core_strict_readers_and_name_tiers",
+        "test_changelog_input_schemas",
+        "test_doc_counts_generated",
+    ),
+    "private-route request contracts": (
+        "test_site_config",
+        "test_spec_conformance",
+    ),
+    "tool evidence ledgers": (
+        "test_read_post_classification",
+        "test_request_shape_markers",
+        "test_route_manifest",
+    ),
+    "release guards": (
+        "test_regenerate_changelog",
+        "test_release_auth_publish",
+        "test_release_pr_body",
+    ),
+    "body shapes": ("test_tool_body_shapes",),
+    "workflow names": ("test_workflow_name_references",),
+}
+
+
+def test_prepush_guards_include_the_contract_cluster():
+    # A change that breaks a catalog-wide contract must fail its own pre-push. The public
+    # tree ships fewer test files; the transform keeps the guards it ships.
+    for group, names in CONTRACT_CLUSTER.items():
+        for stem in names:
+            # Built from the stem: the public transform strips some of these files, and a
+            # literal path would name a file the public tree no longer has. The stem keeps
+            # its test_ prefix so no string here equals a docs/internal module name.
+            name = f"tests/{stem}.py"
+            if (ROOT / name).is_file():
+                assert name in fast.PREPUSH_GUARDS, (group, name)
+    assert len(set(fast.PREPUSH_GUARDS)) == len(fast.PREPUSH_GUARDS)
 
 
 def test_lint_ruff_pin_is_the_locked_ruff():
@@ -725,14 +806,16 @@ def test_full_reads_the_ci_full_suite_step_unchanged():
     assert step["name"] == "Run full suite with coverage"
     run = str(step["run"])
     script, workers = fast.full_suite_workers(run, None)
-    assert script == run and workers == "4"
+    # CI sizes the workers to the job's CPU share (run_full_suite.sh --workers auto).
+    assert script == run and workers == "auto"
     # The override changes only the script's --workers; the script turns it into -n.
-    assert fast.full_suite_workers(run, "8")[0] == run.replace("--workers 4", "--workers 8")
+    assert fast.full_suite_workers(run, "8")[0] == run.replace("--workers auto", "--workers 8")
     words = workflow_full_suite_command(run).split()
-    assert words[words.index("-n") + 1] == "4"
+    count = words[words.index("-n") + 1]
+    assert count in {"1", "2", "3", "4"}  # auto never exceeds the 4-worker ceiling
     assert workflow_full_suite_command(fast.full_suite_workers(run, "8")[0]) == " ".join(
         words
-    ).replace("-n 4", "-n 8")
+    ).replace(f"-n {count}", "-n 8")
     options = words[words.index("pytest") + 1 :]
     assert "tests/" in options  # the whole suite, no path narrowing
     for option in options:

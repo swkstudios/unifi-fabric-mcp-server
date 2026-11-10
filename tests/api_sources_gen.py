@@ -30,7 +30,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import api_sources, server
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "src/unifi_fabric/_api_source_table.py"
+OUTPUT = ROOT / "src/unifi_fabric/generated_api_facts/_api_source_table.py"
 
 #: Opt-in switches that would change which requests a tool sends.
 _NEUTRAL_ENV = ("UNIFI_WRITE_POLICY", "UNIFI_WRITE_EXCEPTIONS", api_sources.DISABLE_ENV)
@@ -54,6 +54,8 @@ ARG_VARIANTS: dict[str, tuple[dict[str, object], ...]] = {
     "list_known_clients": ({"source": "v2"},),
     # reboot_type sends the Classic cmd/devmgr restart instead of the Integration action.
     "restart_device": ({"reboot_type": "soft"},),
+    # live_probes runs the allowlisted Site Manager reads; the default sends no request.
+    "get_server_diagnostic_bundle": ({"live_probes": ["hosts", "sites"]},),
 }
 
 

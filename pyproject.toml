@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unifi-fabric-mcp-server"
-version = "0.7.1"
+version = "0.7.2"
 description = "MCP server for UniFi Fabric: Network, Protect, Site Manager, InnerSpace, Carrier Fabric, Mobility."
 readme = "README.md"
 license = {text = "MIT"}
@@ -34,10 +34,21 @@ dependencies = [
     # The Code Mode sandbox (UNIFI_TOOL_MODE=codemode, opt-in and experimental): imported
     # only when a script runs, so the default modes never start a worker.
     "pydantic-monty>=1.4,<2",
-    "pydantic-settings>=2.0",
+    "pydantic-settings>=2.7",
 ]
 
 [project.optional-dependencies]
+# Optional OTLP trace export, off unless an OTLP endpoint is configured (see "Trace
+# export" in docs/CONFIGURATION.md). otel: the SDK with the OTLP/HTTP (protobuf)
+# exporter; otel-grpc: the SDK with the OTLP/gRPC exporter.
+otel = [
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
+]
+otel-grpc = [
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.30",
+]
 dev = [
     # The sdist test invokes the same pinned backend as the build stage; editables is
     # hatchling's editable-build dependency for --no-build-isolation -e installs.
@@ -62,6 +73,7 @@ dev = [
 [project.scripts]
 unifi-fabric-mcp = "unifi_fabric.entrypoint:main"
 unifi-fabric-mcp-server = "unifi_fabric.entrypoint:main"
+unifi-fabric-audit-verify = "unifi_fabric.audit_verify:cli"
 
 [project.urls]
 Homepage = "https://github.com/swkstudios/unifi-fabric-mcp-server"
@@ -93,17 +105,17 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"src/unifi_fabric/tools/protect.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/network_services_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/firewall_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/network.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/recognition.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/site_manager.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/carrier_fabric.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/innerspace.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/mobility.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/placement_snapshot.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/tools/connector.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/protect/protect.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/network/network_services_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/network/firewall_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/network/network.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/protect/recognition.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/site_manager/site_manager.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/carrier/carrier_fabric.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/innerspace/innerspace.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/mobility/mobility.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/innerspace/placement_snapshot.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/connector/connector.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
 "docs/**/test_*.py" = ["S101", "S105", "S106", "S110", "B017", "ANN"]
 "scripts/**" = [
     "S603",  # subprocess calls are intentional git invocations
@@ -119,6 +131,15 @@ ignore = [
     "B017",  # broad pytest.raises(Exception) acceptable in unit tests
     "ANN",   # type annotations not required on test functions
 ]
+"docs/**/live_sweep.py" = ["E501"]  # the family move lengthened cited paths
+"docs/**/write_acceptance_templates.py" = ["E501"]  # the family move lengthened cited paths
+"src/unifi_fabric/families/protect/protect_ptz_doorbell.py" = ["E501"]  # the family move lengthened cited paths
+"tests/spec_limits_gen.py" = ["E501"]  # the family move lengthened cited paths
+"tests/test_classic_resolution.py" = ["E501"]  # the family move lengthened cited paths
+"tests/test_connector.py" = ["E501"]  # the family move lengthened cited paths
+"tests/test_network_mobile_wan.py" = ["E501"]  # the family move lengthened cited paths
+"tests/test_refusal_policy.py" = ["E501"]  # the family move lengthened cited paths
+"tests/test_spec_limits.py" = ["E501"]  # the family move lengthened cited paths
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -127,7 +148,7 @@ markers = [
     "tls: real-socket HTTPS/TLS tests (in-memory CA, 127.0.0.1 only). Run in CI by default — NOT a runtime skip, so the wrong-CA reject assertion always executes.",
     "integration: live-console integration test. Reads real credentials from the environment (opts out of the hermetic-env fixture) and is skipped unless UNIFI_API_KEY is set.",
     "mutating: performs a LIVE write or physical actuation against the production UniFi console (config change, or device actuation such as a PTZ move or a talkback/speaker session). A superset-label on top of `integration`; deselected by default; explicit `-m mutating` and UNIFI_TEST_ALLOW_MUTATIONS=1 are required.",
-    "slow: a long property run (the 210,000-case secret-scrubber oracle check). Selected explicitly with `-m slow`.",
+    "slow: a long property run (the 210,000-case secret-scrubber oracle check, the offset-map split differential corpus). Selected explicitly with `-m slow`.",
 ]
 
 [tool.coverage.run]

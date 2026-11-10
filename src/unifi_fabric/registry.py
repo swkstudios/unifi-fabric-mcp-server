@@ -967,6 +967,25 @@ class Registry:
         async with self._entry_lock("sites", label, host_id):
             self._sites[(label, host_id)] = sites
 
+    def cache_counts(self) -> dict[str, int]:
+        """Counts of the live (unexpired) cache entries: local state, no request.
+
+        Used by the diagnostic bundle; reports numbers only, never a cached record,
+        key label or console id.
+        """
+        hosts = list(self._hosts.values())
+        ea_sites = list(self._ea_sites.values())
+        sites = list(self._sites.values())
+        return {
+            "hostListsCached": len(hosts),
+            "hostsCached": sum(len(items) for items in hosts),
+            "siteListsCached": len(ea_sites),
+            "sitesCached": sum(len(items) for items in ea_sites),
+            "consoleSiteListsCached": len(sites),
+            "consoleSitesCached": sum(len(items) for items in sites),
+            "ttlSeconds": int(self._ttl),
+        }
+
     def invalidate(self, *, key: APIKeyConfig | None = None) -> None:
         """Force cache refresh on next access.
 

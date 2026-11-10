@@ -10,8 +10,8 @@ import pytest
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import aggregation, site_manager
 
 _UUID_A1 = "3fa85f64-5717-4562-b3fc-2c963f66af01"
 _UUID_G1 = "3fa85f64-5717-4562-b3fc-2c963f66af03"

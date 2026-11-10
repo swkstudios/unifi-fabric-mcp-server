@@ -18,6 +18,8 @@ from tests.test_changelog_input_schemas import _bullets
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "docs" / "MIGRATING-0.7.md"
+RELEASED_SCHEMAS = "tests/fixtures/tool_input_schemas_v0_7_0.json"
+REMOVED_SETS = "tests/fixtures/v0_7_0_removed_tool_breaking_sets.json"
 
 
 @lru_cache(maxsize=1)
@@ -31,7 +33,13 @@ def derived_sets():
 
     tools = {tool.name: tool for tool in _tools()}
     old = json.loads((ROOT / "tests/fixtures/tool_return_types_v0_6_2.json").read_text())
-    common = set(tools) & set(old)
+    # The 0.7.0 notes count the tools of the 0.7.0 release, so the affected set is taken
+    # against the frozen 0.7.0 snapshot, never the live catalog: a tool removed after
+    # 0.7.0 is still affected by the 0.7.0 change it was part of. Its source can no
+    # longer be inspected, so its membership comes from the frozen fixture.
+    released = set(json.loads((ROOT / RELEASED_SCHEMAS).read_text())["schemas"])
+    frozen = json.loads((ROOT / REMOVED_SETS).read_text())["titles"]
+    common = (released & set(old)) & set(tools)
     graph = {}
     sources, children, verbs = {}, {}, {}
     for name, tool in tools.items():
@@ -88,7 +96,7 @@ def derived_sets():
             "mac",
         }
     }
-    return {
+    derived = {
         "every Protect write and action tool returns": protect_wrapped,
         "every Protect update tool returns one shape": protect_updates,
         "an opted-out write area raises": (writes & protect_family)
@@ -104,13 +112,10 @@ def derived_sets():
         },
         "update tools refuse a body with nothing to change": reaching("require_update_fields")
         | {name for name in common if body_argument(tools[name]) is not None},
-        # update_traffic_rule gained leaf-by-leaf verification in 0.7.1 (its changelog.d
-        # fragment says so); the released 0.7 list keeps its 0.7.0 contents.
         "no-op and verification checks compare leaf by leaf": (
             reaching("requested_leaves_match", "short_circuit_no_op", "_updated")
             | (connector - {"fabric_connector_get"})
-        )
-        - {"update_traffic_rule"},
+        ),
         "a call that reached nothing fails": reaching(
             "_require_object",
             "_object_body",
@@ -139,6 +144,22 @@ def derived_sets():
             if old[name].startswith("dict[") and tools[name].output_schema is None
         },
     }
+    return {title: members | set(frozen.get(title, ())) for title, members in derived.items()}
+
+
+def test_frozen_removed_tool_memberships_are_removed_0_7_0_tools():
+    """Frozen entries are tools of the 0.7.0 release (and 0.6.2) that no longer exist."""
+    from tests.test_tool_schema_contract import _tools
+
+    live = {tool.name for tool in _tools()}
+    released = set(json.loads((ROOT / RELEASED_SCHEMAS).read_text())["schemas"])
+    old = json.loads((ROOT / "tests/fixtures/tool_return_types_v0_6_2.json").read_text())
+    frozen = json.loads((ROOT / REMOVED_SETS).read_text())["titles"]
+    assert frozen, "no frozen memberships"
+    for title, names in frozen.items():
+        assert title in derived_sets(), title
+        assert set(names) <= released & set(old), title
+        assert not set(names) & live, f"{title}: still registered, derive it instead"
 
 
 @pytest.mark.parametrize(

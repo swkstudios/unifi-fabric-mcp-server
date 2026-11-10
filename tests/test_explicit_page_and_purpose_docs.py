@@ -26,9 +26,12 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from unifi_fabric import server
-from unifi_fabric.tools.protect import list_protect_events
-from unifi_fabric.tools.recognition import list_recognition_detections, list_recognition_groups
-from unifi_fabric.tools.vpn import _create_vpn_server as create_vpn_server
+from unifi_fabric.families.protect.protect import list_protect_events
+from unifi_fabric.families.protect.recognition import (
+    list_recognition_detections,
+    list_recognition_groups,
+)
+from unifi_fabric.families.vpn.vpn import _create_vpn_server as create_vpn_server
 
 HOST_ID = "host-001"
 # Epoch SECONDS inside the plausible range (no epoch warning) ...

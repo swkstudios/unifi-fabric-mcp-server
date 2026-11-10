@@ -11,20 +11,19 @@ import pytest
 
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.redaction import MASKED_FIELDS_KEY, _with_dropped_report
-from unifi_fabric.tools import (
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.devices import (
     _device_config,
-    aggregation,
-    connector,
     device_commands,
     device_mgmt,
     device_radios,
-    innerspace_internal,
-    network_controller_admin,
-    protect_camera_recording,
-    protect_recognition_search,
 )
-from unifi_fabric.tools._keys import context_value, with_context
+from unifi_fabric.families.innerspace import innerspace_internal
+from unifi_fabric.families.network import network_controller_admin
+from unifi_fabric.families.protect import protect_camera_recording, protect_recognition_search
+from unifi_fabric.families.site_manager import aggregation
+from unifi_fabric.redaction import MASKED_FIELDS_KEY, _with_dropped_report
+from unifi_fabric.shared_shapes._keys import context_value, with_context
 
 
 @pytest.mark.parametrize("array", [False, True], ids=["object", "array-record"])

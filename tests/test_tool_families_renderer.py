@@ -77,3 +77,63 @@ def test_every_label_renders_and_odd_row_is_padded(monkeypatch: pytest.MonkeyPat
         assert f"| {label} | 1 |" in out or f"| {label} | 1 " in out
     assert "The remaining 0 cover" in out
     assert out.splitlines()[-1].endswith("|  |  |") == (len(counts) % 2 == 1)
+
+
+@pytest.fixture
+def readme_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A tmp copy of the README, with the generator pointed at it. The real tree is untouched."""
+    copy = tmp_path / "README.md"
+    copy.write_text((ROOT / "README.md").read_text())
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    monkeypatch.setattr(gen, "BLOCKS", {copy: ("tool-families",)})
+    monkeypatch.setattr(gen, "DEFAULT_TABLES", {})
+    return copy
+
+
+BEGIN = "<!-- BEGIN GENERATED: tool-families -->\n"
+END = "<!-- END GENERATED -->"
+
+
+def test_current_tree_passes_the_tool_families_check(readme_copy: Path) -> None:
+    assert gen.check_all() == []
+
+
+def test_missing_marker_block_fails(readme_copy: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    text = readme_copy.read_text()
+    start = text.index(BEGIN)
+    end = text.index(END, start) + len(END) + 1
+    readme_copy.write_text(text[:start] + text[end:])
+    findings = gen.check_all()
+    # Fail closed: the one finding names the file, the marker lines to restore and the
+    # block registry (scripts/doc_blocks.py) that requires the block.
+    assert [(f.path, f.block, f.message) for f in findings] == [
+        (
+            readme_copy,
+            "tool-families",
+            "block is missing; add the marker lines `<!-- BEGIN GENERATED: tool-families -->`"
+            " and `<!-- END GENERATED -->`, or remove the block from BLOCKS in"
+            " scripts/doc_blocks.py",
+        )
+    ]
+    # The check run exits non-zero, so a README with its markers removed cannot pass.
+    monkeypatch.setattr(sys, "argv", ["gen_reference_blocks.py", "--check"])
+    assert gen.main() == 1
+
+
+def test_unknown_family_stops_the_check(readme_copy: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    index = _index({"network": 1, "brand_new_family": 1})
+    monkeypatch.setattr(gen.families, "build_family_index", lambda: index)
+    with pytest.raises(SystemExit, match="brand_new_family"):
+        gen.check_all()
+
+
+def test_stripped_figure_is_reported_stale(readme_copy: Path) -> None:
+    text = readme_copy.read_text()
+    start = text.index(BEGIN)
+    table = text.index("| Family | Tools | Family | Tools |", start)
+    end = text.index(END, start)
+    assert table < end
+    readme_copy.write_text(text[:table] + text[end:])
+    findings = gen.check_all()
+    assert [f.block for f in findings] == ["tool-families"]
+    assert "block is stale" in findings[0].message

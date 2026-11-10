@@ -15,13 +15,13 @@ This project is not affiliated with, endorsed by, or sponsored by Ubiquiti Inc. 
 
 When Claude Code starts the plugin, it runs this command:
 
-<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:22daa18f8f80de9a6dc5f66032db95e19272b5d93bdbba8921fdf4f73762e436 support=0.7.1 case=claude-readme-1 -->
+<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:940ea85cb9ea9f97c731cf14a31fde08fb596007a1e2c6db022d99dddd9188aa support=0.7.2 case=claude-readme-1 -->
 <!-- install-case: claude-readme-1 mode=uvx -->
 ```
-uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp
+uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
 ```
 
-`uvx` (part of [uv](https://docs.astral.sh/uv/)) downloads the pinned `unifi-fabric-mcp-server` 0.7.1 package and its dependencies from PyPI, and runs it as a local MCP server over stdio. You need `uv` installed. The server needs Python 3.12 or newer; `uv` downloads a suitable Python if you do not have one. The package's own dependencies (FastMCP, httpx, pydantic and a few small libraries) resolve from PyPI at install time.
+`uvx` (part of [uv](https://docs.astral.sh/uv/)) downloads the pinned `unifi-fabric-mcp-server` 0.7.2 package and its dependencies from PyPI, and runs it as a local MCP server over stdio. You need `uv` installed. The server needs Python 3.12 or newer; `uv` downloads a suitable Python if you do not have one. The package's own dependencies (FastMCP, httpx, pydantic and a few small libraries) resolve from PyPI at install time.
 
 The plugin explicitly sets your API key (`UNIFI_API_KEY`), the write policy option (`UNIFI_WRITE_POLICY`: `allow`, `dry-run` or `deny`), the tool mode option (`UNIFI_TOOL_MODE`), and `FASTMCP_TRANSPORT=stdio`. The tool mode defaults to `discovery` (five meta-tools: `search_tools`, `describe_tool`, `call_read_tool`, `call_write_tool`, `list_tool_families`; four with the write policy `deny`, which hides `call_write_tool`); choose `full` to advertise every tool, or `codemode` for the experimental, read-only [Code Mode](../../docs/CONFIGURATION.md#code-mode-experimental). The server also inherits Claude Code's environment and reads the other documented settings. A nonempty `UNIFI_API_KEYS` overrides the single plugin key; unset it before starting Claude Code to use only the plugin's key. Inherited HTTP authentication or TLS settings can also prevent this stdio server from starting.
 
@@ -66,7 +66,7 @@ Update Claude Code before installing this plugin. The manifest was validated wit
 
 In Claude Code, add this repository's marketplace and install the plugin (Claude Code 2.1.275 or later installs in one step):
 
-<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:22daa18f8f80de9a6dc5f66032db95e19272b5d93bdbba8921fdf4f73762e436 support=0.7.1 citation=file:plugins/claude/.claude-plugin/plugin.json@sha256:22daa18f8f80de9a6dc5f66032db95e19272b5d93bdbba8921fdf4f73762e436 -->
+<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:940ea85cb9ea9f97c731cf14a31fde08fb596007a1e2c6db022d99dddd9188aa support=0.7.2 citation=file:plugins/claude/.claude-plugin/plugin.json@sha256:940ea85cb9ea9f97c731cf14a31fde08fb596007a1e2c6db022d99dddd9188aa -->
 <!-- install-case: claude-readme-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```
 /plugin marketplace add swkstudios/unifi-fabric-mcp-server
@@ -75,7 +75,7 @@ In Claude Code, add this repository's marketplace and install the plugin (Claude
 
 Or try this folder for one session from a checkout:
 
-<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:22daa18f8f80de9a6dc5f66032db95e19272b5d93bdbba8921fdf4f73762e436 support=0.7.1 citation=file:plugins/claude/.claude-plugin/plugin.json@sha256:22daa18f8f80de9a6dc5f66032db95e19272b5d93bdbba8921fdf4f73762e436 -->
+<!-- doc-provenance: source=file:plugins/claude/.claude-plugin/plugin.json@sha256:940ea85cb9ea9f97c731cf14a31fde08fb596007a1e2c6db022d99dddd9188aa support=0.7.2 citation=file:plugins/claude/.claude-plugin/plugin.json@sha256:940ea85cb9ea9f97c731cf14a31fde08fb596007a1e2c6db022d99dddd9188aa -->
 <!-- install-case: claude-readme-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```
 claude --plugin-dir ./plugins/claude

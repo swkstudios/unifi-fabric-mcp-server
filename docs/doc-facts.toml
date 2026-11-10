@@ -1,0 +1,11 @@
+# Facts about the documentation that are chosen by people, not derived from the code.
+# tests/test_front_page_docs.py reads this file. Changing the README wording these entries
+# name means changing the entry here in the same commit; nothing else needs to move.
+
+[readme]
+# Phrases the README's first screen (everything above the first "## " heading) must contain,
+# compared with whitespace collapsed: the one-line hook and the cloud-path promise.
+hook_phrases = [
+  "connects your AI assistant to your UniFi network",
+  "Everything goes through Ubiquiti's cloud",
+]

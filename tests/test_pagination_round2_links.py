@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools._pagination import (
+from unifi_fabric.shared_shapes._pagination import (
     collect_batch,
     collect_cursor,
     collect_links,

@@ -19,7 +19,7 @@ from tests.test_cross_tool_invariants import (
     _FailedReadAfter,
 )
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools import protect_private as pp
+from unifi_fabric.families.protect import protect_private as pp
 
 
 def _verifies(fn, seen=None):

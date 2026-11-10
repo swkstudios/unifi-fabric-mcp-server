@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from unifi_fabric import _paging_identity
-from unifi_fabric.tools import _pagination
-from unifi_fabric.tools._pagination import collect_batch
+from unifi_fabric.shared_shapes import _pagination
+from unifi_fabric.shared_shapes._pagination import collect_batch
 
 
 @pytest.mark.parametrize(

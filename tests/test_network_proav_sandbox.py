@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 
 from tests import upstream_harness as uh
 from unifi_fabric.client import DRY_RUN_MESSAGE, ClassicApiError, UniFiConnectionError
-from unifi_fabric.tools import network_proav_sandbox as sandbox
+from unifi_fabric.families.network import network_proav_sandbox as sandbox
 
 HOST = "console-a"
 SITE = "Default"
@@ -458,10 +458,42 @@ async def test_5g_topology_404_keeps_the_upstream_page_and_adds_an_actionable_hi
         f"HTTP 404 from GET {V2}/observability/5g/{MAC}/topology/at/{AT_MS}: "
         + NotServedUpstream.page
     )
-    assert "-- Hint: an HTML 404 here means the console serves no 5G topology" in message
-    assert "internet connection is a 5G device" in message
-    assert "list_devices (type umbb" in message
+    assert "-- Hint: a 404 here means the console served no 5G topology" in message
+    assert "list_devices, type umbb" in message
     assert len(client.calls) == 1
+
+
+async def test_5g_topology_json_device_not_found_404_gets_the_same_actionable_hint() -> None:
+    """Network 11.1.47 answers a MAC that is not a 5G device with JSON
+    ``api.err.DeviceNotFound`` (the Network v2 error body: code, errorCode, message), not the
+    HTML page. The hint must be true for that body and for the 11.0.89 HTML 404, which an
+    adopted U5G Max in failover mode with no SIM also got: it must not say the device is not
+    5G or that the site has none."""
+    body = '{"code":"api.err.DeviceNotFound","errorCode":404,"message":"Device not found"}'
+
+    class JsonNotFound(Client):
+        async def get(self, path: str, *, key: None, params: Any = None) -> Any:
+            raise UniFiConnectionError(f"HTTP 404 from GET {path}: {body}", status=404)
+
+    with pytest.raises(UniFiConnectionError) as info:
+        await sandbox.get_5g_topology(JsonNotFound(), Registry(), HOST, SITE, MAC, AT_MS)
+    message = str(info.value)
+    assert message.startswith(
+        f"HTTP 404 from GET {V2}/observability/5g/{MAC}/topology/at/{AT_MS}: {body}"
+    )
+    hint = message.split(" -- Hint: ", 1)[1]
+    assert (
+        "Network 11.1.47 answers JSON api.err.DeviceNotFound when the MAC is not a 5G device"
+        in hint
+    )
+    assert (
+        "Network 11.0.89 answered its HTML 404 page even for an adopted U5G Max in failover "
+        "mode with no SIM"
+    ) in hint
+    assert "Pass the MAC of a 5G device (list_devices, type umbb)" in hint
+    assert "if list_devices shows no umbb device, the site has no 5G" in hint
+    # The old wording blamed the device or the site on every 404, which was false on 11.0.89.
+    assert "not a 5G device or the site has none" not in hint
 
 
 async def test_5g_topology_other_upstream_errors_pass_through_unchanged() -> None:
@@ -583,3 +615,50 @@ async def test_test_config_uuid_id_from_live_v2_shape(tool: str) -> None:
     else:
         await sandbox.apply_test_config(client, Registry(), HOST, SITE, config_id)
         assert client.calls[-1][:2] == ("POST", f"{V2}/test-configs/{config_id}/apply")
+
+
+class MulticastNotServed(Client):
+    """Network 11.1.47 answered the multicast insight routes with the bare Tomcat 404 page."""
+
+    async def get(self, path: str, *, key: None, params: Any = None) -> Any:
+        self.calls.append(("GET", path, None, params))
+        raise UniFiConnectionError(
+            f"HTTP 404 from GET {path}: {NotServedUpstream.page}", status=404
+        )
+
+    async def post(self, path: str, *, key: None, params: Any = None, json: Any = None) -> Any:
+        self.calls.append(("POST", path, json, params))
+        raise UniFiConnectionError(
+            f"HTTP 404 from POST {path}: {NotServedUpstream.page}", status=404
+        )
+
+
+@pytest.mark.parametrize(
+    ("view", "mac", "method"),
+    [("clients", None, "POST"), ("history", None, "POST"), ("client", MAC, "GET")],
+)
+async def test_multicast_404_keeps_the_upstream_page_and_adds_an_actionable_hint(
+    view, mac, method
+) -> None:
+    client = MulticastNotServed()
+    with pytest.raises(UniFiConnectionError) as info:
+        await sandbox.get_multicast_insights(client, Registry(), HOST, SITE, view, mac)
+    message = str(info.value)
+    assert message.startswith(f"HTTP 404 from {method} {V2}/insights/multicast/")
+    assert NotServedUpstream.page in message  # the upstream body stays verbatim
+    assert (
+        "-- Hint: an HTML 404 here means this console's Network application does not serve"
+        in message
+    )
+    assert "get_network_application_info" in message
+    assert len(client.calls) == 1 and info.value.status == 404
+
+
+async def test_multicast_other_upstream_errors_pass_through_without_the_hint() -> None:
+    class Throttled(MulticastNotServed):
+        async def post(self, path: str, *, key: None, params: Any = None, json: Any = None) -> Any:
+            raise UniFiConnectionError(f"HTTP 429 from POST {path}: throttled", status=429)
+
+    with pytest.raises(UniFiConnectionError) as info:
+        await sandbox.get_multicast_insights(Throttled(), Registry(), HOST, SITE, "clients")
+    assert "Hint" not in str(info.value) and info.value.status == 429

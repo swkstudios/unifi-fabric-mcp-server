@@ -76,7 +76,7 @@ def test_discovery_catalog_is_within_budget() -> None:
 
 
 def test_generated_body_shapes_are_within_budget() -> None:
-    from unifi_fabric._tool_shapes_table import TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import TOOL_SHAPES
 
     shapes = [
         (f"{tool}.{arg}", _compact(shape))

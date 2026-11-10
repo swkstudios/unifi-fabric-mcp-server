@@ -8,29 +8,29 @@ import pytest
 
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.clients import _CLASSIC_CMD_BASE
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import _CLASSIC_CMD_BASE
+from unifi_fabric.families.clients.clients import (
     _block_client as block_client,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _execute_client_action as execute_client_action,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _get_client as get_client,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _list_active_clients as list_active_clients,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _list_clients as list_clients,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _reconnect_client as reconnect_client,
 )
-from unifi_fabric.tools.clients import (
+from unifi_fabric.families.clients.clients import (
     _unblock_client as unblock_client,
 )
-from unifi_fabric.tools.network import PROXY_BASE
+from unifi_fabric.families.network.network import PROXY_BASE
 
 HOST_ID = "host-001"
 SITE_ID = "11111111-0000-0000-0000-000000000001"

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.scheduled_tasks import (
+from unifi_fabric.families.devices.scheduled_tasks import (
     _create_scheduled_task,
     _delete_scheduled_task,
     _update_scheduled_task,
@@ -160,7 +160,7 @@ async def test_registration_annotations_match_verbs(deps):
     from fastmcp import FastMCP
 
     from unifi_fabric._read_only_audit import classify_tool_verbs
-    from unifi_fabric.tools.scheduled_tasks import register
+    from unifi_fabric.families.devices.scheduled_tasks import register
 
     mcp = FastMCP("scheduled-tests")
     register(mcp, lambda: deps)

@@ -36,7 +36,7 @@ from tests import spec_limits_gen as limits
 from tests import test_spec_conformance as sc
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "src/unifi_fabric/_tool_shapes_table.py"
+OUTPUT = ROOT / "src/unifi_fabric/generated_api_facts/_tool_shapes_table.py"
 # Real JSON-schema ``properties`` stop at this depth (body = 0); deeper is an outline.
 PROPERTY_DEPTH = 1
 REQUIRED_MARK = "\x00required"  # internal placeholder; never a spec value
@@ -627,7 +627,7 @@ def derive() -> tuple[dict[str, Any], dict[str, Any]]:
                 continue
             key = f"{name}.{arg}"
             if key == "update_device_radio.radios":
-                from unifi_fabric.tools.device_radios import RadioChanges
+                from unifi_fabric.families.devices.device_radios import RadioChanges
 
                 fixture = "tests/fixtures/recorded/ap_radio_table.json"
                 captured = (ROOT / fixture).read_bytes()

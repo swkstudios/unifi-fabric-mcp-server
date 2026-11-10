@@ -70,7 +70,7 @@ from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
-from tests._tool_classes import tool_batches
+from tests._tool_classes import tool_batches, tool_module_paths
 from unifi_fabric import config, server, switches
 from unifi_fabric.client import is_dry_run_preview
 from unifi_fabric.config import Settings
@@ -82,7 +82,7 @@ from unifi_fabric.selector_args import (
     NESTED_SELECTOR_FIELDS,
     nested_selector_problems,
 )
-from unifi_fabric.tools._payload import INTEGRATION_UPDATE_KEEP, server_managed_fields
+from unifi_fabric.shared_shapes._payload import INTEGRATION_UPDATE_KEEP, server_managed_fields
 from unifi_fabric.write_body import (
     CREATE_ACTION_BODY_PROVENANCE,
     NO_FIELDS,
@@ -149,7 +149,7 @@ _SPELLINGS = [
 
 
 def test_bo_bool_fields_are_the_known_switches():
-    assert set(_BOOL_FIELDS) == {"audit_calls", "redact_secrets"}, _BOOL_FIELDS
+    assert set(_BOOL_FIELDS) == {"audit_calls", "audit_chain", "redact_secrets"}, _BOOL_FIELDS
 
 
 def test_bo_every_call_time_policy_setting_is_a_settings_field():
@@ -183,10 +183,24 @@ def test_bo_a_malformed_policy_setting_fails_in_settings_and_at_runtime(monkeypa
     assert policy.current() is policy.FAIL_CLOSED
 
 
+#: Settings another switch needs for a valid combination when it is on: the chain needs
+#: its key (32 zero bytes, canonical unpadded base64url, built here), the JSON format and
+#: the file sink.
+_BOOL_COMPANIONS: dict[str, dict[str, str]] = {
+    "audit_chain": {
+        "UNIFI_AUDIT_CHAIN_KEY": "A" * 43,
+        "UNIFI_AUDIT_LOG_FORMAT": "json",
+        "UNIFI_AUDIT_LOG": "/probe/audit.jsonl",
+    },
+}
+
+
 @pytest.mark.parametrize("field", _BOOL_FIELDS)
 @pytest.mark.parametrize("spelling", _SPELLINGS)
 def test_bo_settings_and_runtime_agree_on_every_spelling(monkeypatch, field, spelling):
     env = f"UNIFI_{field.upper()}"
+    for companion, companion_value in _BOOL_COMPANIONS.get(field, {}).items():
+        monkeypatch.setenv(companion, companion_value)
     monkeypatch.setenv(env, spelling)
     settings_value = getattr(Settings(api_key="k-test"), field)
     expected = spelling.strip().lower() in switches.TRUE_VALUES
@@ -353,6 +367,9 @@ def test_bq_update_tool_set_is_derived_and_complete():
         # before any request (their docstrings, protect._fields_to_send).
         "update_protect_case",
         "update_protect_case_asset",
+        # Optional ports / remove_ports lists; neither given fails before any request
+        # (switch_port_overrides._validate_request).
+        "update_switch_port_overrides",
     }, scalar
 
 
@@ -618,7 +635,7 @@ def test_bq_integration_update_declaration_is_complete():
     """Every update tool that sanitizes an Integration body declares it (the guard reads
     the declaration), and no tool calls the bare sanitizer on an update body."""
     assert set(INTEGRATION_UPDATE_KEEP) <= set(_lz__BODY_UPDATES()), sorted(INTEGRATION_UPDATE_KEEP)
-    src = (_SRC / "tools").rglob("*.py")
+    src = tool_module_paths()
     bare = [
         f"{f.name}:{i}"
         for f in src
@@ -1077,7 +1094,7 @@ def _invalid_values(tool: Any, pname: str, spec: dict[str, Any]) -> list[Any]:
 
 def test_integer_negative_battery_respects_declared_bounds_and_work_counts():
     """No arbitrary upper limit is invented for an unbounded positive work count."""
-    from unifi_fabric.tools.protect import _validate_collector_controls
+    from unifi_fabric.families.protect.protect import _validate_collector_controls
 
     for name in ("collect_protect_events", "collect_protect_device_changes"):
         tool = _lz_TOOLS()[name]

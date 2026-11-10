@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools._history_common import (
+from unifi_fabric.shared_shapes._history_common import (
     MILLISECONDS_HINT_AT,
     epoch_warnings,
     require_epoch_seconds,

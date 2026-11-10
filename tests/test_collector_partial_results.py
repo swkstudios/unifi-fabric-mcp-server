@@ -27,7 +27,7 @@ from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
-from unifi_fabric.tools import protect
+from unifi_fabric.families.protect import protect
 
 TOOLS = cti.TOOLS
 

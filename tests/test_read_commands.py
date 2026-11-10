@@ -33,8 +33,8 @@ from unifi_fabric import read_only
 from unifi_fabric import read_post_routes as rp
 from unifi_fabric.client import UniFiClient, is_dry_run_preview
 from unifi_fabric.config import Settings
+from unifi_fabric.families.devices import device_commands
 from unifi_fabric.read_only_tools import ReadOnlyToolMiddleware
-from unifi_fabric.tools import device_commands
 
 IDS = [c.name for c in rp.READ_COMMANDS]
 ROUTES = sorted({c.route for c in rp.READ_COMMANDS})

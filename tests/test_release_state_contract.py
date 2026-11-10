@@ -31,17 +31,10 @@ _spec.loader.exec_module(pr)
 import check_server_json_version  # noqa: E402  (scripts/ is on sys.path via prepare_release)
 
 # The version fields a bump renders, and nothing else (plus refreshed provenance hashes
-# and, when it does not exist yet, scripts/published-version.txt).
-FIELD_FILES = {
-    "pyproject.toml",
-    "server.json",
-    "plugins/claude/.claude-plugin/plugin.json",
-    "plugins/codex/.codex-plugin/plugin.json",
-    "plugins/claude-desktop/manifest.json",
-    "gemini-extension.json",
-    "packaging/homebrew/unifi-fabric-mcp-server.rb",
-    "docs/site-stats.json",
-}
+# and, when it does not exist yet, scripts/published-version.txt). Derived from the one
+# registry, VERSION_FIELDS: a holder outside it and pin_files() is caught by
+# test_no_version_holder_outside_the_rendered_set, not by a second hand-kept list.
+FIELD_FILES = {field.path for field in pr.VERSION_FIELDS}
 PIN_RE = re.compile(r"unifi-fabric-mcp-server==(\d+\.\d+\.\d+)")
 _IGNORE = shutil.ignore_patterns(
     ".git",
@@ -462,3 +455,77 @@ def test_pin_corpus_covers_the_docs_currency_corpus() -> None:
         if p.is_file() and p.name != "server.json" and not p.name.startswith("MIGRATING-")
     }
     assert wanted <= set(pr.pin_files(ROOT)), sorted(wanted - set(pr.pin_files(ROOT)))
+
+
+# ------------------------------------------------------------ holders outside the render
+
+
+def _published() -> str:
+    return pr.published_version(ROOT) or CURRENT
+
+
+def test_no_version_holder_outside_the_rendered_set() -> None:
+    """Every non-historical line naming the release or the published pin is in a file the
+    render writes (VERSION_FIELDS or pin_files()), or is excused in NOT_HOLDERS_FILE: no literal
+    can go stale silently, wherever it lives (scripts, workflows, manifests, src/)."""
+    strays = pr.unrendered_holders(ROOT, {CURRENT, _published()})
+    assert strays == [], "\n".join(strays)
+
+
+def test_a_stray_version_holder_stops_the_render(tree: Path) -> None:
+    """A generator that embeds the release instead of reading it fails the bump, naming
+    the file and line, and nothing is written."""
+    stray = tree / "scripts" / "stray_generator.sh"
+    stray.write_text(f"#!/bin/sh\necho '<!-- support={_published()} -->'\n")
+    before = _snapshot(tree)
+    with pytest.raises(pr.PrepareError, match=r"scripts/stray_generator\.sh:2"):
+        pr.plan(tree, NEXT)
+    assert pr.main([NEXT, "--write", "--root", str(tree)]) == 2
+    assert pr.main([NEXT, "--check", "--root", str(tree)]) == 2
+    assert _snapshot(tree) == before
+    # A line that says it is historical keeps its version and is not a holder.
+    stray.write_text(f"#!/bin/sh\n# docs-currency: historical: added in {_published()}\n")
+    assert pr.plan(tree, NEXT).changes
+
+
+def test_excused_holders_are_exact_and_still_needed() -> None:
+    """Each excuse names one version in one file, and that file still names it."""
+    excused = pr.not_holders(ROOT)
+    assert excused, f"{pr.NOT_HOLDERS_FILE} is missing or empty"
+    for (rel, version), reason in excused.items():
+        pr.parse_version(version)
+        assert reason.strip(), rel
+        path = ROOT / rel
+        if not path.is_file():  # stripped from this tree (the public tree drops private files)
+            continue
+        assert pr.version_lines(path.read_text(), version), (
+            f"{rel} no longer names {version}: delete its entry in {pr.NOT_HOLDERS_FILE}"
+        )
+
+
+def test_every_version_field_is_rendered_and_skipped_by_the_scan() -> None:
+    """Every VERSION_FIELDS path exists; the scan skips exactly the rendered files."""
+    for field in pr.VERSION_FIELDS:
+        assert (ROOT / field.path).is_file(), field.path
+    rendered = pr.rendered_files(ROOT)
+    assert {field.path for field in pr.VERSION_FIELDS} <= rendered
+    assert set(pr.pin_files(ROOT)) <= rendered
+
+
+@pytest.mark.parametrize(
+    "state_dir", [".hypothesis", ".pytest_cache", ".mypy_cache", ".some_tool_state"]
+)
+def test_tool_state_folders_are_never_version_holders(tree: Path, state_dir: str) -> None:
+    """Tool state (hypothesis constants, caches) names whatever version the last run saw."""
+    folder = tree / state_dir / "constants"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "entry").write_text(f"unifi-fabric-mcp-server=={CURRENT}\nv{CURRENT}\n")
+    if state_dir == ".some_tool_state":
+        (tree / state_dir / "CACHEDIR.TAG").write_text(
+            "Signature: 8a477f597d28d172789f06886806bc55\n"
+        )
+    assert not [
+        found for found in pr.unrendered_holders(tree, {CURRENT}) if found.startswith(state_dir)
+    ]
+    (tree / "docs" / "stray.txt").write_text(f"pinned at {CURRENT}\n")
+    assert any(f.startswith("docs/stray.txt") for f in pr.unrendered_holders(tree, {CURRENT}))

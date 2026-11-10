@@ -41,6 +41,46 @@ def _pins(path: Path) -> dict[str, tuple[str, tuple[str, ...]]]:
     return {name: (version, tuple(hashes)) for name, (version, hashes) in pins.items()}
 
 
+def _extras_only() -> frozenset[str]:
+    """Locked packages only the optional extras (e.g. trace export) pull in, derived not listed.
+
+    Roots are the packages named by every non-dev extra in pyproject.toml; the closure follows
+    the lock's own ``# via`` annotations (who requires each pin); whatever the runtime lock
+    already carries is not extras-only.
+    """
+    extras = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"][
+        "optional-dependencies"
+    ]
+    roots = {
+        _norm(re.split(r"[<>=!~\[ ;]", spec, maxsplit=1)[0])
+        for name, specs in extras.items()
+        if name != "dev"
+        for spec in specs
+    }
+    requires: dict[str, set[str]] = {}  # parent -> packages the lock says it brings in
+    current = None
+    via = False
+    for line in DEV.read_text().splitlines():
+        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?==", line)
+        if match:
+            current, via = _norm(match.group(1)), False
+        elif current and line.strip().startswith("# via"):
+            via = True
+            line = line.strip()[len("# via") :]
+            parents = [line.strip()] if line.strip() else []
+            for parent in parents:
+                requires.setdefault(_norm(parent.split()[0]), set()).add(current)
+        elif current and via and re.match(r"^\s+#\s+\S", line):
+            requires.setdefault(_norm(line.split("#", 1)[1].split()[0]), set()).add(current)
+    closure, todo = set(), list(roots)
+    while todo:
+        name = todo.pop()
+        if name not in closure:
+            closure.add(name)
+            todo.extend(requires.get(name, ()))
+    return frozenset(closure - set(_pins(RUNTIME)))
+
+
 def test_runtime_lock_has_no_dev_only_package() -> None:
     runtime = _pins(RUNTIME)
     assert runtime
@@ -57,11 +97,13 @@ def test_runtime_lock_has_no_dev_extra_package() -> None:
 
 def test_runtime_lock_is_hash_locked_and_matches_the_dev_lock() -> None:
     runtime, dev = _pins(RUNTIME), _pins(DEV)
+    extras_only = _extras_only()
     assert all(hashes for _, hashes in runtime.values())
     # Same versions and hashes as the dev lock: the split removes packages, never re-resolves.
     assert {name: pin for name, pin in dev.items() if name in runtime} == runtime
-    # The dev lock is the runtime lock plus exactly the dev-only packages.
-    assert set(dev) - set(runtime) == DEV_ONLY
+    # The dev lock is the runtime lock plus exactly the dev-only and optional-extra packages.
+    assert set(dev) - set(runtime) == DEV_ONLY | extras_only
+    assert extras_only and not DEV_ONLY & extras_only
     assert "--all-extras" in DEV.read_text().splitlines()[1]
     assert "--all-extras" not in RUNTIME.read_text().splitlines()[1]
 

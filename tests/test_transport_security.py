@@ -1018,3 +1018,31 @@ class TestConstantTimeBearer:
         assert isinstance(
             build_auth(_settings(monkeypatch, MCP_BEARER_TOKEN=_TOKEN)), ConstantTimeTokenVerifier
         )
+
+
+class TestStrictVerifierGuardMessage:
+    """The startup guard for a FastMCP that lost the lock attribute must say what
+    triggered it and what the maintainer should change, not only that construction failed."""
+
+    def test_guard_names_the_missing_attribute_and_the_fix(self):
+        import re
+
+        from unifi_fabric.transport_security import StrictJWTVerifier
+
+        real_init = JWTVerifier.__init__
+
+        def init_without_lock(self, *args, **kwargs):
+            real_init(self, *args, **kwargs)
+            del self._shared_jwks_refresh_lock
+
+        with patch.object(JWTVerifier, "__init__", new=init_without_lock):
+            with pytest.raises(RuntimeError) as excinfo:
+                StrictJWTVerifier(jwks_uri="https://idp.test/jwks", issuer=_ISSUER)
+
+        message = str(excinfo.value)
+        # What triggered it: the FastMCP attribute this code relies on, and FastMCP as its source.
+        assert "_shared_jwks_refresh_lock" in message
+        assert "fastmcp" in message.lower()
+        # The fix: the component the maintainer must change, and an action to take on it.
+        assert "StrictJWTVerifier" in message
+        assert re.search(r"revisit|update|upgrade|pin", message, re.IGNORECASE)

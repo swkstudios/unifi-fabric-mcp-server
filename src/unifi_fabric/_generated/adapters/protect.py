@@ -26,12 +26,12 @@ __all__ = [
     "assign_sensor_to_bridge",
     "bulk_upload_vehicle_groups",
     "calibrate_camera",
-    "calibrate_door_lock",
     "cancel_cloud_archive_task",
     "check_protect_firmware_updates",
     "clear_sensor_tamper",
     "collect_protect_device_changes",
     "collect_protect_events",
+    "collect_protect_incident_evidence",
     "configure_camera_wifi",
     "connect_cloud_archive_provider",
     "connect_unifi_video_server",
@@ -80,7 +80,6 @@ __all__ = [
     "get_arm_profile",
     "get_bridge",
     "get_camera",
-    "get_camera_adoption_qr",
     "get_camera_analytics",
     "get_camera_lux",
     "get_camera_playback_history",
@@ -92,17 +91,18 @@ __all__ = [
     "get_cloud_archive_status",
     "get_detection_search_metadata",
     "get_detection_statistics",
+    "get_door_lock",
     "get_fob",
     "get_light",
     "get_link_station",
     "get_liveview",
     "get_nvr",
     "get_nvr_private",
+    "get_protect_alarm_manager_mode",
     "get_protect_application_info",
     "get_protect_automation_history",
     "get_protect_bootstrap",
     "get_protect_case_activity",
-    "get_protect_case_asset_snapshot",
     "get_protect_device_metrics",
     "get_protect_device_password",
     "get_protect_event",
@@ -132,6 +132,7 @@ __all__ = [
     "list_bridges",
     "list_cameras",
     "list_chimes",
+    "list_door_lock_unlock_events",
     "list_door_locks",
     "list_fobs",
     "list_lights",
@@ -166,7 +167,6 @@ __all__ = [
     "ptz_patrol_start",
     "ptz_patrol_stop",
     "readopt_protect_device",
-    "reboot_nvr",
     "reboot_protect_device",
     "recognize_image",
     "reformat_edge_storage",
@@ -184,7 +184,6 @@ __all__ = [
     "set_camera_door_lock",
     "set_camera_resolution_scale",
     "set_camera_video_codec",
-    "set_door_lock_auto_close",
     "set_door_lock_state",
     "set_edge_storage_mount_state",
     "set_nvr_stack_membership",
@@ -228,7 +227,6 @@ __all__ = [
     "update_protect_device_tag",
     "update_protect_user",
     "update_protect_user_group",
-    "update_protect_user_notifications",
     "update_ptz_patrol",
     "update_ptz_preset",
     "update_recognition_group",
@@ -344,15 +342,6 @@ async def calibrate_camera(
     return await registered_wrapper("calibrate_camera")(**validated_arguments)
 
 
-async def calibrate_door_lock(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``calibrate_door_lock``."""
-    return await registered_wrapper("calibrate_door_lock")(**validated_arguments)
-
-
 async def cancel_cloud_archive_task(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -396,6 +385,15 @@ async def collect_protect_events(
 ) -> Any:
     """Adapter of ``collect_protect_events``."""
     return await registered_wrapper("collect_protect_events")(**validated_arguments)
+
+
+async def collect_protect_incident_evidence(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``collect_protect_incident_evidence``."""
+    return await registered_wrapper("collect_protect_incident_evidence")(**validated_arguments)
 
 
 async def configure_camera_wifi(
@@ -830,15 +828,6 @@ async def get_camera(
     return await registered_wrapper("get_camera")(**validated_arguments)
 
 
-async def get_camera_adoption_qr(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``get_camera_adoption_qr``."""
-    return await registered_wrapper("get_camera_adoption_qr")(**validated_arguments)
-
-
 async def get_camera_analytics(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -938,6 +927,15 @@ async def get_detection_statistics(
     return await registered_wrapper("get_detection_statistics")(**validated_arguments)
 
 
+async def get_door_lock(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_door_lock``."""
+    return await registered_wrapper("get_door_lock")(**validated_arguments)
+
+
 async def get_fob(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -992,6 +990,15 @@ async def get_nvr_private(
     return await registered_wrapper("get_nvr_private")(**validated_arguments)
 
 
+async def get_protect_alarm_manager_mode(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_protect_alarm_manager_mode``."""
+    return await registered_wrapper("get_protect_alarm_manager_mode")(**validated_arguments)
+
+
 async def get_protect_application_info(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1026,15 +1033,6 @@ async def get_protect_case_activity(
 ) -> Any:
     """Adapter of ``get_protect_case_activity``."""
     return await registered_wrapper("get_protect_case_activity")(**validated_arguments)
-
-
-async def get_protect_case_asset_snapshot(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``get_protect_case_asset_snapshot``."""
-    return await registered_wrapper("get_protect_case_asset_snapshot")(**validated_arguments)
 
 
 async def get_protect_device_metrics(
@@ -1296,6 +1294,15 @@ async def list_chimes(
 ) -> Any:
     """Adapter of ``list_chimes``."""
     return await registered_wrapper("list_chimes")(**validated_arguments)
+
+
+async def list_door_lock_unlock_events(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``list_door_lock_unlock_events``."""
+    return await registered_wrapper("list_door_lock_unlock_events")(**validated_arguments)
 
 
 async def list_door_locks(
@@ -1604,15 +1611,6 @@ async def readopt_protect_device(
     return await registered_wrapper("readopt_protect_device")(**validated_arguments)
 
 
-async def reboot_nvr(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``reboot_nvr``."""
-    return await registered_wrapper("reboot_nvr")(**validated_arguments)
-
-
 async def reboot_protect_device(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1764,15 +1762,6 @@ async def set_camera_video_codec(
 ) -> Any:
     """Adapter of ``set_camera_video_codec``."""
     return await registered_wrapper("set_camera_video_codec")(**validated_arguments)
-
-
-async def set_door_lock_auto_close(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``set_door_lock_auto_close``."""
-    return await registered_wrapper("set_door_lock_auto_close")(**validated_arguments)
 
 
 async def set_door_lock_state(
@@ -2160,15 +2149,6 @@ async def update_protect_user_group(
 ) -> Any:
     """Adapter of ``update_protect_user_group``."""
     return await registered_wrapper("update_protect_user_group")(**validated_arguments)
-
-
-async def update_protect_user_notifications(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``update_protect_user_notifications``."""
-    return await registered_wrapper("update_protect_user_notifications")(**validated_arguments)
 
 
 async def update_ptz_patrol(

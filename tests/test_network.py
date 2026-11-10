@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.network import (
+from unifi_fabric.families.network.network import (
     PROXY_BASE,
     create_network,
     create_wifi_broadcast,

@@ -16,13 +16,14 @@ import pytest
 from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
+from unifi_fabric.families.network import network_security_diagnostics as nsd
 from unifi_fabric.read_only import ReadOnlyModeError
-from unifi_fabric.tools import network_security_diagnostics as nsd
 
 HOST = "console-a"
 SITE = "Default"
 CERT_ID = "0000000000000000000000c1"
 PROFILE_ID = "0000000000000000000000d1"
+ALERT_ID = "65f1c0ffee0123456789abcd"
 V2 = "/v1/connector/consoles/host-1/proxy/network/v2/api/site/default"
 
 READS = {
@@ -48,6 +49,7 @@ WRITES = {
     "update_ips_signatures",
     "update_system_log_settings",
     "mark_critical_logs_read",
+    "acknowledge_critical_alert",
     "control_packet_capture",
     "control_ping_test",
 }
@@ -149,7 +151,7 @@ class Client:
 def test_every_tool_is_registered_with_derived_annotations() -> None:
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
     assert READS | WRITES <= set(tools)
-    assert len(READS | WRITES) == 22
+    assert len(READS | WRITES) == 23
     for name in READS:
         assert tools[name].annotations.read_only_hint is True, name
     for name in WRITES:
@@ -185,6 +187,7 @@ async def test_every_tool_uses_its_inventoried_v2_route() -> None:
     await nsd.get_system_log_settings(client, registry, HOST, SITE)
     await nsd.update_system_log_settings(client, registry, HOST, SITE, {"enabled": True})
     await nsd.mark_critical_logs_read(client, registry, HOST, SITE)
+    await nsd.acknowledge_critical_alert(client, registry, HOST, SITE, ALERT_ID)
     await nsd.control_packet_capture(client, registry, HOST, SITE, "start")
     await nsd.control_packet_capture(client, registry, HOST, SITE, "stop", "capture-0001")
     await nsd.get_packet_capture_status(client, registry, HOST, SITE, "capture-0001")
@@ -220,6 +223,7 @@ async def test_every_tool_uses_its_inventoried_v2_route() -> None:
         ("GET", "/system-log/setting"),
         ("PUT", "/system-log/setting"),
         ("PUT", "/system-log/critical/mark-all-as-read"),
+        ("PUT", f"/system-log/critical/{ALERT_ID}/mark-as-read"),
         ("POST", "/pcap-start"),
         ("POST", "/pcap-stop/capture-0001"),
         ("GET", "/pcap-status/capture-0001"),
@@ -337,6 +341,18 @@ async def test_reads_return_upstream_bodies_verbatim() -> None:
             "body must be a JSON object",
         ),
         (
+            lambda c, r: nsd.acknowledge_critical_alert(c, r, HOST, SITE, ""),
+            "alert_id",
+        ),
+        (
+            lambda c, r: nsd.acknowledge_critical_alert(c, r, HOST, SITE, "../mark-all-as-read"),
+            "alert_id",
+        ),
+        (
+            lambda c, r: nsd.acknowledge_critical_alert(c, r, HOST, SITE, "a\nb"),
+            "alert_id",
+        ),
+        (
             lambda c, r: nsd.control_packet_capture(c, r, HOST, SITE, "pause"),
             "action must be one of",
         ),
@@ -436,6 +452,7 @@ async def test_read_only_mode_refuses_every_write_before_any_request(monkeypatch
         "delete_ssl_inspection_profile": (PROFILE_ID,),
         "update_ssl_inspection_settings": ({"a": 1},),
         "update_system_log_settings": ({"a": 1},),
+        "acknowledge_critical_alert": (ALERT_ID,),
         "control_packet_capture": ("start",),
         "control_ping_test": ("start", "t1"),
     }
@@ -790,3 +807,64 @@ async def test_ssl_profile_read_after_on_a_capped_listing_says_it_stopped_short(
     assert "the listing stopped short (UNIFI_PAGINATE_MAX_PAGES page cap of 2 reached" in error
     assert "the update is not shown to have failed" in error
     assert len([call for call in client.calls if call[0] == "PUT"]) == 1
+
+
+# --------------------------------------------------------------- one critical alert
+
+
+async def test_acknowledge_critical_alert_puts_one_alert_with_an_empty_object() -> None:
+    client = Client()
+    result = await nsd.acknowledge_critical_alert(client, Registry(), HOST, SITE, ALERT_ID)
+    assert client.calls == [("PUT", f"{V2}/system-log/critical/{ALERT_ID}/mark-as-read", {}, None)]
+    assert result == {"echo": {}, "path": f"/system-log/critical/{ALERT_ID}/mark-as-read"}
+
+
+async def test_acknowledge_critical_alert_never_reaches_the_mark_all_route() -> None:
+    client = Client()
+    await nsd.acknowledge_critical_alert(client, Registry(), HOST, SITE, "mark-all-as-read")
+    # The id is one path segment of the single-alert route, never the bulk route.
+    assert client.calls[0][1] == f"{V2}/system-log/critical/mark-all-as-read/mark-as-read"
+
+
+async def test_acknowledge_critical_alert_encodes_the_id_as_one_segment() -> None:
+    client = Client()
+    await nsd.acknowledge_critical_alert(client, Registry(), HOST, SITE, "a b?c#d")
+    assert client.calls[0][1] == f"{V2}/system-log/critical/a%20b%3Fc%23d/mark-as-read"
+
+
+async def test_acknowledge_critical_alert_dry_run_previews_and_sends_nothing_more() -> None:
+    client = Client(dry_run=True)
+    result = await nsd.acknowledge_critical_alert(client, Registry(), HOST, SITE, ALERT_ID)
+    assert result["status"] == "dry_run" and result["preview"]["method"] == "PUT"
+    assert result["preview"]["body"] == {}
+    assert [c[0] for c in client.calls] == ["PUT"]
+
+
+async def test_acknowledge_critical_alert_is_a_derived_single_put_write() -> None:
+    tools = {t.name: t for t in await server.mcp.list_tools()}
+    tool = tools["acknowledge_critical_alert"]
+    hints = tool.annotations
+    assert hints.read_only_hint is False and hints.destructive_hint is True
+    assert hints.idempotent_hint is True  # one PUT
+    props = tool.parameters["properties"]
+    assert set(props) == {"host", "site", "alert_id"}
+    assert all(p.get("description") for p in props.values())
+
+
+async def test_acknowledge_critical_alert_denied_policy_is_audited_with_zero_calls(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
+    client, registry = Client(), Registry()
+    with pytest.raises(ReadOnlyModeError):
+        await nsd.acknowledge_critical_alert(client, registry, HOST, SITE, ALERT_ID)
+    assert client.calls == [] and registry.calls == 0
+    assert client.audited == [("acknowledge_critical_alert", "UNIFI_WRITE_POLICY")]
+
+
+async def test_acknowledge_critical_alert_validates_before_the_write_gate_and_any_request() -> None:
+    client, registry = Client(), Registry()
+    for bad in ("", "..", "a\nb"):
+        with pytest.raises(ValueError, match="alert_id"):
+            await nsd.acknowledge_critical_alert(client, registry, HOST, SITE, bad)
+    assert client.calls == [] and registry.calls == 0 and client.audited == []

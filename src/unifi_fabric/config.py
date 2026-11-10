@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-import hashlib
+import hmac
 import os
 import re
 import sys
@@ -24,6 +24,8 @@ from pydantic_settings import (
     SettingsError,
 )
 
+from . import credential_providers
+from . import fingerprint as _fingerprint
 from .selector_syntax import selector_reason
 from .switches import FALSE_VALUES, TRUE_VALUES, parse_bool
 
@@ -144,7 +146,26 @@ _MIN_ONE_INTS: dict[str, str] = {
     "cache_max_sites": "0 would make every site-cache write raise",
     "paginate_max_pages": "a cap below 1 would stop every list before its first page; "
     "leave it unset for no page cap",
+    "audit_remote_max_attempts": "0 would drop every audit batch unsent",
+    "audit_remote_batch_max_records": "0 would never send an audit batch",
+    "audit_remote_batch_max_bytes": "0 would never send an audit batch",
+    "audit_remote_buffer_max_records": "0 would drop every audit record",
+    "audit_remote_buffer_max_bytes": "0 would drop every audit record",
 }
+
+#: Remote audit sink switches (parsed like every boolean setting).
+_AUDIT_BOOL_FIELDS = ("audit_remote_plaintext", "audit_hmac_identifiers")
+#: Remote audit sink durations: a finite number of seconds above 0.
+_AUDIT_POSITIVE_FLOATS: dict[str, str] = {
+    "audit_remote_retry_backoff_seconds": "0 would retry a failing collector without a pause",
+    "audit_remote_flush_interval_seconds": "0 would send a batch for every record in a busy loop",
+}
+#: Remote audit sink TLS file paths (unset by default).
+_AUDIT_REMOTE_FILES = (
+    "audit_remote_ca_file",
+    "audit_remote_cert_file",
+    "audit_remote_key_file",
+)
 
 #: Integer settings that may be 0 but not negative.
 _MIN_ZERO_INTS: dict[str, str] = {
@@ -152,7 +173,7 @@ _MIN_ZERO_INTS: dict[str, str] = {
 }
 
 #: Boolean settings: an empty or whitespace-only value means unset (the default).
-_BOOL_FIELDS = ("redact_secrets", "audit_calls")
+_BOOL_FIELDS = ("redact_secrets", "audit_calls", "audit_chain")
 
 #: The spellings a boolean setting accepts live in ``switches`` (one parser for
 #: ``Settings`` and every runtime switch reader).
@@ -165,7 +186,7 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 #: Valid UNIFI_AUDIT_LOG_FORMAT values (case-insensitive).
 AUDIT_LOG_FORMATS = ("text", "json")
 #: Valid UNIFI_AUDIT_SINK / UNIFI_AUDIT_LEVEL / UNIFI_AUDIT_LOG_MODE values.
-AUDIT_SINKS = ("none", "stderr", "file")
+AUDIT_SINKS = ("none", "stderr", "file", "remote")
 AUDIT_LEVELS = ("off", "normal", "debug")
 AUDIT_LOG_MODES = ("0600", "0640")
 
@@ -273,8 +294,9 @@ def _credential_error(what: str, problem: str) -> str:
 
 
 def key_fingerprint(key: str) -> str:
-    """A one-way fingerprint of an API key, for comparison and cache keys (never logged)."""
-    return hashlib.sha256(key.encode("utf-8", "surrogatepass")).hexdigest()
+    """A keyed one-way fingerprint of an API key, for comparison within this process (never
+    logged)."""
+    return _fingerprint.key_digest(key)
 
 
 class APIKeyConfig(BaseModel):
@@ -860,6 +882,34 @@ class Settings(BaseSettings):
         repr=False,
         description="Single API key shorthand. Used when api_keys is empty.",
     )
+    api_key_file: str | None = Field(
+        default=None,
+        repr=False,
+        description="Absolute path of a file holding the single API key (UNIFI_API_KEY_FILE), "
+        "read once at startup; a trailing line break is removed. Set exactly one of "
+        "UNIFI_API_KEY, UNIFI_API_KEY_FILE or UNIFI_API_KEY_COMMAND.",
+    )
+    api_key_command: str | None = Field(
+        default=None,
+        repr=False,
+        description="Helper command whose standard output is the single API key "
+        "(UNIFI_API_KEY_COMMAND), run once at startup without a shell: POSIX-quoted words, "
+        "the first an absolute path or a name on PATH. A trailing line break is removed.",
+    )
+    api_keys_file: str | None = Field(
+        default=None,
+        repr=False,
+        description="Absolute path of a file holding the UNIFI_API_KEYS JSON list "
+        "(UNIFI_API_KEYS_FILE), read once at startup. Set exactly one of UNIFI_API_KEYS, "
+        "UNIFI_API_KEYS_FILE or UNIFI_API_KEYS_COMMAND.",
+    )
+    api_keys_command: str | None = Field(
+        default=None,
+        repr=False,
+        description="Helper command whose standard output is the UNIFI_API_KEYS JSON list "
+        "(UNIFI_API_KEYS_COMMAND), run once at startup without a shell, like "
+        "UNIFI_API_KEY_COMMAND.",
+    )
     cache_ttl_seconds: int = Field(
         default=900,
         ge=0,
@@ -931,9 +981,10 @@ class Settings(BaseSettings):
     )
     audit_sink: str = Field(
         default="",
-        description="Audit stream sink. Env: UNIFI_AUDIT_SINK. One of none, stderr or file. "
-        "Unset means file when UNIFI_AUDIT_LOG is set and none otherwise. file requires "
-        "UNIFI_AUDIT_LOG; none or stderr with UNIFI_AUDIT_LOG set fails at startup.",
+        description="Audit stream sink. Env: UNIFI_AUDIT_SINK. One of none, stderr, file or "
+        "remote. Unset means file when UNIFI_AUDIT_LOG is set and none otherwise. file "
+        "requires UNIFI_AUDIT_LOG; none or stderr with UNIFI_AUDIT_LOG set fails at "
+        "startup. remote with UNIFI_AUDIT_LOG also writes the local file first.",
     )
     audit_level: str = Field(
         default="normal",
@@ -952,13 +1003,112 @@ class Settings(BaseSettings):
         "(default, owner only) or 0640 (owner plus group read). An existing file keeps its "
         "mode.",
     )
+    audit_remote_url: str = Field(
+        default="",
+        repr=False,
+        description="Collector endpoint of the remote audit sink. Env: UNIFI_AUDIT_REMOTE_URL. "
+        "Required when UNIFI_AUDIT_SINK=remote: an absolute https:// URL (http:// only with "
+        "UNIFI_AUDIT_REMOTE_PLAINTEXT=true) with no user information, query string or "
+        "fragment. Records are POSTed as NDJSON batches over TLS 1.3; output names only its "
+        "scheme://host:port.",
+    )
+    audit_remote_plaintext: bool = Field(
+        default=False,
+        description="Plain HTTP for the remote audit sink. Env: UNIFI_AUDIT_REMOTE_PLAINTEXT. "
+        "Off by default (TLS). true allows an http:// UNIFI_AUDIT_REMOTE_URL and requires the "
+        "three TLS file settings unset; records then travel unencrypted and unauthenticated.",
+    )
+    audit_remote_ca_file: str = Field(
+        default="",
+        repr=False,
+        description="PEM bundle of the CAs trusted for the collector certificate. Env: "
+        "UNIFI_AUDIT_REMOTE_CA_FILE. Unset means the platform trust store; when set, only "
+        "these CAs are trusted. Certificate and host-name verification are always on.",
+    )
+    audit_remote_cert_file: str = Field(
+        default="",
+        repr=False,
+        description="PEM client certificate chain for mutual TLS to the collector. Env: "
+        "UNIFI_AUDIT_REMOTE_CERT_FILE. Set together with UNIFI_AUDIT_REMOTE_KEY_FILE or not "
+        "at all.",
+    )
+    audit_remote_key_file: str = Field(
+        default="",
+        repr=False,
+        description="PEM private key (unencrypted) of UNIFI_AUDIT_REMOTE_CERT_FILE. Env: "
+        "UNIFI_AUDIT_REMOTE_KEY_FILE. The server reads it per connection attempt and never "
+        "logs its path or contents.",
+    )
+    audit_remote_max_attempts: int = Field(
+        default=5,
+        description="Delivery attempts per remote audit batch, the first included. Env: "
+        "UNIFI_AUDIT_REMOTE_MAX_ATTEMPTS. Transport errors, 408, 429 and 5xx are retried; "
+        "an exhausted or rejected batch is dropped and counted.",
+    )
+    audit_remote_retry_backoff_seconds: float = Field(
+        default=1,
+        description="Base b of the remote audit retry schedule: attempt n waits b*2^(n-2) "
+        "seconds. Env: UNIFI_AUDIT_REMOTE_RETRY_BACKOFF_SECONDS. A number above 0.",
+    )
+    audit_remote_batch_max_records: int = Field(
+        default=100,
+        description="Most records in one remote audit batch. Env: "
+        "UNIFI_AUDIT_REMOTE_BATCH_MAX_RECORDS.",
+    )
+    audit_remote_batch_max_bytes: int = Field(
+        default=1048576,
+        description="Most body bytes in one remote audit batch (each record plus its newline). "
+        "Env: UNIFI_AUDIT_REMOTE_BATCH_MAX_BYTES. At least 1024; a larger record is dropped "
+        "and counted.",
+    )
+    audit_remote_flush_interval_seconds: float = Field(
+        default=1,
+        description="Seconds between remote audit delivery rounds (each sends all buffered). "
+        "Env: UNIFI_AUDIT_REMOTE_FLUSH_INTERVAL_SECONDS. A number above 0.",
+    )
+    audit_remote_buffer_max_records: int = Field(
+        default=10000,
+        description="Most unacknowledged remote audit records held in memory. Env: "
+        "UNIFI_AUDIT_REMOTE_BUFFER_MAX_RECORDS. When full, the arriving record is dropped "
+        "(drop-newest) and counted; tool calls are never blocked.",
+    )
+    audit_remote_buffer_max_bytes: int = Field(
+        default=16777216,
+        description="Most unacknowledged remote audit bytes held in memory. Env: "
+        "UNIFI_AUDIT_REMOTE_BUFFER_MAX_BYTES.",
+    )
+    audit_hmac_identifiers: bool = Field(
+        default=False,
+        description="Pseudonymised identifiers in audit records. Env: "
+        "UNIFI_AUDIT_HMAC_IDENTIFIERS. Off by default; when on, client MAC addresses and user "
+        "identifiers are written as hmac:<32 hex> (HMAC-SHA256 under UNIFI_AUDIT_HMAC_KEY, "
+        "which it requires), the same token for the same identifier, on every sink and in "
+        "both formats.",
+    )
     audit_hmac_key: SecretStr | None = Field(
         default=None,
         repr=False,
-        description="Per-installation Code Mode argument-audit HMAC key. Env: "
-        "UNIFI_AUDIT_HMAC_KEY. Canonical unpadded base64url encoding of exactly 32 bytes. "
-        "Required only when UNIFI_TOOL_MODE=codemode; every replica in one installation "
+        description="Per-installation audit HMAC key (Code Mode argument audit and "
+        "pseudonymised audit identifiers). Env: UNIFI_AUDIT_HMAC_KEY. Canonical unpadded "
+        "base64url encoding of exactly 32 bytes. "
+        "Required when UNIFI_TOOL_MODE=codemode or UNIFI_AUDIT_HMAC_IDENTIFIERS=true; "
+        "every replica in one installation "
         "must receive the same operator-provisioned key.",
+    )
+    audit_chain: bool = Field(
+        default=False,
+        description="Opt-in tamper evidence for the JSON audit file. Env: UNIFI_AUDIT_CHAIN. "
+        "Off by default (the audit stream is then byte-identical to 0.7.1). When on, every "
+        "record carries a keyed HMAC-SHA256 hash chain (chain, seq, prev, mac) that "
+        "unifi-fabric-audit-verify checks; requires UNIFI_AUDIT_LOG_FORMAT=json, the file "
+        "sink and UNIFI_AUDIT_CHAIN_KEY. Tamper-evident, not tamper-proof.",
+    )
+    audit_chain_key: SecretStr | None = Field(
+        default=None,
+        repr=False,
+        description="Audit hash-chain key. Env: UNIFI_AUDIT_CHAIN_KEY. Canonical unpadded "
+        "base64url encoding of exactly 32 bytes, distinct from UNIFI_AUDIT_HMAC_KEY. "
+        "Operator-provisioned; the server never generates, persists or logs it.",
     )
     tool_mode: Literal["full", "discovery", "codemode"] = Field(
         default="discovery",
@@ -1098,6 +1248,87 @@ class Settings(BaseSettings):
             )
         return self
 
+    @field_validator(*_AUDIT_BOOL_FIELDS, mode="before")
+    @classmethod
+    def _audit_bool_setting(cls, v: object, info: ValidationInfo) -> object:
+        """The boolean parser of every switch (empty means unset)."""
+        if isinstance(v, str) and not v.strip():
+            raise PydanticUseDefault()
+        return _parse_bool(v, _env_name(str(info.field_name)))
+
+    @field_validator(*_AUDIT_POSITIVE_FLOATS, mode="before")
+    @classmethod
+    def _audit_positive_float(cls, v: object, info: ValidationInfo) -> object:
+        """Empty means unset; otherwise a finite number above 0 (never echoed)."""
+        if isinstance(v, str) and not v.strip():
+            raise PydanticUseDefault()
+        env, why = _env_name(str(info.field_name)), _AUDIT_POSITIVE_FLOATS[str(info.field_name)]
+        number: float | None = None
+        if isinstance(v, int | float) and not isinstance(v, bool):
+            number = float(v)
+        elif isinstance(v, str) and v.strip().isascii():
+            try:
+                number = float(v.strip())
+            except ValueError:
+                number = None
+        if number is None or not 0 < number < float("inf"):
+            raise ValueError(
+                f"{env} must be a number of seconds above 0 written with ASCII digits; "
+                f"{why}; the value is not shown here"
+            )
+        return number
+
+    @field_validator("audit_remote_url", *_AUDIT_REMOTE_FILES, mode="before")
+    @classmethod
+    def _audit_remote_text(cls, v: object, info: ValidationInfo) -> object:
+        """Empty means unset; otherwise UTF-8 text with no control character."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return ""
+        env = _env_name(str(info.field_name))
+        if not isinstance(v, str):
+            raise ValueError(f"{env} must be text")
+        problem = text_setting_problem(v)
+        if problem is not None:
+            raise ValueError(f"{env} {problem}")
+        return v
+
+    @model_validator(mode="after")
+    def _audit_remote_sink(self) -> Settings:
+        """The remote sink's settings checked as one contract at startup; a remote setting
+        without UNIFI_AUDIT_SINK=remote is refused (it would ship nothing). Messages name
+        settings, never a value."""
+        from .audit_remote import RemoteConfig, RemoteConfigError
+
+        remote_fields = sorted(
+            name
+            for name in self.model_fields_set
+            if name.startswith("audit_remote_")
+            and getattr(self, name) != type(self).model_fields[name].default
+        )
+        if self.audit_sink != "remote":
+            if remote_fields:
+                raise ValueError(
+                    f"{_env_name(remote_fields[0])} is set but UNIFI_AUDIT_SINK is not remote; "
+                    "set UNIFI_AUDIT_SINK=remote or unset it"
+                )
+            return self
+        if self.audit_log_format != "json":
+            raise ValueError("UNIFI_AUDIT_SINK=remote requires UNIFI_AUDIT_LOG_FORMAT=json")
+        try:
+            RemoteConfig.from_settings(self)
+        except RemoteConfigError as exc:
+            raise ValueError(str(exc)) from None
+        return self
+
+    @model_validator(mode="after")
+    def _audit_identifiers_need_key(self) -> Settings:
+        if self.audit_hmac_identifiers and self.audit_hmac_key is None:
+            raise ValueError(
+                "UNIFI_AUDIT_HMAC_IDENTIFIERS=true requires UNIFI_AUDIT_HMAC_KEY "
+                "(canonical unpadded base64url for 32 bytes)"
+            )
+        return self
+
     @field_validator("audit_log", mode="before")
     @classmethod
     def _audit_log_path(cls, v: object) -> object:
@@ -1112,36 +1343,65 @@ class Settings(BaseSettings):
             raise ValueError(f"UNIFI_AUDIT_LOG {problem}")
         return v
 
-    @field_validator("audit_hmac_key", mode="before")
+    @field_validator("audit_hmac_key", "audit_chain_key", mode="before")
     @classmethod
-    def _audit_hmac_key(cls, value: object) -> SecretStr | None:
+    def _audit_hmac_key(cls, value: object, info: ValidationInfo) -> SecretStr | None:
         """Validate key shape without ever echoing the key in an error."""
         if value is None or (isinstance(value, str) and not value.strip()):
             return None
+        message = (
+            f"{_env_name(str(info.field_name))} must be canonical unpadded base64url for 32 bytes"
+        )
         if isinstance(value, SecretStr):
             text = value.get_secret_value()
         elif isinstance(value, str):
             text = value
         else:
-            raise ValueError(
-                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
-            )
+            raise ValueError(message)
         if _AUDIT_HMAC_KEY_RE.fullmatch(text) is None:
-            raise ValueError(
-                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
-            )
+            raise ValueError(message)
         try:
             raw = base64.b64decode(text + "=", altchars=b"-_", validate=True)
         except (binascii.Error, ValueError):
-            raise ValueError(
-                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
-            ) from None
+            raise ValueError(message) from None
         canonical = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
         if len(raw) != 32 or canonical != text:
-            raise ValueError(
-                "UNIFI_AUDIT_HMAC_KEY must be canonical unpadded base64url for 32 bytes"
-            )
+            raise ValueError(message)
         return SecretStr(text)
+
+    @model_validator(mode="after")
+    def _audit_chain_requirements(self) -> Settings:
+        """The chain key is never the Code Mode key; the chain needs its key, the JSON
+        format and the file sink. Messages name settings, never a value."""
+        chain_key, hmac_key = self.audit_chain_key, self.audit_hmac_key
+        if (
+            chain_key is not None
+            and hmac_key is not None
+            and hmac.compare_digest(
+                chain_key.get_secret_value().encode("ascii"),
+                hmac_key.get_secret_value().encode("ascii"),
+            )
+        ):
+            raise ValueError(
+                "UNIFI_AUDIT_CHAIN_KEY must differ from UNIFI_AUDIT_HMAC_KEY; "
+                "provision a distinct key for each"
+            )
+        if not self.audit_chain:
+            return self
+        if chain_key is None:
+            raise ValueError("UNIFI_AUDIT_CHAIN=true requires UNIFI_AUDIT_CHAIN_KEY")
+        if self.audit_log_format != "json":
+            raise ValueError("UNIFI_AUDIT_CHAIN=true requires UNIFI_AUDIT_LOG_FORMAT=json")
+        path = (self.audit_log or "").strip()
+        sink = self.audit_sink or ("file" if path else "none")
+        # remote with UNIFI_AUDIT_LOG writes the file first and ships a copy: the chain
+        # covers the file.
+        if sink != "file" and not (sink == "remote" and path):
+            raise ValueError(
+                "UNIFI_AUDIT_CHAIN=true requires the file sink: set UNIFI_AUDIT_LOG "
+                "(UNIFI_AUDIT_SINK unset or file)"
+            )
+        return self
 
     @field_validator("tool_mode", mode="before")
     @classmethod
@@ -1157,6 +1417,13 @@ class Settings(BaseSettings):
         if self.tool_mode == "codemode" and self.audit_hmac_key is None:
             raise ValueError("UNIFI_AUDIT_HMAC_KEY is required when UNIFI_TOOL_MODE=codemode")
         return self
+
+    def audit_chain_key_bytes(self) -> bytes | None:
+        """Decoded audit hash-chain key, passed to the audit stream only."""
+        if self.audit_chain_key is None:
+            return None
+        text = self.audit_chain_key.get_secret_value()
+        return base64.b64decode(text + "=", altchars=b"-_", validate=True)
 
     def audit_hmac_key_bytes(self) -> bytes | None:
         """Decoded Code Mode audit key, passed through lifecycle wiring only."""
@@ -1180,6 +1447,32 @@ class Settings(BaseSettings):
                 f"https://api.ui.com: it {problem} (unset or empty keeps that default)"
             )
         return url
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_key_providers(cls, data: object) -> object:
+        """Resolve the trusted startup key providers into ``api_key`` / ``api_keys``.
+
+        ``UNIFI_API_KEY_FILE`` / ``UNIFI_API_KEY_COMMAND`` and ``UNIFI_API_KEYS_FILE`` /
+        ``UNIFI_API_KEYS_COMMAND`` come only from this model's own input (the server's
+        environment or constructor), once per process; conflicts are refused before any
+        file is read or helper run (:mod:`unifi_fabric.credential_providers`). Under
+        ``UNIFI_KEY_MODE=header`` the configured keys are ignored, so no provider is read.
+        """
+        mode = os.environ.get("UNIFI_KEY_MODE")
+        # Providers run only in the default mode: header mode reads none, and an invalid
+        # mode must be refused by the startup check before any helper runs.
+        if not isinstance(data, dict) or (mode is not None and mode != "environment"):
+            return data
+        resolved = dict(data)
+        credential_providers.resolve_into(resolved)
+        return resolved
+
+    def configured_key_providers(self) -> list[str]:
+        """The key provider settings configured (variable names, never values)."""
+        return credential_providers.configured_providers(
+            {field: getattr(self, field) for field in credential_providers.FIELD_OF.values()}
+        )
 
     @field_validator("api_keys", mode="before")
     @classmethod

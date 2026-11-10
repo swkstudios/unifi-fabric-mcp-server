@@ -19,12 +19,12 @@ from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError, object_records
 from unifi_fabric.config import Settings
+from unifi_fabric.families.devices.device_mgmt import _mac_cache_for, _mac_uuid_cache
 from unifi_fabric.list_results import (
     _make_structured_fn,
     output_schema_admits_null_payload,
     to_structured_null_result,
 )
-from unifi_fabric.tools.device_mgmt import _mac_cache_for, _mac_uuid_cache
 
 OTHER_ID = "00000000-0000-4000-8000-0000000000bb"
 CACHED_DEVICE_ID = "00000000-0000-4000-8000-0000000000cc"

@@ -15,8 +15,8 @@ from tests.test_network_clients_guests import READ_TOOLS, WRITE_TOOLS
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.families.network import network_clients_guests as ncg
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import network_clients_guests as ncg
 
 UUID = "00000000-0000-4000-8000-0000000000c1"
 OTHER = "00000000-0000-4000-8000-0000000000c2"

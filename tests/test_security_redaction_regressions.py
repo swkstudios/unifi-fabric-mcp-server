@@ -13,18 +13,17 @@ from tests.test_access_log import exercise
 from unifi_fabric import secret_scrub
 from unifi_fabric.client import UniFiClient, UniFiConnectionError, upstream_error_text
 from unifi_fabric.config import Settings
-from unifi_fabric.read_only import ReadOnlyModeError
-from unifi_fabric.redaction import REDACTION_MASK, install_response_redaction, write_redaction_scope
-from unifi_fabric.tools import (
-    aggregation,
+from unifi_fabric.families.connector.connector import connector_write
+from unifi_fabric.families.network import (
     network_controller_insights,
     network_device_operations,
     network_proav_sandbox,
     network_security_diagnostics,
-    protect_private,
-    site_manager,
 )
-from unifi_fabric.tools.connector import connector_write
+from unifi_fabric.families.protect import protect_private
+from unifi_fabric.families.site_manager import aggregation, site_manager
+from unifi_fabric.read_only import ReadOnlyModeError
+from unifi_fabric.redaction import REDACTION_MASK, install_response_redaction, write_redaction_scope
 
 SECRET = "synthetic-upstream-only-credential"
 BODY = {"password": SECRET, "reason": "synthetic failure", "id": "synthetic-id"}

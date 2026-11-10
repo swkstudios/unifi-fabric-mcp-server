@@ -67,3 +67,13 @@ def test_registry_exposes_tool_modes_and_write_policy():
         assert policy["choices"] == ["allow", "dry-run", "deny"]
         assert policy["default"] == "allow"
         assert policy["isRequired"] is False
+
+
+def test_registry_display_metadata_present_and_public():
+    data = json.loads(SERVER_JSON.read_text())
+    assert data["title"] == "UniFi Fabric MCP Server"
+    assert data["websiteUrl"] == data["repository"]["url"]
+    assert data["websiteUrl"].startswith("https://")
+    for icon in data.get("icons", []):
+        assert icon["src"].startswith("https://")
+        assert len(icon["src"]) <= 255

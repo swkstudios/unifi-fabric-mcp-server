@@ -50,12 +50,12 @@ async def test_describe_all_and_cleanup():
             }
             matches = (
                 await client.call_tool("search_tools", {"query": "", "limit": len(full)})
-            ).data
+            ).structured_content["result"]
             assert {row["name"] for row in matches} == set(full)
             assert len(matches) == len(full)
             for name, tool in full.items():
                 result = await client.call_tool("describe_tool", {"name": name})
-                assert result.data == tool
+                assert result.structured_content == tool
     finally:
         restore()
     assert {t.name for t in await app.list_tools()} == set(full)
@@ -112,7 +112,7 @@ async def test_search_no_cap_ranking_and_family_composition():
         async with Client(app) as client:
             all_results = (
                 await client.call_tool("search_tools", {"query": "", "limit": len(full)})
-            ).data
+            ).structured_content["result"]
             assert {r["name"] for r in all_results} == full
             assert all(r["family"] == "firewall" and "\n" not in r["summary"] for r in all_results)
             results = (
@@ -123,10 +123,12 @@ async def test_search_no_cap_ranking_and_family_composition():
                         "writes": False,
                     },
                 )
-            ).data
+            ).structured_content["result"]
             assert results[0]["name"] == "get_firewall_policy_ordering"
             assert all(not r["writes"] for r in results)
-            families = (await client.call_tool("list_tool_families", {})).data
+            families = (await client.call_tool("list_tool_families", {})).structured_content[
+                "result"
+            ]
             assert families == [{"family": "firewall", "tools": len(full)}]
             for meta in ("describe_tool", "call_read_tool"):
                 with pytest.raises(Exception, match="Unknown or unavailable tool"):
@@ -321,10 +323,17 @@ async def test_search_default_limit_and_all_matches_reachable():
     cleanup = await apply_tool_mode(app, "discovery")
     try:
         async with Client(app) as client:
-            assert len((await client.call_tool("search_tools", {"query": ""})).data) == 10
+            assert (
+                len(
+                    (await client.call_tool("search_tools", {"query": ""})).structured_content[
+                        "result"
+                    ]
+                )
+                == 10
+            )
             rows = (
                 await client.call_tool("search_tools", {"query": "", "limit": count + 1000})
-            ).data
+            ).structured_content["result"]
             assert len(rows) == count
             for limit in (0, -1):
                 with pytest.raises(Exception):
@@ -360,8 +369,12 @@ async def test_search_parameter_descriptions_and_family_synonyms():
     cleanup = await apply_tool_mode(app, "discovery")
     try:
         async with Client(app) as client:
-            by_description = (await client.call_tool("search_tools", {"query": "quasar"})).data
-            by_parameter = (await client.call_tool("search_tools", {"query": "nebula"})).data
+            by_description = (
+                await client.call_tool("search_tools", {"query": "quasar"})
+            ).structured_content["result"]
+            by_parameter = (
+                await client.call_tool("search_tools", {"query": "nebula"})
+            ).structured_content["result"]
             assert by_description[0]["name"] == "inspect_alpha"
             assert by_parameter[0]["name"] == "inspect_beta"
     finally:
@@ -376,7 +389,7 @@ async def test_search_parameter_descriptions_and_family_synonyms():
                     "search_tools",
                     {"query": "surveillance cameras", "family": "protect", "limit": 1000},
                 )
-            ).data
+            ).structured_content["result"]
             assert "list_cameras" in {row["name"] for row in rows}
             assert all(row["family"] == "protect" for row in rows)
     finally:

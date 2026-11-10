@@ -221,6 +221,62 @@ _LIVE = (
 #     tools=frozenset({"recognize_image"}), evidence=(),
 #     sample=_SAMPLE_CONSOLE + "/protect/api/recognition/recognize-image",
 # )
+# pending live evidence system-log-device-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-device-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/device-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/device-alert",
+# )
+# pending live evidence system-log-client-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-client-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/client-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/client-alert",
+# )
+# pending live evidence system-log-admin-activity-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-admin-activity", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/admin-activity",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/admin-activity",
+# )
+# pending live evidence system-log-update-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-update-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/update-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/update-alert",
+# )
+# pending live evidence system-log-threat-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-threat-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/threat-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/threat-alert",
+# )
+# pending live evidence system-log-next-ai-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-next-ai-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/next-ai-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/next-ai-alert",
+# )
+# pending live evidence system-log-vpn-alert-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-vpn-alert", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/vpn-alert",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/vpn-alert",
+# )
+# pending live evidence system-log-critical-v1
+# ReadPostRoute(
+#     name="network-v2-system-log-critical", method="POST",
+#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/critical",
+#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
+#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/critical",
+# )
 
 READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
     ReadPostRoute(
@@ -234,6 +290,20 @@ READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
             "larger pages answered HTTP 400; 215000 flows drained before HTTP 408",
         ),
         sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/traffic-flows",
+    ),
+    ReadPostRoute(
+        name="network-v2-system-log-all",
+        method="POST",
+        template=_CONSOLE + "/network/v2/api/site/{site}/system-log/all",
+        tools=frozenset({"collect_network_incident_evidence"}),
+        evidence=(
+            "live 2026-11-09 on a development controller, read-only process: HTTP 200, "
+            "8/8 configuration collection digests unchanged; this route only, no other "
+            "system-log class",
+            "NET-B live probe (private evidence, Step 0): the query "
+            "answers with log rows (window, no-window, empty-body, pageSize 1000 and 5000)",
+        ),
+        sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all",
     ),
     ReadPostRoute(
         name="network-classic-stat-session",
@@ -274,7 +344,15 @@ NOT_LISTED_SAMPLES: tuple[str, ...] = (
     _SAMPLE_CONSOLE + "/network/api/s/default/stat/session/extra",
     _SAMPLE_CONSOLE + "/network/api/s/default/cmd/stat",
     _SAMPLE_CONSOLE + "/network/v2/api/sites/overview",
-    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all",
+    # Only the all class is listed; every other system-log class stays a write.
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/critical",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all/extra",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/ALL",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all/",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/%61ll",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all%3Fx=1",
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/critical/mark-all-as-read",
     _SAMPLE_CONSOLE + "/protect/api/stat/session",
     "/v1/isp-metrics/1h",
     "/v1/isp-metrics/1h/query/extra",

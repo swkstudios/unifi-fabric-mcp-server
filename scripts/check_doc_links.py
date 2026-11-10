@@ -207,6 +207,48 @@ def current_release_link(url: str, root: Path, version: str | None) -> dict[str,
     return {**result, "status": 200, "ok": True}
 
 
+BUNDLE_MANIFEST = Path("plugins/claude-desktop/manifest.json")
+
+
+def current_release_bundle(url: str, root: Path, version: str | None) -> dict[str, object] | None:
+    """Check an unpublished current-tag Claude Desktop bundle link against its manifest.
+
+    The release attaches ``unifi-fabric-<version>.mcpb`` packed from
+    plugins/claude-desktop, so before the tag exists the link is valid exactly when that
+    manifest is present and declares the same version.
+    """
+    parsed = urlsplit(url)
+    expected = (
+        f"/swkstudios/unifi-fabric-mcp-server/releases/download/v{version}/"
+        f"unifi-fabric-{version}.mcpb"
+    )
+    if (
+        not version
+        or parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != expected
+    ):
+        return None
+    result: dict[str, object] = {
+        "url": url,
+        "status": 404,
+        "ok": False,
+        "moved": False,
+        "source": "working-tree",
+    }
+    try:
+        declared = json.loads((root / BUNDLE_MANIFEST).read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError, AttributeError):
+        result["reason"] = "release bundle manifest is missing or unreadable"
+        return result
+    if declared != version:
+        result["reason"] = f"release bundle manifest declares {declared!r}, not {version}"
+        return result
+    return {**result, "status": 200, "ok": True}
+
+
 def check(
     root: Path = ROOT, retries: int = 2, *, external: bool = False
 ) -> list[dict[str, object]]:
@@ -220,6 +262,8 @@ def check(
 
     def check_target(url: str) -> dict[str, object] | None:
         local = current_release_link(url, root, version)
+        if local is None:
+            local = current_release_bundle(url, root, version)
         if local is not None:
             return local
         return probe(url, retries=retries) if external else None

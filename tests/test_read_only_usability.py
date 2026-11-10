@@ -85,7 +85,7 @@ class FailedFlowPage(uh.FakeUpstream):
 
 
 async def test_traffic_flows_mid_drain_408_returns_gathered_pages(monkeypatch):
-    from unifi_fabric.tools.network_nat_qos_traffic import query_traffic_flows
+    from unifi_fabric.families.network.network_nat_qos_traffic import query_traffic_flows
 
     monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     upstream = FailedFlowPage(replay_recordings=False)

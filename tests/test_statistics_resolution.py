@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import statistics as s
+from unifi_fabric.families.statistics import statistics as s
 
 MAC = "02:00:5e:00:00:aa"
 CALLERS = [
@@ -50,7 +50,7 @@ async def test_same_id_duplicate_is_one_choice(fn, args):
 @pytest.mark.parametrize("native", [None, "", 1, False, [], {}])
 def test_alias_match_missing_native_id_is_explicit(native):
     from unifi_fabric.matching import find_by_id
-    from unifi_fabric.tools._classic_objects import listed_record_id
+    from unifi_fabric.shared_shapes._classic_objects import listed_record_id
 
     record = {"_id": native, "external_id": "external", "name": "identified"}
     selected = find_by_id([record], "external", "_id", "external_id")

@@ -11,7 +11,7 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import _classic_cmd as cc
+from unifi_fabric.shared_shapes import _classic_cmd as cc
 
 BASE = "https://api.ui.com"
 HOST = "A1B2C3:12345"
@@ -183,7 +183,7 @@ async def test_site_selectors_validate_before_resolution(monkeypatch, client, ho
 def test_upstream_error_credential_fields_use_shared_formatter():
     from unifi_fabric.client import UniFiConnectionError
     from unifi_fabric.redaction import write_redaction_scope
-    from unifi_fabric.tools._classic_cmd import command_data
+    from unifi_fabric.shared_shapes._classic_cmd import command_data
 
     body = {"data": {"password": "CLASSIC_SHAPE_SENTINEL"}}
     with write_redaction_scope(True), pytest.raises(UniFiConnectionError) as exc:

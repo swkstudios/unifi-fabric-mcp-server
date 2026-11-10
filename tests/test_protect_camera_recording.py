@@ -40,7 +40,7 @@ from unifi_fabric.client import (
     is_dry_run_preview,
 )
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import protect_camera_recording as pcr
+from unifi_fabric.families.protect import protect_camera_recording as pcr
 
 HOST = "console-p03"
 BASE = f"/v1/connector/consoles/{HOST}/proxy/protect/api"
@@ -49,7 +49,6 @@ START = 1_760_227_200
 END = 1_760_230_800
 
 READ_TOOLS = {
-    "get_camera_adoption_qr",
     "get_camera_analytics",
     "get_camera_lux",
     "get_camera_playback_history",
@@ -73,15 +72,6 @@ WRITE_TOOLS = {
 
 #: tool -> (function, positional args after host, kwargs, method, path, params, body)
 CALLS: dict[str, tuple[Any, tuple[Any, ...], dict[str, Any], str, str, dict[str, str], Any]] = {
-    "get_camera_adoption_qr": (
-        pcr.get_camera_adoption_qr,
-        (),
-        {"ssid": "synthetic-ssid", "wifi_password": "synthetic-wifi-pass"},
-        "GET",
-        f"{BASE}/cameras/qr",
-        {"ssid": "synthetic-ssid", "password": "synthetic-wifi-pass"},
-        None,
-    ),
     "get_camera_analytics": (
         pcr.get_camera_analytics,
         (CAMERA, "detections", START, END),
@@ -292,7 +282,7 @@ async def call(name: str, up: Upstream, settings: dict[str, Any] | None = None) 
 
 def test_calls_cover_every_tool():
     assert set(CALLS) == READ_TOOLS | WRITE_TOOLS
-    assert len(CALLS) == 18
+    assert len(CALLS) == 17
 
 
 @pytest.mark.parametrize("name", sorted(CALLS))
@@ -397,9 +387,6 @@ async def test_export_download_refuses_a_window_it_would_drop():
 
 
 async def test_optional_query_parameters_are_sent_only_when_given():
-    up = Upstream({"qr": "synthetic"})
-    await run(up, pcr.get_camera_adoption_qr)
-    assert not up.seen[0].url.query
     up = Upstream([])
     await run(up, pcr.get_camera_playback_history, CAMERA, START, END)
     assert dict(up.seen[0].url.params) == {"start": str(START * 1000), "end": str(END * 1000)}
@@ -458,7 +445,7 @@ async def test_write_empty_body_is_none_not_invented():
 @pytest.mark.parametrize(
     ("name", "ctype"),
     [
-        ("get_camera_adoption_qr", "image/png"),
+        ("get_camera_analytics", "image/png"),
         ("export_edge_recording", "video/mp4"),
         ("get_camera_analytics", "image/jpeg"),
     ],
@@ -475,7 +462,7 @@ async def test_binary_bodies_are_base64_with_upstream_content_type(name, ctype):
 async def test_binary_without_content_type_is_base64_and_type_not_invented():
     raw = b"\x89PNG\r\n\x1a\n\x00\xff"
     up = Upstream(lambda r: httpx.Response(200, content=raw))
-    result = await call("get_camera_adoption_qr", up)
+    result = await call("get_camera_analytics", up)
     assert result == {
         "content_base64": base64.b64encode(raw).decode(),
         "content_type": None,
@@ -485,7 +472,7 @@ async def test_binary_without_content_type_is_base64_and_type_not_invented():
 
 async def test_json_without_content_type_is_decoded():
     up = Upstream(lambda r: httpx.Response(200, content=b'{"a": [1]}'))
-    assert await call("get_camera_adoption_qr", up) == {"a": [1]}
+    assert await call("get_camera_analytics", up) == {"a": [1]}
 
 
 async def test_text_body_is_returned_verbatim():
@@ -851,11 +838,10 @@ def test_destructive_tools_are_the_deletes():
 
 
 def test_adoption_qr_password_and_wifi_setup_are_registered_secrets():
+    # The tool is gone (Protect 7.x serves no QR route), but a relay call to the route
+    # still masks the WiFi password.
     qr = route_secrets.matching("GET", f"{BASE}/cameras/qr")
     assert "protect-camera-adoption-qr-wifi-password" in [e.name for e in qr]
-    assert route_secrets.tool_call_secrets(
-        "get_camera_adoption_qr", {"wifi_password": "synthetic-wifi-pass"}
-    ) == ("synthetic-wifi-pass",)
     setup = route_secrets.matching("POST", f"{BASE}/cameras/{CAMERA}/wifi-setup")
     assert [e.name for e in setup] == ["protect-camera-wifi-setup-password"]
     body = {"ssid": "synthetic-ssid", "password": "synthetic-wifi-pass"}
@@ -968,8 +954,7 @@ def test_module_raises_only_in_export_edge_recording():
     (path_segment, require_epoch_seconds, the empty-update guard, the Protect opt-out,
     read-only mode, pydantic choice validation) except export_edge_recording's own
     argument grammar (start or end with download), registered in refusals.py.
-    get_camera_adoption_qr only re-raises an upstream error (inventoried as a
-    non-refusal raise)."""
+    """
     tree = ast.parse(Path(pcr.__file__).read_text())
     raising = {
         fn.name
@@ -977,34 +962,7 @@ def test_module_raises_only_in_export_edge_recording():
         if isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef)
         and any(isinstance(n, ast.Raise) for n in ast.walk(fn))
     }
-    assert raising == {"export_edge_recording", "get_camera_adoption_qr"}
-
-
-QR_404 = {"error": "Entity 'camera' not found", "name": "NOT_FOUND", "entity": "camera", "id": "qr"}
-
-
-async def test_adoption_qr_404_on_protect_7_3_keeps_the_upstream_text_and_adds_a_hint():
-    """Protect 7.3.74 (live 2026-10-28) has no QR route: GET cameras/qr is matched as
-    camera id "qr" and answers this 404. The upstream text stays; a hint is appended."""
-    up = Upstream(httpx.Response(404, json=QR_404))
-    with pytest.raises(UniFiConnectionError) as info:
-        await run(up, pcr.get_camera_adoption_qr)
-    message = str(info.value)
-    assert message.startswith(f"HTTP 404 from GET {BASE}/cameras/qr: ")
-    assert json.dumps(QR_404, separators=(",", ":")) in message
-    assert "-- Hint: " in message and "Protect 7.3" in message
-    assert "UniFi Protect mobile app" in message
-
-
-@pytest.mark.parametrize(
-    "status,body",
-    [(404, {"error": "Entity 'camera' not found", "id": "abc"}), (500, QR_404)],
-)
-async def test_adoption_qr_other_errors_pass_through_unhinted(status, body):
-    up = Upstream(httpx.Response(status, json=body))
-    with pytest.raises(UniFiConnectionError) as info:
-        await run(up, pcr.get_camera_adoption_qr)
-    assert "Hint" not in str(info.value)
+    assert raising == {"export_edge_recording"}
 
 
 @pytest.mark.parametrize("bad", ["", "02:00:5e:00:53:01\n", " 02:00:5e:00:53:01"])
@@ -1041,7 +999,6 @@ def test_edge_export_prepare_is_annotated_read_only():
     [
         (pcr.export_edge_recording, (CAMERA, "prepare"), 400, "filename, start and end"),
         (pcr.get_camera_wifi_networks, (CAMERA,), 500, "WiFi"),
-        (pcr.get_camera_adoption_qr, (), 404, "Protect 7.3"),
     ],
 )
 async def test_camera_read_failure_has_context_and_preserves_upstream(function, args, status, hint):

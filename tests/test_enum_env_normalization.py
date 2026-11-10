@@ -25,6 +25,9 @@ VALID: dict[str, str] = {
     "audit_sink": "stderr",
     "audit_level": "debug",
     "audit_calls": "true",
+    "audit_chain": "true",
+    "audit_remote_plaintext": "true",
+    "audit_hmac_identifiers": "true",
     "audit_log_mode": "0640",
     "auth_mode": "bearer",
     "tls_mode": "https",
@@ -50,6 +53,18 @@ _COMPANIONS: dict[str, dict[str, str]] = {
         "MCP_TLS_CERTFILE": "/probe/cert.pem",
         "MCP_TLS_KEYFILE": "/probe/key.pem",
         "MCP_TLS_CA_CERTS": "/probe/ca.pem",
+    },
+    "audit_remote_plaintext": {
+        "UNIFI_AUDIT_SINK": "remote",
+        "UNIFI_AUDIT_REMOTE_URL": "http://collector.example/audit",
+    },
+    # 32 zero bytes, canonical unpadded base64url (built here: no key-shaped literal).
+    "audit_hmac_identifiers": {"UNIFI_AUDIT_HMAC_KEY": "A" * 43},
+    # The chain needs its key, the JSON format and the file sink.
+    "audit_chain": {
+        "UNIFI_AUDIT_CHAIN_KEY": "A" * 43,
+        "UNIFI_AUDIT_LOG_FORMAT": "json",
+        "UNIFI_AUDIT_LOG": "/probe/audit.jsonl",
     },
 }
 _CHOICE_MARKERS = ("must be one of", "must be a boolean", "valid families")

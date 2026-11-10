@@ -11,7 +11,10 @@ from fastmcp import Client
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import carrier_fabric, connector, mobility, protect
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.protect import protect
 
 
 @pytest.mark.parametrize(

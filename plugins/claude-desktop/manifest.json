@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "unifi-fabric",
   "display_name": "UniFi Fabric MCP",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Run the open-source UniFi Fabric MCP server on your own Mac or Windows PC with your own UniFi Site Manager API key.",
-  "long_description": "Launches `uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` on your machine with the UniFi Site Manager API key you enter at install time. Claude can then read and manage your UniFi sites, devices, clients, Wi-Fi, firewall, VPN and Protect cameras through the UniFi Fabric API in Ubiquiti's cloud (api.ui.com). Writes are on by default; set the Write policy option to deny to hide and refuse every write and action tool. Requires uv (https://docs.astral.sh/uv/). Not affiliated with Ubiquiti Inc.",
+  "long_description": "Launches `uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` on your machine with the UniFi Site Manager API key you enter at install time. Claude can then read and manage your UniFi sites, devices, clients, Wi-Fi, firewall, VPN and Protect cameras through the UniFi Fabric API in Ubiquiti's cloud (api.ui.com). Writes are on by default; set the Write policy option to deny to hide and refuse every write and action tool. Requires uv (https://docs.astral.sh/uv/). Not affiliated with Ubiquiti Inc.",
   "author": {
     "name": "SWK Studios",
     "url": "https://github.com/swkstudios"
@@ -23,7 +23,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "unifi-fabric-mcp-server==0.7.1",
+        "unifi-fabric-mcp-server==0.7.2",
         "unifi-fabric-mcp"
       ],
       "env": {

@@ -1,13 +1,13 @@
 # UniFi Fabric MCP Server
 
-> An MCP server that exposes the UniFi Fabric APIs (Site Manager, Network, Protect, InnerSpace, Carrier Fabric, Mobility) as tools for AI assistants. Version 0.7.1. Python 3.12+. Package `unifi-fabric-mcp-server`, command `unifi-fabric-mcp`.
+> An MCP server that exposes the UniFi Fabric APIs (Site Manager, Network, Protect, InnerSpace, Carrier Fabric, Mobility) as tools for AI assistants. Version 0.7.2. Python 3.12+. Package `unifi-fabric-mcp-server`, command `unifi-fabric-mcp`.
 
 This index is for AI coding agents and assistants. It points to the files that are the source of truth; it does not copy their content. There is no `llms-full.txt`: the linked files are the full text.
 
 ## Install (exact)
 
-- Run from PyPI: `uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` with `UNIFI_API_KEY` set in the environment.
-- Docker: `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.1`; HTTP deployment and the client entry are in [docs/DOCKER.md](docs/DOCKER.md).
+- Run from PyPI: `uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` with `UNIFI_API_KEY` set in the environment.
+- Docker: `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2`; HTTP deployment and the client entry are in [docs/DOCKER.md](docs/DOCKER.md).
 - Client setup (Claude Code, Codex, Claude Desktop, VS Code, Cursor, Antigravity, ChatGPT): [README.md](README.md) Quick Start.
 
 ## Read-only use
@@ -16,7 +16,7 @@ This index is for AI coding agents and assistants. It points to the files that a
 - `UNIFI_WRITE_POLICY=dry-run` previews writes without sending them. Authentication and TLS for HTTP: [docs/AUTH-TLS.md](docs/AUTH-TLS.md).
 
 - Tools using console-internal paths depend on routes Ubiquiti can restrict without notice; `UNIFI_EXCLUDE=unofficial` alone retains generic relays that can reach private routes; use `UNIFI_EXCLUDE=unofficial,source:relay` for an official-only catalog.
-- Official APIs only: `UNIFI_EXCLUDE=unofficial,source:relay`, under which 191 tools remain and 601 are excluded; `unofficial` alone keeps the generic `fabric_connector_*` relays, which can reach private routes ([docs/CONFIGURATION.md](docs/CONFIGURATION.md#official-only-catalog)).
+- Official APIs only: `UNIFI_EXCLUDE=unofficial,source:relay`, under which 194 tools remain and 604 are excluded; `unofficial` alone keeps the generic `fabric_connector_*` relays, which can reach private routes ([docs/CONFIGURATION.md](docs/CONFIGURATION.md#official-only-catalog)).
 
 - Every setting with its default and accepted values: the generated [settings reference](docs/CONFIGURATION.md#settings-reference-generated).
 
@@ -43,11 +43,11 @@ Never edit a generated file by hand. Run the generator, then its `--check`:
 - `python3 scripts/gen_catalog_figures.py` writes the catalog figures in `README.md`, `docs/CATALOG.md`, `docs/DOCKER.md`, `docs/MIGRATING-0.7.md`, `docs/COVERAGE.md`, `docs/CONFIGURATION.md`, `plugins/claude-desktop/README.md`, `docs/site-stats.json`; it also targets the first numbered `CHANGELOG.md` section, and a dated (released) section must never be committed changed.
 - `python3 scripts/gen_reference_blocks.py` writes the marked blocks in `README.md`, `docs/CONFIGURATION.md` and `docs/TOOL-USAGE.md`.
 - `python3 scripts/gen_tool_input_schemas.py --write` writes `tests/fixtures/tool_input_schemas_baseline.json`.
-- `python -m tests.api_sources_gen --write` writes `src/unifi_fabric/_api_source_table.py`.
+- `python -m tests.api_sources_gen --write` writes `src/unifi_fabric/generated_api_facts/_api_source_table.py`.
 
 ## Generated paths (do not hand-edit)
 
-`docs/TOOLS.md`, `docs/site-stats.json`, `src/unifi_fabric/_api_source_table.py`, `tests/fixtures/tool_input_schemas_baseline.json`, the lock files (`requirements.lock`, `requirements-runtime.lock`, `requirements-build.lock`), and the blocks between `<!-- BEGIN GENERATED: name -->` and `<!-- END GENERATED -->` markers.
+`docs/TOOLS.md`, `docs/site-stats.json`, `src/unifi_fabric/generated_api_facts/_api_source_table.py`, `tests/fixtures/tool_input_schemas_baseline.json`, the lock files (`requirements.lock`, `requirements-runtime.lock`, `requirements-build.lock`), and the blocks between `<!-- BEGIN GENERATED: name -->` and `<!-- END GENERATED -->` markers.
 
 ## Verify before pushing
 

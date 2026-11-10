@@ -1,7 +1,7 @@
 """Every tool that returns ``deletion_result`` describes that shape; no other tool claims it.
 
 The tool set is derived from the code, never from tool names. A tool belongs to it when
-a value it returns comes from :func:`unifi_fabric.tools._results.deletion_result`,
+a value it returns comes from :func:`unifi_fabric.shared_shapes._results.deletion_result`,
 followed through the helpers it calls: module aliases, ``module.helper`` attributes and
 closure variables are resolved at runtime, and a wrapper that adds keys to the result
 passed as its first argument (``_with_epoch_unit(deletion_result(...))``) counts. A tool
@@ -33,7 +33,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize, tools_by_name
 from unifi_fabric.catalog_descriptions import DELETION_RESULT
 from unifi_fabric.client import is_dry_run_preview
-from unifi_fabric.tools import _results
+from unifi_fabric.shared_shapes import _results
 
 PURE, PARTIAL, NONE = "pure", "partial", "none"
 #: The shape itself, as a partial tool states it after "... returns".

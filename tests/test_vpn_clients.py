@@ -3,7 +3,7 @@
 Hermetic: the in-process upstream serves synthetic Classic ``rest/networkconf`` records
 (including a ``vpn-client`` one) and records every write; nothing contacts a controller. The
 tools share the networkconf purpose guards with vpn.py; this file proves the four tools of
-``tools/vpn_clients.py`` themselves.
+``families/vpn/vpn_clients.py`` themselves.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from fastmcp.exceptions import ToolError
 from tests import test_cross_tool_invariants as cti
 from tests import upstream_harness as uh
 from unifi_fabric import server
-from unifi_fabric.tools import vpn_clients
-from unifi_fabric.tools._keys import context_value
+from unifi_fabric.families.vpn import vpn_clients
+from unifi_fabric.shared_shapes._keys import context_value
 
 _call = cti._call
 TOOLS_OF_MODULE = {

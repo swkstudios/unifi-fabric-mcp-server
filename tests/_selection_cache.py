@@ -68,6 +68,7 @@ _VOLATILE_PREFIXES = (
     _OWN_PREFIX,
     "PYTEST_",  # PYTEST_CURRENT_TEST, PYTEST_XDIST_* (per worker)
     "COV_CORE_",  # pytest-cov subprocess support
+    "COVERAGE_",  # coverage patch = subprocess (COVERAGE_PROCESS_CONFIG in every covered run)
     "GITHUB_",  # per-step files and ids in Actions
     "RUNNER_",
     "ACTIONS_",
@@ -76,9 +77,34 @@ _VOLATILE_PREFIXES = (
     "ITERM_",
     "TMUX",
     "XDG_SESSION_",
+    # Per-build values of a hosted CI runner (build id, start time, the container's
+    # credential and metadata endpoints).
+    "CODEBUILD_",
+    "ECS_CONTAINER_METADATA_",
+    "AWS_CONTAINER_",
+    # A runner host's package-index and toolchain mirrors.
+    "PIP_",
+    "UV_",
+    "RUSTUP_",
+    # A shard job's own coordinates (K, N, output directory, install time): the selection is
+    # computed before, and independent of, the shard it runs.
+    "SHARD_",
 )
+# Per hosted slot: each CI job, each shard of a sharded suite, runs in its own slot.
+_VOLATILE_SUFFIXES = ("_SLOT",)
 _VOLATILE_NAMES = frozenset(
-    {"PWD", "OLDPWD", "SHLVL", "_", "COLUMNS", "LINES", "INVOCATION_ID", "JOURNAL_STREAM"}
+    {
+        "PWD",
+        "OLDPWD",
+        "SHLVL",
+        "_",
+        "COLUMNS",
+        "LINES",
+        "INVOCATION_ID",
+        "JOURNAL_STREAM",
+        # Per container: each CI job, each shard of a sharded suite.
+        "HOSTNAME",
+    }
 )
 _PRUNE_AFTER_S = 7 * 24 * 3600
 # Only files this module writes: <fingerprint>.json, <fingerprint>.lock and the
@@ -90,7 +116,9 @@ def _fingerprint_env() -> list[tuple[str, str]]:
     return sorted(
         (k, v)
         for k, v in os.environ.items()
-        if k not in _VOLATILE_NAMES and not k.startswith(_VOLATILE_PREFIXES)
+        if k not in _VOLATILE_NAMES
+        and not k.startswith(_VOLATILE_PREFIXES)
+        and not k.endswith(_VOLATILE_SUFFIXES)
     )
 
 

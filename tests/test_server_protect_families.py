@@ -1,6 +1,6 @@
 """Delegation tests for the extended Protect family @mcp.tool() wrappers.
 
-Each server wrapper is a thin pass-through to ``unifi_fabric.tools.protect``; the guard,
+Each server wrapper is a thin pass-through to ``unifi_fabric.families.protect.protect``; the guard,
 confirm, and env-gate logic lives in that module and is tested in
 ``test_protect_families``. These tests execute every wrapper once (so registration and
 argument wiring are exercised) and assert it forwards ``client``/``registry`` and its

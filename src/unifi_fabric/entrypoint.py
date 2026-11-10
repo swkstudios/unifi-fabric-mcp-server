@@ -41,7 +41,8 @@ def _validate_api_key_configuration() -> None:
         return
     print(
         "UNIFI_API_KEY is not set — get a key at https://unifi.ui.com "
-        "(Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS; "
+        "(Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS (or read it "
+        "from a file or helper with UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND); "
         "see README#1-join-your-fabric-and-create-an-api-key",
         file=sys.stderr,
     )

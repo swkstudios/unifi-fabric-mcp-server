@@ -18,7 +18,7 @@ import pytest
 from tests._protect_writes import assert_write, resp
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.protect.protect import (
     PROTECT_MUTATIONS_ENV,
     PROTECT_PROXY_BASE,
     alarm_hub_trigger_output,
@@ -730,7 +730,7 @@ def test_settings_splat_functions_cannot_collide_with_their_own_params():
     # "name" lands in the request body instead of raising TypeError.
     import inspect
 
-    from unifi_fabric.tools import protect
+    from unifi_fabric.families.protect import protect
 
     offenders = []
     for name, fn in inspect.getmembers(protect, inspect.iscoroutinefunction):
@@ -743,7 +743,7 @@ def test_settings_splat_functions_cannot_collide_with_their_own_params():
 
 
 async def test_create_liveview_name_repeated_in_settings_is_accepted(client, registry):
-    from unifi_fabric.tools.protect import create_liveview
+    from unifi_fabric.families.protect.protect import create_liveview
 
     client.request.return_value = resp({"id": "lv-1"})
     await create_liveview(client, registry, "h", "Front", name="Front", layout=4, slots=[])
@@ -796,7 +796,7 @@ async def test_family_equal_nested_leaf_is_noop(client, registry, _l, _g, upd_fn
 
 
 def test_requested_leaves_match_semantics():
-    from unifi_fabric.tools._results import requested_leaves_match as m
+    from unifi_fabric.shared_shapes._results import requested_leaves_match as m
 
     assert m({"osd": {"isDateEnabled": True}}, {"osd": {"isDateEnabled": True, "x": 1}})
     assert not m({"osd": {"isDateEnabled": True}}, {"osd": {"isDateEnabled": False}})

@@ -8,7 +8,7 @@ from fastmcp import FastMCP
 
 from unifi_fabric._read_only_audit import classify_tool_verbs, derive_write_tools
 from unifi_fabric.client import DRY_RUN_MESSAGE
-from unifi_fabric.tools import protect_users_assets as assets
+from unifi_fabric.families.protect import protect_users_assets as assets
 
 ID = "65d4f1e2a1b2c3d4e5f60718"
 READS = {
@@ -26,10 +26,6 @@ ARGS = {
     "update_protect_user_group": {"group_id": ID, "changes": {"settings": {"enabled": True}}},
     "delete_protect_user_group": {"group_id": ID},
     "update_protect_user": {"user_id": ID, "changes": {"settings": {"enabled": True}}},
-    "update_protect_user_notifications": {
-        "user_id": ID,
-        "changes": {"settings": {"enabled": True}},
-    },
     "set_protect_notifications_muted": {"user_id": ID, "muted": True, "valid_until": 1893456000000},
     "get_protect_device_password": {},
     "update_protect_device_password": {"device_password": "example-device-password"},
@@ -80,7 +76,7 @@ async def tools_for(client):
 async def test_registration_and_all_parameter_descriptions(client):
     tools = await tools_for(client)
     assert set(tools) == set(ARGS)
-    assert len(tools) == 18
+    assert len(tools) == 17
     for name, tool in tools.items():
         schema = tool.parameters
         assert "host" in schema["required"]
@@ -153,7 +149,6 @@ async def test_json_readers_accept_every_json_shape_verbatim(client, name, body)
         "update_protect_device_tag",
         "update_protect_user_group",
         "update_protect_user",
-        "update_protect_user_notifications",
     ],
 )
 async def test_empty_updates_refuse_before_resolution(client, name):
@@ -171,7 +166,6 @@ async def test_empty_updates_refuse_before_resolution(client, name):
         "update_protect_device_tag",
         "update_protect_user_group",
         "update_protect_user",
-        "update_protect_user_notifications",
     ],
 )
 async def test_partial_writes_preserve_siblings_and_require_strict_readback(client, name):
@@ -183,8 +177,6 @@ async def test_partial_writes_preserve_siblings_and_require_strict_readback(clie
         family = "groups" if name == "update_protect_user_group" else "users"
 
         def wrap(record):
-            if name == "update_protect_user_notifications":
-                record = {"id": ID, "notifications": record}
             return {family: [record]}
 
         client.get.side_effect = [wrap(before), wrap(after)]
@@ -205,7 +197,6 @@ async def test_partial_writes_preserve_siblings_and_require_strict_readback(clie
         "update_protect_device_tag",
         "update_protect_user_group",
         "update_protect_user",
-        "update_protect_user_notifications",
     ],
 )
 async def test_matched_id_and_body_id_are_sent_in_the_upstream_spelling(client, name):
@@ -216,8 +207,6 @@ async def test_matched_id_and_body_id_are_sent_in_the_upstream_spelling(client, 
         client.get.return_value = [record]
     else:
         family = "groups" if name == "update_protect_user_group" else "users"
-        if name == "update_protect_user_notifications":
-            record = {"id": ID, "notifications": dict(record)}
         client.get.return_value = {family: [record]}
     id_arg = next(arg for arg in ARGS[name] if arg.endswith("_id"))
     changes = {"id": ID.upper(), "settings": {"enabled": True}}

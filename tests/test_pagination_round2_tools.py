@@ -6,8 +6,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools.protect_events_cases import get_protect_case_activity
-from unifi_fabric.tools.recognition import list_recognition_detections, list_recognition_groups
+from unifi_fabric.families.protect.protect_events_cases import get_protect_case_activity
+from unifi_fabric.families.protect.recognition import (
+    list_recognition_detections,
+    list_recognition_groups,
+)
 
 
 @pytest.mark.parametrize(

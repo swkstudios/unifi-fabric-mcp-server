@@ -13,6 +13,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | Tool | Family | Access |
 |---|---|---|
 | [`accept_ironclad_terms`](#accept_ironclad_terms) | `protect` | write |
+| [`acknowledge_critical_alert`](#acknowledge_critical_alert) | `network` | write |
 | [`activate_lte_trial`](#activate_lte_trial) | `network` | write |
 | [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate) | `network` | write |
 | [`add_protect_case_asset`](#add_protect_case_asset) | `protect` | write |
@@ -41,7 +42,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`bulk_update_objects`](#bulk_update_objects) | `network` | write |
 | [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups) | `protect` | write |
 | [`calibrate_camera`](#calibrate_camera) | `protect` | write |
-| [`calibrate_door_lock`](#calibrate_door_lock) | `protect` | write |
 | [`cancel_cloud_archive_task`](#cancel_cloud_archive_task) | `protect` | write |
 | [`cancel_controller_backup`](#cancel_controller_backup) | `network` | write |
 | [`cancel_rolling_upgrade`](#cancel_rolling_upgrade) | `devices` | write |
@@ -51,8 +51,10 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`clear_sensor_tamper`](#clear_sensor_tamper) | `protect` | write |
 | [`clear_switch_counters`](#clear_switch_counters) | `network` | write |
 | [`clone_device_config`](#clone_device_config) | `network` | write |
+| [`collect_network_incident_evidence`](#collect_network_incident_evidence) | `statistics` | read |
 | [`collect_protect_device_changes`](#collect_protect_device_changes) | `protect` | read |
 | [`collect_protect_events`](#collect_protect_events) | `protect` | read |
+| [`collect_protect_incident_evidence`](#collect_protect_incident_evidence) | `protect` | read |
 | [`commission_matter_node`](#commission_matter_node) | `network` | write |
 | [`compare_site_performance`](#compare_site_performance) | `site_manager` | read |
 | [`configure_camera_wifi`](#configure_camera_wifi) | `protect` | write |
@@ -124,7 +126,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`create_test_config`](#create_test_config) | `network` | write |
 | [`create_traffic_matching_list`](#create_traffic_matching_list) | `network` | write |
 | [`create_traffic_route`](#create_traffic_route) | `network` | write |
-| [`create_traffic_rule`](#create_traffic_rule) | `network` | write |
 | [`create_user_group`](#create_user_group) | `network` | write |
 | [`create_vpn_client`](#create_vpn_client) | `vpn` | write |
 | [`create_vpn_server`](#create_vpn_server) | `vpn` | write |
@@ -189,7 +190,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`delete_test_config`](#delete_test_config) | `network` | write |
 | [`delete_traffic_matching_list`](#delete_traffic_matching_list) | `network` | write |
 | [`delete_traffic_route`](#delete_traffic_route) | `network` | write |
-| [`delete_traffic_rule`](#delete_traffic_rule) | `network` | write |
 | [`delete_user_group`](#delete_user_group) | `network` | write |
 | [`delete_vpn_client`](#delete_vpn_client) | `vpn` | write |
 | [`delete_vpn_server`](#delete_vpn_server) | `vpn` | write |
@@ -238,7 +238,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_bgp_status`](#get_bgp_status) | `network` | read |
 | [`get_bridge`](#get_bridge) | `protect` | read |
 | [`get_camera`](#get_camera) | `protect` | read |
-| [`get_camera_adoption_qr`](#get_camera_adoption_qr) | `protect` | read |
 | [`get_camera_analytics`](#get_camera_analytics) | `protect` | read |
 | [`get_camera_lux`](#get_camera_lux) | `protect` | read |
 | [`get_camera_playback_history`](#get_camera_playback_history) | `protect` | read |
@@ -251,9 +250,11 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_channel_plan`](#get_channel_plan) | `network` | read |
 | [`get_chime`](#get_chime) | `protect` | read |
 | [`get_client`](#get_client) | `clients` | read |
+| [`get_client_dpi_usage`](#get_client_dpi_usage) | `network` | read |
 | [`get_client_insights`](#get_client_insights) | `network` | read |
 | [`get_client_link_diagnostics`](#get_client_link_diagnostics) | `statistics` | read |
 | [`get_client_observability`](#get_client_observability) | `network` | read |
+| [`get_client_wifi_experience`](#get_client_wifi_experience) | `network` | read |
 | [`get_cloud_archive_status`](#get_cloud_archive_status) | `protect` | read |
 | [`get_console_general_info`](#get_console_general_info) | `network` | read |
 | [`get_controller_stats`](#get_controller_stats) | `network` | read |
@@ -271,8 +272,10 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_device_tx_retries`](#get_device_tx_retries) | `network` | read |
 | [`get_digital_twin_layout`](#get_digital_twin_layout) | `network` | read |
 | [`get_dns_policy`](#get_dns_policy) | `network` | read |
+| [`get_door_lock`](#get_door_lock) | `protect` | read |
 | [`get_dynamic_dns`](#get_dynamic_dns) | `network` | read |
 | [`get_enriched_configuration`](#get_enriched_configuration) | `network` | read |
+| [`get_event_stream_status`](#get_event_stream_status) | `statistics` | read |
 | [`get_firewall_group`](#get_firewall_group) | `firewall` | read |
 | [`get_firewall_policy`](#get_firewall_policy) | `firewall` | read |
 | [`get_firewall_policy_ordering`](#get_firewall_policy_ordering) | `firewall` | read |
@@ -332,11 +335,11 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_port_profile`](#get_port_profile) | `network` | read |
 | [`get_proav_matrix`](#get_proav_matrix) | `network` | read |
 | [`get_proav_snapshot`](#get_proav_snapshot) | `network` | read |
+| [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode) | `protect` | read |
 | [`get_protect_application_info`](#get_protect_application_info) | `protect` | read |
 | [`get_protect_automation_history`](#get_protect_automation_history) | `protect` | read |
 | [`get_protect_bootstrap`](#get_protect_bootstrap) | `protect` | read |
 | [`get_protect_case_activity`](#get_protect_case_activity) | `protect` | read |
-| [`get_protect_case_asset_snapshot`](#get_protect_case_asset_snapshot) | `protect` | read |
 | [`get_protect_device_metrics`](#get_protect_device_metrics) | `protect` | read |
 | [`get_protect_device_password`](#get_protect_device_password) | `protect` | read |
 | [`get_protect_event`](#get_protect_event) | `protect` | read |
@@ -362,11 +365,13 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_sensor`](#get_sensor) | `protect` | read |
 | [`get_sensor_private`](#get_sensor_private) | `protect` | read |
 | [`get_sensor_readings`](#get_sensor_readings) | `protect` | read |
+| [`get_server_diagnostic_bundle`](#get_server_diagnostic_bundle) | `site_manager` | read |
 | [`get_setting`](#get_setting) | `network` | read |
 | [`get_shadow_mode_status`](#get_shadow_mode_status) | `network` | read |
 | [`get_siren`](#get_siren) | `protect` | read |
 | [`get_site_dashboard`](#get_site_dashboard) | `network` | read |
 | [`get_site_degradation_status`](#get_site_degradation_status) | `network` | read |
+| [`get_site_dpi_usage`](#get_site_dpi_usage) | `network` | read |
 | [`get_site_health_summary`](#get_site_health_summary) | `site_manager` | read |
 | [`get_site_inventory`](#get_site_inventory) | `site_manager` | read |
 | [`get_site_statistics`](#get_site_statistics) | `statistics` | read |
@@ -377,6 +382,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_ssl_inspection_settings`](#get_ssl_inspection_settings) | `network` | read |
 | [`get_static_route`](#get_static_route) | `network` | read |
 | [`get_support_file`](#get_support_file) | `network` | read |
+| [`get_switch_port_overrides`](#get_switch_port_overrides) | `devices` | read |
 | [`get_switch_stack`](#get_switch_stack) | `network` | read |
 | [`get_system_info`](#get_system_info) | `statistics` | read |
 | [`get_system_log`](#get_system_log) | `statistics` | write |
@@ -451,6 +457,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`list_dhcp_options`](#list_dhcp_options) | `network` | read |
 | [`list_dns_policies`](#list_dns_policies) | `network` | read |
 | [`list_doh_servers`](#list_doh_servers) | `vpn` | read |
+| [`list_door_lock_unlock_events`](#list_door_lock_unlock_events) | `protect` | read |
 | [`list_door_locks`](#list_door_locks) | `protect` | read |
 | [`list_dpi_applications`](#list_dpi_applications) | `network` | read |
 | [`list_dpi_categories`](#list_dpi_categories) | `network` | read |
@@ -597,8 +604,8 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`query_switch_mac_tables`](#query_switch_mac_tables) | `network` | write |
 | [`query_teleport_invitations`](#query_teleport_invitations) | `vpn` | write |
 | [`query_traffic_flows`](#query_traffic_flows) | `network` | read |
+| [`read_recent_events`](#read_recent_events) | `statistics` | read |
 | [`readopt_protect_device`](#readopt_protect_device) | `protect` | write |
-| [`reboot_nvr`](#reboot_nvr) | `protect` | write |
 | [`reboot_protect_device`](#reboot_protect_device) | `protect` | write |
 | [`reboot_unifi_os_console`](#reboot_unifi_os_console) | `network` | write |
 | [`recognize_image`](#recognize_image) | `protect` | write |
@@ -659,7 +666,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`set_device_alignment_mode`](#set_device_alignment_mode) | `network` | write |
 | [`set_device_rearrange_mode`](#set_device_rearrange_mode) | `network` | write |
 | [`set_device_tag_assignments`](#set_device_tag_assignments) | `network` | write |
-| [`set_door_lock_auto_close`](#set_door_lock_auto_close) | `protect` | write |
 | [`set_door_lock_state`](#set_door_lock_state) | `protect` | write |
 | [`set_edge_storage_mount_state`](#set_edge_storage_mount_state) | `protect` | write |
 | [`set_firewall_app_blocks`](#set_firewall_app_blocks) | `firewall` | write |
@@ -687,6 +693,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`start_wifi_quick_scan`](#start_wifi_quick_scan) | `network` | write |
 | [`stop_speaker_stream`](#stop_speaker_stream) | `protect` | write |
 | [`suggest_network_settings`](#suggest_network_settings) | `network` | read |
+| [`suggest_service_port`](#suggest_service_port) | `network` | read |
 | [`suspend_carrier_subscriber`](#suspend_carrier_subscriber) | `carrier` | write |
 | [`test_doorbell_ringtone`](#test_doorbell_ringtone) | `protect` | write |
 | [`transfer_camera_management`](#transfer_camera_management) | `protect` | write |
@@ -761,7 +768,6 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`update_protect_device_tag`](#update_protect_device_tag) | `protect` | write |
 | [`update_protect_user`](#update_protect_user) | `protect` | write |
 | [`update_protect_user_group`](#update_protect_user_group) | `protect` | write |
-| [`update_protect_user_notifications`](#update_protect_user_notifications) | `protect` | write |
 | [`update_ptz_patrol`](#update_ptz_patrol) | `protect` | write |
 | [`update_ptz_preset`](#update_ptz_preset) | `protect` | write |
 | [`update_qos_rule`](#update_qos_rule) | `network` | write |
@@ -780,11 +786,11 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`update_ssl_inspection_settings`](#update_ssl_inspection_settings) | `network` | write |
 | [`update_static_dns_record`](#update_static_dns_record) | `vpn` | write |
 | [`update_static_route`](#update_static_route) | `network` | write |
+| [`update_switch_port_overrides`](#update_switch_port_overrides) | `devices` | write |
 | [`update_switch_stack`](#update_switch_stack) | `network` | write |
 | [`update_system_log_settings`](#update_system_log_settings) | `network` | write |
 | [`update_traffic_matching_list`](#update_traffic_matching_list) | `network` | write |
 | [`update_traffic_route`](#update_traffic_route) | `network` | write |
-| [`update_traffic_rule`](#update_traffic_rule) | `network` | write |
 | [`update_user`](#update_user) | `network` | write |
 | [`update_user_group`](#update_user_group) | `network` | write |
 | [`update_viewer`](#update_viewer) | `protect` | write |
@@ -839,24 +845,24 @@ The generic Fabric connector relay exposes four mutating tools (`fabric_connecto
 
 When the entry is set, the write tools it governs are hidden from `tools/list` and from discovery search at startup. A call to one by name is refused before the console is touched and audited, and the refusal message names `family:connector=deny` and points back to this section.
 
-**Scope.** `family:connector=deny` governs the four generic connector relay mutation tools (`fabric_connector_post`, `fabric_connector_put`, `fabric_connector_patch`, `fabric_connector_delete`), a `fabric_connector_get` call to a known state-changing GET route (Protect camera `enable-control` / `disable-control`), and these typed tools: `adopt_protect_device`, `apply_radio_ai_optimization`, `clear_sensor_tamper`, `configure_wifi_wan`, `control_wifi_doctor_optimization`, `preview_radio_ai_optimization`, `reboot_nvr`, `reboot_protect_device`, `start_spectrum_scan`, `start_wifi_quick_scan`, `unadopt_protect_device`, `update_camera_private`, `update_device_radio`, `update_nvr` and `update_sensor_private`. Each typed tool also follows its own area's entry. Ordinary GET reads through `fabric_connector_get` stay available. The InnerSpace typed write tools are governed by `family:innerspace=deny`, not by this entry. An InnerSpace write path reached through the generic relay follows `family:connector=deny`, `family:innerspace=deny` and `UNIFI_WRITE_POLICY`, as other relay mutations; writes are enabled by default.
+**Scope.** `family:connector=deny` governs the four generic connector relay mutation tools (`fabric_connector_post`, `fabric_connector_put`, `fabric_connector_patch`, `fabric_connector_delete`), a `fabric_connector_get` call to a known state-changing GET route (Protect camera `enable-control` / `disable-control`), and these typed tools: `adopt_protect_device`, `apply_radio_ai_optimization`, `clear_sensor_tamper`, `configure_wifi_wan`, `control_wifi_doctor_optimization`, `preview_radio_ai_optimization`, `reboot_protect_device`, `start_spectrum_scan`, `start_wifi_quick_scan`, `unadopt_protect_device`, `update_camera_private`, `update_device_radio`, `update_nvr`, `update_sensor_private` and `update_switch_port_overrides`. Each typed tool also follows its own area's entry. Ordinary GET reads through `fabric_connector_get` stay available. The InnerSpace typed write tools are governed by `family:innerspace=deny`, not by this entry. An InnerSpace write path reached through the generic relay follows `family:connector=deny`, `family:innerspace=deny` and `UNIFI_WRITE_POLICY`, as other relay mutations; writes are enabled by default.
 
-Total tools: 792
+Total tools: 798
 
 ## Tool Categories
 
 - [Client Management](#client-management) (3)
-- [Configuration](#configuration) (34)
-- [Create](#create) (68)
-- [Delete](#delete) (65)
+- [Configuration](#configuration) (33)
+- [Create](#create) (67)
+- [Delete](#delete) (64)
 - [Device Control](#device-control) (7)
 - [Device Management](#device-management) (11)
 - [Execute & Actions](#execute--actions) (13)
-- [Listing & Discovery](#listing--discovery) (149)
-- [Other](#other) (160)
-- [Reading & Inspection](#reading--inspection) (179)
+- [Listing & Discovery](#listing--discovery) (150)
+- [Other](#other) (163)
+- [Reading & Inspection](#reading--inspection) (185)
 - [Search](#search) (4)
-- [Update](#update) (99)
+- [Update](#update) (98)
 
 ## Tools by API source
 
@@ -878,34 +884,34 @@ Every tool is classified as `<app>/<source>/<access>` from the routes it calls (
 - `mobility/official/read` (5): [`get_mobility_device`](#get_mobility_device), [`list_mobility_admins`](#list_mobility_admins), [`list_mobility_clients`](#list_mobility_clients), [`list_mobility_devices`](#list_mobility_devices), [`list_mobility_workspaces`](#list_mobility_workspaces)
 - `mobility/official/write` (3): [`update_mobility_device_name`](#update_mobility_device_name), [`update_mobility_device_network`](#update_mobility_device_network), [`update_mobility_device_wireless`](#update_mobility_device_wireless)
 
-**network** (494 tools)
+**network** (500 tools)
 
-- `network/official/read` (46): [`get_acl_rule`](#get_acl_rule), [`get_acl_rule_ordering`](#get_acl_rule_ordering), [`get_client`](#get_client), [`get_device`](#get_device), [`get_device_statistics`](#get_device_statistics), [`get_dns_policy`](#get_dns_policy), [`get_firewall_policy`](#get_firewall_policy), [`get_firewall_policy_ordering`](#get_firewall_policy_ordering), [`get_firewall_zone_proxy`](#get_firewall_zone_proxy), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_references`](#get_network_references), [`get_radius_profile`](#get_radius_profile), [`get_site_inventory`](#get_site_inventory), [`get_switch_stack`](#get_switch_stack), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_vpn_server`](#get_vpn_server), [`get_wifi_broadcast`](#get_wifi_broadcast), [`list_acl_rules`](#list_acl_rules), [`list_all_clients`](#list_all_clients), [`list_clients`](#list_clients), [`list_countries`](#list_countries), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_firewall_policies`](#list_firewall_policies), [`list_firewall_zones_proxy`](#list_firewall_zones_proxy), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_integration_device_tags`](#list_integration_device_tags), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_networks`](#list_networks), [`list_pending_devices`](#list_pending_devices), [`list_radius_profiles`](#list_radius_profiles), [`list_site_devices`](#list_site_devices), [`list_site_to_site_tunnels`](#list_site_to_site_tunnels), [`list_switch_stacks`](#list_switch_stacks), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_vpn_servers`](#list_vpn_servers), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`search_across_sites`](#search_across_sites)
+- `network/official/read` (47): [`get_acl_rule`](#get_acl_rule), [`get_acl_rule_ordering`](#get_acl_rule_ordering), [`get_client`](#get_client), [`get_device`](#get_device), [`get_device_statistics`](#get_device_statistics), [`get_dns_policy`](#get_dns_policy), [`get_firewall_policy`](#get_firewall_policy), [`get_firewall_policy_ordering`](#get_firewall_policy_ordering), [`get_firewall_zone_proxy`](#get_firewall_zone_proxy), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_references`](#get_network_references), [`get_radius_profile`](#get_radius_profile), [`get_site_inventory`](#get_site_inventory), [`get_switch_stack`](#get_switch_stack), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_vpn_server`](#get_vpn_server), [`get_wifi_broadcast`](#get_wifi_broadcast), [`list_acl_rules`](#list_acl_rules), [`list_all_clients`](#list_all_clients), [`list_clients`](#list_clients), [`list_countries`](#list_countries), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_firewall_policies`](#list_firewall_policies), [`list_firewall_zones_proxy`](#list_firewall_zones_proxy), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_integration_device_tags`](#list_integration_device_tags), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_networks`](#list_networks), [`list_pending_devices`](#list_pending_devices), [`list_radius_profiles`](#list_radius_profiles), [`list_site_devices`](#list_site_devices), [`list_site_to_site_tunnels`](#list_site_to_site_tunnels), [`list_switch_stacks`](#list_switch_stacks), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_vpn_servers`](#list_vpn_servers), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`read_recent_events`](#read_recent_events), [`search_across_sites`](#search_across_sites)
 - `network/official/write` (34): [`adopt_device`](#adopt_device), [`approve_pending_device`](#approve_pending_device), [`batch_delete_firewall_policies`](#batch_delete_firewall_policies), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`create_acl_rule`](#create_acl_rule), [`create_dns_policy`](#create_dns_policy), [`create_firewall_policy`](#create_firewall_policy), [`create_firewall_zone_proxy`](#create_firewall_zone_proxy), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_acl_rule`](#delete_acl_rule), [`delete_dns_policy`](#delete_dns_policy), [`delete_firewall_policy`](#delete_firewall_policy), [`delete_firewall_zone_proxy`](#delete_firewall_zone_proxy), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_network`](#delete_network), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`execute_client_action`](#execute_client_action), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`patch_firewall_policy`](#patch_firewall_policy), [`set_acl_rule_ordering`](#set_acl_rule_ordering), [`set_firewall_policy_ordering`](#set_firewall_policy_ordering), [`unadopt_device`](#unadopt_device), [`update_acl_rule`](#update_acl_rule), [`update_dns_policy`](#update_dns_policy), [`update_firewall_policy`](#update_firewall_policy), [`update_firewall_zone_proxy`](#update_firewall_zone_proxy), [`update_network`](#update_network), [`update_predefined_firewall_policy`](#update_predefined_firewall_policy), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_wifi_broadcast`](#update_wifi_broadcast)
-- `network/private.classic/read` (63): [`compare_site_performance`](#compare_site_performance), [`get_account`](#get_account), [`get_channel_plan`](#get_channel_plan), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_radios`](#get_device_radios), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_stp_state`](#get_device_stp_state), [`get_dynamic_dns`](#get_dynamic_dns), [`get_firewall_group`](#get_firewall_group), [`get_firewall_rule`](#get_firewall_rule), [`get_historical_stats`](#get_historical_stats), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_network_ui_data`](#get_network_ui_data), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_profile`](#get_port_profile), [`get_scheduled_task`](#get_scheduled_task), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_site_health_summary`](#get_site_health_summary), [`get_site_statistics`](#get_site_statistics), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_speedtest_status`](#get_speedtest_status), [`get_static_route`](#get_static_route), [`get_system_info`](#get_system_info), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`list_accounts`](#list_accounts), [`list_active_clients_stats`](#list_active_clients_stats), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_backups`](#list_backups), [`list_client_sessions`](#list_client_sessions), [`list_device_firmware`](#list_device_firmware), [`list_device_stats`](#list_device_stats), [`list_dhcp_options`](#list_dhcp_options), [`list_dynamic_dns`](#list_dynamic_dns), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_rules`](#list_firewall_rules), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_operators`](#list_hotspot_operators), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_known_clients`](#list_known_clients), [`list_network_anomalies`](#list_network_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_settings`](#list_settings), [`list_site_warnings`](#list_site_warnings), [`list_speedtest_results`](#list_speedtest_results), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vpn_clients`](#list_vpn_clients), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wireguard_users`](#list_wireguard_users), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups)
-- `network/private.classic/write` (131): [`activate_lte_trial`](#activate_lte_trial), [`advanced_adopt_device`](#advanced_adopt_device), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`block_client`](#block_client), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_site_vpn`](#control_site_vpn), [`create_backup`](#create_backup), [`create_client_reservation`](#create_client_reservation), [`create_dhcp_option`](#create_dhcp_option), [`create_dynamic_dns`](#create_dynamic_dns), [`create_hotspot_operator`](#create_hotspot_operator), [`create_hotspot_package`](#create_hotspot_package), [`create_network`](#create_network), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_radius_profile`](#create_radius_profile), [`create_scheduled_task`](#create_scheduled_task), [`create_site`](#create_site), [`create_site_to_site_tunnel`](#create_site_to_site_tunnel), [`create_site_vpn`](#create_site_vpn), [`create_static_route`](#create_static_route), [`create_user_group`](#create_user_group), [`create_vpn_client`](#create_vpn_client), [`create_vpn_server`](#create_vpn_server), [`create_wireguard_users`](#create_wireguard_users), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_operator`](#delete_hotspot_operator), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_radius_profile`](#delete_radius_profile), [`delete_scheduled_task`](#delete_scheduled_task), [`delete_site`](#delete_site), [`delete_site_to_site_tunnel`](#delete_site_to_site_tunnel), [`delete_site_vpn`](#delete_site_vpn), [`delete_static_route`](#delete_static_route), [`delete_user_group`](#delete_user_group), [`delete_vpn_client`](#delete_vpn_client), [`delete_vpn_server`](#delete_vpn_server), [`delete_wireguard_users`](#delete_wireguard_users), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_site`](#export_site), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`forget_device`](#forget_device), [`generate_support_file`](#generate_support_file), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_guests`](#list_guests), [`locate_device`](#locate_device), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`migrate_device`](#migrate_device), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`reconnect_client`](#reconnect_client), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`rename_site`](#rename_site), [`replace_device`](#replace_device), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restart_device`](#restart_device), [`restart_vpn_server`](#restart_vpn_server), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`run_speedtest`](#run_speedtest), [`send_test_email`](#send_test_email), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`start_rolling_upgrade`](#start_rolling_upgrade), [`start_spectrum_scan`](#start_spectrum_scan), [`unblock_client`](#unblock_client), [`unpair_building_bridge`](#unpair_building_bridge), [`update_device_battery_settings`](#update_device_battery_settings), [`update_device_radio`](#update_device_radio), [`update_dhcp_option`](#update_dhcp_option), [`update_dynamic_dns`](#update_dynamic_dns), [`update_hotspot_operator`](#update_hotspot_operator), [`update_hotspot_package`](#update_hotspot_package), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_radius_profile`](#update_radius_profile), [`update_scheduled_task`](#update_scheduled_task), [`update_setting`](#update_setting), [`update_site_to_site_tunnel`](#update_site_to_site_tunnel), [`update_static_route`](#update_static_route), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_vpn_client`](#update_vpn_client), [`update_vpn_server`](#update_vpn_server), [`update_wan_interface`](#update_wan_interface), [`update_wireguard_users`](#update_wireguard_users), [`update_wlan_config`](#update_wlan_config), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device), [`verify_sim_pin`](#verify_sim_pin)
-- `network/private.v2/read` (101): [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_enriched_configuration`](#get_enriched_configuration), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_ipsec_settings`](#get_ipsec_settings), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_mdns_settings`](#get_mdns_settings), [`get_network_config_defaults`](#get_network_config_defaults), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_history`](#get_port_history), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_scoped_system_log`](#get_scoped_system_log), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_support_file`](#get_support_file), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`list_active_clients`](#list_active_clients), [`list_ap_groups`](#list_ap_groups), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_models`](#list_device_models), [`list_device_tags`](#list_device_tags), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_doh_servers`](#list_doh_servers), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_gateway_routes`](#list_gateway_routes), [`list_installed_applications`](#list_installed_applications), [`list_ips_categories`](#list_ips_categories), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_matter_nodes`](#list_matter_nodes), [`list_nat_rules`](#list_nat_rules), [`list_network_members_groups`](#list_network_members_groups), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_site_features`](#list_site_features), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_static_dns_records`](#list_static_dns_records), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_vendor_ids`](#list_vendor_ids), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_users`](#list_vpn_users), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireless_links`](#list_wireless_links), [`query_traffic_flows`](#query_traffic_flows), [`suggest_network_settings`](#suggest_network_settings)
-- `network/private.v2/write` (119): [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`commission_matter_node`](#commission_matter_node), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_device_tag`](#create_device_tag), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_nat_rule`](#create_nat_rule), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_test_config`](#create_test_config), [`create_traffic_route`](#create_traffic_route), [`create_traffic_rule`](#create_traffic_rule), [`create_wan_sla`](#create_wan_sla), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_device_tag`](#delete_device_tag), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_nat_rule`](#delete_nat_rule), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_test_config`](#delete_test_config), [`delete_traffic_route`](#delete_traffic_route), [`delete_traffic_rule`](#delete_traffic_rule), [`delete_wan_sla`](#delete_wan_sla), [`export_traffic_flows`](#export_traffic_flows), [`generate_vlan_plan`](#generate_vlan_plan), [`get_multicast_insights`](#get_multicast_insights), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sites_overview`](#get_sites_overview), [`get_system_log`](#get_system_log), [`import_dhcp_reservations`](#import_dhcp_reservations), [`list_ips_events`](#list_ips_events), [`list_network_events`](#list_network_events), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`preview_firewall_group`](#preview_firewall_group), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_teleport_invitations`](#query_teleport_invitations), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`remove_matter_node`](#remove_matter_node), [`remove_teleport_client`](#remove_teleport_client), [`rename_matter_node`](#rename_matter_node), [`reorder_qos_rules`](#reorder_qos_rules), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_lte_failover`](#set_lte_failover), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_tag`](#update_device_tag), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_ips_signatures`](#update_ips_signatures), [`update_ipsec_settings`](#update_ipsec_settings), [`update_nat_rule`](#update_nat_rule), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_dns_record`](#update_static_dns_record), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_route`](#update_traffic_route), [`update_traffic_rule`](#update_traffic_rule), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla)
+- `network/private.classic/read` (64): [`compare_site_performance`](#compare_site_performance), [`get_account`](#get_account), [`get_channel_plan`](#get_channel_plan), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_radios`](#get_device_radios), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_stp_state`](#get_device_stp_state), [`get_dynamic_dns`](#get_dynamic_dns), [`get_firewall_group`](#get_firewall_group), [`get_firewall_rule`](#get_firewall_rule), [`get_historical_stats`](#get_historical_stats), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_network_ui_data`](#get_network_ui_data), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_profile`](#get_port_profile), [`get_scheduled_task`](#get_scheduled_task), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_site_health_summary`](#get_site_health_summary), [`get_site_statistics`](#get_site_statistics), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_speedtest_status`](#get_speedtest_status), [`get_static_route`](#get_static_route), [`get_switch_port_overrides`](#get_switch_port_overrides), [`get_system_info`](#get_system_info), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`list_accounts`](#list_accounts), [`list_active_clients_stats`](#list_active_clients_stats), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_backups`](#list_backups), [`list_client_sessions`](#list_client_sessions), [`list_device_firmware`](#list_device_firmware), [`list_device_stats`](#list_device_stats), [`list_dhcp_options`](#list_dhcp_options), [`list_dynamic_dns`](#list_dynamic_dns), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_rules`](#list_firewall_rules), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_operators`](#list_hotspot_operators), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_known_clients`](#list_known_clients), [`list_network_anomalies`](#list_network_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_settings`](#list_settings), [`list_site_warnings`](#list_site_warnings), [`list_speedtest_results`](#list_speedtest_results), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vpn_clients`](#list_vpn_clients), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wireguard_users`](#list_wireguard_users), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups)
+- `network/private.classic/write` (132): [`activate_lte_trial`](#activate_lte_trial), [`advanced_adopt_device`](#advanced_adopt_device), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`block_client`](#block_client), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_site_vpn`](#control_site_vpn), [`create_backup`](#create_backup), [`create_client_reservation`](#create_client_reservation), [`create_dhcp_option`](#create_dhcp_option), [`create_dynamic_dns`](#create_dynamic_dns), [`create_hotspot_operator`](#create_hotspot_operator), [`create_hotspot_package`](#create_hotspot_package), [`create_network`](#create_network), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_radius_profile`](#create_radius_profile), [`create_scheduled_task`](#create_scheduled_task), [`create_site`](#create_site), [`create_site_to_site_tunnel`](#create_site_to_site_tunnel), [`create_site_vpn`](#create_site_vpn), [`create_static_route`](#create_static_route), [`create_user_group`](#create_user_group), [`create_vpn_client`](#create_vpn_client), [`create_vpn_server`](#create_vpn_server), [`create_wireguard_users`](#create_wireguard_users), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_operator`](#delete_hotspot_operator), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_radius_profile`](#delete_radius_profile), [`delete_scheduled_task`](#delete_scheduled_task), [`delete_site`](#delete_site), [`delete_site_to_site_tunnel`](#delete_site_to_site_tunnel), [`delete_site_vpn`](#delete_site_vpn), [`delete_static_route`](#delete_static_route), [`delete_user_group`](#delete_user_group), [`delete_vpn_client`](#delete_vpn_client), [`delete_vpn_server`](#delete_vpn_server), [`delete_wireguard_users`](#delete_wireguard_users), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_site`](#export_site), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`forget_device`](#forget_device), [`generate_support_file`](#generate_support_file), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_guests`](#list_guests), [`locate_device`](#locate_device), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`migrate_device`](#migrate_device), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`reconnect_client`](#reconnect_client), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`rename_site`](#rename_site), [`replace_device`](#replace_device), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restart_device`](#restart_device), [`restart_vpn_server`](#restart_vpn_server), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`run_speedtest`](#run_speedtest), [`send_test_email`](#send_test_email), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`start_rolling_upgrade`](#start_rolling_upgrade), [`start_spectrum_scan`](#start_spectrum_scan), [`unblock_client`](#unblock_client), [`unpair_building_bridge`](#unpair_building_bridge), [`update_device_battery_settings`](#update_device_battery_settings), [`update_device_radio`](#update_device_radio), [`update_dhcp_option`](#update_dhcp_option), [`update_dynamic_dns`](#update_dynamic_dns), [`update_hotspot_operator`](#update_hotspot_operator), [`update_hotspot_package`](#update_hotspot_package), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_radius_profile`](#update_radius_profile), [`update_scheduled_task`](#update_scheduled_task), [`update_setting`](#update_setting), [`update_site_to_site_tunnel`](#update_site_to_site_tunnel), [`update_static_route`](#update_static_route), [`update_switch_port_overrides`](#update_switch_port_overrides), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_vpn_client`](#update_vpn_client), [`update_vpn_server`](#update_vpn_server), [`update_wan_interface`](#update_wan_interface), [`update_wireguard_users`](#update_wireguard_users), [`update_wlan_config`](#update_wlan_config), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device), [`verify_sim_pin`](#verify_sim_pin)
+- `network/private.v2/read` (106): [`collect_network_incident_evidence`](#collect_network_incident_evidence), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_enriched_configuration`](#get_enriched_configuration), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_ipsec_settings`](#get_ipsec_settings), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_mdns_settings`](#get_mdns_settings), [`get_network_config_defaults`](#get_network_config_defaults), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_history`](#get_port_history), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_scoped_system_log`](#get_scoped_system_log), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_support_file`](#get_support_file), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`list_active_clients`](#list_active_clients), [`list_ap_groups`](#list_ap_groups), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_models`](#list_device_models), [`list_device_tags`](#list_device_tags), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_doh_servers`](#list_doh_servers), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_gateway_routes`](#list_gateway_routes), [`list_installed_applications`](#list_installed_applications), [`list_ips_categories`](#list_ips_categories), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_matter_nodes`](#list_matter_nodes), [`list_nat_rules`](#list_nat_rules), [`list_network_members_groups`](#list_network_members_groups), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_site_features`](#list_site_features), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_static_dns_records`](#list_static_dns_records), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_vendor_ids`](#list_vendor_ids), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_users`](#list_vpn_users), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireless_links`](#list_wireless_links), [`query_traffic_flows`](#query_traffic_flows), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port)
+- `network/private.v2/write` (117): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`commission_matter_node`](#commission_matter_node), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_device_tag`](#create_device_tag), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_nat_rule`](#create_nat_rule), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_test_config`](#create_test_config), [`create_traffic_route`](#create_traffic_route), [`create_wan_sla`](#create_wan_sla), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_device_tag`](#delete_device_tag), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_nat_rule`](#delete_nat_rule), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_test_config`](#delete_test_config), [`delete_traffic_route`](#delete_traffic_route), [`delete_wan_sla`](#delete_wan_sla), [`export_traffic_flows`](#export_traffic_flows), [`generate_vlan_plan`](#generate_vlan_plan), [`get_multicast_insights`](#get_multicast_insights), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sites_overview`](#get_sites_overview), [`get_system_log`](#get_system_log), [`import_dhcp_reservations`](#import_dhcp_reservations), [`list_ips_events`](#list_ips_events), [`list_network_events`](#list_network_events), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`preview_firewall_group`](#preview_firewall_group), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_teleport_invitations`](#query_teleport_invitations), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`remove_matter_node`](#remove_matter_node), [`remove_teleport_client`](#remove_teleport_client), [`rename_matter_node`](#rename_matter_node), [`reorder_qos_rules`](#reorder_qos_rules), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_lte_failover`](#set_lte_failover), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_tag`](#update_device_tag), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_ips_signatures`](#update_ips_signatures), [`update_ipsec_settings`](#update_ipsec_settings), [`update_nat_rule`](#update_nat_rule), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_dns_record`](#update_static_dns_record), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_route`](#update_traffic_route), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla)
 
-**protect** (227 tools)
+**protect** (225 tools)
 
 - `protect/official/read` (37): [`collect_protect_device_changes`](#collect_protect_device_changes), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_chime`](#get_chime), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_user`](#get_protect_user), [`get_relay`](#get_relay), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_ulp_user`](#get_ulp_user), [`get_viewer`](#get_viewer), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_files`](#list_protect_files), [`list_protect_users`](#list_protect_users), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers)
 - `protect/official/write` (37): [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`create_arm_profile`](#create_arm_profile), [`create_liveview`](#create_liveview), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`enable_arm`](#enable_arm), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`relay_activate_output`](#relay_activate_output), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_talkback_session`](#start_talkback_session), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_chime`](#update_chime), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upload_protect_file`](#upload_protect_file)
-- `protect/private/read` (48): [`collect_protect_events`](#collect_protect_events), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_camera_adoption_qr`](#get_camera_adoption_qr), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_nvr_private`](#get_nvr_private), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_case_asset_snapshot`](#get_protect_case_asset_snapshot), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_ringtone`](#get_ringtone), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_thumbnail`](#get_thumbnail), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_door_locks`](#list_door_locks), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_keyrings`](#list_protect_keyrings), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates)
-- `protect/private/write` (105): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`calibrate_door_lock`](#calibrate_door_lock), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_camera_shortcut`](#create_camera_shortcut), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`readopt_protect_device`](#readopt_protect_device), [`reboot_nvr`](#reboot_nvr), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_auto_close`](#set_door_lock_auto_close), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`start_cloud_video_archive`](#start_cloud_video_archive), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_protect_user_notifications`](#update_protect_user_notifications), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_sensor_private`](#update_sensor_private), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_ringtone`](#upload_ringtone)
+- `protect/private/read` (50): [`collect_protect_events`](#collect_protect_events), [`collect_protect_incident_evidence`](#collect_protect_incident_evidence), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_door_lock`](#get_door_lock), [`get_nvr_private`](#get_nvr_private), [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_ringtone`](#get_ringtone), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_thumbnail`](#get_thumbnail), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_door_lock_unlock_events`](#list_door_lock_unlock_events), [`list_door_locks`](#list_door_locks), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_keyrings`](#list_protect_keyrings), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates)
+- `protect/private/write` (101): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_camera_shortcut`](#create_camera_shortcut), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`readopt_protect_device`](#readopt_protect_device), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`start_cloud_video_archive`](#start_cloud_video_archive), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_sensor_private`](#update_sensor_private), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_ringtone`](#upload_ringtone)
 
 **relay** (5 tools)
 
 - `relay/generic/read` (1): [`fabric_connector_get`](#fabric_connector_get)
 - `relay/generic/write` (4): [`fabric_connector_delete`](#fabric_connector_delete), [`fabric_connector_patch`](#fabric_connector_patch), [`fabric_connector_post`](#fabric_connector_post), [`fabric_connector_put`](#fabric_connector_put)
 
-**server** (1 tools)
+**server** (2 tools)
 
-- `server/local/read` (1): [`list_configured_api_keys`](#list_configured_api_keys)
+- `server/local/read` (2): [`get_event_stream_status`](#get_event_stream_status), [`list_configured_api_keys`](#list_configured_api_keys)
 
-**site_manager** (14 tools)
+**site_manager** (15 tools)
 
-- `site_manager/official/read` (13): [`get_fleet_summary`](#get_fleet_summary), [`get_host`](#get_host), [`get_isp_metrics`](#get_isp_metrics), [`get_sdwan_config`](#get_sdwan_config), [`get_sdwan_config_status`](#get_sdwan_config_status), [`list_all_devices`](#list_all_devices), [`list_all_sites_aggregated`](#list_all_sites_aggregated), [`list_devices`](#list_devices), [`list_hosts`](#list_hosts), [`list_sdwan_configs`](#list_sdwan_configs), [`list_sites`](#list_sites), [`query_isp_metrics`](#query_isp_metrics), [`search_device_fleet`](#search_device_fleet)
+- `site_manager/official/read` (14): [`get_fleet_summary`](#get_fleet_summary), [`get_host`](#get_host), [`get_isp_metrics`](#get_isp_metrics), [`get_sdwan_config`](#get_sdwan_config), [`get_sdwan_config_status`](#get_sdwan_config_status), [`get_server_diagnostic_bundle`](#get_server_diagnostic_bundle), [`list_all_devices`](#list_all_devices), [`list_all_sites_aggregated`](#list_all_sites_aggregated), [`list_devices`](#list_devices), [`list_hosts`](#list_hosts), [`list_sdwan_configs`](#list_sdwan_configs), [`list_sites`](#list_sites), [`query_isp_metrics`](#query_isp_metrics), [`search_device_fleet`](#search_device_fleet)
 - `site_manager/private/write` (1): [`create_firewall_rule`](#create_firewall_rule)
 
 ## Tools by family
@@ -915,15 +921,15 @@ Every tool is in one family, the ID `UNIFI_FAMILY_ALLOW` and the `family:` entri
 - `carrier` (11): [`assign_carrier_subscriber_plan`](#assign_carrier_subscriber_plan), [`attach_carrier_subscriber_host`](#attach_carrier_subscriber_host), [`create_carrier_subscriber`](#create_carrier_subscriber), [`detach_carrier_subscriber_host`](#detach_carrier_subscriber_host), [`get_carrier_service_plan`](#get_carrier_service_plan), [`get_carrier_subscriber`](#get_carrier_subscriber), [`list_carrier_service_plans`](#list_carrier_service_plans), [`list_carrier_subscribers`](#list_carrier_subscribers), [`resume_carrier_subscriber`](#resume_carrier_subscriber), [`suspend_carrier_subscriber`](#suspend_carrier_subscriber), [`update_carrier_subscriber`](#update_carrier_subscriber)
 - `clients` (15): [`block_client`](#block_client), [`create_client_reservation`](#create_client_reservation), [`execute_client_action`](#execute_client_action), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`get_client`](#get_client), [`list_active_clients`](#list_active_clients), [`list_clients`](#list_clients), [`list_guests`](#list_guests), [`reconnect_client`](#reconnect_client), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`unblock_client`](#unblock_client)
 - `connector` (5): [`fabric_connector_delete`](#fabric_connector_delete), [`fabric_connector_get`](#fabric_connector_get), [`fabric_connector_patch`](#fabric_connector_patch), [`fabric_connector_post`](#fabric_connector_post), [`fabric_connector_put`](#fabric_connector_put)
-- `devices` (37): [`adopt_device`](#adopt_device), [`advanced_adopt_device`](#advanced_adopt_device), [`approve_pending_device`](#approve_pending_device), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`create_backup`](#create_backup), [`create_device_tag`](#create_device_tag), [`create_scheduled_task`](#create_scheduled_task), [`delete_device_tag`](#delete_device_tag), [`delete_scheduled_task`](#delete_scheduled_task), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`export_site`](#export_site), [`forget_device`](#forget_device), [`get_device`](#get_device), [`get_device_radios`](#get_device_radios), [`get_device_statistics`](#get_device_statistics), [`get_scheduled_task`](#get_scheduled_task), [`get_speedtest_status`](#get_speedtest_status), [`list_backups`](#list_backups), [`list_device_firmware`](#list_device_firmware), [`list_device_tags`](#list_device_tags), [`list_pending_devices`](#list_pending_devices), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_site_devices`](#list_site_devices), [`locate_device`](#locate_device), [`migrate_device`](#migrate_device), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`restart_device`](#restart_device), [`run_speedtest`](#run_speedtest), [`start_rolling_upgrade`](#start_rolling_upgrade), [`unadopt_device`](#unadopt_device), [`update_device_radio`](#update_device_radio), [`update_device_tag`](#update_device_tag), [`update_scheduled_task`](#update_scheduled_task), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device)
+- `devices` (39): [`adopt_device`](#adopt_device), [`advanced_adopt_device`](#advanced_adopt_device), [`approve_pending_device`](#approve_pending_device), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`create_backup`](#create_backup), [`create_device_tag`](#create_device_tag), [`create_scheduled_task`](#create_scheduled_task), [`delete_device_tag`](#delete_device_tag), [`delete_scheduled_task`](#delete_scheduled_task), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`export_site`](#export_site), [`forget_device`](#forget_device), [`get_device`](#get_device), [`get_device_radios`](#get_device_radios), [`get_device_statistics`](#get_device_statistics), [`get_scheduled_task`](#get_scheduled_task), [`get_speedtest_status`](#get_speedtest_status), [`get_switch_port_overrides`](#get_switch_port_overrides), [`list_backups`](#list_backups), [`list_device_firmware`](#list_device_firmware), [`list_device_tags`](#list_device_tags), [`list_pending_devices`](#list_pending_devices), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_site_devices`](#list_site_devices), [`locate_device`](#locate_device), [`migrate_device`](#migrate_device), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`restart_device`](#restart_device), [`run_speedtest`](#run_speedtest), [`start_rolling_upgrade`](#start_rolling_upgrade), [`unadopt_device`](#unadopt_device), [`update_device_radio`](#update_device_radio), [`update_device_tag`](#update_device_tag), [`update_scheduled_task`](#update_scheduled_task), [`update_switch_port_overrides`](#update_switch_port_overrides), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device)
 - `firewall` (33): [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_policies`](#batch_delete_firewall_policies), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`create_acl_rule`](#create_acl_rule), [`create_firewall_policy`](#create_firewall_policy), [`create_firewall_rule`](#create_firewall_rule), [`create_firewall_zone_proxy`](#create_firewall_zone_proxy), [`delete_acl_rule`](#delete_acl_rule), [`delete_firewall_policy`](#delete_firewall_policy), [`delete_firewall_zone_proxy`](#delete_firewall_zone_proxy), [`get_acl_rule`](#get_acl_rule), [`get_acl_rule_ordering`](#get_acl_rule_ordering), [`get_firewall_group`](#get_firewall_group), [`get_firewall_policy`](#get_firewall_policy), [`get_firewall_policy_ordering`](#get_firewall_policy_ordering), [`get_firewall_rule`](#get_firewall_rule), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_firewall_zone_proxy`](#get_firewall_zone_proxy), [`list_acl_rules`](#list_acl_rules), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_policies`](#list_firewall_policies), [`list_firewall_rules`](#list_firewall_rules), [`list_firewall_zones_proxy`](#list_firewall_zones_proxy), [`patch_firewall_policy`](#patch_firewall_policy), [`preview_firewall_group`](#preview_firewall_group), [`set_acl_rule_ordering`](#set_acl_rule_ordering), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_firewall_policy_ordering`](#set_firewall_policy_ordering), [`update_acl_rule`](#update_acl_rule), [`update_firewall_policy`](#update_firewall_policy), [`update_firewall_zone_proxy`](#update_firewall_zone_proxy), [`update_predefined_firewall_policy`](#update_predefined_firewall_policy)
 - `hotspot` (4): [`create_hotspot_operator`](#create_hotspot_operator), [`delete_hotspot_operator`](#delete_hotspot_operator), [`list_hotspot_operators`](#list_hotspot_operators), [`update_hotspot_operator`](#update_hotspot_operator)
 - `innerspace` (32): [`clean_innerspace_storage`](#clean_innerspace_storage), [`create_innerspace_plan`](#create_innerspace_plan), [`create_innerspace_support_dump`](#create_innerspace_support_dump), [`delete_innerspace_plan`](#delete_innerspace_plan), [`export_innerspace_backup`](#export_innerspace_backup), [`get_innerspace_asset`](#get_innerspace_asset), [`get_innerspace_health`](#get_innerspace_health), [`get_innerspace_project`](#get_innerspace_project), [`get_innerspace_stats`](#get_innerspace_stats), [`get_innerspace_summary`](#get_innerspace_summary), [`get_innerspace_ucore_manifest`](#get_innerspace_ucore_manifest), [`get_innerspace_ucore_status`](#get_innerspace_ucore_status), [`get_unifi_placement_snapshot`](#get_unifi_placement_snapshot), [`import_innerspace_backup`](#import_innerspace_backup), [`import_innerspace_captures`](#import_innerspace_captures), [`import_innerspace_dc_shapes`](#import_innerspace_dc_shapes), [`import_innerspace_shared_project`](#import_innerspace_shared_project), [`list_innerspace_access_points`](#list_innerspace_access_points), [`list_innerspace_devices`](#list_innerspace_devices), [`list_innerspace_doors`](#list_innerspace_doors), [`list_innerspace_floor_plans`](#list_innerspace_floor_plans), [`list_innerspace_inventory`](#list_innerspace_inventory), [`list_innerspace_switches`](#list_innerspace_switches), [`reorder_innerspace_plans`](#reorder_innerspace_plans), [`retry_innerspace_plan_maps`](#retry_innerspace_plan_maps), [`transform_innerspace_shapes`](#transform_innerspace_shapes), [`update_innerspace_attenuation_type`](#update_innerspace_attenuation_type), [`update_innerspace_plan`](#update_innerspace_plan), [`update_innerspace_plan_map`](#update_innerspace_plan_map), [`update_innerspace_project`](#update_innerspace_project), [`update_innerspace_wall_type`](#update_innerspace_wall_type), [`upload_innerspace_plan_asset`](#upload_innerspace_plan_asset)
 - `mobility` (8): [`get_mobility_device`](#get_mobility_device), [`list_mobility_admins`](#list_mobility_admins), [`list_mobility_clients`](#list_mobility_clients), [`list_mobility_devices`](#list_mobility_devices), [`list_mobility_workspaces`](#list_mobility_workspaces), [`update_mobility_device_name`](#update_mobility_device_name), [`update_mobility_device_network`](#update_mobility_device_network), [`update_mobility_device_wireless`](#update_mobility_device_wireless)
-- `network` (343): [`activate_lte_trial`](#activate_lte_trial), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`commission_matter_node`](#commission_matter_node), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_dhcp_option`](#create_dhcp_option), [`create_dns_policy`](#create_dns_policy), [`create_dynamic_dns`](#create_dynamic_dns), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_hotspot_package`](#create_hotspot_package), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_nat_rule`](#create_nat_rule), [`create_network`](#create_network), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_site`](#create_site), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_route`](#create_static_route), [`create_test_config`](#create_test_config), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_traffic_route`](#create_traffic_route), [`create_traffic_rule`](#create_traffic_rule), [`create_user_group`](#create_user_group), [`create_wan_sla`](#create_wan_sla), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_dns_policy`](#delete_dns_policy), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_nat_rule`](#delete_nat_rule), [`delete_network`](#delete_network), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_site`](#delete_site), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_route`](#delete_static_route), [`delete_test_config`](#delete_test_config), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_traffic_route`](#delete_traffic_route), [`delete_traffic_rule`](#delete_traffic_rule), [`delete_user_group`](#delete_user_group), [`delete_wan_sla`](#delete_wan_sla), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_traffic_flows`](#export_traffic_flows), [`generate_support_file`](#generate_support_file), [`generate_vlan_plan`](#generate_vlan_plan), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_account`](#get_account), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_channel_plan`](#get_channel_plan), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_dns_policy`](#get_dns_policy), [`get_dynamic_dns`](#get_dynamic_dns), [`get_enriched_configuration`](#get_enriched_configuration), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_mdns_settings`](#get_mdns_settings), [`get_multicast_insights`](#get_multicast_insights), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_config_defaults`](#get_network_config_defaults), [`get_network_references`](#get_network_references), [`get_network_ui_data`](#get_network_ui_data), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_history`](#get_port_history), [`get_port_profile`](#get_port_profile), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_sites_overview`](#get_sites_overview), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_static_route`](#get_static_route), [`get_support_file`](#get_support_file), [`get_switch_stack`](#get_switch_stack), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_broadcast`](#get_wifi_broadcast), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`import_dhcp_reservations`](#import_dhcp_reservations), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_accounts`](#list_accounts), [`list_ap_groups`](#list_ap_groups), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_countries`](#list_countries), [`list_device_models`](#list_device_models), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_dhcp_options`](#list_dhcp_options), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_dynamic_dns`](#list_dynamic_dns), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_gateway_routes`](#list_gateway_routes), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_installed_applications`](#list_installed_applications), [`list_integration_device_tags`](#list_integration_device_tags), [`list_ips_categories`](#list_ips_categories), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_matter_nodes`](#list_matter_nodes), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_nat_rules`](#list_nat_rules), [`list_network_anomalies`](#list_network_anomalies), [`list_network_members_groups`](#list_network_members_groups), [`list_networks`](#list_networks), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_settings`](#list_settings), [`list_site_features`](#list_site_features), [`list_site_warnings`](#list_site_warnings), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_switch_stacks`](#list_switch_stacks), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vendor_ids`](#list_vendor_ids), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`list_wireless_links`](#list_wireless_links), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_traffic_flows`](#query_traffic_flows), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_matter_node`](#remove_matter_node), [`rename_matter_node`](#rename_matter_node), [`rename_site`](#rename_site), [`reorder_qos_rules`](#reorder_qos_rules), [`replace_device`](#replace_device), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`send_test_email`](#send_test_email), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_lte_failover`](#set_lte_failover), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_spectrum_scan`](#start_spectrum_scan), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`suggest_network_settings`](#suggest_network_settings), [`unpair_building_bridge`](#unpair_building_bridge), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_battery_settings`](#update_device_battery_settings), [`update_dhcp_option`](#update_dhcp_option), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_dns_policy`](#update_dns_policy), [`update_dynamic_dns`](#update_dynamic_dns), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_hotspot_package`](#update_hotspot_package), [`update_ips_signatures`](#update_ips_signatures), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_nat_rule`](#update_nat_rule), [`update_network`](#update_network), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_setting`](#update_setting), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_route`](#update_static_route), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_traffic_route`](#update_traffic_route), [`update_traffic_rule`](#update_traffic_rule), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_wan_interface`](#update_wan_interface), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla), [`update_wifi_broadcast`](#update_wifi_broadcast), [`update_wlan_config`](#update_wlan_config), [`verify_sim_pin`](#verify_sim_pin)
-- `protect` (227): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`calibrate_door_lock`](#calibrate_door_lock), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`collect_protect_device_changes`](#collect_protect_device_changes), [`collect_protect_events`](#collect_protect_events), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_arm_profile`](#create_arm_profile), [`create_camera_shortcut`](#create_camera_shortcut), [`create_liveview`](#create_liveview), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_arm`](#enable_arm), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_camera_adoption_qr`](#get_camera_adoption_qr), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_chime`](#get_chime), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_nvr_private`](#get_nvr_private), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_case_asset_snapshot`](#get_protect_case_asset_snapshot), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_protect_user`](#get_protect_user), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_relay`](#get_relay), [`get_ringtone`](#get_ringtone), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_thumbnail`](#get_thumbnail), [`get_ulp_user`](#get_ulp_user), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`get_viewer`](#get_viewer), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_door_locks`](#list_door_locks), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_files`](#list_protect_files), [`list_protect_keyrings`](#list_protect_keyrings), [`list_protect_users`](#list_protect_users), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`readopt_protect_device`](#readopt_protect_device), [`reboot_nvr`](#reboot_nvr), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`relay_activate_output`](#relay_activate_output), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_auto_close`](#set_door_lock_auto_close), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_cloud_video_archive`](#start_cloud_video_archive), [`start_talkback_session`](#start_talkback_session), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_chime`](#update_chime), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_protect_user_notifications`](#update_protect_user_notifications), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_sensor_private`](#update_sensor_private), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_protect_file`](#upload_protect_file), [`upload_ringtone`](#upload_ringtone)
-- `site_manager` (19): [`compare_site_performance`](#compare_site_performance), [`get_fleet_summary`](#get_fleet_summary), [`get_host`](#get_host), [`get_isp_metrics`](#get_isp_metrics), [`get_sdwan_config`](#get_sdwan_config), [`get_sdwan_config_status`](#get_sdwan_config_status), [`get_site_health_summary`](#get_site_health_summary), [`get_site_inventory`](#get_site_inventory), [`list_all_clients`](#list_all_clients), [`list_all_devices`](#list_all_devices), [`list_all_sites_aggregated`](#list_all_sites_aggregated), [`list_configured_api_keys`](#list_configured_api_keys), [`list_devices`](#list_devices), [`list_hosts`](#list_hosts), [`list_sdwan_configs`](#list_sdwan_configs), [`list_sites`](#list_sites), [`query_isp_metrics`](#query_isp_metrics), [`search_across_sites`](#search_across_sites), [`search_device_fleet`](#search_device_fleet)
-- `statistics` (16): [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_stp_state`](#get_device_stp_state), [`get_historical_stats`](#get_historical_stats), [`get_scoped_system_log`](#get_scoped_system_log), [`get_site_statistics`](#get_site_statistics), [`get_system_info`](#get_system_info), [`get_system_log`](#get_system_log), [`list_active_clients_stats`](#list_active_clients_stats), [`list_client_sessions`](#list_client_sessions), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_stats`](#list_device_stats), [`list_ips_events`](#list_ips_events), [`list_known_clients`](#list_known_clients), [`list_network_events`](#list_network_events), [`list_speedtest_results`](#list_speedtest_results)
+- `network` (345): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_lte_trial`](#activate_lte_trial), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`commission_matter_node`](#commission_matter_node), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_dhcp_option`](#create_dhcp_option), [`create_dns_policy`](#create_dns_policy), [`create_dynamic_dns`](#create_dynamic_dns), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_hotspot_package`](#create_hotspot_package), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_nat_rule`](#create_nat_rule), [`create_network`](#create_network), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_site`](#create_site), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_route`](#create_static_route), [`create_test_config`](#create_test_config), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_traffic_route`](#create_traffic_route), [`create_user_group`](#create_user_group), [`create_wan_sla`](#create_wan_sla), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_dns_policy`](#delete_dns_policy), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_nat_rule`](#delete_nat_rule), [`delete_network`](#delete_network), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_site`](#delete_site), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_route`](#delete_static_route), [`delete_test_config`](#delete_test_config), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_traffic_route`](#delete_traffic_route), [`delete_user_group`](#delete_user_group), [`delete_wan_sla`](#delete_wan_sla), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_traffic_flows`](#export_traffic_flows), [`generate_support_file`](#generate_support_file), [`generate_vlan_plan`](#generate_vlan_plan), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_account`](#get_account), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_channel_plan`](#get_channel_plan), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_dns_policy`](#get_dns_policy), [`get_dynamic_dns`](#get_dynamic_dns), [`get_enriched_configuration`](#get_enriched_configuration), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_mdns_settings`](#get_mdns_settings), [`get_multicast_insights`](#get_multicast_insights), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_config_defaults`](#get_network_config_defaults), [`get_network_references`](#get_network_references), [`get_network_ui_data`](#get_network_ui_data), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_history`](#get_port_history), [`get_port_profile`](#get_port_profile), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_sites_overview`](#get_sites_overview), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_static_route`](#get_static_route), [`get_support_file`](#get_support_file), [`get_switch_stack`](#get_switch_stack), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_broadcast`](#get_wifi_broadcast), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`import_dhcp_reservations`](#import_dhcp_reservations), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_accounts`](#list_accounts), [`list_ap_groups`](#list_ap_groups), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_countries`](#list_countries), [`list_device_models`](#list_device_models), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_dhcp_options`](#list_dhcp_options), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_dynamic_dns`](#list_dynamic_dns), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_gateway_routes`](#list_gateway_routes), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_installed_applications`](#list_installed_applications), [`list_integration_device_tags`](#list_integration_device_tags), [`list_ips_categories`](#list_ips_categories), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_matter_nodes`](#list_matter_nodes), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_nat_rules`](#list_nat_rules), [`list_network_anomalies`](#list_network_anomalies), [`list_network_members_groups`](#list_network_members_groups), [`list_networks`](#list_networks), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_settings`](#list_settings), [`list_site_features`](#list_site_features), [`list_site_warnings`](#list_site_warnings), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_switch_stacks`](#list_switch_stacks), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vendor_ids`](#list_vendor_ids), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`list_wireless_links`](#list_wireless_links), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_traffic_flows`](#query_traffic_flows), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_matter_node`](#remove_matter_node), [`rename_matter_node`](#rename_matter_node), [`rename_site`](#rename_site), [`reorder_qos_rules`](#reorder_qos_rules), [`replace_device`](#replace_device), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`send_test_email`](#send_test_email), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_lte_failover`](#set_lte_failover), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_spectrum_scan`](#start_spectrum_scan), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port), [`unpair_building_bridge`](#unpair_building_bridge), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_battery_settings`](#update_device_battery_settings), [`update_dhcp_option`](#update_dhcp_option), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_dns_policy`](#update_dns_policy), [`update_dynamic_dns`](#update_dynamic_dns), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_hotspot_package`](#update_hotspot_package), [`update_ips_signatures`](#update_ips_signatures), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_nat_rule`](#update_nat_rule), [`update_network`](#update_network), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_setting`](#update_setting), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_route`](#update_static_route), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_traffic_route`](#update_traffic_route), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_wan_interface`](#update_wan_interface), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla), [`update_wifi_broadcast`](#update_wifi_broadcast), [`update_wlan_config`](#update_wlan_config), [`verify_sim_pin`](#verify_sim_pin)
+- `protect` (225): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`collect_protect_device_changes`](#collect_protect_device_changes), [`collect_protect_events`](#collect_protect_events), [`collect_protect_incident_evidence`](#collect_protect_incident_evidence), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_arm_profile`](#create_arm_profile), [`create_camera_shortcut`](#create_camera_shortcut), [`create_liveview`](#create_liveview), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_arm`](#enable_arm), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_chime`](#get_chime), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_door_lock`](#get_door_lock), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_nvr_private`](#get_nvr_private), [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_protect_user`](#get_protect_user), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_relay`](#get_relay), [`get_ringtone`](#get_ringtone), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_thumbnail`](#get_thumbnail), [`get_ulp_user`](#get_ulp_user), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`get_viewer`](#get_viewer), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_door_lock_unlock_events`](#list_door_lock_unlock_events), [`list_door_locks`](#list_door_locks), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_files`](#list_protect_files), [`list_protect_keyrings`](#list_protect_keyrings), [`list_protect_users`](#list_protect_users), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`readopt_protect_device`](#readopt_protect_device), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`relay_activate_output`](#relay_activate_output), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_cloud_video_archive`](#start_cloud_video_archive), [`start_talkback_session`](#start_talkback_session), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_chime`](#update_chime), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_sensor_private`](#update_sensor_private), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_protect_file`](#upload_protect_file), [`upload_ringtone`](#upload_ringtone)
+- `site_manager` (20): [`compare_site_performance`](#compare_site_performance), [`get_fleet_summary`](#get_fleet_summary), [`get_host`](#get_host), [`get_isp_metrics`](#get_isp_metrics), [`get_sdwan_config`](#get_sdwan_config), [`get_sdwan_config_status`](#get_sdwan_config_status), [`get_server_diagnostic_bundle`](#get_server_diagnostic_bundle), [`get_site_health_summary`](#get_site_health_summary), [`get_site_inventory`](#get_site_inventory), [`list_all_clients`](#list_all_clients), [`list_all_devices`](#list_all_devices), [`list_all_sites_aggregated`](#list_all_sites_aggregated), [`list_configured_api_keys`](#list_configured_api_keys), [`list_devices`](#list_devices), [`list_hosts`](#list_hosts), [`list_sdwan_configs`](#list_sdwan_configs), [`list_sites`](#list_sites), [`query_isp_metrics`](#query_isp_metrics), [`search_across_sites`](#search_across_sites), [`search_device_fleet`](#search_device_fleet)
+- `statistics` (19): [`collect_network_incident_evidence`](#collect_network_incident_evidence), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_stp_state`](#get_device_stp_state), [`get_event_stream_status`](#get_event_stream_status), [`get_historical_stats`](#get_historical_stats), [`get_scoped_system_log`](#get_scoped_system_log), [`get_site_statistics`](#get_site_statistics), [`get_system_info`](#get_system_info), [`get_system_log`](#get_system_log), [`list_active_clients_stats`](#list_active_clients_stats), [`list_client_sessions`](#list_client_sessions), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_stats`](#list_device_stats), [`list_ips_events`](#list_ips_events), [`list_known_clients`](#list_known_clients), [`list_network_events`](#list_network_events), [`list_speedtest_results`](#list_speedtest_results), [`read_recent_events`](#read_recent_events)
 - `vpn` (42): [`control_site_vpn`](#control_site_vpn), [`create_radius_profile`](#create_radius_profile), [`create_site_to_site_tunnel`](#create_site_to_site_tunnel), [`create_site_vpn`](#create_site_vpn), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_vpn_client`](#create_vpn_client), [`create_vpn_server`](#create_vpn_server), [`create_wireguard_users`](#create_wireguard_users), [`delete_radius_profile`](#delete_radius_profile), [`delete_site_to_site_tunnel`](#delete_site_to_site_tunnel), [`delete_site_vpn`](#delete_site_vpn), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_vpn_client`](#delete_vpn_client), [`delete_vpn_server`](#delete_vpn_server), [`delete_wireguard_users`](#delete_wireguard_users), [`get_ipsec_settings`](#get_ipsec_settings), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_radius_profile`](#get_radius_profile), [`get_vpn_server`](#get_vpn_server), [`list_doh_servers`](#list_doh_servers), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_radius_profiles`](#list_radius_profiles), [`list_site_to_site_tunnels`](#list_site_to_site_tunnels), [`list_static_dns_records`](#list_static_dns_records), [`list_vpn_clients`](#list_vpn_clients), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_servers`](#list_vpn_servers), [`list_vpn_users`](#list_vpn_users), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireguard_users`](#list_wireguard_users), [`query_teleport_invitations`](#query_teleport_invitations), [`remove_teleport_client`](#remove_teleport_client), [`restart_vpn_server`](#restart_vpn_server), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`update_ipsec_settings`](#update_ipsec_settings), [`update_radius_profile`](#update_radius_profile), [`update_site_to_site_tunnel`](#update_site_to_site_tunnel), [`update_static_dns_record`](#update_static_dns_record), [`update_vpn_client`](#update_vpn_client), [`update_vpn_server`](#update_vpn_server), [`update_wireguard_users`](#update_wireguard_users)
 
 ---
@@ -954,6 +960,8 @@ Example call (block_client):
       "site": "Default",
       "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -1000,6 +1008,8 @@ Example call (reconnect_client):
       "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -1045,6 +1055,8 @@ Example call (unblock_client):
       "client_id": "aa:bb:cc:dd:ee:ff"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -1072,7 +1084,7 @@ Example call (unblock_client):
 
 ## Configuration
 
-**34 tools**
+**33 tools**
 
 ### `set_acl_rule_ordering`
 
@@ -1107,6 +1119,8 @@ Example call (set_acl_rule_ordering):
         ]
       }
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -1144,6 +1158,8 @@ Protect API (no official route). Sent once. Returns {status: "paired" or
 previews include body and params.
 
 Required arguments: host, aiport_id, camera_ids, paired (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -1185,6 +1201,8 @@ Consequence: changes whether the camera can be controlled until it is set back.
 
 Required arguments: host, camera_id, enabled (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -1223,6 +1241,8 @@ Consequence: physically locks or unlocks the door; unlocking lets anyone in.
 
 Required arguments: host, camera_id, locked (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -1260,6 +1280,8 @@ Consequence: changes the resolution the camera streams and records at.
 
 Required arguments: host, camera_id, scale (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -1296,6 +1318,8 @@ preview: {method, path, params, body}} and sends nothing.
 Consequence: changes the codec of the camera's streams and new recordings.
 
 Required arguments: host, camera_id, codec (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -1347,6 +1371,8 @@ The PUT dry-run preview is {status: "dry_run", dryRun: true, sent: false, messag
 Example call (set_client_fingerprint_override):
     {"host": "my-console", "site": "Default", "client": "aa:bb:cc:dd:ee:ff",
      "override": {"dev_id_override": 4}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -1401,6 +1427,8 @@ Example call (set_client_fixed_ip):
       "network": "Default"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -1454,6 +1482,8 @@ The PUT dry-run preview is {status: "dry_run", dryRun: true, sent: false, messag
 Example call (set_client_icon):
     {"host": "my-console", "site": "Default", "target_id": "aa:bb:cc:dd:ee:ff"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -1502,6 +1532,8 @@ Example call (set_client_name):
       "name": "Living room TV"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -1548,6 +1580,8 @@ Example call (set_client_note):
       "note": "Kids' tablet, bedtime schedule"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -1591,6 +1625,8 @@ Example call (set_client_user_group):
     {"host": "my-console", "site": "Default", "client": "02:00:5e:10:00:01",
      "group": "Guests 10M"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -1630,6 +1666,8 @@ Returns the upstream body verbatim.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -1674,6 +1712,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -1708,6 +1748,8 @@ path, params, body}} and sends nothing. Consequence: alignment mode changes the 
 behaviour and can interrupt the bridge link.
 
 Required arguments: host, site, device, enabled (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -1745,6 +1787,8 @@ preview: {method, path, params, body}} and sends nothing. Consequence: rearrangi
 renumber stack members and interrupt forwarding while the stack re-forms.
 
 Required arguments: host, site, device, enabled (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -1786,6 +1830,8 @@ changes, which can change tag-based policies.
 
 Required arguments: host, site, assignment_id, body (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -1810,60 +1856,28 @@ Required arguments: host, site, assignment_id, body (see each parameter's descri
 
 `Any`
 
-### `set_door_lock_auto_close`
-
-Set or trigger a UniFi door lock's auto-close (auto-relock) behaviour.
-
-Consequence: changes when the door locks itself again, which affects physical
-access to the door.
-
-Sends POST /doorlocks/{doorlock_id}/autoClose on the private Protect API (no
-official route). The web UI builds the body at run time, so options is sent as
-given (free-form object) and nothing is sent when omitted. Sent once. Returns
-{status: "sent", response} with the upstream body verbatim. With dry-run policy,
-returns {status: "dry_run", response: PREVIEW}. Dry-run response previews include
-body and params.
-
-Required arguments: host, doorlock_id (see each parameter's description).
-
-**API source:** `protect/private/write`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | false | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, case-insensitive, or the long data[].id); for example "my-console". |
-| `doorlock_id` | `string` | yes |  | Door lock id (24-hex) from list_door_locks; for example "000000000000000000000111". |
-| `options` | `object \| null` | no | `null` | Request body sent as given (free-form object); for example {"autoCloseTimeMs": 15000}. |
-| `confirm` | `boolean` | no | `false` | Accepted and ignored for compatibility; for example false. |
-
-**Return type**
-
-`dict[str, Any]`
-
 ### `set_door_lock_state`
 
-Unlock (action="open") or lock (action="close") a UniFi door lock.
+Request a remote unlock of a lock Protect 7.x manages under /locks (action="unlock").
 
-Consequence: open physically unlocks the door, so anyone can enter until it is
-locked again or auto-close relocks it; close locks it.
+Consequence: unlock physically unlocks the door, so anyone can enter until the lock
+relocks itself.
 
-Sends POST /doorlocks/{doorlock_id}/open or /close on the private Protect API (no
-official route); no body. Sent once, never auto-retried. Returns {status: "opened"
-or "closed", response} with the upstream body verbatim; read lockStatus back with
-list_door_locks. With dry-run policy, returns {status: "dry_run", response:
-PREVIEW}. Dry-run response previews include body and params.
+Sends POST /locks/{doorlock_id}/unlock on the private Protect API (the Protect 7.x
+Thread lock model, no official route); older door-lock products are not covered.
+The console must have remote unlock enabled for its Thread locks,
+otherwise it answers with a conflict error that is returned unchanged. Protect 7.x
+has no lock/close route, so only "unlock" is offered ("open" is its older name). Sent
+once, never auto-retried. Returns {status: "unlock_requested", response} with the
+upstream body verbatim (the unlock event id and request id); list the lock's
+unlock events or read it back with list_door_locks. With dry-run policy, returns
+{status: "dry_run", response: PREVIEW}. Dry-run response previews include body and
+params.
 
 Required arguments: host, doorlock_id, action (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -1880,7 +1894,8 @@ Required arguments: host, doorlock_id, action (see each parameter's description)
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, case-insensitive, or the long data[].id); for example "my-console". |
 | `doorlock_id` | `string` | yes |  | Door lock id (24-hex) from list_door_locks; for example "000000000000000000000111". |
-| `action` | `string` | yes |  | "open" (unlock) or "close" (lock); for example "close". |
+| `action` | `string` | yes |  | "unlock" (also accepted as "open"); for example "unlock". |
+| `hold_extra_sec` | `integer \| null` | no | `null` | Optional extra seconds to hold the lock open (the console accepts an integer from 0 to 60 and answers 400 otherwise); omitted from the request when not set; for example 10. |
 | `confirm` | `boolean` | no | `false` | Accepted and ignored for compatibility; for example false. |
 
 **Return type**
@@ -1901,6 +1916,8 @@ preview: {method, path, params, body}} and sends nothing.
 Consequence: an unmounted card stops on-camera recording until it is mounted.
 
 Required arguments: host, camera_id, mount_state (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -1935,6 +1952,8 @@ message,
 preview: {method, path, params, body}}.
 
 Required arguments: host, site, blocks.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -1989,6 +2008,8 @@ docs/TOOL-USAGE.md#set_firewall_policy_ordering.
 Required arguments: host, site, source_zone_id, destination_zone_id, ordering (see parameter
 descriptions for identifiers).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -2005,9 +2026,9 @@ descriptions for identifiers).
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
-| `source_zone_id` | `string` | yes |  | REQUIRED source firewall zone UUID, sent as query param sourceFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id); pick the zone by name case-insensitively (e.g. Internal, External). Network UUID. |
-| `destination_zone_id` | `string` | yes |  | REQUIRED destination firewall zone UUID, sent as query param destinationFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id); pick the zone by name case-insensitively (e.g. Internal, External). Network UUID. |
-| `ordering` | `object` | yes |  | Full replacement {"orderedFirewallPolicyIds":{"beforeSystemDefined":[uuid…],"afterSystemDefined":[uuid…]}}; both arrays required. Start from get_firewall_policy_ordering output. Advisory spec fields; any JSON passes. Required: orderedFirewallPolicyIds. |
+| `source_zone_id` | `string` | yes |  | REQUIRED source firewall zone UUID, in 8-4-4-4-12 hex form, for example 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01. A zone name such as Internal or External is rejected. Sent as query param sourceFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id), matching the zone by name. |
+| `destination_zone_id` | `string` | yes |  | REQUIRED destination firewall zone UUID, in 8-4-4-4-12 hex form, for example 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01. A zone name such as Internal or External is rejected. Sent as query param destinationFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id), matching the zone by name. |
+| `ordering` | `object` | yes |  | Full replacement {"orderedFirewallPolicyIds":{"beforeSystemDefined":[uuid…],"afterSystemDefined":[uuid…]}}; the published spec requires both arrays, but this tool does not check them and sends the body as given. Start from get_firewall_policy_ordering output. Advisory spec fields; any JSON passes. Required: orderedFirewallPolicyIds. |
 
 **Return type**
 
@@ -2029,6 +2050,8 @@ nothing.
 
 Consequence: the modem reconnects with the new APN; a wrong APN drops cellular
 connectivity until it is corrected.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -2068,6 +2091,8 @@ sends nothing.
 
 Consequence: WAN traffic fails over to the cellular link when the primary WAN
 drops, which can use metered mobile data.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -2109,6 +2134,8 @@ Dry-run response previews include body and params.
 
 Required arguments: host, mac, member (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -2149,6 +2176,8 @@ plugged in.
 
 Required arguments: host, site, device, outlet_index (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -2187,6 +2216,8 @@ returns the dry-run preview {status: "dry_run", dryRun, sent: false, message, pr
 uplink, briefly interrupting its clients.
 
 Required arguments: host, site, device, enabled (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -2233,6 +2264,8 @@ Dry-run response previews include body and params.
 
 Required arguments: host, event_ids, favorite.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -2270,6 +2303,8 @@ dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
 path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, receivers.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -2313,6 +2348,8 @@ body}}.
 
 Required arguments: host, user_id, muted.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -2351,6 +2388,8 @@ Dry-run response previews include body and params.
 
 Consequence: changes how the PTZ camera reacts to events while the window is open
 (the console defines the effect); close it with open_window false.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -2392,6 +2431,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host, type, group_id, filename, file_content_base64.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -2436,6 +2477,8 @@ Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, action.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -2479,6 +2522,8 @@ params, body}} and sends nothing.
 
 Required inputs: host, action, console_mac.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -2510,7 +2555,7 @@ Required inputs: host, action, console_mac.
 
 ## Create
 
-**68 tools**
+**67 tools**
 
 ### `create_acl_rule`
 
@@ -2557,6 +2602,8 @@ Example call (create_acl_rule):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -2595,6 +2642,8 @@ params, body}}.
 Example call (create_ap_group):
     {"host": "my-console", "site": "Default", "group": {"name": "Upstairs",
      "device_macs": ["02:00:5e:00:00:01"]}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -2650,6 +2699,11 @@ Example call (create_arm_profile):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -2693,6 +2747,8 @@ Example: docs/TOOL-USAGE.md#create_backup.
 
 Required arguments: host, site.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -2729,6 +2785,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, config.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -2764,6 +2822,8 @@ on success. With dry-run policy, returns {status: "dry_run",
 response (the preview)} and sends no write.
 
 Dry-run response previews include body and params.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -2821,6 +2881,8 @@ Example call (create_carrier_subscriber):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `carrier_fabric/official/write`
 
 **Family:** `carrier`
@@ -2877,6 +2939,8 @@ Example call (create_client_reservation):
       "network": "Default"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -2919,6 +2983,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, content_filter.
+
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: category-based web-filtering profiles; not firewall policies or traffic rules.
 
 **API source:** `network/private.v2/write`
 
@@ -2967,6 +3033,8 @@ Example call (create_device_tag):
       "tag": {"name": "Cameras", "member_device_macs": ["aa:bb:cc:dd:ee:ff"]}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `devices`
@@ -3010,6 +3078,8 @@ preview: {method, path, params, body}}; nothing is sent.
 Example call (create_dhcp_option):
     {"host": "my-console", "site": "Default",
      "option": {"name": "tftp-server", "code": "150", "type": "ipaddress"}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -3071,6 +3141,8 @@ Example call (create_dns_policy):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -3112,6 +3184,8 @@ Example call (create_dynamic_dns):
      "host_name": "home.example.com", "login": "user", "x_password": "secret",
      "interface": "wan"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -3145,6 +3219,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, policy (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -3195,6 +3271,8 @@ Detailed examples: docs/TOOL-USAGE.md#create_firewall_policy.
 
 Required arguments: host, site, policy (see parameter descriptions for identifiers).
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -3235,6 +3313,8 @@ Under dry-run policy nothing is sent: the result is the bare dry-run preview
 preview: {method, path, params, body}} instead of the upstream body.
 
 Required arguments: host, site, rule (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `site_manager/private/write`
 
@@ -3284,6 +3364,8 @@ Example call (create_firewall_zone_proxy):
       "zone": {"name": "Hotspot", "networkIds": ["dfb21062-8ea0-4dca-b1d8-1eb3da00e58b"]}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API through the connector proxy.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -3326,6 +3408,8 @@ Example call (create_hotspot_operator):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -3375,6 +3459,8 @@ Example call (create_hotspot_package):
     {"host": "my-console", "site": "Default",
      "package": {"name": "Trial", "amount": 0, "currency": "USD",
                  "trial_duration_minutes": 30, "trial_reset": 24}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -3430,6 +3516,8 @@ Example call (create_hotspot_vouchers):
       "voucher_config": {"name": "Conference", "timeLimitMinutes": 1440}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -3464,6 +3552,8 @@ dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, plan (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -3496,6 +3586,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host, directory (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -3565,6 +3657,8 @@ Example call (create_liveview):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -3601,6 +3695,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -3659,6 +3755,8 @@ docs/TOOL-USAGE.md#create_network.
 
 Required arguments: host, site, network_config (see parameter descriptions for identifiers).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -3689,6 +3787,8 @@ and returns {status: "dry_run", dryRun: true, sent: false, message, preview: {me
 params, body}}.
 
 Required arguments: host, site, group.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -3726,6 +3826,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, router.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -3757,6 +3859,8 @@ message,
 preview: {method, path, params, body}}.
 
 Required arguments: host, site, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -3819,6 +3923,8 @@ Example call (create_port_forward):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -3865,6 +3971,8 @@ Example call (create_port_profile):
      "forward": "native", "tagged_vlan_mgmt": "block_all",
      "native_networkconf_id": "000000000000000000000101", "poe_mode": "auto"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -3901,6 +4009,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, supervisor (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -3934,6 +4044,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, link (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -3973,6 +4085,8 @@ Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, kind, group.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -4008,6 +4122,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, automation.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -4042,6 +4158,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -4075,6 +4193,8 @@ PREVIEW} and sends no write.
 Dry-run response previews include body and params.
 
 Required arguments: host, name.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -4113,6 +4233,8 @@ body}}.
 
 Required arguments: host, tag.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -4148,6 +4270,8 @@ body}}.
 
 Required arguments: host, group.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -4181,6 +4305,8 @@ published schema documents the body; patrol records the console lists carry name
 {status: "dry_run", response (the preview)} and sends no write.
 
 Dry-run response previews include body and params.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -4216,6 +4342,8 @@ Go to it with ptz_goto_preset. With dry-run policy, returns {status: "dry_run",
 response (the preview)} and sends no write.
 
 Dry-run response previews include body and params.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -4254,6 +4382,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4296,6 +4426,8 @@ Example call (create_radius_account):
     {"host": "my-console", "site": "Default", "name": "alice",
      "password": "correct-horse", "fields": {"vlan": 20, "tunnel_type": 13,
      "tunnel_medium_type": 6}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4348,6 +4480,8 @@ Example call (create_radius_profile):
       "auth_server_secret": "s3cret"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -4392,6 +4526,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 
 Required arguments: host, type, group.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -4430,6 +4566,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 {method, path, params, body}}.
 
 Required arguments: host, object_ids.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -4476,6 +4614,8 @@ Example call (create_rtsps_stream):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -4511,6 +4651,8 @@ Returns the upstream body verbatim. Under dry-run policy nothing is sent; return
 Example: docs/TOOL-USAGE.md#create_scheduled_task.
 
 Required arguments: host, site, task.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -4556,6 +4698,8 @@ Example call (create_site):
       "site": "Default",
       "description": "Branch office"
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -4611,6 +4755,8 @@ Example call (create_site_to_site_tunnel):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -4648,6 +4794,8 @@ params, body}}; nothing is sent.
 Example call (create_site_vpn):
     {"host": "my-console", "site": "Default", "params": {"site": "branch-1"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -4684,6 +4832,8 @@ only under UNIFI_REDACT_SECRETS. Returns the upstream body verbatim (a JSON arra
 {result: [...]}). With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun,
 sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -4717,6 +4867,8 @@ with catalog "profile-defaults" for the fields. Returns the upstream body verbat
 array arrives as {result: [...]}). With dry-run policy, returns a dry-run preview {status:
 "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
 nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4754,6 +4906,8 @@ path, params, body}}; nothing is sent.
 Example call (create_static_dns_record):
     {"host": "my-console", "site": "Default", "record": {"key": "nas.example.com",
      "value": "192.0.2.20", "record_type": "A", "enabled": true}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4799,6 +4953,8 @@ Example call (create_static_route):
      "static-route_network": "198.51.100.0/24", "static-route_nexthop": "10.0.0.2",
      "static-route_distance": 1}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -4835,6 +4991,8 @@ returns a dry-run preview {status: "dry_run", dryRun: true, sent: false, message
 
 Example call (create_teleport_invitation):
     {"host": "my-console", "site": "Default"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4874,6 +5032,8 @@ status "dry_run", dryRun, message and preview (method, path, params, body).
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, test_config.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -4927,6 +5087,8 @@ Example call (create_traffic_matching_list):
         "name": "Allowed address list"
       }
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -4984,6 +5146,8 @@ Example call (create_traffic_route):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -5006,70 +5170,6 @@ Example call (create_traffic_route):
 
 `Any`
 
-### `create_traffic_rule`
-
-Create a traffic matching rule (QoS, block, or route by application/IP group).
-
-Returns the upstream response body verbatim: the created traffic rule object the API answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
-
-`payload`: sent as given; the controller requires these fields (verified live; an
-upstream error gets a hint naming any that are missing):
-  - action: 'BLOCK'|'THROTTLE_RATE'|'QUEUE'
-  - matching_target: 'INTERNET'|'LOCAL'|'ALL' or a traffic matching list id (from
-    list_traffic_matching_lists)
-  - target_devices: the devices/networks the rule applies to (required by the API;
-    previously undocumented)
-  Optional (NOT required by the API): description (str), enabled (bool, controller
-  defaults it), matching_target_type ('INTERNET'|'DOMAIN'|'IP_GROUP'|'APPLICATION_GROUP'),
-  bandwidth_limit (dict with up_limit_kbps/down_limit_kbps for THROTTLE_RATE).
-Note: uses the Classic REST v2 API (/v2/api/site/{siteId}/trafficrules); may not exist
-on firmware 10.2.105 and below. A console that does not implement creating here answers
-HTTP 501 api.err.NotImplemented (GET may still list rules) and no payload change will
-help: use create_firewall_policy (match with create_traffic_matching_list),
-create_qos_rule or create_traffic_route, each with its own schema.
-
-Request body: no published schema exists for POST network/v2/api/site/{site}/trafficrules
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
-
-Example call (create_traffic_rule):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "payload": {
-        "action": "BLOCK",
-        "matching_target": "INTERNET",
-        "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
-        "description": "Block guests",
-        "enabled": true
-      }
-    }
-
-**API source:** `network/private.v2/write`
-
-**Family:** `network`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | false | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
-| `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
-| `payload` | `object` | yes |  | spec: free-form (Network v2 trafficrules), sent as given. The controller requires action BLOCK\|THROTTLE_RATE\|QUEUE, matching_target (INTERNET\|LOCAL\|ALL or list id) and target_devices. Free-form JSON object; no fixed body shape is published. |
-
-**Return type**
-
-`Any`
-
 ### `create_user_group`
 
 Create a client user group via Classic REST POST rest/usergroup (the UI's route).
@@ -5086,6 +5186,8 @@ params, body}}.
 Example call (create_user_group):
     {"host": "my-console", "site": "Default", "group": {"name": "Guests 10M",
      "qos_rate_max_down": 10000, "qos_rate_max_up": 2000}}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -5150,6 +5252,8 @@ Example call (create_vpn_client):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -5204,6 +5308,8 @@ Example call (create_vpn_server):
       "fields": {"local_port": 51820}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -5240,6 +5346,8 @@ free-form; copy the shape of a list_wan_slas record. Returns the upstream body
 verbatim (an object, or an array body as result). With dry-run policy returns a
 dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
 params, body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -5292,6 +5400,8 @@ docs/TOOL-USAGE.md#create_wifi_broadcast.
 
 Required arguments: host, site, broadcast (see parameter descriptions for identifiers).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -5330,6 +5440,8 @@ nothing is sent.
 Example call (create_wireguard_users):
     {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
      "users": [{"name": "laptop-01", "interface_ip": "192.0.2.10"}]}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -5370,6 +5482,8 @@ sent: false, message, preview: {method, path, params, body, multipart}} plus _fo
 
 Required arguments: host, filename, content_base64, assets_dir (see each parameter's
 description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -5432,6 +5546,8 @@ The dry-run preview contains method, path, params (query parameters), body (null
 body) and multipart: one {field, filename, contentType, sizeBytes} entry per file part
 (field "file"), never the file bytes.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -5472,6 +5588,8 @@ body, multipart}}, where multipart names each part without its bytes.
 
 Required arguments: host, filename, content_base64.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -5501,7 +5619,7 @@ Required arguments: host, filename, content_base64.
 
 ## Delete
 
-**65 tools**
+**64 tools**
 
 ### `delete_acl_rule`
 
@@ -5521,6 +5639,8 @@ Example call (delete_acl_rule):
 The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
 
 **API source:** `network/official/write`
 
@@ -5566,6 +5686,8 @@ Example call (delete_ap_group):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -5608,7 +5730,12 @@ Example call (delete_arm_profile):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -5651,6 +5778,8 @@ Required arguments: host, site, config_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -5689,6 +5818,8 @@ Dry-run response previews include body and params.
 Consequence: a successful deletion permanently removes shortcuts; there is no undo.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -5732,6 +5863,8 @@ Required arguments: host, site, filter_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: category-based web-filtering profiles; not firewall policies or traffic rules.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -5773,6 +5906,8 @@ Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview (status,
 dryRun, sent: false, message and preview with method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -5826,6 +5961,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `devices`
@@ -5869,6 +6006,8 @@ path, params, body}}; nothing is sent.
 Example call (delete_dhcp_option):
     {"host": "my-console", "site": "Default", "option_id": "000000000000000000000107"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -5909,6 +6048,8 @@ Returns deleted, message and response (the upstream body).
 Required arguments: host, site.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -5953,6 +6094,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -5991,6 +6134,8 @@ Consequence: the card or fingerprint stops working at this doorbell at once; it
 must be enrolled again to restore it.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -6035,6 +6180,8 @@ Example call (delete_dynamic_dns):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -6075,6 +6222,8 @@ deleted: false, message, response}, where response is the dry-run preview (statu
 dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, policy_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -6121,6 +6270,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -6160,6 +6311,8 @@ Example call (delete_firewall_zone_proxy):
 The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API through the connector proxy.
 
 **API source:** `network/official/write`
 
@@ -6204,6 +6357,8 @@ path, params, body}}; nothing is sent.
 
 Example call (delete_guest_portal_file):
     {"host": "my-console", "site": "Default", "file_id": "000000000000000000000107"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -6250,6 +6405,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `hotspot`
@@ -6292,6 +6449,8 @@ path, params, body}}; nothing is sent.
 
 Example call (delete_hotspot_package):
     {"host": "my-console", "site": "Default", "package_id": "000000000000000000000107"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -6338,6 +6497,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -6378,6 +6539,8 @@ preview: {method, path, params, body}}.
 
 Required arguments: host, plan_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -6413,6 +6576,8 @@ deleted: false, message, response}, where response is the dry-run preview
 {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, liveview_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -6453,6 +6618,8 @@ dryRun, sent: false, message and preview with method, path, params, body).
 Required arguments: host, site, rule_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -6501,6 +6668,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -6536,6 +6705,8 @@ dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
 path, params, body}}.
 
 Required arguments: host, site, group_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -6578,6 +6749,8 @@ Required arguments: host, site, router_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -6612,6 +6785,8 @@ or null when the body is empty). Under dry-run policy sends no mutation and retu
 body}}.
 
 Required arguments: host, site, rule_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -6657,6 +6832,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -6697,6 +6874,8 @@ Example call (delete_port_profile):
     {"host": "my-console", "site": "Default", "profile_id": "000000000000000000000101"}
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -6739,6 +6918,8 @@ dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, supervisor_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -6780,6 +6961,8 @@ dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, link_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -6819,6 +7002,8 @@ Returns deleted, message and response (the upstream body).
 Required arguments: host, site, kind, group_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -6861,6 +7046,8 @@ where response is the dry-run preview {status, dryRun, sent: false, message, pre
 {method, path, params, body}} (nothing sent).
 
 Required arguments: host, automation_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -6907,6 +7094,8 @@ Required arguments: host, backup_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -6946,6 +7135,8 @@ Required arguments: host, case_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -6983,6 +7174,8 @@ deleted: false, message, response}, where response is the dry-run preview
 
 Required arguments: host, tag_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -7019,6 +7212,8 @@ deleted: false, message, response}, where response is the dry-run preview
 {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, file_id, asset_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -7059,6 +7254,8 @@ deleted: false, message, response}, where response is the dry-run preview
 
 Required arguments: host, group_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -7096,6 +7293,8 @@ Dry-run response previews include body and params.
 Consequence: the patrol is removed permanently (its presets stay); there is no undo.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -7136,6 +7335,8 @@ Consequence: the saved position is removed permanently and patrols that use it l
 that stop; there is no undo.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -7181,6 +7382,8 @@ Required arguments: host, site, body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -7222,6 +7425,8 @@ Example call (delete_radius_account):
     {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101"}
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -7266,6 +7471,8 @@ Example call (delete_radius_profile):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -7303,6 +7510,8 @@ deleted is true, message summarizes the delete, and response is the upstream bod
 is {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, type, group_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -7346,6 +7555,8 @@ Required arguments: host, camera_id, start, end (see each parameter's descriptio
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -7383,6 +7594,8 @@ deleted: false, message, response}, where response is the dry-run preview
 {status, dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, ringtone_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -7433,6 +7646,8 @@ Example call (delete_rtsps_stream):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -7470,6 +7685,8 @@ message, preview: {method, path, params, body}}.
 Example: docs/TOOL-USAGE.md#delete_scheduled_task.
 
 Required arguments: host, site, task_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -7523,6 +7740,8 @@ Example call (delete_site):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -7573,6 +7792,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -7614,6 +7835,8 @@ Example call (delete_site_vpn):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -7650,6 +7873,8 @@ false, message, response} with the preview (method, path, params, body) under re
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -7683,6 +7908,8 @@ With dry-run policy, returns {status: "dry_run", deleted: false, message, respon
 preview (method, path, params, body) under response.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -7722,6 +7949,8 @@ Example call (delete_static_dns_record):
     {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107"}
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -7765,6 +7994,8 @@ Example call (delete_static_route):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -7807,6 +8038,8 @@ Required arguments: host, site, test_config_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -7846,6 +8079,8 @@ Example call (delete_traffic_matching_list):
 The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -7891,6 +8126,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -7908,52 +8145,6 @@ Returns {deleted, message, response}: deleted is true, message summarizes the de
 | `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
 | `route_id` | `string` | yes |  | Traffic route _id (Network v2 API). Get it from list_traffic_routes (_id). |
-
-**Return type**
-
-`dict[str, Any]`
-
-### `delete_traffic_rule`
-
-Delete a traffic rule by ID.
-
-Requires a controller implementing the v2 trafficrules route. Consoles without it
-return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
-
-Consequence: the rule stops applying to matching traffic immediately; there is no undo.
-
-The id is resolved in list_traffic_rules first (the controller answers a DELETE on an unknown id
-with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
-
-Example call (delete_traffic_rule):
-    {"host": "my-console", "site": "Default", "rule_id": "000000000000000000000107"}
-
-The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
-
-**API source:** `network/private.v2/write`
-
-**Family:** `network`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | true | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
-| `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
-| `rule_id` | `string` | yes |  | Traffic rule id (Network v2 API _id). Get it from list_traffic_rules (_id). |
 
 **Return type**
 
@@ -7977,6 +8168,8 @@ Example call (delete_user_group):
     {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101"}
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8025,6 +8218,8 @@ Example call (delete_vpn_client):
     }
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8077,6 +8272,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -8114,6 +8311,8 @@ body}}, and sends nothing.
 Consequence: the SLA definition is removed and cannot be restored.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -8164,6 +8363,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -8206,6 +8407,8 @@ Example call (delete_wireguard_users):
      "users": ["000000000000000000000108"]}
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8260,6 +8463,8 @@ Example: docs/TOOL-USAGE.md#locate_device.
 
 Required arguments: host, site, device_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -8299,6 +8504,8 @@ previews include body and params.
 
 Required arguments: host, device_type, device_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -8335,6 +8542,8 @@ Consequence: only the port LEDs change; traffic is unaffected.
 
 Required arguments: host, site, device, port_idx, enabled (see each parameter's
 description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8377,6 +8586,8 @@ Example call (ptz_goto_preset):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -8413,6 +8624,8 @@ Dry-run response previews include body and params.
 
 Consequence: the camera physically moves to its home position, interrupting any
 manual view or running patrol.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -8452,6 +8665,8 @@ Example call (ptz_patrol_start):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -8489,6 +8704,8 @@ Example call (ptz_patrol_stop):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -8542,6 +8759,8 @@ Example: docs/TOOL-USAGE.md#adopt_device.
 
 Required arguments: host, site, device.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `devices`
@@ -8588,6 +8807,8 @@ Result status is the upstream HTTP number or dry_run for a preview.
 Example call (adopt_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -8627,6 +8848,8 @@ With dry-run policy, returns {status: "dry_run", response: PREVIEW}. Dry-run
 response previews include body and params.
 
 Required arguments: host, camera (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -8674,6 +8897,8 @@ Example: docs/TOOL-USAGE.md#restart_device.
 
 Required arguments: host, site, device_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -8711,6 +8936,8 @@ false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (restart_vpn_server):
     {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8752,6 +8979,8 @@ Example: docs/TOOL-USAGE.md#unadopt_device.
 Required arguments: host, site, device_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -8802,6 +9031,8 @@ Result status is the upstream HTTP number or dry_run for a preview.
 Example call (unadopt_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -8836,6 +9067,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#upgrade_all_devices.
 
 Required arguments: host, site.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -8873,6 +9106,8 @@ upstream body verbatim. With dry-run policy, returns {status: "dry_run", respons
 PREVIEW} and sends no write. Dry-run response previews include body and params.
 
 Required arguments: host (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -8924,6 +9159,8 @@ Example: docs/TOOL-USAGE.md#upgrade_device.
 
 Required arguments: host, site, device_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -8964,6 +9201,8 @@ response: PREVIEW} and sends no write. Dry-run response previews include body
 and params.
 
 Required arguments: host, device_type, device_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -9012,6 +9251,11 @@ Example call (disable_arm):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -9047,6 +9291,8 @@ Example call (disable_camera_mic_permanently):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -9089,6 +9335,8 @@ body}}. Exposure actions are sent once, never automatically retried.
 
 Example call (disable_camera_share_link):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -9145,6 +9393,8 @@ Example call (execute_client_action):
       "action": {"action": "AUTHORIZE_GUEST_ACCESS", "timeLimitMinutes": 60}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `clients`
@@ -9198,6 +9448,8 @@ message, preview: {method, path, params, body}, _consequence}.
 Example: docs/TOOL-USAGE.md#execute_device_action.
 
 Required arguments: host, site, device_id, action.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -9262,6 +9514,8 @@ Example call (execute_port_action):
       "action": {"action": "POWER_CYCLE"}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `devices`
@@ -9303,6 +9557,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, archive.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -9337,6 +9593,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#start_rolling_upgrade.
 
 Required arguments: host, site.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -9373,6 +9631,8 @@ Provide host (console name or id from list_hosts) and site (Network site name or
 from list_local_sites).
 
 Required arguments: host, site, access_point.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -9412,6 +9672,8 @@ Example call (start_talkback_session):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -9446,6 +9708,8 @@ Provide host (console name or id from list_hosts) and site (Network site name or
 from list_local_sites).
 
 Required arguments: host, site, radio_band.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -9486,6 +9750,8 @@ Example call (trigger_alarm_webhook):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -9523,6 +9789,8 @@ Dry-run response previews include body and params.
 Consequence: a successful request can run the shortcut's action (for example a PTZ move
 or an output); it is not undone automatically.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -9551,7 +9819,7 @@ or an output); it is not undone automatically.
 
 ## Listing & Discovery
 
-**149 tools**
+**150 tools**
 
 ### `list_accounts`
 
@@ -9599,6 +9867,8 @@ _pageSize reports requested count, actual sent sizes per request,
 observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
+
+Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
 
 **API source:** `network/official/read`
 
@@ -9880,6 +10150,9 @@ length (an upstream object with a data array is returned verbatim plus _count).
 Availability requires a Protect application exposing the published Protect Integration API.
 
 Required arguments: host (see each parameter's description).
+
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
 
 **API source:** `protect/official/read`
 
@@ -10324,6 +10597,8 @@ update_content_filter and delete_content_filter.
 Returns the upstream body verbatim (a JSON object or array, as sent).
 
 Required arguments: host, site.
+
+Filter family: category-based web-filtering profiles; not firewall policies or traffic rules.
 
 **API source:** `network/private.v2/read`
 
@@ -10774,15 +11049,53 @@ Example call (list_doh_servers):
 
 `Any`
 
+### `list_door_lock_unlock_events`
+
+List the remote unlock requests made to a Protect 7.x door lock, newest first.
+
+Reads GET /locks/{lock_id}/unlock/events on the private Protect API (no official
+route); each request is returned verbatim. An unlisted lock_id fails naming the
+valid locks. Returns {result, _count} by default (drained in pages of 100);
+{data, _count, _pageSize} for a limit; for an offset (0 to 10000), one native page
+as the bare array sent. A drain that stops early (UNIFI_PAGINATE_MAX_PAGES,
+the 10000 offset limit or a repeated page) is marked incomplete=true with an
+incompleteReason. Consoles older than Protect 7.x do not serve this route.
+
+Required arguments: host, lock_id (see each parameter's description).
+
+**API source:** `protect/private/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, case-insensitive, or the long data[].id); for example "my-console". |
+| `lock_id` | `string` | yes |  | Lock id from GET /locks (the Protect lock list or bootstrap); for example "000000000000000000000701". |
+| `offset` | `integer \| null` | no | `null` | Optional zero-based number of newest requests to skip; alone, fetch one page manually. Example: `25`. |
+| `limit` | `integer \| null` | no | `null` | Without offset, the number of newest requests to gather in pages of at most 100; fewer only when the lock has no more. With offset, limit is sent unchanged as one page. The console clamps that page to 100, so fewer can return while more exist. Page size 1 to 100. Example: `25`. |
+
+**Return type**
+
+`Any`
+
 ### `list_door_locks`
 
-List every UniFi door lock adopted by a Protect console.
+List the door locks that Protect 7.x manages under /locks on a Protect console.
 
-Reads GET /doorlocks on the private Protect API (the official API has no door-lock
-route). Returns {result: [lock, ...], _count} with each lock verbatim (id, name,
-lockStatus, autoCloseTimeMs, camera, state). The console answers the whole list.
-Some Protect versions do not serve this route; check bootstrap for doorlocks.
-Upstream failures retain their body and include availability guidance.
+Reads GET /locks on the private Protect API (the Protect 7.x Thread lock model; the
+official API has no door-lock route). It covers the locks Protect 7.x manages under
+/locks, not older door-lock products. Returns {result: [lock, ...], _count} with each
+lock verbatim. The console answers the whole list. Consoles older than Protect 7.x do
+not serve this route. Upstream failures retain their body and include availability
+guidance.
 
 Required arguments: host (see each parameter's description).
 
@@ -11040,6 +11353,8 @@ observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
 
+Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
+
 **API source:** `network/official/read`
 
 **Family:** `firewall`
@@ -11117,6 +11432,8 @@ _pageSize reports requested count, actual sent sizes per request,
 observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
+
+_proxy suffix: calls the Network Integration API through the connector proxy.
 
 **API source:** `network/official/read`
 
@@ -11228,6 +11545,11 @@ Example call (list_guests):
       "site": "Default",
       "within_hours": 24
     }
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -11791,9 +12113,9 @@ threatTypes (default
 ["HONEYPOT", "THREAT"], what the controller UI sends; without it the controller returns
 no entries) and timestampFrom / timestampTo from start / end when given.
 
-These POST queries are treated as writes pending a separately approved read-POST
-allowlist PR. UNIFI_WRITE_POLICY=deny and family:network=deny hide the tool
-before any upstream request.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool. family:network=deny
+also hides it.
 dry-run policy returns {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params, body}} for the first page without sending a POST.
 
@@ -11812,6 +12134,8 @@ Example call (list_ips_events):
       "site": "Default",
       "start": 1760140800
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -12017,6 +12341,8 @@ Required arguments: host (see each parameter's description).
 ### `list_local_sites`
 
 List sites managed by one UniFi Network application.
+
+Every site managed by that one Network application (the local sites of one console).
 
 Returns {data, totalCount}: every page is drained; data holds the site records verbatim and
 totalCount is the upstream total (null when none was reported). The first page's other envelope
@@ -12392,7 +12718,7 @@ List site network events from the system log, draining every page in controller 
 
 Network 11.x keeps events in the system log (the Classic stat/event route answers
 HTTP 404 on Network 11.0.81). This reads class "all" of POST
-network/v2/api/site/{site}/system-log/all (classified as a write), with
+network/v2/api/site/{site}/system-log/all, with
 timestampFrom / timestampTo
 set from start / end when given. view reads another class the same way (live on
 Network 11.0.81: all, device-alert, client-alert, admin-activity, update-alert,
@@ -12400,9 +12726,11 @@ threat-alert, next-ai-alert, vpn-alert, critical). vpn_user_id scopes the log to
 user instead: GET network/v2/api/site/{site}/system-log/vpn-user-connection?vpnUserId=
 (the web UI's route), returned verbatim. For a raw query use get_system_log.
 
-Consequence: none intended. Read POSTs are classed as writes (not read-POST
-allowlisted). UNIFI_WRITE_POLICY=deny or family:network=deny hides the whole tool.
-dry-run policy previews the first page without sending a POST:
+Consequence: none intended.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool. family:network=deny
+also hides it.
+dry-run policy (UNIFI_WRITE_POLICY=dry-run) previews the first page without a POST:
 {status: "dry_run", dryRun: true, sent: false, message,
 preview: {method, path, params, body}}.
 
@@ -14079,16 +14407,21 @@ Required arguments: host, site (see each parameter's description).
 
 ### `list_traffic_rules`
 
-List traffic matching rules (QoS, application, IP group matching).
+List traffic matching rules (QoS, application, IP group matching). Legacy.
 
-Requires a controller implementing the v2 trafficrules route. Consoles without it
-return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
+Legacy: reads traffic rules carried over from earlier Network versions on the v2
+trafficrules route. The Network 11.0.99 web app no longer shows them, and the console
+does not implement creating, changing or deleting them (HTTP 501
+api.err.NotImplemented). For new rules use create_firewall_policy, create_qos_rule or
+create_traffic_route. A console without the route answers with an upstream error,
+returned to the caller.
 
 Returns: the v2 API's bare JSON array of rules, verbatim (the same shape as
-list_traffic_routes). To change one, edit its entry and pass it as `payload` to
-update_traffic_rule (rule_id = its _id).
+list_traffic_routes).
 
 Required arguments: host, site (see each parameter's description).
+
+Filter family: QoS, application and IP-group traffic matching; not firewall policies or content filters.
 
 **API source:** `network/private.v2/read`
 
@@ -14774,7 +15107,7 @@ Required arguments: host, site (see each parameter's description).
 
 ## Other
 
-**160 tools**
+**163 tools**
 
 ### `accept_ironclad_terms`
 
@@ -14790,6 +15123,8 @@ dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
 path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, cid, vid, status, agreement_type.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -14816,6 +15151,45 @@ Required arguments: host, cid, vid, status, agreement_type.
 
 `Any`
 
+### `acknowledge_critical_alert`
+
+Mark ONE critical system-log alert as read (acknowledge it). Unverified route.
+
+Unverified: the route appears in the Network server's route table, but the HTTP method
+(PUT) comes only from open-source clients and the Network web app never calls this
+route (it only calls mark-all-as-read); it has not been proven on a console.
+Consequence: the alert stops counting as unread in the Network app; the other critical
+alerts are untouched (mark_critical_logs_read marks every one). Required arguments:
+host, site, alert_id. Sends PUT /v2/api/site/{site}/system-log/critical/{alert_id}/
+mark-as-read with an empty JSON object, once and never retried. Returns the upstream
+body verbatim (a JSON array arrives as {result: [...]}). With dry-run policy, returns a
+dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
+path, params, body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.v2/write`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Required Network site name, id or slug from list_local_sites, e.g. "default". |
+| `alert_id` | `string` | yes |  | Required id of one critical alert, from the id field of an entry returned by get_system_log with class "critical", e.g. "0000000000000000000000aa". |
+
+**Return type**
+
+`Any`
+
 ### `activate_lte_trial`
 
 Activate the UniFi LTE trial subscription on a site.
@@ -14829,6 +15203,8 @@ returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, prev
 {method, path, params, body}} and sends nothing.
 
 Consequence: starts the account's one-time LTE trial period; it cannot be undone.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -14863,6 +15239,8 @@ in the certificate list first. Sent once and never retried. Returns the upstream
 verbatim. With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent:
 false, message,
 preview: {method, path, params, body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -14903,6 +15281,8 @@ console accepts asset_type "clip" only (live-probed). With dry-run policy, retur
 Dry-run response previews include body and params.
 
 Required arguments: host, case_id, camera_id, start, end.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -14945,6 +15325,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#advanced_adopt_device.
 
 Required arguments: host, site, mac, ip, username, password, inform_url.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -15000,6 +15382,8 @@ Example call (alarm_hub_trigger_output):
     {"host": "my-console", "alarm_hub_id": "00000000000000000000010b", "output_id": 0}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -15057,7 +15441,7 @@ resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the
 acted on).
 Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
 dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+message, preview: {method, path, params, body}}.
 
 Request body: fresh portconf with the network's _id removed from excluded_networkconf_ids (no published spec for network/api/s/{site}/rest/portconf).
 
@@ -15068,6 +15452,8 @@ Example call (allow_network_on_port_profile):
       "profile_id": "000000000000000000000107",
       "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -15109,6 +15495,8 @@ PREVIEW}. Dry-run response previews include body and params.
 
 Required arguments: host, camera_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15147,6 +15535,8 @@ Provide host (console name or id from list_hosts) and site (Network site name or
 from list_local_sites).
 
 Required arguments: host, site, radios.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -15195,6 +15585,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 
 Required arguments: host, apply.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15232,6 +15624,8 @@ status "dry_run", dryRun, message and preview (method, path, params, body).
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, test_config_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -15286,6 +15680,8 @@ Dry-run physical previews carry an additive _consequence warning.
 The preview includes status: "dry_run", dryRun: true, sent: false, message and
 preview: {method, path, params, body}.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `devices`
@@ -15320,7 +15716,7 @@ unwrapped: the write response when it carries the subscriber, else the read-back
 (for no_op, the GET body read first).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not against a live Carrier Fabric). An archived or unknown
 plan is rejected upstream. Guarded, in order: the Carrier write opt-out
@@ -15339,6 +15735,8 @@ Example call (assign_carrier_subscriber_plan):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -15380,6 +15778,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 
 Required arguments: host, type.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15418,6 +15818,8 @@ response} with the upstream body verbatim. With dry-run policy, returns {status:
 
 Required arguments: host, sensor_id, bridge_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15451,7 +15853,7 @@ a full body ({data, ...}), never unwrapped: the write response when it carries t
 subscriber, else the read-back GET body (for no_op, the GET body read first).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not against a live Carrier Fabric). host_id must be a host in
 the same ISP organization. Guarded, in order: the Carrier write opt-out
@@ -15470,6 +15872,8 @@ Example call (attach_carrier_subscriber_host):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -15525,6 +15929,8 @@ Example call (authorize_guest):
     {"host": "my-console", "site": "Default", "client": "02:00:00:00:00:01",
      "time_limit_minutes": 60}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -15569,6 +15975,8 @@ sends nothing.
 
 Consequence: binds the device's cellular subscription to the UI account given.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -15610,6 +16018,8 @@ dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site, ids.
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `firewall`
@@ -15649,6 +16059,8 @@ of them for several ids).
 
 Required arguments: host, site, ids.
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -15685,6 +16097,8 @@ when the read-back failed. Under dry-run policy sends nothing and returns {statu
 dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site, ids.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -15731,6 +16145,8 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -15767,6 +16183,8 @@ Not read back (the body is free-form). With dry-run policy, returns the dry-run 
 sends nothing. Consequence: every listed object changes at once; devices may reprovision.
 
 Required arguments: host, site, object_type, payload (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -15810,6 +16228,8 @@ body}}.
 
 Required arguments: host, filename, file_content_base64.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15848,6 +16268,8 @@ Dry-run response previews include body and params.
 Consequence: the camera moves through its full range while it calibrates, so its
 view is interrupted until calibration ends.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -15870,45 +16292,6 @@ view is interrupted until calibration ends.
 
 `dict[str, Any]`
 
-### `calibrate_door_lock`
-
-Run the calibration routine of a UniFi door lock.
-
-Consequence: the lock motor drives the bolt through its travel, so the door is
-unlocked and locked during calibration; keep the door closed and clear.
-
-Sends POST /doorlocks/{doorlock_id}/calibrate on the private Protect API (no
-official route). The web UI builds the body at run time, so options is sent as
-given (free-form object) and nothing is sent when omitted. Sent once, never
-auto-retried. Returns {status: "calibrating", response} with the upstream body
-verbatim. With dry-run policy, returns {status: "dry_run", response: PREVIEW}.
-Dry-run response previews include body and params.
-
-Required arguments: host, doorlock_id (see each parameter's description).
-
-**API source:** `protect/private/write`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | false | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, case-insensitive, or the long data[].id); for example "my-console". |
-| `doorlock_id` | `string` | yes |  | Door lock id (24-hex) from list_door_locks; for example "000000000000000000000111". |
-| `options` | `object \| null` | no | `null` | Request body sent as given (free-form object); for example {"step": "start"}. |
-| `confirm` | `boolean` | no | `false` | Accepted and ignored for compatibility; for example false. |
-
-**Return type**
-
-`dict[str, Any]`
-
 ### `cancel_cloud_archive_task`
 
 Cancel a running Protect cloud archive task.
@@ -15923,6 +16306,8 @@ dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
 path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, archive_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -15962,6 +16347,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -15996,6 +16383,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#cancel_rolling_upgrade.
 
 Required arguments: host, site.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -16035,6 +16424,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -16072,6 +16463,8 @@ include body and params.
 
 Required arguments: host (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16104,6 +16497,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -16150,6 +16545,8 @@ Result status is the upstream HTTP number or dry_run for a preview.
 Example call (clear_sensor_tamper):
     {"host": "my-console", "sensor_id": "00000000000000000000010c"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16183,6 +16580,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}} and sends nothing. Consequence: the cleared counters are lost and cannot be restored.
 
 Required arguments: host, site, device (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -16223,6 +16622,8 @@ and it reprovisions.
 
 Required arguments: host, site, device, source_device (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -16243,6 +16644,66 @@ Required arguments: host, site, device, source_device (see each parameter's desc
 | `source_device` | `string` | yes |  | Source device MAC, Classic _id or exact name; for example "02:00:5e:00:53:01". |
 | `clone_dry_run` | `boolean \| null` | no | `null` | Sent as the body's dry_run; for example true. |
 | `confirm` | `boolean` | no | `false` | Accepted and ignored for compatibility; for example false. |
+
+**Return type**
+
+`Any`
+
+### `collect_network_incident_evidence`
+
+Collect normalized incident evidence from the Network system log for one window.
+
+Reads each system-log class (default "all") over [start, end) with POST
+network/v2/api/site/{site}/system-log/{class}, drains every page
+(Consequence: none, it only reads).
+It returns one document (schema_name "unifi-fabric-incident-evidence",
+schema_version 1) instead of native entries (see get_system_log); each
+record keeps the native id (provenance.record_id).
+
+The "all" POST is a read-allowlisted query, so this tool is a read:
+UNIFI_WRITE_POLICY=deny and family:network=deny do not hide it and dry-run policy does
+not intercept it. Any class other than "all" is refused before any request (use
+get_system_log).
+
+Every class failure (HTTP or transport error, unusable 2xx body) is recorded as that
+source's failure; a read has no unknown outcome.
+
+Returns {schema_name, schema_version, product: "network", status, causality:
+"not_assessed", ordering, scope, requested_window, collected_at, incomplete,
+incompleteReason?, _warnings?, sources, records}. status is complete, empty, partial
+or failed; one failing class makes it partial. incomplete is true exactly when a
+source's drain stopped early (incompleteReason names it). Each source has an outcome
+(complete, empty, partial, or a failure kind with http_status and the upstream
+message), pagination, counts, queried and observed windows, and retention "unknown".
+Records keep safe fields only (no message text), the event time and its status
+(in_window, out_of_window, missing, malformed, ambiguous_timezone) and identity
+(exact, ambiguous or missing; from MAC and IP only), sorted by event time, which
+claims no cause. A non-object row is only counted (counts.malformed); a wrong-typed
+safe field is listed in attributes.wrong_typed_fields.
+
+Example call (collect_network_incident_evidence):
+    {"host": "my-console", "site": "Default", "start": 1760140800,
+     "end": 1760144400, "log_classes": ["all"]}
+
+**API source:** `network/private.v2/read`
+
+**Family:** `statistics`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
+| `start` | `integer` | yes |  | Window start, epoch seconds, inclusive; a negative or millisecond-size value is sent unchanged with a `_warnings` entry. Example: `1760140800`. |
+| `end` | `integer` | yes |  | Window end, epoch seconds, exclusive; must be after start (otherwise refused before any request). Example: `1760144400`. |
+| `log_classes` | `array \| null` | no | `null` | Optional system-log classes, each read as its own source (URL path segment, sent as given). Only the read-allowlisted class "all" is accepted; any other class is refused before any request. Default ["all"]. Repeats are read once. Shape: string[] |
 
 **Return type**
 
@@ -16350,6 +16811,67 @@ Required arguments: host (see each parameter's description).
 
 `dict[str, Any]`
 
+### `collect_protect_incident_evidence`
+
+Collect normalized incident evidence from Protect events for one window.
+
+Reads the private GET protect/api/events route (the one list_protect_events uses)
+over [start, end), every page drained, and returns one closed, versioned document
+(schema_name "unifi-fabric-incident-evidence", schema_version 1) instead of native
+events. Use list_protect_events or get_protect_event for the verbatim event; each
+record keeps the native id (provenance.record_id). A plain read.
+
+Returns {schema_name, schema_version, product: "protect", status, causality:
+"not_assessed", ordering, scope, requested_window, collected_at, incomplete,
+incompleteReason?, _warnings?, sources, records}. incomplete is true exactly when a
+source's drain stopped early (incompleteReason names it). status is complete, empty, partial
+or failed. Without cameras there is one source for every camera; with cameras each
+camera is its own source with its own outcome (complete, empty, partial, or a
+failure kind with http_status and the upstream message), pagination, counts, the
+queried and observed windows, and retention "unknown" (Protect does not report its
+oldest kept event, so an empty source is not proof nothing happened). One failing
+camera makes the document partial, never an empty success. The event time is the
+event start. Records keep safe fields only (type, category, smart_detect_types,
+score, end_epoch_ms; no description or media), the time status (in_window,
+out_of_window, missing, malformed, ambiguous_timezone) and identity (exact,
+ambiguous or missing; camera and sensor ids only, never names). Records sort by
+event time; order is chronology only and claims no cause. A row that is not a JSON
+object is counted (counts.malformed), never made a record; a safe field of the
+wrong JSON type is listed in attributes.wrong_typed_fields.
+
+Example call (collect_protect_incident_evidence):
+    {
+      "host": "my-console",
+      "start": 1760140800,
+      "end": 1760144400,
+      "cameras": ["Front Door"],
+      "types": ["motion", "smartDetectZone"]
+    }
+
+**API source:** `protect/private/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `start` | `integer` | yes |  | Window start, epoch seconds, inclusive; a negative or millisecond-size value is sent unchanged with a `_warnings` entry. Example: `1760140800`. |
+| `end` | `integer` | yes |  | Window end, epoch seconds, exclusive; must be after start (otherwise refused before any request). Example: `1760144400`. |
+| `cameras` | `array \| null` | no | `null` | Optional camera names or ids, each read as its own source; a name resolves to its id (an unknown or shared name fails listing the cameras). Omit for one source covering every camera. Example: `["Front Door"]`. Shape: string[] |
+| `types` | `array \| null` | no | `null` | Optional event types sent as the types filter, e.g. ["motion"] or ["smartDetectZone"]; recorded in each source's scope. Omit for every type. Shape: string[] |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `commission_matter_node`
 
 Commission a Matter device using its setup code through the cloud connector.
@@ -16369,6 +16891,8 @@ Returns the upstream body unchanged. With dry-run policy, returns
 body}} without sending a write.
 
 Required arguments: host, site, setup_code.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -16441,6 +16965,8 @@ offline until it is set up again on site.
 
 Required arguments: host, camera_id, settings (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16482,6 +17008,8 @@ from list_local_sites).
 
 Required arguments: host, site, is_wifi_tethering, enabled, port, uplink_ssid,
 uplink_security, uplink_band.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -16529,6 +17057,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, code.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16567,6 +17097,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, server.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16602,6 +17134,8 @@ battery packs (backup power is unavailable while they restart); set-locate/unset
 change their LEDs.
 
 Required arguments: host, site, device, battery_ids (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -16639,6 +17173,8 @@ never retried. Returns the upstream body verbatim (a JSON array arrives as {resu
 With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
 message, preview: {method, path, params, body}} and sends nothing.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -16673,6 +17209,8 @@ target is the path segment the Network UI uses for the test and is sent as one e
 segment. options is a free-form body sent as given. Sent once and never retried. Returns the
 upstream body verbatim. With dry-run policy, returns a dry-run preview {status: "dry_run",
 dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -16716,6 +17254,8 @@ Dry-run response previews include body and params.
 
 Required arguments: host, action (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16755,6 +17295,8 @@ status "dry_run", dryRun, message and preview (method, path, params, body).
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, action.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -16796,6 +17338,8 @@ Example call (control_site_vpn):
     {"host": "my-console", "site": "Default", "action": "disable",
      "name": "branch-vpn", "vpn_site": "branch-1"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -16835,6 +17379,8 @@ from list_local_sites).
 
 Required arguments: host, site, action.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -16871,7 +17417,7 @@ a full body ({data, ...}), never unwrapped: the write response when it carries t
 subscriber, else the read-back GET body (for no_op, the GET body read first).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
 Carrier write opt-out (family:carrier=deny refuses first), read-before,
@@ -16882,6 +17428,8 @@ Example call (detach_carrier_subscriber_host):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -16921,6 +17469,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, target, object_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -16959,6 +17509,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, provider.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -16994,6 +17546,8 @@ nothing.
 Consequence: the user's VPN tunnel drops at once; they can reconnect.
 
 Required arguments: host, site, params (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -17037,6 +17591,11 @@ Example call (enable_arm):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -17078,6 +17637,8 @@ body}}. Exposure actions are sent once, never automatically retried.
 Example call (enable_camera_share_link):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -17116,6 +17677,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host, detection_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -17158,6 +17721,8 @@ Dry-run response previews include body and params.
 
 Consequence: an assigned card or fingerprint can unlock or identify the user at the
 doorbell until it is deleted with delete_doorbell_credential.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -17214,7 +17779,7 @@ resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the
 acted on).
 Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
 dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+message, preview: {method, path, params, body}}.
 
 Request body: none is passed by the caller. The tool fresh-reads the classic portconf record,
 adds the network's _id to excluded_networkconf_ids, and PUTs it back (no published spec for
@@ -17227,6 +17792,8 @@ Example call (exclude_network_on_port_profile):
       "profile_id": "000000000000000000000107",
       "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -17360,6 +17927,8 @@ preview: {method, path, params, body}}.
 
 Required arguments: host, directory (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -17438,6 +18007,8 @@ Example: docs/TOOL-USAGE.md#export_site.
 
 Required arguments: host, site.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -17489,6 +18060,11 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 
 Required arguments: host, site.
 
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -17539,6 +18115,8 @@ Example call (extend_guest):
       "guest": "aa:bb:cc:dd:ee:ff"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -17574,26 +18152,30 @@ optional. fabric_connector_get defines host/path/site/scope; body is verbatim; c
 ignored.
 
 Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim,
-including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim
+(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
 headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
 readAfterError explains a failed or non-2xx read-after. DELETE is confirmed only by a
 404 read-after following a 2xx read-before: noOp false, changed true. If read-after still
 returns the resource, noOp is null with noOpReason "deletion not confirmed". Unknown is also
 noOp null; changed (= not noOp) is present only when noOp is non-null.
-A Classic network/api/... 2xx lacking meta.rc "ok" is rejected: status/body stay verbatim,
-_classicRcError includes meta.msg, noOp is null with no changed, and reads carry the marker.
-dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
-preview, readAfter/noOp null, no changed.
+A 2xx error body is rejected: status/body stay verbatim; Classic without meta.rc "ok" sets
+_classicRcError (meta.msg included), a v2 body of only {error: {code, message}} sets
+_upstreamError; noOp is null with no changed, and reads carry the marker.
+dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
+{method, path, params, body} preview, readAfter/noOp null, no changed.
 
 Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny (all area write opt-outs apply), or
-an unclassified route meets any active area opt-out. Sent once: never auto-retried on 429
-(raised with the upstream body).
+a protect/ path has family:protect=deny, or
+an unclassified route meets any active area opt-out; never auto-retried on 429
+(raised with its body).
 
 Details: docs/TOOL-USAGE.md#fabric_connector_delete.
 
-HTTP 401/403 keeps body/status and adds _hint (key setup/permission advice);
+Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
+body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
+
+HTTP 401/403 keeps body/status and adds _hint (key/permission advice);
 readBefore/readAfter carry the same guidance for failed GET twins.
 
 **API source:** `relay/generic/write`
@@ -17631,21 +18213,20 @@ Reaches private APIs too; official-only setups also exclude source:relay.
 For routes without typed tools. GET needs no confirm. State-changing GET routes
 (Protect enable-control/disable-control) require write authorization, obey connector/area
 opt-outs, read-only mode and dry-run, and are sent once. In discovery mode use
-call_write_tool for them. Ordinary GET reads remain available. A 4xx/5xx returns status,
-so unknown-route probes expose reachability.
+call_write_tool for them. Ordinary GET reads remain available. A 4xx/5xx returns status
+(unknown-route probes).
 
 Consequence: Protect enable-control/disable-control changes camera controllability
 until set back.
 
-Under dry-run policy an action GET sends no action request: status is "dry_run"; body
-previews method, path, params (query parameters), and body. Ordinary GETs still return
-upstream responses.
+Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status
+"dry_run", body previews method, path, params, body.
 
 Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body}; body is
 the upstream body verbatim: decoded JSON, the exact text of a non-JSON body, or null when
 the body is empty (masked only when the operator opts in with UNIFI_REDACT_SECRETS).
 contentType is the upstream Content-Type (null when none). A text body is decoded with its
-declared charset when that is a known codec (latin-1, windows-1252, utf-16 ...; UTF-8
+declared charset when that is a known codec (latin-1, utf-16 ...; UTF-8
 otherwise), so non-UTF-8 text comes back as text under body. A binary body (a non-text
 Content-Type such as image/jpeg, or bytes that do not decode in that charset) is returned
 complete, with no size cap, base64-encoded as bodyBase64 plus sizeBytes, and body is null.
@@ -17653,11 +18234,13 @@ A 3xx (never followed) also returns its response headers (Location included; cre
 and cookies excluded) under headers.
 
 HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
-A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an upstream error
-reported like a 4xx: status and body stay verbatim and _classicRcError gives the reason
-(meta.msg included).
+A 2xx error body (Classic without meta.rc "ok": _classicRcError, meta.msg included; v2 of
+only {error: {code, message}}: _upstreamError) is reported like a 4xx, body verbatim.
 
-Required arguments: host, path (see each parameter's description).
+Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
+body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
+
+Required arguments: host, path.
 
 **API source:** `relay/generic/read`
 
@@ -17689,36 +18272,37 @@ Relay a PATCH (partial update) through the Fabric connector. Writes upstream.
 
 Reaches private APIs too.
 
-Consequence: the change is applied to the live controller immediately.
+Consequence: applies to the live controller immediately.
 
-Classic rest/device/{id} reads use stat/device as for fabric_connector_put. For candidate
-legacy InnerSpace ``innerspace/api/shapes/{id}``, first
+Classic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write
+can restart or reprovision it. For legacy
+InnerSpace ``innerspace/api/shapes/{id}``, first
 probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop.
 EXPERIMENTAL. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm is
 ignored.
 
 Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim,
-including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim
+(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
 headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
 readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
 stat/device list as body, matched comparisonRecords, twin and twinError (why a device
 was not compared). noOp is true only if the write and both reads are 2xx and every sent
 leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
 null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
-present only when noOp is non-null. A Classic network/api/... 2xx lacking meta.rc "ok" is
-rejected: _classicRcError includes meta.msg, noOp is null, reads carry the marker.
-dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
-preview, readAfter/noOp null.
+present only when noOp is non-null. A 2xx error body (Classic: _classicRcError with
+meta.msg; v2: _upstreamError) is rejected: noOp is null, reads carry the marker.
+dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
+preview (method, path, params, body); readAfter/noOp null.
 
 Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny (all area write opt-outs apply), or
-an unclassified route meets an active area opt-out. Sent once: never auto-retried on 429
-(raised with the upstream body).
+a protect/ path has family:protect=deny, or
+an unclassified route meets an active area opt-out; never auto-retried on 429
+(raised with its body).
 
-Details: docs/TOOL-USAGE.md#fabric_connector_patch.
+Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.
 
-HTTP 401/403 adds _hint (key setup/permission advice);
+HTTP 401/403 adds _hint (key/permission advice);
 readBefore/readAfter carry the same guidance for failed GET twins.
 
 **API source:** `relay/generic/write`
@@ -17763,22 +18347,24 @@ ignored. Every attempt is audit-logged (never the key value).
 Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
 writeEnabled}. status and body are the upstream's, verbatim (a 4xx/5xx is returned, not raised);
 a binary body is bodyBase64 plus sizeBytes with body null; a 3xx (never followed) adds its
-headers. POST has no GET twin: no read-before/after. Under dry-run policy nothing is sent:
+headers. POST has no GET twin: no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent:
 status
 is "dry_run" and body is the preview.
 
 Refused before any request if family:connector=deny, UNIFI_WRITE_POLICY=deny is set, a
 protect/ path meets family:protect=deny (every area write opt-out applies),
-or an unclassified route meets any active area opt-out. Sent once: never auto-retried on 429
+or an unclassified route meets any active area opt-out; never auto-retried on 429
 (raised with the upstream body).
 
 Full request shapes are in the parameter schema; detailed examples and workflows:
 docs/TOOL-USAGE.md#fabric_connector_post.
 
 HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
-A Classic route (network/api/...) answered 2xx without meta.rc "ok" is an upstream error
-reported like a 4xx: status and body stay verbatim and _classicRcError gives the reason
-(meta.msg included).
+A 2xx error body (Classic without meta.rc "ok": _classicRcError, meta.msg included; v2 of
+only {error: {code, message}}: _upstreamError) is reported like a 4xx, body verbatim.
+
+Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
+body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
 
 Required arguments: host, path.
 
@@ -17816,35 +18402,36 @@ Relay a PUT (full replace) through the Fabric connector. Writes upstream.
 
 Reaches private APIs too.
 
-Consequence: replaces the resource immediately; omitted fields can be reset.
+Consequence: replaces the resource now; omitted fields may reset.
 
-For ``network/api/s/{site}/rest/device/{id}``, pass scope='device' to reject site-global
-setting routes; it has no GET, so reads use stat/device and noOp compares only sent fields
-(noOpBasis). Undocumented routes are EXPERIMENTAL. fabric_connector_get defines
-host/path/site/scope; body is verbatim; confirm is ignored.
+For ``network/api/s/{site}/rest/device/{id}``, pass scope='device' to refuse site-global
+routes; it has no GET, so reads use stat/device and noOp compares only sent fields
+(noOpBasis). A device write can restart or reprovision it. Undocumented routes are
+EXPERIMENTAL. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm
+is ignored.
 
 Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed, noOpBasis]}. status/body are verbatim,
-including 4xx/5xx; binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
+writeEnabled, readBefore, readAfter, noOp[, changed, noOpBasis]}. status/body are verbatim
+(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
 headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
 readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
 stat/device list as body, matched comparisonRecords, twin and twinError (why a device
 was not compared). noOp is true only if the write and both reads are 2xx and every sent
 leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
 null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
-present only when noOp is non-null. A Classic network/api/... 2xx lacking meta.rc "ok" is
-rejected: _classicRcError includes meta.msg, noOp is null, reads carry the marker.
-dry-run policy sends nothing: status "dry_run", body the {method, path, params, body}
-preview, readAfter/noOp null.
+present only when noOp is non-null. A 2xx error body (Classic: _classicRcError with
+meta.msg; v2: _upstreamError) is rejected: noOp is null, reads carry the marker.
+dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
+preview (method, path, params, body); readAfter/noOp null.
 
 Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny (all area write opt-outs apply), or
-an unclassified route meets an active area opt-out. Sent once: never auto-retried on 429
-(raised with the upstream body).
+a protect/ path has family:protect=deny, or
+an unclassified route meets an active area opt-out; never auto-retried on 429
+(raised with its body).
 
-Details: docs/TOOL-USAGE.md#fabric_connector_put.
+Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.
 
-HTTP 401/403 adds _hint (key setup/permission advice);
+HTTP 401/403 adds _hint (key/permission advice);
 readBefore/readAfter carry the same guidance for failed GET twins.
 
 **API source:** `relay/generic/write`
@@ -17900,6 +18487,8 @@ Example call (forget_client):
       "mac": ["aa:bb:cc:dd:ee:ff", "aa:bb:cc:dd:ee:01"]
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `clients`
@@ -17946,6 +18535,8 @@ Example: docs/TOOL-USAGE.md#forget_device.
 
 Required arguments: host, site, mac.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -17985,6 +18576,8 @@ collects diagnostics.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18027,6 +18620,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -18067,6 +18662,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 
 Required arguments: host, detection_id, hide.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -18104,6 +18701,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, reservations.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -18138,6 +18737,8 @@ dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {meth
 params, body}}.
 
 Required arguments: host, directory (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -18176,6 +18777,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host, title, site_id, captures (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -18217,6 +18820,8 @@ returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, prev
 
 Required arguments: host, site_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -18254,6 +18859,8 @@ dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false
 preview: {method, path, params, body}}.
 
 Required arguments: host, token, site_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -18294,6 +18901,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, backup.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -18332,6 +18941,8 @@ Returns the upstream body verbatim.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18403,6 +19014,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -18448,6 +19061,8 @@ with the consequences of that command; the SSH aliases do not restrict the comma
 
 Required arguments: host, site (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -18487,6 +19102,8 @@ preview: {method, path, params, body}} and sends nothing.
 
 Consequence: delete erases the eSIM profile from the device; a carrier profile
 usually cannot be downloaded again without a new activation code.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18528,6 +19145,8 @@ Returns the upstream body verbatim.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18579,6 +19198,8 @@ response}.
 
 Required arguments: host, site, action.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -18620,6 +19241,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, action, virtual_network.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -18653,6 +19276,8 @@ given (the route inventory records the body as dynamic). Returns the upstream bo
 (a JSON array arrives as {result: [...]}). With dry-run policy, returns a dry-run preview
 {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
 sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -18694,6 +19319,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 
 Required arguments: host, type.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -18730,6 +19357,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#migrate_device.
 
 Required arguments: host, site, device_id, inform_url.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18771,6 +19400,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, network_id, request.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -18806,6 +19437,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#move_device_to_site.
 
 Required arguments: host, site, device_id, destination_site_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -18847,6 +19480,8 @@ Dry-run response previews include body and params.
 Consequence: the camera physically moves, so its view and any running patrol or
 auto-tracking change at once.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -18885,6 +19520,8 @@ play-buzzer. Private Protect API (no official route). Sent once. Returns {status
 and params.
 
 Required arguments: host, chime_id, output (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -18951,6 +19588,8 @@ Example call (pos_ingest_transaction):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -18984,6 +19623,8 @@ params, body}}.
 
 Required arguments: host, site, group.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `firewall`
@@ -19010,13 +19651,19 @@ Required arguments: host, site, group.
 
 Preview an object-oriented policy using the Network 11.1.11 private endpoint.
 Consequence: submits the policy to the controller preview action, classified as a write.
-Network 11.0.89 returned HTTP 405; the 11.1.11 frontend references POST
-/object-oriented-network-config/preview, but that newer endpoint is not live-verified.
+Write class: UNIFI_WRITE_POLICY=deny hides it, and discovery mode runs it through
+call_write_tool.
+Requires Network 11.1.11 or later; 11.0.89 answered 405 and the 11.0.99 route table lacks
+it. The 11.1.11 frontend
+references POST /object-oriented-network-config/preview, but that endpoint is not
+live-verified.
 Returns upstream body and _redactedFieldsNotSent when masked fields are omitted
 (nonobjects use result). Under dry-run policy sends no mutation and returns {status:
 "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19052,6 +19699,8 @@ Provide host (console name or id from list_hosts) and site (Network site name or
 from list_local_sites).
 
 Required arguments: host, site, calculation_id, radios, method.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19091,6 +19740,8 @@ Example: docs/TOOL-USAGE.md#provision_device.
 
 Required arguments: host, site, device_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -19129,6 +19780,11 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site.
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19217,6 +19873,11 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, query (see each parameter's description).
 
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -19254,6 +19915,11 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, supervisor_id, query (see each parameter's description).
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19298,6 +19964,11 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, and either queries (UI array) or query (legacy object).
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19346,6 +20017,11 @@ record follows the window or the call stopped incomplete.
 
 Example call (query_teleport_invitations):
     {"host": "my-console", "site": "Default"}
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -19426,6 +20102,51 @@ Required arguments: host, site.
 
 `Any`
 
+### `read_recent_events`
+
+Read recent live events for one console; both products answer unsupported today.
+
+Network and Protect live event streams are not reachable through the UniFi Fabric
+connector this server uses (see get_event_stream_status). For both products this tool
+resolves host (and site; an unknown one fails listing the valid choices) and opens no
+stream. Returns {product, host, site, console_id, site_key, state: "unsupported",
+supported: false, attached: false, reason, compatibility, use_instead, note} with no
+events key, so an unsupported stream is never mistaken for a quiet one. Use the tools
+in use_instead for event history: list_network_events / get_system_log /
+list_ips_events for Network, list_protect_events / collect_protect_events /
+collect_protect_device_changes for Protect.
+
+A supported stream would be read from a bounded in-memory buffer by after_seq cursor;
+none is supported, so after_seq and max_events have no effect today. Reading never
+subscribes the MCP client to notifications.
+
+Example call (read_recent_events):
+    {"product": "protect", "host": "my-console"}
+
+**API source:** `network/official/read`
+
+**Family:** `statistics`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `product` | `string` | yes |  | Product whose event buffer to read: 'network' or 'protect'. |
+| `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, or the long data[].id). Example: "my-console". |
+| `site` | `string \| null` | no | `null` | Network site name or id from list_local_sites (e.g. "Default"); required for 'network', omit for 'protect'. |
+| `after_seq` | `integer \| null` | no | `null` | Cursor: return events with seq greater than this, oldest first. Pass the next_after_seq of the previous read. Omit to get the newest events. |
+| `max_events` | `integer \| null` | no | `null` | Optional maximum number of events to return. Omit to return every matching buffered event. Example: 100. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `readopt_protect_device`
 
 Re-adopt a Protect device whose adoption broke (it shows as disconnected).
@@ -19440,6 +20161,8 @@ With dry-run policy, returns {status: "dry_run", response: PREVIEW} and sends no
 write. Dry-run response previews include body and params.
 
 Required arguments: host, device_type, device_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -19460,48 +20183,6 @@ Required arguments: host, device_type, device_id (see each parameter's descripti
 | `device_id` | `string` | yes |  | Protect device id (24-hex) from the device's list tool or get_protect_bootstrap; for example "00000000000000000000010b". |
 | `reset` | `boolean \| null` | no | `null` | Also reset the device to defaults, sent as ?reset=; for example false. |
 | `confirm` | `boolean` | no | `false` | Accepted and ignored for compatibility; for example false. |
-
-**Return type**
-
-`dict[str, Any]`
-
-### `reboot_nvr`
-
-Reboot the Protect NVR once. All camera recording and live view are interrupted until it
-returns. Returns the relay status and complete upstream body. No automatic retry; a
-timeout means outcome unknown, read back before retrying.
-
-Consequence: the NVR restarts, so no camera footage is recorded and live view is unavailable
-until it is back; that gap in footage cannot be recovered. No setting is changed.
-
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; _warnings describes operational risks.
-
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
-
-Example call (reboot_nvr):
-    {"host": "my-console"}
-
-**API source:** `protect/private/write`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | false | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
 
 **Return type**
 
@@ -19529,6 +20210,8 @@ Result status is the upstream HTTP number or dry_run for a preview.
 
 Example call (reboot_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -19563,6 +20246,8 @@ The operation is destructive and non-idempotent. Returns the upstream body verba
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried. Writes are allowed by default; family:network=deny disables this tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -19603,6 +20288,8 @@ body}}.
 
 Required arguments: host, filename, file_content_base64.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -19642,6 +20329,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -19678,6 +20367,8 @@ an error-disabled redundant power port); for any other port, including one that 
 merely down, the console answers HTTP 400 api.err.InvalidTargetPort and changes nothing.
 
 Required arguments: host, site, device, port_idx (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -19719,6 +20410,8 @@ Consequence: irreversible: erases every recording on the camera's own storage.
 
 Required arguments: host, camera_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -19757,6 +20450,8 @@ Returns the upstream body verbatim.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -19808,6 +20503,8 @@ Example call (relay_activate_output):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -19848,11 +20545,14 @@ the record, unused).
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
 response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). For this PUT the body is the Classic envelope {meta: {rc}, data: [the updated
-record]}. Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-deleted: false, message, response}, where response is the dry-run preview {status:
-"dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query
-parameters), body}}.
+empty). deleted is true only when the returned record for this client shows use_fixedip:
+false; if the controller still returns use_fixedip: true, or the response carries no
+usable use_fixedip state for the client, deleted is false and message says why. The PUT
+is sent once and never retried, so read the record with get_user before retrying. For
+this PUT the body is the Classic envelope {meta: {rc}, data: [the updated record]}. Under
+dry-run policy nothing is sent and the tool returns {status: "dry_run", deleted: false,
+message, response}, where response is the dry-run preview {status: "dry_run", dryRun:
+true, sent: false, message, preview: {method, path, params (query parameters), body}}.
 
 Example call (remove_client_fixed_ip):
     {
@@ -19860,6 +20560,8 @@ Example call (remove_client_fixed_ip):
       "site": "Default",
       "client": "aa:bb:cc:dd:ee:ff"
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -19900,6 +20602,8 @@ where response is the dry-run preview {status, dryRun, sent: false, message, pre
 
 Required arguments: host, site, node_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -19939,6 +20643,8 @@ Dry-run response previews include body and params.
 Required arguments: host, case_id, asset_id.
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -19981,6 +20687,8 @@ Example call (remove_teleport_client):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `vpn`
@@ -20018,6 +20726,8 @@ Returns the upstream body unchanged. With dry-run policy, returns
 body}} without sending a write.
 
 Required arguments: host, site, node_id, name.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -20066,6 +20776,8 @@ Example call (rename_site):
       "description": "Head office"
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -20099,6 +20811,8 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}}.
 
 Required arguments: host, plans (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -20138,6 +20852,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 
 Required arguments: host, site, body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -20173,6 +20889,8 @@ params, body}} and sends nothing. Consequence: the replacement takes over the ol
 configuration and the old device is retired; cancel removes the pending replacement.
 
 Required arguments: host, site, device (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20214,6 +20932,8 @@ dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, pre
 {method, path, params, body}}.
 
 Required arguments: host, event_id, reported_thumbnails.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -20258,6 +20978,8 @@ Example call (report_incorrect_wifi_experience):
     {"host": "my-console", "site": "Default", "target_type": "client",
      "target": "aa:bb:cc:dd:ee:ff", "reason": "POOR_LATENCY"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -20299,6 +21021,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -20336,6 +21060,8 @@ Consequence: discards the camera's tuned image settings; they are not restored.
 
 Required arguments: host, camera_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -20366,6 +21092,8 @@ Under dry-run policy sends no mutation and returns {status: "dry_run", dryRun: t
 false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -20406,6 +21134,8 @@ preview: {method, path, params, body}}; nothing is sent.
 Example call (reset_guest_access_settings):
     {"host": "my-console", "site": "Default"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -20441,6 +21171,8 @@ dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {meth
 params, body}} and sends nothing.
 
 Consequence: the accumulated usage count is cleared and cannot be restored.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20480,6 +21212,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -20517,6 +21251,8 @@ Consequence: the ports' last-seen client or uplink record is cleared; the port
 configuration and link are not changed.
 
 Required arguments: host, site, device, ports (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20564,6 +21300,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -20603,6 +21341,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, backup_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -20627,18 +21367,23 @@ Required arguments: host, backup_id.
 
 ### `restore_protect_database`
 
-Restore the Protect database from its stored database dump.
+Restore the Protect database from a staged foreign Postgres dump; this restarts Protect.
 
-POST protect/api/nvr/restore-pg-dump with no body. Returns: the upstream response
-unchanged.
+POST protect/api/nvr/restore-database-backup with no body (the Protect 7.x
+route). Admin only. It restores a foreign Postgres dump file already staged on
+the console, not a stored backup (use restore_protect_backup for that). With no
+dump staged, Protect is expected to answer HTTP 400 (not run against a console),
+passed through unchanged. Returns: the upstream response unchanged.
 
-Consequence: the live Protect database is replaced by the stored dump, losing
-changes made since it; irreversible, and Protect may restart.
+Consequence: the live Protect database is replaced by the staged dump, losing
+changes made since it; irreversible, and Protect restarts.
 Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
 dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
 path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -20673,7 +21418,7 @@ write response when it carries the subscriber, else the read-back GET body; for 
 the GET body read first.
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
 Carrier write opt-out (family:carrier=deny refuses first), read-before,
@@ -20683,6 +21428,8 @@ Example call (resume_carrier_subscriber):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -20720,6 +21467,8 @@ message,
 preview: {method, path, params, body}}.
 
 Required arguments: host, site_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -20770,6 +21519,8 @@ path, params, body}}; nothing is sent.
 Example call (revoke_guest_access):
     {"host": "my-console", "site": "Default", "guest": "02:00:00:00:00:01"}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -20811,6 +21562,8 @@ Example call (revoke_teleport_invitation):
 
 Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `vpn`
@@ -20845,6 +21598,8 @@ a UPS switches to battery for the test; a failing battery can drop power to conn
 equipment.
 
 Required arguments: host, site, device (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20881,6 +21636,8 @@ nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message,
 Example: docs/TOOL-USAGE.md#run_speedtest.
 
 Required arguments: host, site.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20921,6 +21678,8 @@ Returns the upstream body verbatim.
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -20974,6 +21733,8 @@ Example call (siren_play):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -21011,6 +21772,8 @@ Example call (siren_stop):
     {"host": "my-console", "siren_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -21055,6 +21818,8 @@ Example call (siren_test_sound):
     {"host": "my-console", "siren_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -21101,6 +21866,8 @@ Example call (speaker_test_sound):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/official/write`
 
 **Family:** `protect`
@@ -21137,6 +21904,8 @@ upstream body verbatim. With dry-run policy, returns {status: "dry_run", respons
 PREVIEW}. Dry-run response previews include body and params.
 
 Required arguments: host, speaker_id (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -21190,6 +21959,43 @@ Required arguments: host, site.
 
 `Any`
 
+### `suggest_service_port`
+
+Suggest free ports for a service on the gateway, as the web app does for VPN servers.
+
+Returns the upstream body verbatim (a body that is not a JSON object arrives as
+{result: ...}) from GET /v2/api/site/{site}/network/port-suggest,
+for example {available_ports: [1194]} for openvpn. It is a different route from
+suggest_network_settings, which suggests network settings. Only the arguments you
+pass are sent; without service the console may answer an error, to which a hint is
+added.
+Simulated only: no recorded live console answer yet.
+
+Required inputs: host, site.
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home UDM") or data[].id. |
+| `site` | `string` | yes |  | Network site name or id from list_local_sites; for example "Default". |
+| `service` | `string \| null` | no | `null` | The service to suggest ports for, sent as given: openvpn or wireguard; for example "openvpn". |
+| `protocol` | `string \| null` | no | `null` | Optional transport protocol, sent as given; the web app sends "udp" with wireguard; for example "udp". |
+
+**Return type**
+
+`Any`
+
 ### `suspend_carrier_subscriber`
 
 Suspend a subscriber's service (POST .../subscribers/{id}/suspend). Guarded write.
@@ -21202,7 +22008,7 @@ subscriber is a full body ({data, ...}), never unwrapped: the write response whe
 carries the subscriber, else the read-back GET body (for no_op, the GET body read first).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
 Carrier write opt-out (family:carrier=deny refuses first), read-before,
@@ -21219,6 +22025,8 @@ Example call (suspend_carrier_subscriber):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -21256,6 +22064,8 @@ Dry-run response previews include body and params.
 
 Consequence: the doorbell and its paired chimes ring audibly.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -21292,6 +22102,8 @@ Consequence: irreversible from this console: the camera leaves it for the other
 NVR and is managed (and recorded) there; only that NVR can transfer it back.
 
 Required arguments: host, camera_id, nvr_mac (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -21332,6 +22144,8 @@ body}}.
 
 Required arguments: host, transform (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -21370,6 +22184,8 @@ Consequence: physically switches on the camera's light.
 
 Required arguments: host, camera_id (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -21403,6 +22219,8 @@ sends nothing. Consequence: the bridge link goes down and stays down until the p
 paired again; sites behind it lose connectivity.
 
 Required arguments: host, site, device (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -21446,6 +22264,8 @@ sends nothing.
 Consequence: each wrong PIN uses one of the SIM's few attempts; the last one locks
 the SIM until its PUK is entered.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -21477,7 +22297,7 @@ the SIM until its PUK is entered.
 
 ## Reading & Inspection
 
-**179 tools**
+**185 tools**
 
 ### `get_5g_topology`
 
@@ -21591,6 +22411,8 @@ update_acl_rule.
 Example call (get_acl_rule):
     {"host": "my-console", "site": "Default", "rule_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
+Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
+
 **API source:** `network/official/read`
 
 **Family:** `firewall`
@@ -21622,6 +22444,8 @@ Returns: {"orderedAclRuleIds": [rule id…]}, verbatim, in evaluation order. Pas
 
 Example call (get_acl_rule_ordering):
     {"host": "my-console", "site": "Default"}
+
+Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
 
 **API source:** `network/official/read`
 
@@ -21721,6 +22545,9 @@ listing every valid arm_profile_id.
 
 Example call (get_arm_profile):
     {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
+
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
 
 **API source:** `protect/official/read`
 
@@ -21837,42 +22664,6 @@ Example call (get_camera):
 **Return type**
 
 `dict[str, Any]`
-
-### `get_camera_adoption_qr`
-
-Get the QR code a new Protect camera scans to join WiFi and adopt to this console.
-
-Sends GET /cameras/qr with ssid and password (wifi_password) only when given.
-Protect 7.3 and later serve no QR route and answer 404 (camera "qr" not found);
-that error keeps the upstream text and adds a hint (use the UniFi Protect app).
-Returns the upstream body verbatim: JSON as sent (an upstream array under result),
-or an image as {content_base64, content_type, size_bytes} with the upstream
-Content-Type. wifi_password is a registered credential: always scrubbed from logs,
-and masked in errors only under UNIFI_REDACT_SECRETS.
-
-Required arguments: host (see each parameter's description).
-
-**API source:** `protect/private/read`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| true | false | true | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Protect console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home NVR") or data[].id. |
-| `ssid` | `string \| null` | no | `null` | WiFi network name the camera should join, sent as ssid; for example "Cameras-IoT". |
-| `wifi_password` | `string \| null` | no | `null` | WiFi password for that network, sent as password; for example "correct-horse-battery". |
-
-**Return type**
-
-`Any`
 
 ### `get_camera_analytics`
 
@@ -22285,6 +23076,46 @@ Example call (get_client):
 
 `Any`
 
+### `get_client_dpi_usage`
+
+Get which applications each client uses, over a time window.
+
+Reads GET /v2/api/stats/series with schema applicationTrafficBySiteByClient. Returns
+the upstream body verbatim (a JSON array arrives as {result: [...]}): one row per
+client (siteId, clientId) with, per
+time bucket, byApplication[] of {applicationId, categoryId, rxBytes, txBytes,
+activityS}. Names for the ids come from list_dpi_applications and
+list_dpi_categories. When start or end is negative or looks like epoch milliseconds,
+an object result gains an additive _warnings list and an array result is returned as
+{result, _warnings}. For the site as a whole use get_site_dpi_usage.
+Simulated only: no recorded live console answer yet.
+
+Required inputs: host, start, end.
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home UDM") or data[].id. |
+| `start` | `integer` | yes |  | Window start, epoch SECONDS (sent as ms); for example 1760140800. |
+| `end` | `integer` | yes |  | Window end, epoch SECONDS (sent as ms); for example 1760227200. |
+| `bucket` | `string \| null` | no | `null` | Bucket size, sent as given: OF_5_MINUTES, OF_1_HOUR, OF_8_HOURS or OF_1_MONTH; omit it to let the console choose; for example "OF_1_HOUR". |
+| `filter` | `string \| null` | no | `null` | Filter expression in the statistics service's grammar, sent as given; for example "siteId.eq('00000000-0000-4000-8000-0000000000aa')". |
+
+**Return type**
+
+`Any`
+
 ### `get_client_insights`
 
 Get a client insight view (v2 client/{mac}/view).
@@ -22428,6 +23259,43 @@ Example call (get_client_observability):
 
 `Any`
 
+### `get_client_wifi_experience`
+
+Get one wireless client's Wi-Fi experience (the web app's per-client WiFiman view).
+
+Returns the upstream body verbatim (a body that is not a JSON object arrives as
+{result: ...}) from GET /v2/api/site/{site}/wifiman/{client_ip}:
+channel, channel_width, link rates, signal, noise, wifi_experience, wlan_band,
+radio_protocol, nearest_neighbors[], statistics[] (experience over time) and
+uplink_devices[]. Band codes ("2.4g", "5g", "6g") differ from the "ng", "na" and "6e"
+of the Classic client record. An IP that is not a wireless client answers HTTP 404
+(api.err.ClientNotFound). The settings route is get_wifiman_settings.
+Simulated only: no recorded live console answer yet.
+
+Required inputs: host, site, client_ip.
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home UDM") or data[].id. |
+| `site` | `string` | yes |  | Network site name or id from list_local_sites; for example "Default". |
+| `client_ip` | `string` | yes |  | The client's IPv4 or IPv6 address, as in the ip field of list_active_clients_stats; for example "192.168.1.50". Anything else is refused before any request. |
+
+**Return type**
+
+`Any`
+
 ### `get_cloud_archive_status`
 
 Read the authentication state of a Protect cloud archive provider.
@@ -22498,9 +23366,13 @@ Query the controller's time-series statistics service, as the web app's graphs d
 Returns the upstream body verbatim. View recent_series (GET
 /v2/api/stats/recent/series) answers an array of {siteId, deviceMac?, series: [...]};
 it needs schema and exactly one of period or start (end is optional), otherwise the
-console may return HTTP 400. view source answers the active statistics backend as a
-string ("MODERN" or "LEGACY"). When start or end is negative or looks like epoch
-milliseconds, an object result gains an additive _warnings list and an array
+console may return HTTP 400. View series (GET /v2/api/stats/series) reads history
+over an explicit window; it takes schema, bucket, start, end and filter (open-source
+clients send all five; a missing one adds a hint to the console's error). Open-source
+clients pad OF_1_MONTH window bounds to January 2nd; that is unverified here, so
+start and end are sent exactly as given. View source answers the active statistics
+backend as a string ("MODERN" or "LEGACY"). When start or end is negative or looks like
+epoch milliseconds, an object result gains an additive _warnings list and an array
 result is returned as {result, _warnings}. Only the arguments you pass are sent.
 filter uses the service's own grammar; a one-term and(...) is rejected
 (HTTP 400 InvalidStatQuery). Live dev GETs on Network 11.0.81 accepted and(...)
@@ -22524,7 +23396,7 @@ Required inputs: host.
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home UDM") or data[].id. |
-| `view` | `string` | no | `recent_series` | recent_series or source; for example "recent_series". |
+| `view` | `string` | no | `recent_series` | recent_series, series or source; for example "series". |
 | `schema` | `string \| null` | no | `null` | Series schema, such as wanBySiteByDevice, wirelessBySiteByDevice, systemBySiteByDevice, clientCountBySite or portBySiteByDevice; for example "clientCountBySite". |
 | `period` | `string \| null` | no | `null` | HOUR, DAY, WEEK or MONTH; for example "DAY". |
 | `start` | `integer \| null` | no | `null` | Window start, epoch SECONDS (sent as ms); for example 1760140800. |
@@ -23049,6 +23921,40 @@ Example call (get_dns_policy):
 
 `Any`
 
+### `get_door_lock`
+
+Get one door lock that Protect 7.x manages under /locks.
+
+Reads GET /locks/{lock_id} on the private Protect API (the Protect 7.x Thread lock
+model; the official API has no door-lock route). Returns the lock object verbatim.
+The id is checked first against GET /locks: an id the console does not list fails
+before the per-lock request with an error naming the valid locks (id and name).
+Consoles older than Protect 7.x do not serve this route. Upstream failures retain
+their body and include availability guidance.
+
+Required arguments: host, lock_id (see each parameter's description).
+
+**API source:** `protect/private/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name or id from list_hosts (reportedState.hostname or name, case-insensitive, or the long data[].id); for example "my-console". |
+| `lock_id` | `string` | yes |  | Lock id from GET /locks (the Protect lock list or bootstrap); for example "000000000000000000000701". |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_dynamic_dns`
 
 Get a single Dynamic DNS configuration by ID.
@@ -23114,6 +24020,52 @@ body verbatim (an object, or an array body as result).
 
 `Any`
 
+### `get_event_stream_status`
+
+Report whether live Network and Protect event streams are available, and listener health.
+
+Reads this server's own state only; no console request is made. For each product it
+returns the recorded transport compatibility and the evidence behind it, and every
+listener this server process holds. Network and Protect publish live events only over
+WebSocket, and the UniFi Fabric connector this server uses is a request/response relay
+that does not carry WebSocket. Both products are therefore reported with state
+"unsupported" and supported false, and use_instead names the history and polling
+tools (list_network_events, get_system_log, list_ips_events; list_protect_events,
+collect_protect_events, collect_protect_device_changes). Nothing here subscribes the
+MCP client to notifications.
+
+Returns {products: [{product, supported, state, transport, stream, summary, checked,
+evidence: [{request, observed}], fallback_tools, listeners: [...]}], note}. state is
+"unsupported" (no reachable stream), "inactive" (supported, no listener), or the state
+of a listener: "connecting", "connected", "reconnecting", "error" or "closed". Each
+listener reports {product, console_id, site, state, attached, coverage_started_at,
+connects, disconnects, reconnect_attempts, last_error, gaps: [{after_seq, started_at,
+ended_at, reason}], buffered, capacity, evicted, oldest_seq, last_seq}; times are epoch
+seconds.
+
+Example call (get_event_stream_status):
+    {"product": "protect"}
+
+**API source:** `server/local/read`
+
+**Family:** `statistics`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | false |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `product` | `string \| null` | no | `null` | Optional product: 'network' or 'protect'. Omit for both. Example: "protect". |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_firewall_group`
 
 Get a single firewall group by ID.
@@ -23160,6 +24112,8 @@ Example call (get_firewall_policy):
       "site": "Default",
       "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
+
+Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
 **API source:** `network/official/read`
 
@@ -23222,8 +24176,8 @@ Example call (get_firewall_policy_ordering):
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
-| `source_zone_id` | `string` | yes |  | REQUIRED source firewall zone UUID, sent as query param sourceFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id); pick the zone by name case-insensitively (e.g. Internal, External). Network UUID. |
-| `destination_zone_id` | `string` | yes |  | REQUIRED destination firewall zone UUID, sent as query param destinationFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id); pick the zone by name case-insensitively (e.g. Internal, External). Network UUID. |
+| `source_zone_id` | `string` | yes |  | REQUIRED source firewall zone UUID, in 8-4-4-4-12 hex form, for example 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01. A zone name such as Internal or External is rejected. Sent as query param sourceFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id), matching the zone by name. |
+| `destination_zone_id` | `string` | yes |  | REQUIRED destination firewall zone UUID, in 8-4-4-4-12 hex form, for example 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01. A zone name such as Internal or External is rejected. Sent as query param destinationFirewallZoneId. Get it from list_firewall_zones_proxy (data[].id), matching the zone by name. |
 
 **Return type**
 
@@ -23301,6 +24255,8 @@ update_firewall_zone_proxy.
 
 Example call (get_firewall_zone_proxy):
     {"host": "my-console", "site": "Default", "zone_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
+
+_proxy suffix: calls the Network Integration API through the connector proxy.
 
 **API source:** `network/official/read`
 
@@ -23504,6 +24460,8 @@ description).
 
 Get details for a single UniFi console by name or ID.
 
+The details of a single console, found by its name or ID (list_hosts lists them all).
+
 Returns the upstream response object verbatim: the host record under data (including
 reportedState GPS coordinates) beside httpStatusCode and traceId.
 
@@ -23642,6 +24600,11 @@ none intended; the command reads the SIM and switches no slot, but it is a POST,
 read-only mode refuses it. With dry-run policy returns a dry-run preview
 {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
 sends nothing.
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -24324,6 +25287,11 @@ UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview
 {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
 sends nothing.
 
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -24474,6 +25442,11 @@ The client GET view still reads normally.
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, view.
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -25129,6 +26102,53 @@ Required arguments: host, site, snapshot_id.
 
 `Any`
 
+### `get_protect_alarm_manager_mode`
+
+Report whether a Protect console's Alarm Manager runs in local or global mode, and
+which alarm operations this server can perform there. Read-only: one GET of the private
+NVR object (protect/api/nvr); nothing is sent to the alarm APIs.
+
+Returns method, routeClass, scope, path, resolvedPath, status, contentType and body (the
+NVR object, unchanged, as get_nvr_private returns it), plus _alarmManager {mode, reason,
+integrationArmProfiles, globalAlarmManagerApi}. mode is "global" when
+body.featureFlags.useExternalAlarmManager is true and "local" when it is false or absent
+(older consoles do not report it). mode is null, with reason, when the NVR read failed
+(any non-200 status, for example a 403 permission refusal, whose status and body are
+returned unchanged) or the flag is malformed; a failure is never reported as a mode.
+integrationArmProfiles is {available, tools, reason}, or null when mode is null. In
+local mode the listed tools (list_arm_profiles, enable_arm, disable_arm, ...) work; the API
+documents them for the local Alarm Manager only. In global mode available is false: the
+console answered the arm-profile reads with HTTP 400; writes were not exercised. A sent
+enable_arm or disable_arm result is not proof of the arm state: read body.armMode here.
+globalAlarmManagerApi {supported, routes, reason}: supported is always false; the
+global Alarm Manager API (/api/v2/alarms) is at the console root, which the Fabric
+connector does not relay. Manage global alarms in the UniFi Protect app.
+
+Result status is the upstream HTTP number.
+
+Example call (get_protect_alarm_manager_mode):
+    {"host": "my-console"}
+
+**API source:** `protect/private/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_protect_application_info`
 
 Get Protect application metadata (GET /v1/meta/info via Fabric proxy). Read-only.
@@ -25264,38 +26284,6 @@ Required arguments: host, case_id.
 **Return type**
 
 `Any`
-
-### `get_protect_case_asset_snapshot`
-
-Get the snapshot image of a Protect case asset.
-
-Returns {image_base64, content_type, size_bytes}. Not served by every Protect
-version: on Protect 7.x through the cloud connector the route answers HTTP 404
-(route not found), which is returned as the upstream error.
-
-Required arguments: host, case_id, asset_id.
-
-**API source:** `protect/private/read`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| true | false | true | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Protect console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home NVR") or data[].id. |
-| `case_id` | `string` | yes |  | Case id from list_protect_cases; for example "000000000000000000000c01". |
-| `asset_id` | `string` | yes |  | Asset id from list_protect_case_assets; for example "000000000000000000000a01". |
-
-**Return type**
-
-`dict[str, Any]`
 
 ### `get_protect_device_metrics`
 
@@ -25772,6 +26760,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -25836,6 +26826,11 @@ preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path
 body}} and sends nothing. Consequence: none on devices; nothing is upgraded.
 
 Required arguments: host, site (see each parameter's description).
+
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -26168,6 +27163,50 @@ Required arguments: host, sensor_id (see each parameter's description).
 
 `Any`
 
+### `get_server_diagnostic_bundle`
+
+Build a sanitized diagnostic bundle about this MCP server, for a bug report.
+
+Returns {bundle, schemaVersion, generatedAt, review, collection, sections,
+neverCollected, sanitization}. collection.mode is "local" or "local+live" and
+collection.upstreamRequests counts the requests this call sent (0 by default).
+sections has server (package, Python and dependency versions, OS family),
+configuration (tool mode, key mode, key count, cache, paging, log and audit
+settings as enums, booleans and numbers), policy (the effective write and exposure
+policy and its digest), transport (transport, auth and TLS modes), cache (registry
+cache counts), runtime (tools in the catalog) and liveProbes. Every section has a
+status (complete, partial, failed or unavailable) and a source naming where its
+data came from; a failed section gives an exception type name, never a message.
+
+By default the bundle reads local and cached state only and sends no request to
+any console or the Site Manager API. It never includes API key values or labels
+(keys are numbered), tokens, file paths, host names, IP addresses, ports, URLs,
+console, site or device identifiers, upstream bodies or error messages, or any
+environment variable other than the settings summarized. The server's configured
+secrets are scrubbed from the result, which is checked before it is returned. The
+bundle is not saved or sent anywhere: review it, then share it yourself. This is
+not a controller support file (see generate_support_file).
+
+**API source:** `site_manager/official/read`
+
+**Family:** `site_manager`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `live_probes` | `array \| null` | no | `null` | Optional live read probes to run once per configured API key, from a fixed allowlist: "hosts" runs list_hosts (GET /v1/hosts) and "sites" runs list_sites (GET /v1/sites). Each reports per key a status, record count, duration and a reason such as "HTTP 401"; no record is copied. A probe failure gives a partial bundle, never an error. Omit, or pass [], to send no request. Example: ["hosts"]. Shape: string[]. Each item is "hosts" or "sites". |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_setting`
 
 Get a controller setting group by key.
@@ -26341,6 +27380,48 @@ Required inputs: host, site.
 
 `Any`
 
+### `get_site_dpi_usage`
+
+Get which applications use the bandwidth, per site, over a time window.
+
+Reads GET /v2/api/stats/series with schema applicationTrafficBySite. Returns the
+upstream body verbatim (a JSON array arrives as {result: [...]}): per site, per time
+bucket, rxOtherBytes, txOtherBytes and
+byApplication[] of {applicationId, categoryId, rxBytes, txBytes, activityS}. Names
+for the ids come from list_dpi_applications and list_dpi_categories; category totals
+are the sum of the applications with one categoryId. The series covers every site
+of the console unless filter narrows it. When start or end is negative or looks like
+epoch milliseconds, an object result gains an additive _warnings list and an array
+result is returned as {result, _warnings}. For one client at a time use
+get_client_dpi_usage.
+Simulated only: no recorded live console answer yet.
+
+Required inputs: host, start, end.
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home UDM") or data[].id. |
+| `start` | `integer` | yes |  | Window start, epoch SECONDS (sent as ms); for example 1760140800. |
+| `end` | `integer` | yes |  | Window end, epoch SECONDS (sent as ms); for example 1760227200. |
+| `bucket` | `string \| null` | no | `null` | Bucket size, sent as given: OF_5_MINUTES, OF_1_HOUR, OF_8_HOURS or OF_1_MONTH; omit it to let the console choose; for example "OF_1_HOUR". |
+| `filter` | `string \| null` | no | `null` | Filter expression in the statistics service's grammar, sent as given; for example "siteId.eq('00000000-0000-4000-8000-0000000000aa')". |
+
+**Return type**
+
+`Any`
+
 ### `get_site_health_summary`
 
 Get a site's health: the Classic /stat/health body, verbatim.
@@ -26464,7 +27545,12 @@ every console use list_sites. With dry-run policy, returns {status: "dry_run",
 dryRun: true, sent: false, message, preview: {method, path, params, body}} and sends
 nothing.
 
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+
 Required inputs: host.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -26686,6 +27772,44 @@ GET .../support/{mac}/download: Returns content_base64 (the file), contentType
 
 `Any`
 
+### `get_switch_port_overrides`
+
+Read a switch's per-port overrides (port_overrides) and port table, by port_idx.
+
+Returns the complete upstream stat/device envelope and every device record
+unchanged. _device selects the requested switch; _port_overrides is its native
+port_overrides array as read (profile portconf_id, op_mode switch/aggregate/the
+port-monitoring (SPAN) value, the monitored-port key, aggregate_num_ports, name,
+poe_mode and other native fields);
+_ports is keyed by port_idx with that port's override (null when none) and its
+port_table row. _portOverridesPresent is false when the device reported no
+port_overrides field (no overrides; a device without ports returns empty _ports).
+Use update_switch_port_overrides to change it.
+Provide host (console name or id from list_hosts) and site (network site name or UUID
+from list_local_sites).
+
+**API source:** `network/private.classic/read`
+
+**Family:** `devices`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `device` | `string` | yes |  | Switch MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from list_device_stats. Unknown or ambiguous devices fail listing choices. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `get_switch_stack`
 
 Get one switch stack.
@@ -26756,18 +27880,19 @@ Required arguments: host, site (see each parameter's description).
 Read Network system-log events and alerts.
 
 POST network/v2/api/site/{site}/system-log/{log_class} with the supplied query body
-(classified as a write; Consequence: none intended, it only reads).
+(Consequence: none intended, it only reads).
 Classes seen on Network 11.0.81: all, device-alert, client-alert, admin-activity,
-update-alert, threat-alert (IPS/IDS), next-ai-alert, vpn-alert, critical; triggers
+update-alert, threat-alert, next-ai-alert, vpn-alert, critical; triggers
 answered 404. Any other class is sent as given.
-Class filter keys default to the entry kinds the controller UI sends
+Class filter keys default to the kinds the controller UI sends
 (nextAiCategory, activity_keys, change_keys, systemLogDeviceTypes, clientType,
 guestAuthorizationMethod, threatTypes, triggerTypes); query_body can override them.
 
-UNIFI_WRITE_POLICY=deny or family:network=deny hides this tool before requests
-(not read-POST allowlisted). dry-run policy previews the first page without sending:
-{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}}.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
+the whole tool and discovery mode runs it through call_write_tool.
+family:network=deny also hides it; dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends
+nothing and returns {status: "dry_run", dryRun, sent, message, preview: {method, path,
+params, body}} for the first page.
 
 Returns, by default, every page drained into {data: [entry, ...], total_element_count,
 incomplete?, incompleteReason?}. Entries are verbatim; the count is the first
@@ -26779,7 +27904,6 @@ returns a bare array. page_size alone is window 0; resume with page=_nextPage an
 the same page_size. With page, the window (see page). _pageSize: requested, sent
 (each pageSize sent, in order), effective, returned. No _nextPage: nothing follows
 the window, or the call stopped incomplete.
-Narrow large logs with timestampFrom/timestampTo in query_body.
 Each page is sent once; HTTP 429 stops the call (narrow or use page).
 
 Example call (get_system_log):
@@ -27868,7 +28992,7 @@ Required arguments: host, type.
 
 ## Update
 
-**99 tools**
+**98 tools**
 
 ### `patch_firewall_policy`
 
@@ -27895,6 +29019,8 @@ Example call (patch_firewall_policy):
       "policy_id": "7d1e4a52-1c3b-4f6e-8a90-0b1c2d3e4f01",
       "fields": {"loggingEnabled": true}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
 **API source:** `network/official/write`
 
@@ -27954,6 +29080,8 @@ Example call (update_acl_rule):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -27986,7 +29114,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/alarm-hubs/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -28000,6 +29128,8 @@ Example call (update_alarm_hub):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28041,6 +29171,8 @@ Example call (update_ap_group):
     {"host": "my-console", "site": "Default",
      "group_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "group": {"name": "Floor 2"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -28074,7 +29206,7 @@ compared leaf by leaf; sibling keys not sent are ignored). An unknown arm_profil
 before any PATCH, listing every valid id.
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/arm-profiles/{id}; schema "inline requestBody schema")
 is passed in `settings`. No key is required; send only the keys to change.
@@ -28093,6 +29225,11 @@ Example call (update_arm_profile):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28124,7 +29261,7 @@ Returns {status: "updated", verified, before, after (the NVR armMode objects), r
 PATCH body verbatim)}, or {status: "noop", reason, resource (the current armMode)}. When
 the read-after fails or carries no armMode object, verified and after are null and
 readAfterError says why. Under dry-run policy nothing is sent: {status: "dry_run", before
-(the body read first), response (the preview)}; there is no read-after.
+(the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
 `arm_profile_id`: REQUIRED. Obtain it from `list_arm_profiles` (its id field); this
   becomes the console's selected arm profile. The id is checked against
@@ -28141,6 +29278,11 @@ Example call (update_arm_profile_settings):
     {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
+check get_protect_alarm_manager_mode.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28182,6 +29324,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, config_id, config.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -28214,7 +29358,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/bridges/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -28228,6 +29372,8 @@ Example call (update_bridge):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28266,7 +29412,7 @@ verbatim (decoded JSON, the text of a non-JSON body, or null when the body is em
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first),
 response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 
 Full request shapes are in the parameter schema; detailed examples and workflows:
@@ -28275,6 +29421,8 @@ docs/TOOL-USAGE.md#update_camera.
 Required arguments: host, camera_id, settings (see parameter descriptions for identifiers).
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28326,6 +29474,8 @@ Example call (update_camera_private):
     {"host":"my-console","camera_id":"00000000000000000000010b",
      "settings":{"recordingSettings":{"mode":"always"}}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -28368,6 +29518,8 @@ Dry-run response previews include body and params.
 
 Consequence: a successful request can change the shortcut buttons shown for this camera.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -28402,7 +29554,7 @@ subscriber is a full body, never unwrapped: the write response when it carries t
 subscriber, else the read-back GET body (for no_op, the GET body read first).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview)}; there is no read-after.
+response (the preview: method, path, params, body)}; there is no read-after.
 
 Spec-conformance tested only (not live). Partial update: pass at least one field.
 subscriber_number is 1-32 chars after trimming when
@@ -28431,7 +29583,8 @@ keys to change.
 Example call (update_carrier_subscriber):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "notes": "Moved to plan B"}
 
-The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `carrier_fabric/official/write`
 
@@ -28476,7 +29629,7 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/chimes/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -28493,6 +29646,8 @@ Example call (update_chime):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -28535,6 +29690,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 
 Required arguments: host, site, filter_id, content_filter.
 
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: category-based web-filtering profiles; not firewall policies or traffic rules.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -28572,6 +29729,8 @@ return.
 
 Required arguments: host, site, device, battery_ids (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -28604,7 +29763,8 @@ Update selected AP radio fields while preserving the full radio_table and its or
 Reads stat/device by MAC, validates against the device's own radio capabilities,
 and PUTs the entire table to rest/device using its Classic _id. Other radios and
 fields stay unchanged. DFS channels may sit in DFS_WAIT for about 60 s; clients
-may roam; configuration can reprovision the AP. Never co-channel a mesh AP's
+may roam; a device-settings write can restart or reprovision the AP and briefly drop its
+clients. Never co-channel a mesh AP's
 only wireless uplink. Never auto-retried; a timeout reports outcome unknown.
 Read back before retrying. Returns readBefore/readAfter, changed per band/field, noOp and
 radio_table_stats, with the upstream write response verbatim under response.
@@ -28619,6 +29779,8 @@ the complete desired table to the successful read-after; false means a mismatch.
 Even a skipped no-op PUT requires a new successful read; read back before retrying.
 Provide host (console name or id from list_hosts) and site (network site name or UUID
 from list_local_sites).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -28675,6 +29837,8 @@ Example call (update_device_tag):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `devices`
@@ -28723,6 +29887,8 @@ Example call (update_dhcp_option):
     {"host": "my-console", "site": "Default",
      "option_id": "000000000000000000000107", "fields": {"name": "tftp-backup"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -28765,6 +29931,8 @@ Returns the upstream body plus _verified and, when the read-back failed, _readAf
 a non-object write body is returned whole under response with those keys beside it.
 
 Required arguments: host, site, layout.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -28822,6 +29990,8 @@ Example call (update_dns_policy):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -28870,6 +30040,8 @@ Example call (update_dynamic_dns):
       "payload": {"service": "dyndns", "host_name": "home.example.com"}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -28910,6 +30082,8 @@ preview: {method, path, params, body}} and sends nothing.
 Consequence: changes what and how the camera records to its own storage.
 
 Required arguments: host, camera_id, settings (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -28952,6 +30126,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, policy_id, policy (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -28997,6 +30173,8 @@ variants and body shape. Detailed examples: docs/TOOL-USAGE.md#update_firewall_p
 
 Required arguments: host, site, policy_id, policy (see parameter descriptions for
 identifiers).
+
+Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
 **API source:** `network/official/write`
 
@@ -29044,6 +30222,8 @@ Example call (update_firewall_zone_proxy):
       "zone": {"name": "Hotspot", "networkIds": ["dfb21062-8ea0-4dca-b1d8-1eb3da00e58b"]}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API through the connector proxy.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -29076,7 +30256,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/fobs/{id}; schema "inline requestBody schema") is passed
 in `settings`. No key is required; send only the keys to change.
@@ -29090,6 +30270,8 @@ Example call (update_fob):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -29129,6 +30311,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, config.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -29176,6 +30360,8 @@ Example call (update_hotspot_operator):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -29225,6 +30411,8 @@ Example call (update_hotspot_package):
     {"host": "my-console", "site": "Default",
      "package_id": "000000000000000000000107", "fields": {"amount": 6}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -29263,6 +30451,8 @@ it before any request. dry-run policy returns a dry-run preview {status: "dry_ru
 sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, attenuation_type (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -29307,6 +30497,8 @@ dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, plan_id, fields (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -29344,6 +30536,8 @@ preview: {method, path, params, body}}.
 
 Required arguments: host, plan_id, fields (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -29379,6 +30573,8 @@ refuses it before any request. dry-run policy returns a dry-run preview {status:
 dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, fields (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `innerspace/private/write`
 
@@ -29417,6 +30613,8 @@ body}}.
 
 Required arguments: host, wall_type (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `innerspace/private/write`
 
 **Family:** `innerspace`
@@ -29449,6 +30647,8 @@ get_ips_signature_status for progress. Returns the upstream body verbatim (a JSO
 arrives as {result: [...]}). With dry-run policy, returns a dry-run preview {status:
 "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends
 nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -29489,6 +30689,8 @@ path, params, body}}; nothing is sent.
 Example call (update_ipsec_settings):
     {"host": "my-console", "site": "Default", "fields": {"enabled": true}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `vpn`
@@ -29525,7 +30727,7 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/lights/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -29545,6 +30747,8 @@ Example call (update_light):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -29577,7 +30781,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/link-stations/{id}; schema "inline requestBody schema")
 is passed in `settings`. No key is required; send only the keys to change.
@@ -29591,6 +30795,8 @@ Example call (update_link_station):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -29627,7 +30833,7 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/liveviews/{id}; schema "inline requestBody schema") is
 passed in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout,
@@ -29664,7 +30870,8 @@ Example call (update_liveview):
       }
     }
 
-The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -29700,6 +30907,8 @@ meta.rc "ok". With dry-run policy returns a dry-run preview {status: "dry_run",
 dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
 Consequence: the device applies the new cellular settings and may reconnect.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -29754,6 +30963,8 @@ Example call (update_mobility_device_name):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `mobility/official/write`
 
@@ -29813,6 +31024,8 @@ docs/TOOL-USAGE.md#update_mobility_device_network.
 Required arguments: workspace_id, device_id (see parameter descriptions for identifiers).
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `mobility/official/write`
 
@@ -29879,6 +31092,8 @@ Example call (update_mobility_device_wireless):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `mobility/official/write`
 
 **Family:** `mobility`
@@ -29922,6 +31137,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
 auto-retried.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -29961,6 +31178,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, rule_id, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30027,6 +31246,8 @@ Example call (update_network):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -30061,6 +31282,8 @@ mutation and returns {status: "dry_run", dryRun: true, sent: false, message, pre
 {method, path, params, body}}; no read-back or verification.
 
 Required arguments: host, site, group_id, group.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30115,6 +31338,8 @@ Result status is the upstream HTTP number or dry_run for a preview.
 Example call (update_nvr):
     {"host": "my-console", "settings": {"isInsightsEnabled": true}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30153,6 +31378,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, router_id, router.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -30187,6 +31414,8 @@ mutation and returns {status: "dry_run", dryRun: true, sent: false, message, pre
 {method, path, params, body}}; no read-back or verification.
 
 Required arguments: host, site, rule_id, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30235,6 +31464,8 @@ Example call (update_port_forward):
       "forward_id": "000000000000000000000107",
       "payload": {"enabled": false}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -30292,6 +31523,8 @@ Example call (update_port_profile):
       "payload": {"poe_mode": "auto"}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -30333,6 +31566,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, supervisor_id, supervisor (see each parameter's
 description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30376,6 +31611,8 @@ status "dry_run", dryRun, sent: false, message and preview (method, path, params
 
 Required arguments: host, site, link_id, link (see each parameter's description).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -30416,6 +31653,8 @@ only its loggingEnabled or reportFlowEnabled with patch_firewall_policy instead.
 
 Required arguments: host, site, policy_id, policy.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `firewall`
@@ -30454,6 +31693,8 @@ status "dry_run", dryRun, message and preview (method, path, params, body).
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, kind, group_id, group.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30496,6 +31737,8 @@ path, params, body}} (nothing sent) when dry-run policy is set.
 
 Required arguments: host, automation_id, changes.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30534,6 +31777,8 @@ Passing no field fails before any request. With dry-run policy, returns {status:
 Dry-run response previews include body and params.
 
 Required arguments: host, case_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -30577,6 +31822,8 @@ Dry-run response previews include body and params.
 
 Required arguments: host, case_id, asset_id.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30618,6 +31865,8 @@ body}}.
 
 Required arguments: host, device_password.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30648,7 +31897,7 @@ Types bridge, camera, chime, light, linkstation, sensor, speaker and viewer use 
 official PATCH /v1/{family}/{id} (spec Protect 7.3.74; read from GET
 /v1/{family}/{id}); aiport, aiprocessor, doorlock and nvr have no official PATCH
 and use the private PATCH /{collection}/{id} (nvr: PATCH /nvr, no device_id),
-read from GET /doorlocks/{id} or the bootstrap. settings is sent as given (partial
+read from GET /locks/{id} or the bootstrap. settings is sent as given (partial
 nested objects too). The record is read first: when every leaf already matches,
 nothing is sent and {status: "noop", reason, resource} is returned. Returns
 otherwise {status: "updated", verified, before, after, response, _route}: verified
@@ -30658,6 +31907,8 @@ request. With dry-run policy, returns {status: "dry_run", before, response:
 PREVIEW}. Dry-run response previews include body and params.
 
 Required arguments: host, device_type, settings (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -30699,6 +31950,8 @@ body}}.
 
 Required arguments: host, tag_id, changes.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30737,6 +31990,8 @@ Under dry-run policy nothing is sent and the tool returns the dry-run preview
 body}}.
 
 Required arguments: host, user_id, changes.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -30777,6 +32032,8 @@ body}}.
 
 Required arguments: host, group_id, changes.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30793,45 +32050,6 @@ Required arguments: host, group_id, changes.
 | --- | --- | --- | --- | --- |
 | `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home NVR") or data[].id. |
 | `group_id` | `string` | yes |  | Required user-group id, for example "000000000000000000000103". |
-| `changes` | `object` | yes |  | Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}. Free-form object. |
-| `confirm` | `boolean` | no | `false` | Accepted and ignored, for example true (kept for backward compatibility); the call executes immediately. |
-
-**Return type**
-
-`Any`
-
-### `update_protect_user_notifications`
-
-Update a user's notification settings.
-
-The user_id is resolved in the Protect bootstrap users, changes are merged into the user's
-notifications object and sent with PATCH protect/api/users/{id}/notifications.
-Returns: the PATCH response with _before, _after, _verified (every requested leaf re-read) and
-_readAfterError (null unless the re-read failed); when every requested leaf already matches,
-nothing is sent and the current record is returned with _status "noop" and _verified true.
-
-Under dry-run policy nothing is sent and the tool returns the dry-run preview
-{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}}.
-
-Required arguments: host, user_id, changes.
-
-**API source:** `protect/private/write`
-
-**Family:** `protect`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | false | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (for example "Home NVR") or data[].id. |
-| `user_id` | `string` | yes |  | Required id from list_protect_users, for example "000000000000000000000103". |
 | `changes` | `object` | yes |  | Requested JSON leaves, for example {"name": "Operators", "settings": {"enabled": true}}. Free-form object. |
 | `confirm` | `boolean` | no | `false` | Accepted and ignored, for example true (kept for backward compatibility); the call executes immediately. |
 
@@ -30856,6 +32074,8 @@ With dry-run policy, returns {status: "dry_run", before, response (the preview)}
 Dry-run response previews include body and params.
 
 Consequence: the camera's next run of this patrol follows the new settings.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/private/write`
 
@@ -30900,6 +32120,8 @@ Dry-run response previews include body and params.
 
 Consequence: ptz_goto_preset and patrols using this slot go to the new position.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -30942,6 +32164,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview: sta
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, rule_id, rule.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -30989,6 +32213,8 @@ Example call (update_radius_account):
     {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101",
      "account": {"vlan": 30}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -31033,6 +32259,8 @@ Example call (update_radius_profile):
      "profile_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
      "profile": {"interim_update_enabled": true}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -31075,6 +32303,8 @@ reason, resource} when nothing changes; under dry-run policy the preview {status
 
 Required arguments: host, type, group_id, changes.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -31107,7 +32337,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/relays/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -31122,6 +32352,8 @@ Example call (update_relay):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -31162,6 +32394,8 @@ Example: docs/TOOL-USAGE.md#update_scheduled_task.
 
 Required arguments: host, site, task_id, task.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `devices`
@@ -31198,7 +32432,7 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 dry-run policy sends nothing: {status: "dry_run", before (read body),
-response (preview)}; no read-after.
+response (the preview: method, path, params, body)}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/sensors/{id}; inline schema) is `settings`.
 No required key; send only changed keys.
@@ -31225,7 +32459,8 @@ Example call (update_sensor):
       "settings": {"name": "Front Door"}
     }
 
-The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -31283,6 +32518,8 @@ Example call (update_sensor_private):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `protect/private/write`
 
 **Family:** `protect`
@@ -31330,7 +32567,7 @@ value, no PUT is made and the current GET envelope is returned verbatim plus an 
 _note "no change needed".
 Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
 dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+message, preview: {method, path, params, body}}.
 
 Request body: no published schema exists for PUT network/api/s/{site}/rest/setting/{setting_key}
 (classic controller API). Pass the controller's native payload; read the current object first
@@ -31343,6 +32580,8 @@ Example call (update_setting):
       "setting_key": "mgmt",
       "payload": {"led_enabled": false}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -31376,7 +32615,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/sirens/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -31392,6 +32631,8 @@ Example call (update_siren):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -31439,6 +32680,8 @@ Example call (update_site_to_site_tunnel):
       "tunnel": {"enabled": false}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -31471,7 +32714,7 @@ Returns {status: "updated", verified, before, after, response (the PATCH body ve
 compared leaf by leaf; sibling keys not sent are ignored).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/speakers/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -31488,6 +32731,8 @@ Example call (update_speaker):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -31525,6 +32770,8 @@ and are listed in _redactedFieldsNotSent.
 With dry-run policy, returns a dry-run preview {status: "dry_run", dryRun, sent: false,
 message, preview: {method, path, params, body}} and sends nothing.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -31561,6 +32808,8 @@ the read-back failed; when UNIFI_REDACT_SECRETS is enabled, fields holding the r
 mask are not sent and are listed in _redactedFieldsNotSent. With dry-run policy, returns
 a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path,
 params, body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -31603,6 +32852,8 @@ Example call (update_static_dns_record):
     {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107",
      "record": {"value": "192.0.2.21"}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `vpn`
@@ -31644,6 +32895,8 @@ Example call (update_static_route):
     {"host": "my-console", "site": "Default", "route_id": "000000000000000000000101",
      "route": {"enabled": false}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -31667,6 +32920,57 @@ Example call (update_static_route):
 
 `Any`
 
+### `update_switch_port_overrides`
+
+Change selected switch ports' port_overrides by port_idx; keep all else as read.
+
+Reads stat/device, merges each requested field into its port's entry, drops
+remove_ports entries (they revert to defaults), PUTs the whole array once to
+rest/device and reads it back. Fields are native: portconf_id (from
+list_port_profiles), op_mode (copy SPAN monitoring values from a monitoring port in
+get_switch_port_overrides; "aggregate" with aggregate_num_ports).
+
+Consequence: port changes can drop links and PoE; never re-profile your own uplink.
+A write by the UI or another client between the read and the PUT can be overwritten.
+
+Returns _outcome (verified, mismatch with _mismatches, or unknown with
+readAfterError), _verified, readBefore/readAfter, changed, _diff, noOp, _noOp, _plan,
+_warnings, response (the upstream body, verbatim) and the raw _lookupResponse,
+_readBeforeResponse and _readAfterResponse. Never auto-retried: after a timeout or
+502/503/504 the outcome is unknown; check get_switch_port_overrides.
+dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message,
+preview (method, path, params, body), diff, _plan and _outcome "preview"; nothing is
+written. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny.
+Provide host (console name or id from list_hosts) and site (network site name or UUID
+from list_local_sites).
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.classic/write`
+
+**Family:** `devices`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `device` | `string` | yes |  | Switch MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from list_device_stats. Unknown or ambiguous devices fail listing choices. |
+| `ports` | `array \| null` | no | `null` | Ports to change, one entry per port, e.g. [{"port_idx": 5, "portconf_id": "000000000000000000000001"}, {"port_idx": 1, "op_mode": "aggregate", "aggregate_num_ports": 2}]. Each needs port_idx (integer, 1-based) and at least one native port_overrides field to set; null values are refused (omit a field to keep it). Free-form native fields; no published schema. |
+| `remove_ports` | `array \| null` | no | `null` | Port numbers whose override to delete so they revert to defaults, e.g. [3, 4]. A port must currently have an override and cannot also appear in ports; otherwise the call fails before any write. Shape: integer[] |
+| `dry_run` | `boolean` | no | `false` | Preview the merged array, PUT body and diff without writing, e.g. true. dry-run policy also previews; read-only and write opt-outs still apply. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `update_switch_stack`
 
 Update a switch stack, e.g. its unit order (Network v2 route).
@@ -31684,6 +32988,8 @@ Under dry-run policy nothing is sent and the tool returns a dry-run preview:
 status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, stack_id, stack.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -31721,6 +33027,8 @@ enabled, fields holding the redaction mask are not sent and are listed in
 _redactedFieldsNotSent. With dry-run policy, returns a dry-run
 preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
 body}} and sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -31772,6 +33080,8 @@ Example call (update_traffic_matching_list):
         "name": "Allowed address list"
       }
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/official/write`
 
@@ -31826,6 +33136,8 @@ Example call (update_traffic_route):
       }
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -31844,60 +33156,6 @@ Example call (update_traffic_route):
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
 | `route_id` | `string` | yes |  | Traffic route _id (Network v2 API). Get it from list_traffic_routes (_id). |
 | `payload` | `object` | yes |  | spec: free-form (Network v2 trafficroutes, snake_case). FULL replacement object; start from get_traffic_route output. Free-form JSON object; no fixed body shape is published. |
-
-**Return type**
-
-`Any`
-
-### `update_traffic_rule`
-
-Update a traffic rule by ID.
-
-Requires a controller implementing the v2 trafficrules route. Consoles without it
-return HTTP 501 api.err.NotImplemented; the upstream error is returned to the caller.
-
-The id is resolved in list_traffic_rules first: an unknown id fails listing every valid _id, and
-nothing is written. The v2 PUT replaces the whole rule, so the tool reads the rule from
-list_traffic_rules, merges only the given fields into it (objects merge recursively; a list
-replaces the stored list), PUTs the merged rule and reads it back: fields not in payload are
-sent back unchanged. A payload with no field to change is refused before any request.
-
-Returns the upstream PUT body plus _verified (true only when every requested leaf read back
-equal, type-strict) and _readAfterError when the read-back failed; a non-object PUT body is
-kept under response. Under dry-run policy nothing is sent and the tool returns the dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params (query parameters), body}} instead.
-
-Request body: no published schema exists for PUT network/v2/api/site/{site}/trafficrules/{id}/
-(classic/v2 controller API). Pass only the native fields to change; the tool supplies the rest
-from the listed rule.
-
-Example call (update_traffic_rule):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "rule_id": "000000000000000000000107",
-      "payload": {"enabled": false}
-    }
-
-**API source:** `network/private.v2/write`
-
-**Family:** `network`
-
-**Annotations**
-
-| readOnly | destructive | idempotent | openWorld |
-| --- | --- | --- | --- |
-| false | true | true | true |
-
-**Parameters**
-
-| Name | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
-| `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
-| `rule_id` | `string` | yes |  | Traffic rule id (Network v2 API _id). Get it from list_traffic_rules (_id). |
-| `payload` | `object` | yes |  | spec: free-form (Network v2 trafficrules). Fields to change, merged into the listed rule before the PUT, e.g. {"enabled": false}. Free-form JSON object; no fixed body shape is published. |
 
 **Return type**
 
@@ -31927,6 +33185,8 @@ Example call (update_user):
       "user_id": "000000000000000000000107",
       "payload": {"name": "Printer", "note": "2nd floor"}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -31968,6 +33228,8 @@ Example call (update_user_group):
     {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101",
      "group": {"qos_rate_max_down": 20000}}
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -32004,7 +33266,7 @@ it sends; sibling keys it does not send are ignored), and response is the PATCH 
 verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
 verified is null, with readAfterError, when the read-after fails or cannot be matched.
 Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview)}; there is no read-after.
+(the preview: method, path, params, body)}; there is no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/viewers/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -32019,6 +33281,8 @@ Example call (update_viewer):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `protect/official/write`
 
@@ -32067,6 +33331,8 @@ Example call (update_vpn_client):
       "fields": {"enabled": true}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `vpn`
@@ -32113,6 +33379,8 @@ Example call (update_vpn_server):
       "server_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "fields": {"enabled": false}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -32162,6 +33430,8 @@ Example call (update_wan_interface):
       "wan": {"wan_load_balance_weight": 50}
     }
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.classic/write`
 
 **Family:** `network`
@@ -32202,6 +33472,8 @@ false, message, preview: {method, path, params, body}} and sends nothing.
 
 Consequence: WAN traffic is redistributed across the gateway's uplinks at once.
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/private.v2/write`
 
 **Family:** `network`
@@ -32241,6 +33513,8 @@ redaction mask, left out of the PUT). An empty changes
 object is refused before any request. With dry-run policy returns a dry-run preview
 {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
 sends nothing.
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.v2/write`
 
@@ -32287,6 +33561,8 @@ docs/TOOL-USAGE.md#update_wifi_broadcast.
 Required arguments: host, site, broadcast_id, broadcast (see parameter descriptions for
 identifiers).
 
+Set UNIFI_WRITE_POLICY=dry-run.
+
 **API source:** `network/official/write`
 
 **Family:** `network`
@@ -32329,6 +33605,8 @@ keys beside it). Dry-run (dry-run policy) returns a dry-run preview {status:
 Example call (update_wireguard_users):
     {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
      "users": [{"_id": "000000000000000000000108", "name": "laptop-02"}]}
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 
@@ -32378,6 +33656,8 @@ Example call (update_wlan_config):
       "wlan_id": "000000000000000000000107",
       "payload": {"enabled": false}
     }
+
+Set UNIFI_WRITE_POLICY=dry-run.
 
 **API source:** `network/private.classic/write`
 

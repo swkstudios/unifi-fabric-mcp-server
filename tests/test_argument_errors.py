@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from unifi_fabric import server
 from unifi_fabric.argument_errors import ArgumentErrorMiddleware, argument_validation_error
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.local_components import tool_components
 
 SECRET = "s3cr3t-value-that-must-not-be-echoed"
 
@@ -211,7 +212,7 @@ class TestRegisteredOnServer:
         async def _all() -> list[str]:
             bad: list[str] = []
             tools = await server.mcp.list_tools()
-            assert len(tools) == len(server.mcp._local_provider._components)
+            assert len(tools) == len(tool_components(server.mcp))
             for tool in tools:
                 text = await _call_text(server.mcp, tool.name, {"__not_a_param__": 1})
                 assert text.startswith("ToolError: Invalid arguments"), (tool.name, text)

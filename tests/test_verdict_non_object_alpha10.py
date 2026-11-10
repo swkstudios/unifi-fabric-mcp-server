@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unifi_fabric.tools import network_wifi_radio as mod
+from unifi_fabric.families.network import network_wifi_radio as mod
 
 _WAN = {"_id": "0123456789abcdef01234567", "purpose": "wan", "name": "WAN"}
 

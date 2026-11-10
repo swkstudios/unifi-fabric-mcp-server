@@ -31,7 +31,12 @@ def decode(status: int, body: Any) -> dict[str, Any]:
     content = result.get("content", [])
     text = "".join(c.get("text", "") for c in content if c.get("type") == "text")
     data = result.get("structuredContent")
-    if isinstance(data, dict) and set(data) == {"result"}:
+    meta = result.get("_meta")
+    fastmcp_meta = meta.get("fastmcp") if isinstance(meta, dict) else None
+    wrapped = isinstance(fastmcp_meta, dict) and fastmcp_meta.get("wrap_result") is True
+    # A wrapped result keeps its value under "result"; additive siblings (search_tools'
+    # more_available and total_matched) do not change what the caller receives.
+    if isinstance(data, dict) and "result" in data and (wrapped or set(data) == {"result"}):
         data = data["result"]
     if data is None:
         try:

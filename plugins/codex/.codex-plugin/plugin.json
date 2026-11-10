@@ -1,6 +1,6 @@
 {
   "name": "unifi-fabric",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Runs the open-source UniFi Fabric MCP server on your own machine with your own UniFi Site Manager API key, so Codex can read and manage your UniFi sites, devices, clients, firewall, VPN and Protect cameras through Ubiquiti's cloud API (api.ui.com). Not affiliated with Ubiquiti Inc.",
   "author": {
     "name": "SWK Studios",

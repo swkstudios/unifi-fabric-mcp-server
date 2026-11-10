@@ -1,7 +1,7 @@
 """The checked-in route manifest must match the current tool capture."""
 
 from scripts.gen_route_manifest import generate
-from unifi_fabric.route_manifest import MANIFEST
+from unifi_fabric.generated_api_facts.route_manifest import MANIFEST
 
 
 def test_route_manifest_reproduces_current_request_capture():
@@ -19,7 +19,7 @@ def test_protect_settings_captures_official_and_private_routes():
         } in routes
         assert {
             "method": method,
-            "path": prefix + "/api/doorlocks/{id}",
+            "path": prefix + "/api/locks/{id}",
             "route_class": "internal",
         } in routes
 
@@ -51,7 +51,7 @@ def test_manifest_includes_alternate_actions_and_device_types():
         ],
         "readopt_protect_device": [
             ("POST", protect + "/cameras/{id}/readopt"),
-            ("POST", protect + "/doorlocks/{id}/readopt"),
+            ("POST", protect + "/locks/{id}/readopt"),
         ],
         "control_retroactive_ai_processing": [
             ("POST", protect + "/aiprocessors/retroactive-processing/start"),
@@ -63,3 +63,15 @@ def test_manifest_includes_alternate_actions_and_device_types():
             assert {"method": method, "path": path, "route_class": "internal"} in MANIFEST["tools"][
                 name
             ]
+
+
+def test_controller_stats_manifest_lists_each_recorded_view_route():
+    """``source`` and ``recent_series`` send different routes, each with a recording.
+
+    ``series`` has no recording, so a hermetic capture cannot list it.
+    """
+    from unifi_fabric.families.network.network_controller_insights import STATS_ROUTES
+
+    paths = {row["path"] for row in MANIFEST["tools"]["get_controller_stats"]}
+    root = "/v1/connector/consoles/{console_id}/proxy/network/v2/api"
+    assert {root + STATS_ROUTES["source"], root + STATS_ROUTES["recent_series"]} <= paths

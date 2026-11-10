@@ -167,7 +167,7 @@ def test_private_canary_waits_for_process_exit_and_sanitizes_failures(monkeypatc
 
 @pytest.mark.parametrize("collector", ["events", "device_changes"])
 async def test_protect_poll_boundary_never_cancels_active_poll(monkeypatch, collector):
-    from unifi_fabric.tools import protect
+    from unifi_fabric.families.protect import protect
 
     entered = asyncio.Event()
     release = asyncio.Event()

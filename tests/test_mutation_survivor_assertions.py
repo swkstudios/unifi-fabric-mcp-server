@@ -24,16 +24,11 @@ from unifi_fabric.client import (
     validate_selector,
 )
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.site_manager import aggregation
 from unifi_fabric.matching import find_by_id
 from unifi_fabric.registry import FetchedRecords, Registry
-from unifi_fabric.tools import (
-    _classic_objects,
-    _keys,
-    _pagination,
-    _results,
-    aggregation,
-    device_mgmt,
-)
+from unifi_fabric.shared_shapes import _classic_objects, _keys, _pagination, _results
 
 H = "AA:1"
 S = "11111111-0000-4000-8000-000000000001"
@@ -192,7 +187,7 @@ async def test_name_tiers_casefold_not_lower():
 
 
 # --------------------------------------------------------------------------------------
-# tools/aggregation.py
+# families/site_manager/aggregation.py
 # --------------------------------------------------------------------------------------
 
 
@@ -333,7 +328,7 @@ async def test_search_device_echoes_the_query():
 
 
 # --------------------------------------------------------------------------------------
-# tools/_pagination.py / tools/_results.py
+# shared_shapes/_pagination.py / shared_shapes/_results.py
 # --------------------------------------------------------------------------------------
 
 
@@ -366,7 +361,7 @@ def test_dry_run_never_short_circuits_as_no_op():
 
 
 # --------------------------------------------------------------------------------------
-# tools/_keys.py
+# shared_shapes/_keys.py
 # --------------------------------------------------------------------------------------
 
 
@@ -404,7 +399,7 @@ def test_first_id_accepts_a_falsy_identity():
 
 
 # --------------------------------------------------------------------------------------
-# tools/_classic_objects.py
+# shared_shapes/_classic_objects.py
 # --------------------------------------------------------------------------------------
 
 

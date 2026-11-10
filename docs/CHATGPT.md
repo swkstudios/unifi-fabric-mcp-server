@@ -4,7 +4,7 @@
 
 ChatGPT can talk to an MCP server you host yourself, as a **custom MCP server**. This is not a listing in the ChatGPT app directory: a directory listing needs a hosted service, and we do not run one. You run your own instance, with your own UniFi API key, on infrastructure you control.
 
-ChatGPT connects only to remote servers over HTTPS and authenticates with **OAuth 2.1 or no authentication**. It cannot send a static bearer token or API key ([OpenAI: Authentication](https://developers.openai.com/apps-sdk/build/auth)). So the only safe setup is this server's OAuth mode (`MCP_AUTH_MODE=oauth`, see [AUTH-OAUTH.md](AUTH-OAUTH.md)) behind an identity provider you operate.
+ChatGPT connects only to remote servers over HTTPS and authenticates with **OAuth 2.1 or no authentication**. It cannot send a static bearer token or API key ([OpenAI: Authentication](https://developers.openai.com/plugins/build/auth)). So the only safe setup is this server's OAuth mode (`MCP_AUTH_MODE=oauth`, see [AUTH-OAUTH.md](AUTH-OAUTH.md)) behind an identity provider you operate.
 
 > **Never expose this server without authentication.** It is a write-capable network controller: with `MCP_AUTH_MODE=none` on a public URL, anyone who finds the URL can reconfigure or restart your UniFi network.
 
@@ -25,7 +25,7 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
 
 1. **Run the server with OAuth on HTTP.** Use the Docker image or `uvx` with these variables (the `/mcp` path matters: the advertised resource is `MCP_OAUTH_BASE_URL` plus `/mcp`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac support=0.7.1 citation=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b support=0.7.2 citation=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b -->
 <!-- install-case: docs-chatgpt-1 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    export UNIFI_API_KEY="your-api-key-here"
@@ -37,7 +37,7 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
    export MCP_OAUTH_JWKS_URI="https://idp.example.com/.well-known/jwks.json"
 export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host header your proxy forwards
    export MCP_OAUTH_REQUIRED_SCOPES="fabric:read"                    # optional; advertised to ChatGPT
-   uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp
+   uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
    ```
 
    `MCP_ALLOWED_HOSTS` matters when the server listens on loopback behind a reverse proxy: the Host check then refuses any other host name with `421 Misdirected Request`. List your public host name (see [Host and Origin validation](AUTH-TLS.md#host-and-origin-validation)).
@@ -46,7 +46,7 @@ export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host hea
 
 2. **Check discovery from outside.** Both must work over HTTPS:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac support=0.7.1 citation=file:src/unifi_fabric/server.py@sha256:f8e586c7f7de36456cadaf30df40dc6a4642a1fabec9badf5866cd3fea372dac -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b support=0.7.2 citation=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b -->
 <!-- install-case: docs-chatgpt-2 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    curl -s https://unifi-mcp.example.com/.well-known/oauth-protected-resource/mcp
@@ -55,7 +55,7 @@ export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host hea
 
    The first returns `{"resource":"https://unifi-mcp.example.com/mcp","authorization_servers":[...],...}`. The second shows `WWW-Authenticate: Bearer ... resource_metadata="https://unifi-mcp.example.com/.well-known/oauth-protected-resource/mcp"`, which is how ChatGPT finds the metadata (the bare `/.well-known/oauth-protected-resource` path returns 404 by design).
 
-3. **Add it in ChatGPT.** Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, then **Add custom MCP server**. Enter a name, choose your public URL (including `/mcp`) or your tunnel, select OAuth, review the risk warning and continue. ChatGPT then sends you through your IdP's sign-in ([OpenAI: Connect and test](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)).
+3. **Add it in ChatGPT.** Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, then **Add custom MCP server**. Enter a name, choose your public URL (including `/mcp`) or your tunnel, select OAuth, review the risk warning and continue. ChatGPT then sends you through your IdP's sign-in ([OpenAI: Connect and test](https://developers.openai.com/plugins/deploy/connect-chatgpt)).
 
 4. **Register the redirect URI** that ChatGPT's management page shows for the connection in your IdP's allowlist.
 
@@ -78,5 +78,5 @@ The server publishes the authorization-server issuer exactly as configured in `M
   write path at all, run it with
   `UNIFI_WRITE_POLICY=deny`; use separate instances and keys when callers need different UniFi permissions.
   See [Scopes and write access](AUTH-OAUTH.md#scopes-and-write-access).
-- Prefer the Secure MCP Tunnel over a public port. With a public URL, you can also restrict the server to [ChatGPT's published egress IP ranges](https://developers.openai.com/api/docs/guides/ip-addresses) or require ChatGPT's mTLS client certificate at your proxy ([OpenAI: Authentication](https://developers.openai.com/apps-sdk/build/auth)).
+- Prefer the Secure MCP Tunnel over a public port. With a public URL, you can also restrict the server to [ChatGPT's published egress IP ranges](https://developers.openai.com/api/docs/guides/ip-addresses) or require ChatGPT's mTLS client certificate at your proxy ([OpenAI: Authentication](https://developers.openai.com/plugins/build/auth)).
 - Keep your UniFi API key on the server only; it never goes to ChatGPT. Tool results (device lists, Wi-Fi passphrases and other credential fields the API returns) do go to ChatGPT; set `UNIFI_REDACT_SECRETS=1` to mask credential fields.

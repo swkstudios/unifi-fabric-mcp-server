@@ -8,8 +8,8 @@ import httpx
 
 from tests import upstream_harness as uh
 from unifi_fabric import server
-from unifi_fabric.tools import network_nat_qos_traffic as nc
-from unifi_fabric.tools.network_proav_sandbox import get_multicast_insights
+from unifi_fabric.families.network import network_nat_qos_traffic as nc
+from unifi_fabric.families.network.network_proav_sandbox import get_multicast_insights
 
 
 class RequestProbe(uh.FakeUpstream):

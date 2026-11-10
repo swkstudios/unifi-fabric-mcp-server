@@ -339,7 +339,7 @@ def is_disabled(
 
 def table() -> dict[str, tuple[str, ...]]:
     """The generated tool -> pairs table (``_api_source_table.TOOL_API_SOURCES``)."""
-    from ._api_source_table import TOOL_API_SOURCES
+    from .generated_api_facts._api_source_table import TOOL_API_SOURCES
 
     return dict(TOOL_API_SOURCES)
 
@@ -398,12 +398,14 @@ def install_api_sources(mcp: Any) -> int:
     Returns the number of tools labelled.
     """
     try:
-        components = mcp._local_provider._components  # noqa: SLF001
+        from .local_components import tool_components
+
+        components = tool_components(mcp)
     except AttributeError:  # pragma: no cover - defensive against FastMCP internals
         return 0
     data = table()
     labelled = 0
-    for component in components.values():
+    for component in components:
         if not hasattr(component, "parameters"):
             continue
         pairs = data.get(component.name)

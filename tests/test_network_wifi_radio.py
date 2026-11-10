@@ -12,8 +12,8 @@ import pytest
 
 from tests import upstream_harness as uh
 from unifi_fabric import server
+from unifi_fabric.families.network import network_wifi_radio as radio
 from unifi_fabric.read_only import ReadOnlyModeError
-from unifi_fabric.tools import network_wifi_radio as radio
 
 HOST = "my-console"
 SITE = "Default"

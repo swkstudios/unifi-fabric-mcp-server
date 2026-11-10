@@ -105,6 +105,10 @@ CREDENTIAL_FIELDS: frozenset[str] = frozenset(
         "x_wireguard_private_key",
         "x_openvpn_password",
         "openvpn_configuration",
+        # The whole WireGuard client .conf (inline PrivateKey / PresharedKey lines) and the
+        # standalone client pre-shared key (public issue #46).
+        "wireguard_client_configuration_file",
+        "wireguard_client_preshared_key",
         # API tokens / auth material / cloud access
         "api_token",
         "x_api_token",
@@ -120,6 +124,8 @@ CREDENTIAL_FIELDS: frozenset[str] = frozenset(
         "authserversecret",
         "wanpassword",
         "wireguardprivatekey",
+        "wireguardclientconfigurationfile",
+        "wireguardclientpresharedkey",
         "clientsecret",
         "bearertoken",
         "apitoken",
@@ -896,7 +902,7 @@ def _with_dropped_report(result: Any, dropped: list[str]) -> Any:
     if not dropped:
         return result
     # Local import: the tools' client imports redaction during module initialization.
-    from .tools._keys import with_context
+    from .shared_shapes._keys import with_context
 
     if isinstance(result, dict):
         return with_context(result, {MASKED_FIELDS_KEY: list(dropped)})
@@ -975,7 +981,9 @@ def install_response_redaction(mcp: Any, should_redact: Callable[[], bool]) -> i
     rather than silently leaving credentials visible.
     """
     try:
-        components = mcp._local_provider._components  # noqa: SLF001
+        from .local_components import tool_components
+
+        components = tool_components(mcp)
     except AttributeError:
         if should_redact():
             raise RuntimeError(
@@ -985,7 +993,7 @@ def install_response_redaction(mcp: Any, should_redact: Callable[[], bool]) -> i
         return 0
     wrapped = 0
     protected = 0
-    for component in components.values():
+    for component in components:
         fn = getattr(component, "fn", None)
         if fn is None or not callable(fn):
             continue

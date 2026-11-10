@@ -23,8 +23,8 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import mobility
-from unifi_fabric.tools.mobility import (
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.mobility.mobility import (
     MOBILITY_BASE,
     WRITE_ENABLED_ENV,
     get_mobility_device,

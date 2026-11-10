@@ -12,6 +12,7 @@ from tests import upstream_harness as uh
 from tests._tool_classes import class_axis
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.families.protect.protect import _resolve_camera_refs
 from unifi_fabric.registry import (
     FetchedRecords,
     Registry,
@@ -19,7 +20,6 @@ from unifi_fabric.registry import (
     match_ea_site,
     match_host,
 )
-from unifi_fabric.tools.protect import _resolve_camera_refs
 
 
 async def resolve(kind, rows):
@@ -89,7 +89,7 @@ async def test_incomplete_enumeration_is_never_cached_by_setters(kind):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("bad_row", [None, 7, "unexpected", []])
 async def test_arm_profile_resolution_malformed_rows_raise_shape(bad_row):
-    from unifi_fabric.tools.protect import _find_arm_profile
+    from unifi_fabric.families.protect.protect import _find_arm_profile
 
     with pytest.raises(UniFiConnectionError, match="shape"):
         await _find_arm_profile(

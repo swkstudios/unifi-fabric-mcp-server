@@ -1,4 +1,4 @@
-"""Derive the spec-limit table (``src/unifi_fabric/_spec_limits_table.py``) from the
+"""Derive the spec-limit table (``src/unifi_fabric/generated_api_facts/_spec_limits_table.py``) from the
 vendored OpenAPI specs.
 
 Every tool is run once through the shape-faithful fake upstream with valid arguments

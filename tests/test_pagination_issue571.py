@@ -3,9 +3,9 @@
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools._continuation import encode_continuation
-from unifi_fabric.tools._pagination import collect_batch
-from unifi_fabric.tools.network_nat_qos_traffic import _flow_page_batch, _nc_drain
+from unifi_fabric.families.network.network_nat_qos_traffic import _flow_page_batch, _nc_drain
+from unifi_fabric.shared_shapes._continuation import encode_continuation
+from unifi_fabric.shared_shapes._pagination import collect_batch
 
 
 @pytest.mark.parametrize("family", ["cursor", "carrier"])

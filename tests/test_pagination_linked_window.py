@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools._pagination import collect_links
+from unifi_fabric.shared_shapes._pagination import collect_links
 
 
 def console(total, clamp, *, echo=None, cap=None):
@@ -211,7 +211,7 @@ async def test_linked_window_control_distinct_identities_with_changing_fields_co
 async def test_recognition_groups_window_with_changing_fields_and_beta_key_routing(ignore):
     from unittest.mock import AsyncMock
 
-    from unifi_fabric.tools import recognition
+    from unifi_fabric.families.protect import recognition
 
     client, calls = repeating_console(2, ignore=ignore, field="groups")
     beta = APIKeyConfig(key="sk-b", label="beta")

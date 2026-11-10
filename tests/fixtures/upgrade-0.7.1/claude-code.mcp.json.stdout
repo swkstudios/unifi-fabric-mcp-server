@@ -1,9 +1,0 @@
-== claude-code.mcp.json (json)
-mcpServers.unifi-fabric.env:
-  - UNIFI_DRY_RUN
-  - UNIFI_ENABLE_CONNECTOR_WRITE
-  - UNIFI_DISABLED_TOOL_FAMILIES
-  - UNIFI_DISABLE_API_SOURCES
-  + UNIFI_WRITE_POLICY=dry-run
-  + UNIFI_EXCLUDE=family:vpn,family:hotspot,source:network/private.classic,source:protect/private
-Dry run: nothing written. Run again with --write to save (keeps a .bak copy).

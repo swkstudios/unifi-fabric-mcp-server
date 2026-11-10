@@ -1855,7 +1855,7 @@ async def test_matter_setup_code_sentinel_all_error_forms(monkeypatch, captured_
 
     from pydantic import SecretStr
 
-    from unifi_fabric.tools import matter
+    from unifi_fabric.families.network import matter
 
     setup_code = MARKER + '-matter-setup/+=\\"%&'
     echoes = [

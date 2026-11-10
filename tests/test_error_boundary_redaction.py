@@ -20,9 +20,9 @@ from fastmcp.exceptions import ToolError
 from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.client import upstream_error_text
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.redaction import REDACTION_MASK, mask_error_text, redact_credentials
 from unifi_fabric.registry import FetchedRecords, match_ea_site, match_host
-from unifi_fabric.tools import site_manager
 
 MARKER = "synthetic-boundary-MARKER"
 SITE_UUID = "00000000-0000-4000-8000-000000000001"

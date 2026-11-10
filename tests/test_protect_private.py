@@ -15,7 +15,7 @@ import pytest
 
 from unifi_fabric import secret_scrub
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import protect_private as pp
+from unifi_fabric.families.protect import protect_private as pp
 
 ID = "0000000000000000000000aa"
 HOST_ID = "console-001"
@@ -281,7 +281,7 @@ async def test_invalid_device_type_never_reaches_connector_logs(rig, caplog, mon
     secret = "synthetic-protect-device-type-secret"
     monkeypatch.setattr(secret_scrub, "_provider", lambda: (secret,))
     secret_scrub.install_log_scrubber()
-    with caplog.at_level(logging.DEBUG, logger="unifi_fabric.tools.connector"):
+    with caplog.at_level(logging.DEBUG, logger="unifi_fabric.families.connector.connector"):
         with pytest.raises(ValueError, match="device_type") as exc:
             await getattr(pp, fn)(c, r, "example", secret, ID)
     assert calls == []
@@ -362,7 +362,7 @@ from unittest.mock import AsyncMock
 import httpx
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import protect_private as pp
+from unifi_fabric.families.protect import protect_private as pp
 
 SECRET = "synthetic-direct-protect-audit-secret"
 ID = "0000000000000000000000aa"
@@ -384,7 +384,7 @@ async def main():
     client.request = AsyncMock(side_effect=responses)
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
-    logger = logging.getLogger("unifi_fabric.tools.connector")
+    logger = logging.getLogger("unifi_fabric.families.connector.connector")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
     try:
@@ -398,12 +398,6 @@ raise SystemExit(0 if asyncio.run(main()) else 1)
 """
     completed = subprocess.run([sys.executable, "-"], input=script, text=True, capture_output=True)
     assert completed.returncode == 0
-
-
-async def test_reboot_nvr_route(rig):
-    c, r, _, calls = rig
-    await pp.reboot_nvr(c, r, "example")
-    assert calls[-1][:2] == ("POST", f"{BASE}/nvr/reboot")
 
 
 async def test_ambiguous_camera_name_lists_matches(rig):
@@ -453,7 +447,6 @@ async def test_explicit_private_owner_key_is_used_for_every_request(rig):
         ("reboot_protect_device", ("camera", ID)),
         ("adopt_protect_device", ("camera", ID)),
         ("unadopt_protect_device", ("camera", ID)),
-        ("reboot_nvr", ()),
         ("clear_sensor_tamper", (ID,)),
     ],
 )
@@ -569,7 +562,6 @@ async def test_read_before_failure_preserves_error_body_and_sends_no_write(rig, 
     "fn,args,consequence",
     [
         ("reboot_protect_device", ("camera", ID), "interrupts recording"),
-        ("reboot_nvr", (), "interrupts recording"),
         ("adopt_protect_device", ("camera", ID), "changes management"),
         ("unadopt_protect_device", ("camera", ID), "deletes its configuration"),
         ("clear_sensor_tamper", (ID,), "tamper alert"),
@@ -936,7 +928,6 @@ async def test_device_actions_accept_sensor_and_advertise_both_types(rig, fn):
     "fn,args",
     [
         ("reboot_protect_device", ("camera", ID)),
-        ("reboot_nvr", ()),
         ("adopt_protect_device", ("camera", ID)),
         ("unadopt_protect_device", ("camera", ID)),
         ("clear_sensor_tamper", (ID,)),

@@ -7,56 +7,56 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _adopt_device as adopt_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _approve_pending_device as approve_pending_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _create_device_tag as create_device_tag,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _delete_device_tag as delete_device_tag,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _execute_device_action as execute_device_action,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _execute_port_action as execute_port_action,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _forget_device as forget_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _get_device as get_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _get_device_statistics as get_device_statistics,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _list_pending_devices as list_pending_devices,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _list_site_devices as list_site_devices,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _locate_device as locate_device,
 )
-from unifi_fabric.tools.device_mgmt import _mac_uuid_cache
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import _mac_uuid_cache
+from unifi_fabric.families.devices.device_mgmt import (
     _restart_device as restart_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _unadopt_device as unadopt_device,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _update_device_tag as update_device_tag,
 )
-from unifi_fabric.tools.device_mgmt import (
+from unifi_fabric.families.devices.device_mgmt import (
     _upgrade_device as upgrade_device,
 )
-from unifi_fabric.tools.network import PROXY_BASE
+from unifi_fabric.families.network.network import PROXY_BASE
 
 HOST_ID = "host-001"
 SITE_ID = "11111111-0000-0000-0000-000000000001"
@@ -1054,7 +1054,7 @@ class TestHeaderModeStaleMacCache:
 
     @pytest.fixture(autouse=True)
     def _header_mode(self, monkeypatch):
-        import unifi_fabric.tools.device_mgmt as dm
+        import unifi_fabric.families.devices.device_mgmt as dm
         from unifi_fabric.config import APIKeyConfig
 
         self.identity = {"keys": [APIKeyConfig(label="a", key="synthetic-a")]}
@@ -1071,7 +1071,7 @@ class TestHeaderModeStaleMacCache:
         self.identity["keys"] = [APIKeyConfig(label=label, key=f"synthetic-{label}")]
 
     def _entries(self, client):
-        from unifi_fabric.tools.device_mgmt import _mac_uuid_identity_cache
+        from unifi_fabric.families.devices.device_mgmt import _mac_uuid_identity_cache
 
         return {
             k: v

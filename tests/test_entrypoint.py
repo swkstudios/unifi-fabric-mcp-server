@@ -50,7 +50,8 @@ def test_placement_snapshot_export_bypasses_invalid_inherited_mcp_auth_settings(
     assert result.stderr == (
         "placement snapshot export failed: placement snapshot export requires an API key: "
         'set UNIFI_API_KEY, or UNIFI_API_KEYS to a JSON list of {"key": ..., "label": ...} '
-        "objects\n"
+        "objects, or point UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND (UNIFI_API_KEYS_FILE / "
+        "UNIFI_API_KEYS_COMMAND for the list) at where the key is kept\n"
     )
     assert "mcp-bearer-canary-must-not-leak" not in result.stderr
 
@@ -127,7 +128,9 @@ def test_placement_snapshot_preflight_bypasses_invalid_inherited_mcp_auth_settin
     assert result.stderr == (
         "placement snapshot capability preflight failed: placement snapshot preflight "
         "requires an API key: set UNIFI_API_KEY, or UNIFI_API_KEYS to a JSON list of "
-        '{"key": ..., "label": ...} objects\n'
+        '{"key": ..., "label": ...} objects, or point UNIFI_API_KEY_FILE / '
+        "UNIFI_API_KEY_COMMAND (UNIFI_API_KEYS_FILE / UNIFI_API_KEYS_COMMAND for the list) "
+        "at where the key is kept\n"
     )
     assert "mcp-bearer-canary-must-not-leak" not in result.stderr
 

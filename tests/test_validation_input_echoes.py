@@ -2,7 +2,9 @@
 
 import pytest
 
-from unifi_fabric.tools import carrier_fabric, mobility, site_manager
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.site_manager import site_manager
 
 
 @pytest.mark.parametrize(

@@ -37,14 +37,14 @@ import pytest_asyncio
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.statistics import (
+from unifi_fabric.families.statistics.statistics import (
     _get_client_link_diagnostics,
     _get_device_port_state,
     _get_device_stp_state,
     _list_active_clients_stats,
     _list_device_stats,
 )
+from unifi_fabric.registry import Registry
 
 # Gated on UNIFI_API_KEY so they always skip in credential-less CI; host-scoped tests
 # additionally fail without UNIFI_TEST_HOST/SITE. Module-scoped event loop keeps the

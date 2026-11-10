@@ -20,7 +20,7 @@ import pytest
 
 from unifi_fabric import families, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import site_config as sc
+from unifi_fabric.families.network import site_config as sc
 
 HOST_ID = "host-001"
 CLASSIC = f"/v1/connector/consoles/{HOST_ID}/proxy/network/api/s/default"
@@ -588,7 +588,7 @@ async def test_radius_nested_secrets_are_unreadable_but_other_leaves_are_type_st
 async def test_all_site_config_deletes_use_catalog_result_convention(
     client, registry, coll, response
 ):
-    from unifi_fabric.tools._results import deletion_result
+    from unifi_fabric.shared_shapes._results import deletion_result
 
     record = {"_id": "record-1", "name": "Synthetic"}
     client.get.return_value = [record] if coll.v2 else env(record)
@@ -775,7 +775,7 @@ async def test_radius_account_unknown_id_lists_every_account_and_sends_nothing(
 
 @pytest.mark.parametrize("response", [None, {"extra": 7}])
 async def test_delete_radius_account_posts_a_one_element_id_batch(client, registry, response):
-    from unifi_fabric.tools._results import deletion_result
+    from unifi_fabric.shared_shapes._results import deletion_result
 
     client.get.return_value = RADIUS_USERS
     client.post.return_value = response

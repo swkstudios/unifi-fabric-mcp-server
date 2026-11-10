@@ -231,3 +231,121 @@ def test_missing_docker_json_bearer_header_fails():
     }
     with pytest.raises(ValueError, match="bearer HTTP client auth header"):
         smoke.validate_docker_case(case, "0.6.4")
+
+
+# --- Credentials stay off the Docker command line --------------------------------------
+
+DOCKER_PROMPT = "printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY\n"
+DOCKER_IMAGE = "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.6.4"
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        'docker run -e UNIFI_API_KEY="your-api-key-here" -p 127.0.0.1:3000:3000 ',
+        "docker run -e UNIFI_API_KEY -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN=abc "
+        "-p 127.0.0.1:3000:3000 ",
+    ],
+)
+def test_docker_credential_value_in_argv_fails(run):
+    case = {"language": "bash", "body": DOCKER_PROMPT + run + DOCKER_IMAGE}
+    with pytest.raises(ValueError, match="credential value in Docker argv"):
+        smoke.validate_docker_case(case, "0.6.4")
+
+
+def test_docker_key_from_the_environment_is_valid():
+    unauthenticated = DOCKER_PROMPT + "docker run -e UNIFI_API_KEY -p 127.0.0.1:3000:3000 "
+    assert (
+        smoke.validate_docker_case(
+            {"language": "bash", "body": unauthenticated + DOCKER_IMAGE}, "0.6.4"
+        )
+        is False
+    )
+    bearer = (
+        DOCKER_PROMPT + "docker run -e UNIFI_API_KEY -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN"
+        " \\\n  -p 127.0.0.1:3000:3000 "
+    )
+    assert smoke.validate_docker_case({"language": "bash", "body": bearer + DOCKER_IMAGE}, "0.6.4")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "docker run -e UNIFI_API_KEY -p 127.0.0.1:3000:3000 " + DOCKER_IMAGE,
+        DOCKER_PROMPT + "docker run -p 127.0.0.1:3000:3000 " + DOCKER_IMAGE,
+    ],
+)
+def test_docker_key_without_prompt_or_flag_fails(body):
+    with pytest.raises(ValueError, match="UNIFI_API_KEY"):
+        smoke.validate_docker_case({"language": "bash", "body": body}, "0.6.4")
+
+
+def test_repo_docker_cases_validate():
+    version = smoke.published_version()
+    docker = [c for c in extraction.extract_cases() if c["mode"] == "docker"]
+    assert {c["id"] for c in docker} >= {
+        "readme-install-24",
+        "readme-install-27",
+        "readme-install-40",
+    }
+    for case in docker:
+        smoke.validate_docker_case(case, version, version)
+
+
+# --- claude/codex mcp add registrations are executed -----------------------------------
+
+CLI_PROMPT = "printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo\n"
+CLI_LAUNCHER = "-- uvx --from unifi-fabric-mcp-server==0.6.4 unifi-fabric-mcp"
+
+
+def test_readme_cli_registrations_are_executable_cases():
+    modes = {c["id"]: c["mode"] for c in extraction.extract_cases()}
+    assert modes["readme-install-30"] == "cli"
+    assert modes["readme-install-32"] == "cli"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" ',
+        'codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" ',
+    ],
+)
+def test_cli_registration_runs_the_pinned_launcher(tmp_path, command):
+    wheel = tmp_path / "local.whl"
+    case = {"mode": "cli", "body": CLI_PROMPT + command + CLI_LAUNCHER + "\n"}
+    argv = smoke.prepare(case, wheel, tmp_path / "x.tar.gz", "0.6.4", tmp_path, "pipx")
+    assert argv[1:] == ["--from", str(wheel), "unifi-fabric-mcp"]
+
+
+@pytest.mark.parametrize(
+    "body, message",
+    [
+        (CLI_PROMPT + "claude mcp add unifi-fabric -e UNIFI_API_KEY=abc " + CLI_LAUNCHER, "shell"),
+        (CLI_PROMPT + "claude mcp add unifi-fabric " + CLI_LAUNCHER, "shell"),
+        (
+            CLI_PROMPT
+            + 'codex mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" '
+            + CLI_LAUNCHER,
+            "unsupported",
+        ),
+        (
+            CLI_PROMPT + 'claude mcp add other -e UNIFI_API_KEY="$UNIFI_API_KEY" ' + CLI_LAUNCHER,
+            "unifi-fabric",
+        ),
+        (
+            CLI_PROMPT + 'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" uvx x',
+            "launcher",
+        ),
+        ('claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" ' + CLI_LAUNCHER, "prompt"),
+        (
+            CLI_PROMPT + 'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" '
+            "-- uvx --from unifi-fabric-mcp-server==0.0.1 unifi-fabric-mcp",
+            "pin",
+        ),
+    ],
+)
+def test_cli_registration_mutations_fail(tmp_path, body, message):
+    case = {"mode": "cli", "body": body}
+    with pytest.raises(ValueError, match=message):
+        smoke.prepare(case, tmp_path / "l.whl", tmp_path / "x.tar.gz", "0.6.4", tmp_path, "pipx")

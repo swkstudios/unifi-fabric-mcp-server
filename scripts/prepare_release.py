@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Render every release version field and current install pin from one input: VERSION.
 
-    python3 scripts/prepare_release.py 0.7.1                  # dry run: print the diff
-    python3 scripts/prepare_release.py 0.7.1 --write          # apply it
-    python3 scripts/prepare_release.py 0.7.1 --check          # exit 1 if anything is stale
-    python3 scripts/prepare_release.py 0.7.1 --published --write
-    python3 scripts/prepare_release.py 0.7.1 --published --archive-sha256 <hex> --write
+    python3 scripts/prepare_release.py X.Y.Z                  # dry run: print the diff
+    python3 scripts/prepare_release.py X.Y.Z --write          # apply it
+    python3 scripts/prepare_release.py X.Y.Z --check          # exit 1 if anything is stale
+    python3 scripts/prepare_release.py X.Y.Z --published --write
+    python3 scripts/prepare_release.py X.Y.Z --published --archive-sha256 <hex> --write
     python3 scripts/prepare_release.py --identity             # print and check the identity
 
 VERSION (a clean ``X.Y.Z``) is the only version input. Two sets of fields follow it:
@@ -13,8 +13,10 @@ VERSION (a clean ``X.Y.Z``) is the only version input. Two sets of fields follow
 Version fields always name VERSION: ``pyproject.toml`` ``[project] version``;
 ``server.json`` ``version``, the PyPI package ``version`` and the OCI image tag; the
 ``version`` of the Claude Code plugin, the Codex plugin, the Claude Desktop bundle manifest
-and the Gemini CLI extension; the Homebrew formula's tagged-archive ``url``; and the
-``version`` tag in ``docs/site-stats.json``. The Dockerfile carries no version label.
+and the Gemini CLI extension; the Homebrew formula's tagged-archive ``url``; the
+``version`` tag in ``docs/site-stats.json``; the ``Version X.Y.Z.`` statement in the
+``llms.txt`` agent index; the "describes X.Y.Z source" notes in ``README.md`` and
+``docs/CLIENT-SETUP.md``. The Dockerfile carries no version label.
 
 Install pins (``unifi-fabric-mcp-server==X.Y.Z``, image tags, bundle links, ``support=``
 markers and every other current mention in the documentation set and the client
@@ -31,6 +33,15 @@ Historical text is never rendered: the CHANGELOG, ``changelog.d/``, the ``MIGRAT
 guides, the private documentation directory and any line that says it is historical (an
 upgrade note, a recorded sweep, a ``docs-currency: historical`` marker). A
 ``doc-provenance`` content hash that names a file this tool changes is refreshed with it.
+
+Nothing else may hold the version. Before rendering, every run scans the tree (all but
+``tests/``, ``tools/``, lock and requirements files and caches) for a line that names the
+current version or the published release in a file neither set above renders. Such a line
+would go stale at the next release, so the run refuses it (exit 2, nothing written) and
+names it: a generator reads ``pyproject.toml`` or ``scripts/published-version.txt`` when it
+runs instead of embedding the version, a manifest field joins ``VERSION_FIELDS``, and a line
+that must keep its own version says so (``docs-currency: historical``) or, where no marker
+fits, is listed in ``scripts/not-version-holders.toml`` for that one version with the reason.
 
 The formula's ``sha256`` is the checksum of the public tagged archive, which exists only
 after the tag: this tool never computes, fetches or invents it. A new archive URL resets it
@@ -51,6 +62,7 @@ import difflib
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from collections.abc import Callable
@@ -97,7 +109,7 @@ class PrepareError(Exception):
 
 
 def parse_version(text: str) -> tuple[int, int, int]:
-    """``"0.7.1"`` -> ``(0, 7, 1)``; anything but a clean ``X.Y.Z`` is refused."""
+    """``"1.2.3"`` -> ``(1, 2, 3)``; anything but a clean ``X.Y.Z`` is refused."""
     match = _VERSION_RE.fullmatch(text or "")
     if match is None:
         raise PrepareError(
@@ -272,6 +284,7 @@ VERSION_FIELDS: tuple[VersionField, ...] = (
     ),
     _json_version("plugins/claude/.claude-plugin/plugin.json", "Claude Code plugin version"),
     _json_version("plugins/codex/.codex-plugin/plugin.json", "Codex plugin version"),
+    _json_version("plugins/antigravity/plugin.json", "Antigravity plugin version"),
     _json_version("plugins/claude-desktop/manifest.json", "Claude Desktop bundle version"),
     _json_version("gemini-extension.json", "Gemini CLI extension version"),
     VersionField(
@@ -283,6 +296,27 @@ VERSION_FIELDS: tuple[VersionField, ...] = (
         ),
     ),
     VersionField("docs/site-stats.json", "version tag", re.compile(r'("version": "v)([^"]*)(")')),
+    VersionField(
+        "llms.txt",
+        "agent-index version statement",
+        re.compile(r"(?m)^(> .*\bVersion )(\d+\.\d+\.\d+)(\.)"),
+    ),
+    # The notes that say which source the document describes. They sit beside an upgrade
+    # note, which is historical text and so is never pin-rendered; the source they describe is
+    # always VERSION, whatever release is published.
+    VersionField(
+        "README.md",
+        "install note: source described",
+        re.compile(r"(?m)^(> describes )(\d+\.\d+\.\d+)( source\.)"),
+    ),
+    VersionField(
+        "docs/CLIENT-SETUP.md",
+        "setup guide: source described",
+        re.compile(
+            r"(?m)^(The package commands in this guide install .*the guide describes )"
+            r"(\d+\.\d+\.\d+)( source\.)"
+        ),
+    ),
 )
 FORMULA = "packaging/homebrew/unifi-fabric-mcp-server.rb"
 _FORMULA_SHA = re.compile(
@@ -327,6 +361,148 @@ def pin_files(root: Path) -> list[str]:
             extra += sorted(p.relative_to(root).as_posix() for p in path.iterdir() if p.is_file())
     found = dict.fromkeys(rel for rel in [*docs, *extra] if (root / rel).is_file())
     return [rel for rel in found if not is_historical(rel)]
+
+
+# ----------------------------------------------------------- holders outside the render
+
+#: Written by a generator from the version source, so they name it by construction.
+GENERATED_RECORDS = (PUBLISHED_FILE, "scripts/published-settings.txt")
+#: Top-level folders that pin versions on purpose: tests and their fixtures, and the
+#: versioned migration kits in tools/.
+_SCAN_SKIP_TOP = frozenset({"tests", "tools"})
+_SCAN_SKIP_DIRS = frozenset(
+    {".git", "node_modules", "__pycache__", ".tox", "dist", "build", ".hypothesis"}
+)
+_SCAN_SKIP_SUFFIXES = (".lock", ".in", ".png", ".jpg", ".gif", ".mp4", ".webm", ".webp", ".ico")
+#: Lines outside the render that keep their own version on purpose, one table per
+#: (path, version) with the reason. The file is the excuse list, so it is never scanned.
+NOT_HOLDERS_FILE = "scripts/not-version-holders.toml"
+
+
+def not_holders(root: Path) -> dict[tuple[str, str], str]:
+    """(path, version) -> why that file's lines keep that version.
+
+    One entry excuses one version in one file, never the file: a line there naming another
+    release is still a holder. tests/test_release_state_contract.py fails on an entry whose
+    file no longer names its version.
+    """
+    path = root / NOT_HOLDERS_FILE
+    if not path.is_file():
+        return {}
+    try:
+        entries = tomllib.loads(read_text(path)).get("excuse", [])
+    except tomllib.TOMLDecodeError as exc:
+        raise PrepareError(f"{NOT_HOLDERS_FILE} is not valid TOML: {exc}") from exc
+    excused: dict[tuple[str, str], str] = {}
+    for entry in entries:
+        rel, version, reason = (entry.get(k) for k in ("path", "version", "reason"))
+        if not (isinstance(rel, str) and isinstance(reason, str) and reason.strip()):
+            raise PrepareError(f"{NOT_HOLDERS_FILE}: every excuse needs a path and a reason")
+        parse_version(version)
+        excused[(rel, version)] = reason
+    return excused
+
+
+def _token(version: str) -> re.Pattern[str]:
+    """``version`` as a whole release token (``v`` allowed; not ``0.7.10``, not a suffix)."""
+    return re.compile(r"(?<![\w.])v?" + re.escape(version) + r"(?![\w.]*\d)")
+
+
+def version_lines(text: str, version: str) -> list[tuple[int, str]]:
+    """The non-historical lines of ``text`` naming ``version``, numbered from 1."""
+    token = _token(version)
+    return [
+        (number, line)
+        for number, line in enumerate(text.splitlines(), 1)
+        if token.search(line) and not HISTORICAL.search(line)
+    ]
+
+
+def rendered_files(root: Path) -> set[str]:
+    """Every file a run writes a version into: the version fields and the pin corpus."""
+    return {field.path for field in VERSION_FIELDS} | {FORMULA} | set(pin_files(root))
+
+
+def _is_tool_state(directory: Path) -> bool:
+    """A folder a tool keeps for itself, never release content.
+
+    Tools mark their own state: a ``CACHEDIR.TAG`` (pytest, ruff, mypy, pip) or a
+    ``.gitignore`` inside the folder. ``.hypothesis`` constants name whatever version the
+    last run saw, so they are skipped by this rule and by ``_SCAN_SKIP_DIRS``.
+    """
+    return (directory / "CACHEDIR.TAG").is_file() or (directory / ".gitignore").is_file()
+
+
+def _git_ignored(root: Path, rels: list[str]) -> set[str]:
+    """The paths ``git`` ignores, when ``root`` is a work tree; none otherwise."""
+    if not rels or not (root / ".git").exists():
+        return set()
+    try:
+        done = subprocess.run(
+            ["git", "check-ignore", "-z", "--stdin"],
+            cwd=root,
+            input="\0".join(rels).encode(),
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return set()
+    return {item.decode() for item in done.stdout.split(b"\0") if item}
+
+
+def _scanned_files(root: Path):
+    candidates: list[tuple[str, Path]] = []
+    state_dirs: dict[Path, bool] = {}
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root)
+        parts = rel.parts
+        if (
+            parts[0] in _SCAN_SKIP_TOP
+            or any(
+                part in _SCAN_SKIP_DIRS
+                or part.startswith(".venv")
+                or part.endswith(("_cache", ".egg-info"))
+                for part in parts[:-1]
+            )
+            or not path.is_file()
+            or path.name.endswith(_SCAN_SKIP_SUFFIXES)
+            or "requirements" in path.name
+        ):
+            continue
+        if any(
+            state_dirs.setdefault(parent, _is_tool_state(parent))
+            for parent in path.parents
+            if parent != root and root in parent.parents
+        ):
+            continue
+        candidates.append((rel.as_posix(), path))
+    ignored = _git_ignored(root, [rel for rel, _ in candidates])
+    for rel, path in candidates:
+        if rel not in ignored:
+            yield rel, path
+
+
+def unrendered_holders(root: Path, versions: set[str]) -> list[str]:
+    """``path:line: text`` for every line outside the render that names one of ``versions``.
+
+    Historical documents and lines, generated records and ``not_holders()`` excuses are
+    skipped; whatever is left would go stale at the next release.
+    """
+    skip = rendered_files(root) | set(GENERATED_RECORDS) | {NOT_HOLDERS_FILE}
+    excused = not_holders(root)
+    found: list[str] = []
+    for rel, path in _scanned_files(root):
+        if rel in skip or is_historical(rel):
+            continue
+        try:
+            text = read_text(path)
+        except (UnicodeDecodeError, OSError):
+            continue
+        for version in sorted(versions):
+            if (rel, version) in excused:
+                continue
+            found += [f"{rel}:{n}: {line.strip()}" for n, line in version_lines(text, version)]
+    return sorted(set(found))
 
 
 def provenance_files(root: Path) -> list[str]:
@@ -495,6 +671,12 @@ def plan(
     before = current_version(root)
     recorded = published_version(root)
     pinned_before = recorded or before
+    if strays := unrendered_holders(root, {before, pinned_before}):
+        raise PrepareError(
+            f"{len(strays)} line(s) name the release outside the rendered files and would go "
+            "stale: read the version at generate time, add a VERSION_FIELDS entry, or mark the "
+            "line docs-currency: historical: " + "; ".join(strays[:20])
+        )
     if target < parse_version(pinned_before):
         raise PrepareError(f"{version} is older than the published release {pinned_before}")
     if target < parse_version(before):

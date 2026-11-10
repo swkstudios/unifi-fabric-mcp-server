@@ -19,9 +19,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights, network_vpn_dns, system_log
-from unifi_fabric.tools._number_window import collect_number_window
-from unifi_fabric.tools._pagination import collect_batch
+from unifi_fabric.families.network import network_controller_insights
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns
+from unifi_fabric.shared_shapes._number_window import collect_number_window
+from unifi_fabric.shared_shapes._pagination import collect_batch
 
 RECORDS = list(range(100))
 
@@ -108,7 +110,7 @@ async def test_window_cap_after_discovery_stops_the_gather_incomplete(cap):
 async def test_tool_window_respects_paginate_max_pages_before_discovery():
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         requests.append(dict(json))
         number = json["pageNumber"]
         return {"data": RECORDS[number * 4 : (number + 1) * 4], "traceId": "synthetic-cap"}
@@ -223,7 +225,7 @@ def _incomplete(result: dict[str, Any]) -> tuple[Any, Any]:
 async def test_page_size_alone_window_stops_at_the_cap_without_a_continuation(tool):
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         # Clamps pageSize to 4 and declares no total or page count.
         requests.append({k: json[k] for k in ("pageNumber", "pageSize")})
         number = json["pageNumber"]
@@ -266,7 +268,7 @@ async def test_short_page_zero_repeat_check_is_inside_the_cap(cap):
 async def test_tool_page_size_alone_short_ignoring_console_under_the_cap(tool, cap):
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         requests.append({k: json[k] for k in ("pageNumber", "pageSize")})
         return {"data": ROWS[0:3]}
 

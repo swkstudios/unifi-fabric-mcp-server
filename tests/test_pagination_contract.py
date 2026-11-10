@@ -61,7 +61,7 @@ def _reachable(fn: Callable[..., Any]) -> frozenset[Callable[..., Any]]:
 
 
 def test_every_registered_paging_tool_reaches_shared_batch_policy():
-    from unifi_fabric.tools import _pagination
+    from unifi_fabric.shared_shapes import _pagination
 
     helpers = {
         helper
@@ -82,7 +82,9 @@ def test_every_registered_paging_tool_reaches_shared_batch_policy():
 
 
 def test_unpaged_history_exception_matches_pinned_upstream_and_registered_source():
-    from unifi_fabric.tools.protect_automation_backup import _get_protect_automation_history
+    from unifi_fabric.families.protect.protect_automation_backup import (
+        _get_protect_automation_history,
+    )
 
     path = Path(__file__).parent / "fixtures/protect_automation_history_upstream.json"
     inventory = json.loads(path.read_text())

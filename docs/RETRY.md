@@ -19,7 +19,12 @@ control `GET` passes `max_retries=0`, the rule's own value for it). Retry a writ
 
 ## Rate Limit Handling (HTTP 429) for a read via GET
 
-When the UniFi API answers a read via `GET` with HTTP 429 (Too Many Requests), the server retries with **exponential backoff + jitter**:
+When the UniFi API answers a read via `GET` with HTTP 429 (Too Many Requests), the server waits and retries. If the response carries a usable `Retry-After` header, the wait is exactly that long; otherwise the server falls back to **exponential backoff + jitter**.
+
+- **`Retry-After`**: the pinned Site Manager API spec declares this header on the 429 response of 14 operations, the five `/v1/connector/consoles/{id}/*path` verbs among them. The value is either delay-seconds (`Retry-After: 7`) or an HTTP date (`Retry-After: Sun, 08 Nov 2026 12:00:30 GMT`; a date already past is a zero wait). It replaces the backoff and jitter for that wait, up to the server's own backoff ceiling of 64 seconds. A longer `Retry-After` is not slept: the read stops and the `RateLimitError` shows the header value so the caller can retry after it. A missing, empty, negative or unparsable value is ignored and the backoff below applies. The attempt count is unchanged (6 attempts).
+- **When the retries are used up**, or for any 429 on a request that is never retried, the `RateLimitError` message ends with the upstream body verbatim followed by a `Retry-After: <value>` line when the upstream sent one, so the caller knows how long to wait before trying again.
+
+The backoff used when there is no usable `Retry-After`:
 
 - **Max retries**: 5 (6 total attempts)
 - **Backoff formula**: `delay = min(2^attempt, 32) + random_jitter`, where `attempt` is 0-based (0 for the sleep before the 2nd request, 1 before the 3rd, etc.)
@@ -46,13 +51,30 @@ talkback, siren, speaker, relay, alarm-hub and arm actions), the client actions
 control `GET` that `set_camera_control_enabled` sends, and every
 `fabric_connector_*` mutation. A tool's read-before and read-after GETs keep the GET retry.
 
+## Fabric connector limits (HTTP 408, 429, 502)
+
+The pinned Site Manager API spec documents four limits on every `/v1/connector/consoles/{id}/*path` route (the GET, POST, PUT, PATCH and DELETE operations; sections Requirements, Rate Limit and Limits of each operation's description, and the 408, 429 and 502 responses). Every connector error keeps its upstream status and body verbatim; when it matches a limit, a hint follows the body (the relay carries it as `_hint`). Nothing is retried or rewritten.
+
+| Limit (spec wording) | Status | Hint |
+| --- | --- | --- |
+| Each proxied request must complete within 25 seconds, otherwise it is terminated and a timeout error is returned | 408 | The request exceeded the connector's 25 second limit, or the console is offline or restarting, or its firmware is below the minimum; check the console with `list_hosts`; for a wide read send a smaller window or page size |
+| Console firmware version must be 5.0.3 or later | 408 | Named in the same hint |
+| Each console is limited to 100 requests per minute | 429 | The connector limits each console to 100 requests per minute; wait for the window to reopen and prefer fewer, larger requests (a bigger page size) |
+| The upstream response body is limited to 10 MB; larger responses are not supported | 502 | A 502 on a connector route can mean the console is unreachable or the response is over the 10 MB limit; send a smaller window or page size. The spec names no status for this limit, so the hint says "possible" |
+
+HTTP 408 is not retried. A 408 (or 502) on a write is reported as **outcome unknown**, like a 503 or 504: the connector may have forwarded the request, so the change may or may not have applied. The write is not retried; read the resource back (the error names the read to use) before sending it again. A 429 follows the rule above: a read waits the upstream `Retry-After` and retries, a write is sent once; the hint is appended to the raised error.
+
+## HTTP 200 carrying an error (Network v2)
+
+A Network v2 route (`network/v2/api/...`) can refuse a request with HTTP 200 and a body whose only member is an `error` object carrying a `code` and a `message`, for example `{"error": {"code": 400, "message": "api.err.InvalidPayload"}}`. That answer is classified as an upstream error, never as a success: a typed tool raises with the complete body verbatim and a write is audited with outcome `upstream_error_body`. The generic `fabric_connector_*` relays keep reporting the status and body and add `_upstreamError` with the reason, and draw no `noOp` or `changed` verdict. Only that exact shape is matched; a response that holds an `error` field beside other fields or deeper in a record is passed through unchanged. Nothing is retried.
+
 ## Network Errors (No Retry)
 
 The following errors are **not retried** and raise immediately:
 
 - **Transport timeout**: A peer, proxy, or custom transport reports a timeout. The client does not impose an elapsed-time deadline.
 - **Connection failed**: Network unreachable, DNS failure, refused connection
-- **HTTP errors**: non-429 4xx (auth, not found) and 5xx (server error) are raised immediately without retry
+- **HTTP errors**: non-429 4xx (auth, not found), 408 and 5xx (server error) are raised immediately without retry
 
 These are considered non-transient and retrying would not help. See the [configuration reference](CONFIGURATION.md) for related settings.
 

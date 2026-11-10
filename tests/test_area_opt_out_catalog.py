@@ -23,10 +23,10 @@ from unifi_fabric import server, switches
 from unifi_fabric.config import Settings
 from unifi_fabric.discovery import META_TOOLS
 from unifi_fabric.families import build_family_index
+from unifi_fabric.families.connector.connector import CONNECTOR_WRITE_ENV
 from unifi_fabric.read_only import read_only_message
 from unifi_fabric.read_only_tools import AreaOptOutMiddleware, ReadOnlyToolMiddleware
 from unifi_fabric.refusal_audit import RefusedWriteAuditMiddleware
-from unifi_fabric.tools.connector import CONNECTOR_WRITE_ENV
 
 ROOT = Path(__file__).resolve().parents[1]
 AREA_ENVS = [s.env for s in switches.AREA_WRITE_SWITCHES]
@@ -164,13 +164,17 @@ async def test_opt_out_hides_its_area_writes(monkeypatch, tmp_path, no_upstream,
             names = sorted(hidden)
         else:
             assert listed == META_TOOLS
-            rows = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+            rows = (
+                await client.call_tool("search_tools", {"query": "", "limit": None})
+            ).structured_content["result"]
             assert {row["name"] for row in rows} == expected
             writes = (
                 await client.call_tool("search_tools", {"query": "", "writes": True, "limit": None})
-            ).data
+            ).structured_content["result"]
             assert not {row["name"] for row in writes} & hidden
-            families = (await client.call_tool("list_tool_families", {})).data
+            families = (await client.call_tool("list_tool_families", {})).structured_content[
+                "result"
+            ]
             assert {row["family"]: row["tools"] for row in families} == dict(
                 Counter(index[name] for name in expected)
             )
@@ -267,9 +271,13 @@ async def test_opt_outs_compose_with_read_only_and_family_lists(
         if mode == "full":
             assert {tool.name for tool in await client.list_tools()} == expected
         else:
-            rows = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+            rows = (
+                await client.call_tool("search_tools", {"query": "", "limit": None})
+            ).structured_content["result"]
             assert {row["name"] for row in rows} == expected
-            families = (await client.call_tool("list_tool_families", {})).data
+            families = (await client.call_tool("list_tool_families", {})).structured_content[
+                "result"
+            ]
             assert {row["family"] for row in families} == {"network", "firewall", "site_manager"}
             assert sum(row["tools"] for row in families) == len(expected)
         name = hidden_by_connector[0]
@@ -301,8 +309,8 @@ async def test_switches_set_on_keep_the_default_catalog(monkeypatch, tmp_path, m
             if mode == "discovery":
                 for meta in ("search_tools", "list_tool_families"):
                     args = {"query": "", "limit": None} if meta == "search_tools" else {}
-                    assert (await after.call_tool(meta, args)).data == (
+                    assert (await after.call_tool(meta, args)).structured_content == (
                         await before.call_tool(meta, args)
-                    ).data
+                    ).structured_content
     finally:
         restore()

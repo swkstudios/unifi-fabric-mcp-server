@@ -42,7 +42,7 @@ from tests._tool_catalog import lazy_parametrize
 from tests._tool_classes import tool_batches
 from unifi_fabric import refusals
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools import protect
+from unifi_fabric.families.protect import protect
 
 TOOLS = cti.TOOLS
 _call = cti._call
@@ -99,6 +99,7 @@ def test_ea_array_argument_set_is_complete():
 #: Array arguments whose ``[]`` is a value with no upstream request at all.
 _EMPTY_IS_LOCAL = {
     ("compare_site_performance", "sites"): "compares no site",
+    ("get_server_diagnostic_bundle", "live_probes"): "no probe requested, zero requests",
     ("batch_delete_firewall_policies", "ids"): "accepted empty batch, zero DELETEs",
     ("batch_delete_acl_rules", "ids"): "accepted empty batch, zero POSTs",
     ("batch_delete_firewall_zones", "ids"): "accepted empty batch, zero POSTs",

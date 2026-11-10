@@ -14,7 +14,7 @@ is [llms.txt](llms.txt); the tool-change recipe is [docs/AI-CHANGES.md](docs/AI-
 - Do not push until `scripts/prepush.sh` prints its pass line for the exact head ([push gate](#priority-and-workflow-rules)).
 - Never print or commit a credential value.
 
-Official-only catalog: with `UNIFI_EXCLUDE=unofficial,source:relay` 191 tools remain and 601 are excluded. `unofficial` removes every tool whose primary API source is private; `source:relay` removes the generic `fabric_connector_*` relays, which `unofficial` alone keeps and which can reach private routes ([official-only catalog](docs/CONFIGURATION.md#official-only-catalog)).
+Official-only catalog: with `UNIFI_EXCLUDE=unofficial,source:relay` 194 tools remain and 604 are excluded. `unofficial` removes every tool whose primary API source is private; `source:relay` removes the generic `fabric_connector_*` relays, which `unofficial` alone keeps and which can reach private routes ([official-only catalog](docs/CONFIGURATION.md#official-only-catalog)).
 
 Tools using console-internal paths depend on routes Ubiquiti can restrict without notice. `UNIFI_EXCLUDE=unofficial` alone excludes those tools but retains generic relays; use `UNIFI_EXCLUDE=unofficial,source:relay` for the official-only API profile.
 
@@ -111,7 +111,7 @@ and every unofficial tool (`unofficial`).
 <!-- END GENERATED -->
 
 Tool modules are grouped by UniFi product and task family under
-`src/unifi_fabric/tools/`. Every tool advertises the four MCP annotation hints, derived
+`src/unifi_fabric/families/`. Every tool advertises the four MCP annotation hints, derived
 from source and never hand-set (`src/unifi_fabric/tool_annotations.py`): read-only when it
 can issue no write verb, destructive for every write, idempotent for reads and single
 PUT or DELETE writes, open-world when it reaches the UniFi upstream. `docs/TOOLS.md`
@@ -129,6 +129,8 @@ src/unifi_fabric/
   families.py, api_sources.py: tool families and API-source selectors (UNIFI_FAMILY_ALLOW, UNIFI_EXCLUDE)
   read_only.py, read_only_tools.py, switches.py: UNIFI_WRITE_POLICY and UNIFI_WRITE_EXCEPTIONS
   secret_scrub.py, redaction.py: the server's own secret scrub and the opt-in UNIFI_REDACT_SECRETS masking
+  audit.py, audit_chain.py: the audit stream and its opt-in tamper-evident hash chain (UNIFI_AUDIT_CHAIN)
+  audit_verify.py : the offline chain verifier (unifi-fabric-audit-verify); stdlib only, never imported by the server
   transport_security.py: HTTP auth, Host and Origin checks, OAuth write scope
   tool_annotations.py: the four MCP hints, derived from source
   tools/          : Tool modules, each with a register(mcp, deps_fn) function, grouped by product and task:
@@ -262,7 +264,7 @@ pytest tests/test_cross_tool_invariants.py tests/test_secret_leak_invariant.py -
 They are permanently skipped in public CI. Do not add `@pytest.mark.integration` to unit tests.
 
 **Test structure:**
-- `tests/`: all test files; a tool module's tests are in `test_<module>.py` (or `test_<module>_*.py` when split) matching `src/unifi_fabric/tools/<module>.py`
+- `tests/`: all test files; a tool module's tests are in `test_<module>.py` (or `test_<module>_*.py` when split) matching `src/unifi_fabric/families/<module>.py`
 - `tests/fixtures/` — synthetic JSON response data (no real device data)
 - `tests/conftest.py` — shared fixtures: `multikey_client`, `multikey_registry`,
   `_hermetic_credentials_env` (autouse), `auth_http_client`

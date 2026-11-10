@@ -8,7 +8,7 @@ import respx
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools.connector import connector_get, connector_write
+from unifi_fabric.families.connector.connector import connector_get, connector_write
 
 
 @pytest.mark.parametrize("status", [401, 403])

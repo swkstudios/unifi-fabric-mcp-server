@@ -17,11 +17,14 @@ from httpx import Request, Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.innerspace.innerspace import list_innerspace_floor_plans
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network.network_services_proxy import list_countries
+from unifi_fabric.families.protect.protect import collect_protect_events
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import aggregation, carrier_fabric, device_mgmt, mobility, site_manager
-from unifi_fabric.tools.innerspace import list_innerspace_floor_plans
-from unifi_fabric.tools.network_services_proxy import list_countries
-from unifi_fabric.tools.protect import collect_protect_events
 
 BASE = "https://api.ui.com"
 HOST = "AABBCCDDEEFF0000:1"
@@ -321,7 +324,7 @@ async def test_unexpected_shapes_raise_with_the_shape(client):
 
 @respx.mock
 async def test_collect_protect_events_drains_each_poll(client, monkeypatch):
-    from unifi_fabric.tools import protect
+    from unifi_fabric.families.protect import protect
 
     monkeypatch.setattr(protect, "_sleep", AsyncMock())
     events = [{"id": f"e{i}"} for i in range(260)]

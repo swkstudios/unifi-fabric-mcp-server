@@ -15,12 +15,12 @@ from tests.test_network_dpi_policy_batch_delete import (
 )
 from tests.test_network_dpi_policy_review_failures import bound_context
 from unifi_fabric.client import UniFiConnectionError, UniFiHTTPError
-from unifi_fabric.tools import device_commands
-from unifi_fabric.tools import network_dpi_policy as dpi
-from unifi_fabric.tools import network_routing_topology as routing
-from unifi_fabric.tools import protect_automation_backup as backups
-from unifi_fabric.tools._payload import upstream_hint
-from unifi_fabric.tools._results import deletion_readback_ids
+from unifi_fabric.families.devices import device_commands
+from unifi_fabric.families.network import network_dpi_policy as dpi
+from unifi_fabric.families.network import network_routing_topology as routing
+from unifi_fabric.families.protect import protect_automation_backup as backups
+from unifi_fabric.shared_shapes._payload import upstream_hint
+from unifi_fabric.shared_shapes._results import deletion_readback_ids
 
 
 @pytest.mark.parametrize(

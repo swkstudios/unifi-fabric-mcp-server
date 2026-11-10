@@ -84,11 +84,13 @@ def install_tool_titles(mcp: Any) -> int:
     argument-error middleware and the tool-family filter (which removes tools).
     """
     try:
-        components = mcp._local_provider._components  # noqa: SLF001
+        from .local_components import tool_components
+
+        components = tool_components(mcp)
     except AttributeError:  # pragma: no cover - defensive against FastMCP internals
         return 0
     titled = 0
-    for component in components.values():
+    for component in components:
         if not hasattr(component, "parameters") or getattr(component, "title", None):
             continue
         component.title = acronym_title(component.name)

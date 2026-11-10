@@ -12,7 +12,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests.test_cross_tool_invariants import _call, _FailedReadAfter
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools import carrier_fabric as cf
+from unifi_fabric.families.carrier import carrier_fabric as cf
 
 
 @functools.cache

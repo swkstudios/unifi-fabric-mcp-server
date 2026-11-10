@@ -7,6 +7,7 @@ registry-wide sweep is a test failure, never a silent skip.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from tests.upstream_harness import (
@@ -72,6 +73,10 @@ BY_NAME: dict[str, Any] = {
     "method": "balanced",
     # relay / alarm-hub output channel: the spec's integer 0 or 1, taken as a string
     "output_id": "0",
+    # gap tools: a documentation-range client IP (the tool validates it as an IP address)
+    "client_ip": "192.0.2.50",
+    "alert_id": ARG_HEX,
+    "service": "openvpn",
 }
 
 # differs from the fake upstream's current values, so read-before/no-op writes still write
@@ -80,6 +85,8 @@ OBJECT_DEFAULT: dict[str, Any] = {"name": "probe-renamed"}
 # Per-tool overrides (merged over the generated arguments).
 _SITE_SCOPED = {"host": HOST, "site": SITE}
 OVERRIDES: dict[str, dict[str, Any]] = {
+    # Network event buffers are per site (a Network read without a site is refused).
+    "read_recent_events": _SITE_SCOPED,
     # The private active-client route has no empty-query recording. Its documented
     # Matter/Thread flag selects the committed capture used by every catalog-wide sweep.
     "list_active_clients": {"include_matter_thread_clients": True},
@@ -121,6 +128,11 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     "delete_guest_portal_file": {"file_id": ARG_HEX},
     "get_network_config_defaults": {"kind": "lan", **_SITE_SCOPED},
     "get_controller_stats": {"view": "source"},
+    # The system-log `all` POST is read-allowlisted (a read at runtime), so the native tools
+    # that still send it with client.post (derived writes) are exercised on a class that is
+    # not: the write-safety properties need a write route at the default arguments.
+    "get_system_log": {"log_class": "device-alert"},
+    "list_network_events": {"view": "device-alert"},
     "list_site_warnings": {"source": "all", **_SITE_SCOPED},
     "set_ups_pairing": {"action": "unpair", "console_mac": ARG_MAC},
     "get_radio_history": {"view": "timeline", "start": NOW - 3600, "end": NOW},
@@ -215,6 +227,13 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     "get_rolling_upgrade_plan": {"time_estimate": True},
     "get_device_replacement_options": {"device": ARG_MAC},
     "update_device_radio": {"device": ARG_MAC, "radios": {"na": {"ht": 40}}},
+    "get_switch_port_overrides": {"device": ARG_MAC},
+    "update_switch_port_overrides": {
+        "device": ARG_MAC,
+        "ports": [{"port_idx": 1, "name": "probe-port"}],
+        # Port 2 holds the synthetic override (SWITCH_PORT_OVERLAY); never port 1 (updated).
+        "remove_ports": [2],
+    },
     "update_protect_case": {"name": "probe-renamed"},
     "update_protect_case_asset": {"note": "probe-renamed"},
     "export_protect_case": {"action": "prepare", "case_id": ARG_ID},
@@ -314,13 +333,6 @@ OVERRIDES: dict[str, dict[str, Any]] = {
             "enabled": True,
         }
     },
-    "create_traffic_rule": {
-        "payload": {
-            "action": "BLOCK",
-            "matching_target": "INTERNET",
-            "target_devices": [{"type": "ALL_CLIENTS"}],
-        }
-    },
     # v2 device tags: the controller answers HTTP 500 without the member lists; tags are
     # addressed by their v2 _id (the harness's generic record 0 carries ARG_HEX as _id).
     "create_device_tag": {"tag": {"name": ARG_NAME, "member_device_macs": []}},
@@ -334,8 +346,6 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     # generic record 0 carries ARG_HEX as its _id.
     "update_port_forward": {"forward_id": ARG_HEX},
     "delete_port_forward": {"forward_id": ARG_HEX},
-    "update_traffic_rule": {"rule_id": ARG_HEX},
-    "delete_traffic_rule": {"rule_id": ARG_HEX},
     "update_traffic_route": {"route_id": ARG_HEX},
     "delete_traffic_route": {"route_id": ARG_HEX},
     "update_user": {"user_id": ARG_HEX},
@@ -484,7 +494,6 @@ SYNTHETIC_RECORD_TOOLS: frozenset[str] = frozenset(
         "delete_site",
         "delete_site_to_site_tunnel",
         "delete_static_route",
-        "delete_traffic_rule",
         "detach_from_orchestration",
         "exclude_network_on_port_profile",
         "extend_guest",
@@ -497,6 +506,7 @@ SYNTHETIC_RECORD_TOOLS: frozenset[str] = frozenset(
         "get_observability_site_health",
         "get_protect_stream_url",
         "get_sites_overview",
+        "get_switch_port_overrides",
         "list_carrier_subscribers",
         "list_mobility_workspaces",
         "list_protect_cases",
@@ -507,7 +517,6 @@ SYNTHETIC_RECORD_TOOLS: frozenset[str] = frozenset(
         "migrate_network_to_layer3",
         "reboot_protect_device",
         "recover_switch_port",
-        "remove_client_fixed_ip",
         # the Matter node capture is an empty list (no node on the recorded controller)
         "remove_matter_node",
         "rename_matter_node",
@@ -516,10 +525,7 @@ SYNTHETIC_RECORD_TOOLS: frozenset[str] = frozenset(
         "revoke_guest_access",
         "run_device_self_test",
         "set_client_fingerprint_override",
-        "set_client_fixed_ip",
         "set_client_icon",
-        "set_client_name",
-        "set_client_note",
         "set_client_user_group",
         "set_device_alignment_mode",
         "set_device_rearrange_mode",
@@ -537,10 +543,18 @@ SYNTHETIC_RECORD_TOOLS: frozenset[str] = frozenset(
         "update_radius_profile",
         "update_recognition_group",
         "update_site_to_site_tunnel",
+        "update_switch_port_overrides",
         "update_static_route",
-        "update_traffic_rule",
     }
 )
+
+
+#: Tools that read a switch's port_table / port_overrides from the synthetic device record.
+SWITCH_PORT_TOOLS = frozenset({"get_switch_port_overrides", "update_switch_port_overrides"})
+SWITCH_PORT_OVERLAY: dict[str, Any] = {
+    "port_table": [{"port_idx": 1, "op_mode": "switch"}, {"port_idx": 2, "op_mode": "switch"}],
+    "port_overrides": [{"port_idx": 2, "name": "probe-kept", "poe_mode": "auto"}],
+}
 
 
 def prepare_upstream(name: str, upstream: Any) -> None:
@@ -550,6 +564,14 @@ def prepare_upstream(name: str, upstream: Any) -> None:
     when its arguments are generated, so a test that builds the arguments before it installs
     the harness is served the same way.
     """
+    if name in SWITCH_PORT_TOOLS and upstream is not None:
+        # The synthetic device record has no ports; give record 0 a switch port table and
+        # the port 2 override the generated remove_ports names (in every harness mode, and
+        # again on every call, because a write is reflected into the overlay).
+        upstream.overlay.setdefault("port_table", copy.deepcopy(SWITCH_PORT_OVERLAY["port_table"]))
+        rows = upstream.overlay.setdefault("port_overrides", [])
+        if not any(isinstance(r, dict) and r.get("port_idx") == 2 for r in rows):
+            rows.extend(copy.deepcopy(SWITCH_PORT_OVERLAY["port_overrides"]))
     if getattr(upstream, "mode", None) != "normal":
         return
     if name in SYNTHETIC_RECORD_TOOLS:
@@ -596,7 +618,7 @@ def _recorded_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
     ):
         return args
     entries = list(upstream.recorded_routes.values())
-    if name == "collect_protect_events":
+    if name in {"collect_protect_events", "collect_protect_incident_evidence"}:
         for entry in entries:
             path = entry["request"]["path"]
             if path.endswith("/proxy/protect/api/events"):

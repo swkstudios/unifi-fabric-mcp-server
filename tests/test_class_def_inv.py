@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-from unifi_fabric.tools import network_services_proxy as nsp
+from unifi_fabric.families.network import network_services_proxy as nsp
 
 
 def _registry() -> MagicMock:

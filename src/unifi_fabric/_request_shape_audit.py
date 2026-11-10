@@ -401,7 +401,7 @@ class Derivation:
                 # Collection helpers return upstream records, not their route selectors.
                 if (
                     inspect.isfunction(target)
-                    and target.__module__ == "unifi_fabric.tools._pagination"
+                    and target.__module__ == "unifi_fabric.shared_shapes._pagination"
                     and target.__name__
                     in {"collect_offset", "collect_links", "collect_cursor", "collect_batch"}
                 ):

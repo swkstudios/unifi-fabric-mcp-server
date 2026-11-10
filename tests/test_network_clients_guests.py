@@ -26,8 +26,8 @@ from unifi_fabric import server
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import ClassicApiError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.network import network_clients_guests as ncg
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import network_clients_guests as ncg
 
 HOST = "console-n05"
 SITE_ID = "00000000-0000-4000-8000-0000000000a1"
@@ -933,7 +933,7 @@ def test_module_raise_sites_are_registered():
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if any(isinstance(child, ast.Raise) for child in ast.walk(node)):
-                assert f"tools/network_clients_guests.py:{node.name}" in sites
+                assert f"families/network/network_clients_guests.py:{node.name}" in sites
 
 
 # --------------------------------------------------------------------------- NO-GO classes
@@ -1045,7 +1045,7 @@ def test_registry_names_no_stale_site_in_this_module():
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and any(isinstance(child, ast.Raise) for child in ast.walk(node))
     }
-    prefix = "tools/network_clients_guests.py:"
+    prefix = "families/network/network_clients_guests.py:"
     named = {site[len(prefix) :] for site in registered_sites() if site.startswith(prefix)}
     assert named <= raising, named - raising
     assert raising <= named, raising - named

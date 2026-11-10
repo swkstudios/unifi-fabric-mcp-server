@@ -131,7 +131,7 @@ async def test_create_rtsps_qualities_stays_array_only(tools):
     [("high", True), (["low"], True), ("HIGH", False), (["HIGH"], False), ([], False)],
 )
 def test_mixed_type_alternatives_bind_their_own_type(value, ok):
-    from unifi_fabric._spec_limits_table import SPEC_LIMITS
+    from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
     from unifi_fabric.spec_limits import limit_problems
 
     limits = SPEC_LIMITS["delete_rtsps_stream"]["qualities"]

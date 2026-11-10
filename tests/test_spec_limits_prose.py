@@ -30,7 +30,7 @@ from tests import test_spec_conformance as sc
 from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric import refusals
-from unifi_fabric.tools import carrier_fabric
+from unifi_fabric.families.carrier import carrier_fabric
 
 TOOLS = cti.TOOLS
 _call = cti._call

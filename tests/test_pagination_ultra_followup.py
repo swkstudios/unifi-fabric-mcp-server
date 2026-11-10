@@ -9,11 +9,12 @@ import pytest
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.protect import protect, recognition
+from unifi_fabric.families.protect.protect_events_cases import get_protect_case_activity
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import carrier_fabric, protect, recognition
-from unifi_fabric.tools._continuation import decode_continuation
-from unifi_fabric.tools._pagination import collect_batch, collect_links, collect_offset
-from unifi_fabric.tools.protect_events_cases import get_protect_case_activity
+from unifi_fabric.shared_shapes._continuation import decode_continuation
+from unifi_fabric.shared_shapes._pagination import collect_batch, collect_links, collect_offset
 
 
 def _client(fetch):

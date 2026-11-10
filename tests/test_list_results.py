@@ -102,13 +102,17 @@ async def test_every_tool_is_wrapped_exactly_when_its_output_schema_admits_the_p
         assert is_wrapped(await server.mcp.get_tool(tool.name)) is valid, tool.name
         if not valid:
             skipped.append(tool.name)
-    # Every tool now returns an object or list (delete tools return a deletion result
-    # carrying the upstream body), so no tool advertises a schema that rejects the
-    # list payload; any that ever does must really reject an array payload.
-    assert skipped == []
+    # Every tool returns an object or list (delete tools return a deletion result
+    # carrying the upstream body). Only the tools whose result the server assembles
+    # itself declare a concrete object schema (output_schemas.SELF_BUILT); they always
+    # return an object, so their schema rejects the list payload and they are served
+    # unwrapped. No other tool may advertise a schema that rejects it.
+    from unifi_fabric.output_schemas import META_TOOL_SCHEMAS, SELF_BUILT
+
+    assert set(skipped) == set(SELF_BUILT) - META_TOOL_SCHEMAS
     for name in skipped:
         props = (await server.mcp.get_tool(name)).output_schema["properties"]
-        assert not _schema_admits_array(props["result"]), name
+        assert "result" not in props or not _schema_admits_array(props["result"]), name
 
 
 def test_install_is_idempotent():

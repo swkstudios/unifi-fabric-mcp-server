@@ -17,7 +17,7 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools.carrier_fabric import (
+from unifi_fabric.families.carrier.carrier_fabric import (
     CARRIER_BASE,
     assign_carrier_subscriber_plan,
     attach_carrier_subscriber_host,

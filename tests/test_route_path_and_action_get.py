@@ -17,9 +17,10 @@ from unifi_fabric import server, switches
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
 from unifi_fabric.discovery import apply_tool_mode
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.innerspace import innerspace_internal
 from unifi_fabric.read_only_tools import AreaOptOutMiddleware, ReadOnlyToolMiddleware
 from unifi_fabric.secret_scrub import configured_secrets, scrub, secret_scope
-from unifi_fabric.tools import connector, innerspace_internal
 from unifi_fabric.transport_security import WriteScopeMiddleware
 
 TOKEN = "00000000-0000-4000-8000-000000000001"

@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import network, network_dpi_policy, network_proav_sandbox
-from unifi_fabric.tools._payload import upstream_hint, with_upstream_hint
+from unifi_fabric.families.network import network, network_dpi_policy, network_proav_sandbox
+from unifi_fabric.shared_shapes._payload import upstream_hint, with_upstream_hint
 
 
 class DetailedError(UniFiConnectionError):

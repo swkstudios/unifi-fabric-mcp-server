@@ -22,7 +22,7 @@ from fastmcp.exceptions import ToolError
 from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
-from unifi_fabric.tools import mobility
+from unifi_fabric.families.mobility import mobility
 
 EVENT_TOOLS = ("list_protect_events", "collect_protect_events")
 SPEC = Path(__file__).parent / "fixtures" / "openapi" / "mobility-1.0.0.json"

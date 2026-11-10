@@ -11,7 +11,7 @@ from fastmcp.exceptions import ToolError
 
 from tests import upstream_harness as uh
 from unifi_fabric import server
-from unifi_fabric.tools._continuation import decode_continuation, encode_continuation
+from unifi_fabric.shared_shapes._continuation import decode_continuation, encode_continuation
 
 
 @dataclass

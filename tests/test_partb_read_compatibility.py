@@ -7,9 +7,9 @@ import httpx
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import protect_camera_recording as recording
-from unifi_fabric.tools import protect_device_lifecycle as lifecycle
-from unifi_fabric.tools import protect_recognition_search as recognition
+from unifi_fabric.families.protect import protect_camera_recording as recording
+from unifi_fabric.families.protect import protect_device_lifecycle as lifecycle
+from unifi_fabric.families.protect import protect_recognition_search as recognition
 
 DEVICE = "66d025b301ebc903e80003ec"
 

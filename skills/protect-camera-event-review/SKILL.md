@@ -30,6 +30,6 @@ Changing camera or recording settings is a separate task: find its tool with
 
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
-| `list_cameras` | read | `host` | `{result, _count}` with cameras verbatim; `tools/protect.py::list_cameras` → `tools/protect.py::list_cameras`; `readOnlyHint: true` |
-| `list_protect_events` | read | `host`, `start`, `end` (`cameras`, `types`, `smart_detect_types`, `limit`, `offset`, others) | events with envelope, `_count`, `_warnings`; `tools/protect.py::list_protect_events` → `tools/protect.py::list_protect_events`; `readOnlyHint: true` |
-| `get_camera_snapshot` | read | `host`, `camera_id` (`channel`, `high_quality`, `ts`) | image plus `{image_base64, content_type, size_bytes}`; `tools/protect.py::get_camera_snapshot` → `tools/protect.py::get_camera_snapshot`; `readOnlyHint: true` |
+| `list_cameras` | read | `host` | `{result, _count}` with cameras verbatim; `families/protect/protect.py::list_cameras` → `families/protect/protect.py::list_cameras`; `readOnlyHint: true` |
+| `list_protect_events` | read | `host`, `start`, `end` (`cameras`, `types`, `smart_detect_types`, `limit`, `offset`, others) | events with envelope, `_count`, `_warnings`; `families/protect/protect.py::list_protect_events` → `families/protect/protect.py::list_protect_events`; `readOnlyHint: true` |
+| `get_camera_snapshot` | read | `host`, `camera_id` (`channel`, `high_quality`, `ts`) | image plus `{image_base64, content_type, size_bytes}`; `families/protect/protect.py::get_camera_snapshot` → `families/protect/protect.py::get_camera_snapshot`; `readOnlyHint: true` |

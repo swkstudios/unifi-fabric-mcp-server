@@ -10,8 +10,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import RateLimitError, UniFiConnectionError
+from unifi_fabric.families.clients import clients
+from unifi_fabric.families.devices import device_mgmt
 from unifi_fabric.resolution_state import wrap_resolution_result
-from unifi_fabric.tools import clients, device_mgmt
 
 MAC = "02:00:5e:00:00:aa"
 ID = "00000000-0000-4000-8000-0000000000aa"

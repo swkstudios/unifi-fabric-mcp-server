@@ -7,31 +7,31 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _create_radius_profile as create_radius_profile,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _create_site_to_site_tunnel as create_site_to_site_tunnel,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _create_vpn_server as create_vpn_server,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _delete_site_to_site_tunnel as delete_site_to_site_tunnel,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _delete_vpn_server as delete_vpn_server,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _get_radius_profile as get_radius_profile,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _get_vpn_server as get_vpn_server,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _update_site_to_site_tunnel as update_site_to_site_tunnel,
 )
-from unifi_fabric.tools.vpn import (
+from unifi_fabric.families.vpn.vpn import (
     _update_vpn_server as update_vpn_server,
 )
 
@@ -373,7 +373,7 @@ class TestGetRadiusProfile:
             await get_radius_profile(client, registry, "h", "s", "rad-99")
 
     async def test_unexpected_list_shape_raises(self, client, registry, monkeypatch):
-        from unifi_fabric.tools import vpn
+        from unifi_fabric.families.vpn import vpn
 
         async def _weird(*_a, **_k):
             return {"unexpected": True}

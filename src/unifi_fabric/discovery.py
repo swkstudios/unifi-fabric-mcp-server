@@ -18,12 +18,13 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.server.middleware.dereference import DereferenceRefsMiddleware
 from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.types import NotSet
-from mcp.types import ListToolsRequest
+from mcp.types import ListToolsRequest, TextContent
 
-from . import code_mode
+from . import code_mode, output_schemas
 from ._read_only_audit import derive_write_tools
 from .argument_errors import argument_validation_error, format_argument_error
 from .families import build_family_index, build_module_index
+from .list_results import to_structured_list_result
 from .read_only import read_only_message
 from .read_only_tools import (
     TOOL_NOT_EXPOSED,
@@ -33,6 +34,7 @@ from .read_only_tools import (
     not_exposed,
     refusal,
 )
+from .removed_tools import removed_tool_error
 from .switches import READ_ONLY_ENV
 from .tool_annotations import for_tool
 
@@ -139,6 +141,37 @@ def _schema_text(value: Any) -> str:
     if isinstance(value, list):
         return " ".join(_schema_text(item) for item in value)
     return ""
+
+
+def search_result(found: list[dict[str, Any]], limit: int | None) -> ToolResult:
+    """search_tools result: the ranked list plus the truncation marker.
+
+    Backward compatible by construction: the first text block and
+    ``structuredContent.result`` are the same JSON list as before, flagged for FastMCP
+    clients to unwrap. ``more_available`` and ``total_matched`` are added beside
+    ``result``. When the limit cut the list, a second text block says so in words, so a
+    client that shows the model only text still learns the list is partial.
+    """
+    shown = found if limit is None else found[:limit]
+    result = to_structured_list_result(shown)
+    more = len(shown) < len(found)
+    result.structured_content = {
+        **(result.structured_content or {}),
+        "more_available": more,
+        "total_matched": len(found),
+    }
+    if more:
+        result.content.append(
+            TextContent(
+                type="text",
+                text=(
+                    f"more_available: true. Showing {len(shown)} of {len(found)} matching "
+                    "tools. Raise limit, pass limit=null for every match, or refine the "
+                    "query or family."
+                ),
+            )
+        )
+    return result
 
 
 class SearchIndex:
@@ -305,6 +338,18 @@ class DiscoveryMiddleware(Middleware):
         return await call_next(context)
 
 
+def _request_write_refusal(
+    app: FastMCP, name: str, arguments: dict[str, Any]
+) -> tuple[str, str] | None:
+    """The request policy's coded refusal of write ``name``, or None (no request policy)."""
+    from .request_policy import RequestPolicyMiddleware
+
+    for middleware in app.middleware:
+        if isinstance(middleware, RequestPolicyMiddleware):
+            return middleware.write_refusal(name, arguments)
+    return None
+
+
 async def listed_entry(app: FastMCP, tool: Tool) -> dict[str, Any]:
     """The tool's entry exactly as the app's ``tools/list`` serves it to a client.
 
@@ -396,6 +441,9 @@ async def apply_tool_mode(
         if name in area_hidden:
             raise refusal(name, WRITE_DENIED, hidden_area_write_refusal(name, area_hidden[name]))
         if name not in catalog:
+            removed = removed_tool_error(name)
+            if removed is not None:
+                raise removed
             raise ToolError(
                 f"Unknown or unavailable tool {name!r}. "
                 "Use search_tools(query='', limit=null) to list enabled tools; "
@@ -406,11 +454,13 @@ async def apply_tool_mode(
 
     async def search_tools(
         query: str, family: str | None = None, writes: bool | None = None, limit: int | None = 10
-    ) -> list[dict[str, Any]]:
+    ) -> ToolResult:
         """Find enabled tools by intent, ranked over names, descriptions and parameter schemas.
 
         Default returns ten matches. Choose any positive limit, or null for every
-        match; no tool or search result is hard-capped. Empty query browses tools.
+        match; no tool or search result is hard-capped. more_available is true when
+        the limit cut the list (total_matched gives the full count): raise the limit
+        or refine. Empty query browses tools.
         Use describe_tool for the exact schema, then call_read_tool or call_write_tool.
 
         Args:
@@ -423,7 +473,8 @@ async def apply_tool_mode(
         if index is None:
             raise ToolError("Discovery lifecycle has ended")
         if limit is not None and limit < 1:
-            return index.search(query, family, writes, write_names, limit)  # its error
+            index.search(query, family, writes, write_names, limit)
+            raise AssertionError("limit < 1 is refused by SearchIndex.search")
         # Request policy headers (X-UniFi-Family-Allow / X-UniFi-Exclude) narrow the
         # searchable set to the tools this request may call.
         from .request_policy import visible_to_request
@@ -433,7 +484,7 @@ async def apply_tool_mode(
             for item in index.search(query, family, writes, write_names, None)
             if visible_to_request(item["name"])
         ]
-        return found if limit is None else found[:limit]
+        return search_result(found, limit)
 
     async def describe_tool(name: str) -> dict[str, Any]:
         """Return the complete enabled tool schema, identical to its full-mode tools/list entry.
@@ -482,10 +533,20 @@ async def apply_tool_mode(
                     read_only_message(name, tool=True)
                     + " call_write_tool is not listed while read-only mode is on.",
                 )
+            denial = _request_write_refusal(app, name, arguments)
+            if denial is not None:
+                # The request's own policy (headers, exceptions) denies this write: refuse
+                # with the coded refusal, as the direct call does, and audit it.
+                code, message = denial
+                if audit is not None:
+                    from .refusal_audit import denial_reason
+
+                    audit(name, denial_reason(name, arguments) if code == WRITE_DENIED else code)
+                raise refusal(name, code, message)
             if audit is not None and name == "fabric_connector_get":
                 # A state-changing relay route that a write opt-out refuses: audited with
                 # that switch, as the direct call is.
-                from .tools import connector
+                from .families.connector import connector
 
                 gate = connector.relay_get_opt_out_env(
                     arguments.get("path"), arguments.get("scope")
@@ -544,12 +605,14 @@ async def apply_tool_mode(
 
     async def code_search_tools(
         query: str, family: str | None = None, limit: int | None = 10
-    ) -> list[dict[str, Any]]:
+    ) -> ToolResult:
         """Find enabled read tools by intent, ranked over names, descriptions and parameter schemas.
 
         Code Mode is read-only: only read tools are searched. Default returns ten matches;
-        choose any positive limit, or null for every match. Empty query browses tools. Use
-        describe_tool for the exact schema, then call the tool inside an execute script.
+        choose any positive limit, or null for every match. more_available is true when
+        the limit cut the list (total_matched gives the full count). Empty query browses
+        tools. Use describe_tool for the exact schema, then call the tool inside an execute
+        script.
 
         Args:
             query: Natural language intent, for example "camera recordings";
@@ -560,7 +623,8 @@ async def apply_tool_mode(
         if index is None:
             raise ToolError("Discovery lifecycle has ended")
         if limit is not None and limit < 1:
-            return index.search(query, family, None, set(), limit)
+            index.search(query, family, None, set(), limit)
+            raise AssertionError("limit < 1 is refused by SearchIndex.search")
         from .request_policy import visible_to_request
 
         found = [
@@ -568,7 +632,7 @@ async def apply_tool_mode(
             for item in index.search(query, family, None, set(), None)
             if visible_to_request(item["name"])
         ]
-        return found if limit is None else found[:limit]
+        return search_result(found, limit)
 
     async def code_describe_tool(name: str) -> dict[str, Any]:
         """Return the complete schema of an enabled read tool, as call_tool inside execute takes it.
@@ -637,7 +701,7 @@ async def apply_tool_mode(
         + dispatch_guidance
         + "Enabled families (counts): "
         + family_catalog
-        + "."
+        + ". list_tool_families lists the families again."
     )
     functions: list[Callable[..., Any]] = (
         []
@@ -666,6 +730,9 @@ async def apply_tool_mode(
                     writes=fn is call_write_tool,
                     open_world=fn.__name__ in DISPATCH_TOOLS,
                 ),
+                # Results the server builds itself advertise their concrete shape; the
+                # two dispatch tools return the target tool's own result.
+                output_schema=output_schemas.SELF_BUILT.get(fn.__name__, NotSet),
             )
         )
     if codemode:
@@ -695,7 +762,7 @@ async def apply_tool_mode(
                     annotations=for_tool(writes=False, open_world=fn is execute),
                     # execute returns its output once, as text: no structuredContent copy,
                     # so the 65,536-byte output limit bounds the whole response.
-                    output_schema=None if fn is execute else NotSet,
+                    output_schema=(None if fn is execute else output_schemas.SELF_BUILT[tool_name]),
                 )
             )
     middleware = DiscoveryMiddleware(app, listed, code_mode=codemode)

@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 from tests import upstream_harness as uh
 from unifi_fabric import route_secrets as rs
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import network_routing_topology as rt
+from unifi_fabric.families.network import network_routing_topology as rt
 
 HOST = "console-a"
 SITE = "Default"

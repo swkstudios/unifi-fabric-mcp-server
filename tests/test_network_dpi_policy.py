@@ -16,7 +16,7 @@ from unifi_fabric import server
 from unifi_fabric._read_only_audit import derive_write_tools, write_verbs_for
 from unifi_fabric.client import UniFiClient, UniFiHTTPError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import network_dpi_policy as lane
+from unifi_fabric.families.network import network_dpi_policy as lane
 
 CASES = [
     (lane.reset_dpi_counters, "DELETE", "/dpi", {}),
@@ -166,7 +166,8 @@ async def test_preview_405_preserves_complete_error_and_adds_version_guidance(re
             )
     assert caught.value.status == 405
     assert body in str(caught.value)
-    assert "11.0.89" in str(caught.value) and "11.1.11" in str(caught.value)
+    assert lane.PREVIEW_RULE_405_VERSION in str(caught.value)
+    assert lane.PREVIEW_RULE_MIN_VERSION in str(caught.value)
     assert "POST /object-oriented-network-config/preview" in str(caught.value)
     assert len(requests) == 1 and requests[0].method == "POST"
     assert json.loads(requests[0].content) == {"enabled": False}
@@ -620,3 +621,37 @@ def test_masked_field_drop_is_recorded_once():
     finally:
         redaction._dropped_masked_fields.reset(token)
     assert dropped == ["password"]
+
+
+def test_preview_policy_engine_rule_states_its_network_minimum():
+    # Advertised label: the console version that serves the route, and what GA answers.
+    import asyncio
+
+    from unifi_fabric import server
+
+    tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
+    description = tools["preview_policy_engine_rule"].description or ""
+    assert "Network 11.1.11 or later; 11.0.89 answered 405 and the 11.0.99" in description
+    assert len(description) <= 2048
+
+
+async def test_preview_description_and_405_error_name_the_same_versions(registry):
+    """The tool description and the 405 error text read one version constant."""
+    async with Client(server.mcp) as mcp_client:
+        tools = {t.name: t for t in await mcp_client.list_tools()}
+    description = tools["preview_policy_engine_rule"].description
+    assert f"{lane.PREVIEW_RULE_405_VERSION} answered 405" in description
+    assert f"Network {lane.PREVIEW_RULE_MIN_VERSION} or later" in description
+
+    def handler(request):
+        return httpx.Response(405, text="Method Not Allowed")
+
+    client, transport = real_client(handler)
+    async with transport:
+        with pytest.raises(UniFiHTTPError) as caught:
+            await lane.preview_policy_engine_rule(
+                client, registry, "my-console", "Default", {"enabled": False}
+            )
+    message = str(caught.value)
+    assert f"Network {lane.PREVIEW_RULE_405_VERSION} answered HTTP 405" in message
+    assert f"Network {lane.PREVIEW_RULE_MIN_VERSION} frontend" in message

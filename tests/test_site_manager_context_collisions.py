@@ -6,8 +6,8 @@ import pytest
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import site_manager
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ async def test_search_preserves_upstream_type(client, registry, monkeypatch, sco
 
 
 async def test_protect_file_type_collision(client, registry):
-    from unifi_fabric.tools import protect
+    from unifi_fabric.families.protect import protect
 
     registry.resolve_key_for_host = AsyncMock(return_value=None)
     registry.resolve_host_id = AsyncMock(return_value="host-h1")
@@ -68,7 +68,7 @@ async def test_protect_file_type_collision(client, registry):
 
 @pytest.mark.parametrize("fails", [False, True])
 async def test_wan_context_collision(client, registry, monkeypatch, fails):
-    from unifi_fabric.tools import network
+    from unifi_fabric.families.network import network
 
     registry.resolve_key_for_host = AsyncMock(return_value=None)
     registry.resolve_host_id = AsyncMock(return_value="host-h1")
@@ -90,7 +90,7 @@ async def test_wan_context_collision(client, registry, monkeypatch, fails):
 
 
 async def test_setting_noop_note_collision(client, registry):
-    from unifi_fabric.tools import network_services_proxy as proxy
+    from unifi_fabric.families.network import network_services_proxy as proxy
 
     registry.resolve_key_for_host = AsyncMock(return_value=None)
     registry.resolve_host_id = AsyncMock(return_value="host-h1")
@@ -108,7 +108,7 @@ async def test_setting_noop_note_collision(client, registry):
 
 
 def test_resolved_profile_annotation_collision():
-    from unifi_fabric.tools import network_services_proxy as proxy
+    from unifi_fabric.families.network import network_services_proxy as proxy
 
     upstream = {"native_networkconf_id": "network-a", "_resolved_networks": "upstream"}
     result = proxy._resolve_profile_networkconf(upstream, {})
@@ -120,7 +120,7 @@ def test_resolved_profile_annotation_collision():
 
 @pytest.mark.parametrize("as_list", [False, True])
 def test_resolution_error_annotation_collision(as_list):
-    from unifi_fabric.tools import network_services_proxy as proxy
+    from unifi_fabric.families.network import network_services_proxy as proxy
 
     upstream = {"_resolvedNetworksError": "upstream"}
     result = proxy._with_resolution([upstream] if as_list else upstream, {}, "lookup-failed")
@@ -131,7 +131,7 @@ def test_resolution_error_annotation_collision(as_list):
 
 
 async def test_port_exclusion_response_annotation_collisions(client, registry, monkeypatch):
-    from unifi_fabric.tools import network_services_proxy as proxy
+    from unifi_fabric.families.network import network_services_proxy as proxy
 
     registry.resolve_key_for_host = AsyncMock(return_value=None)
     registry.resolve_host_id = AsyncMock(return_value="host-h1")
@@ -183,7 +183,7 @@ async def test_search_site_resolution_keeps_own_field(client, registry, monkeypa
 
 @pytest.mark.parametrize("value", ["upstream-warning", None, 17, {"own": "warning"}])
 def test_warning_annotation_keeps_non_list_upstream_field(value):
-    from unifi_fabric.tools import network_services_proxy as proxy
+    from unifi_fabric.families.network import network_services_proxy as proxy
 
     warning = {"code": "test-warning"}
     upstream = {"_warnings": value}

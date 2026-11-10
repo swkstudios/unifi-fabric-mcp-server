@@ -35,6 +35,7 @@ from unifi_fabric._read_only_audit import (
     reaches_upstream,
 )
 from unifi_fabric.argument_errors import _example_from_description
+from unifi_fabric.local_components import tool_components
 
 BASELINE = Path(__file__).parent / "fixtures" / "tool_input_schemas_baseline.json"
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,7 @@ def _tools() -> list[Any]:
 
 
 def _catalog_count() -> int:
-    return len(server.mcp._local_provider._components)  # noqa: SLF001 - registered catalog
+    return len(tool_components(server.mcp))
 
 
 def _strip_descriptions(schema: Any) -> Any:
@@ -329,14 +330,14 @@ def test_every_connector_annotation_accounts_for_all_reachable_routes() -> None:
 
 def test_open_world_is_false_exactly_for_the_local_tools() -> None:
     """The call-graph answer agrees with the API source table's local-only tools."""
-    from unifi_fabric._api_source_table import TOOL_API_SOURCES
+    from unifi_fabric.generated_api_facts._api_source_table import TOOL_API_SOURCES
 
     tools = _tools()
     local = {t.name for t in tools if not reaches_upstream(t.fn)}
     assert local == {
         name for name, sources in TOOL_API_SOURCES.items() if sources == ("server/local",)
     }
-    assert local == {"list_configured_api_keys"}
+    assert local == {"list_configured_api_keys", "get_event_stream_status"}
 
 
 def test_install_annotates_every_registered_tool_and_fails_closed() -> None:

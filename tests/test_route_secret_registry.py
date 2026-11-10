@@ -126,7 +126,6 @@ ROWLESS_TYPED_TOOLS = frozenset(
         "create_hotspot_package",
         "delete_doorbell_credential",
         "enroll_doorbell_credential",
-        "get_camera_adoption_qr",
         "get_lte_subscription_status",
         "import_innerspace_shared_project",
         "link_ubiquiti_sso_account",

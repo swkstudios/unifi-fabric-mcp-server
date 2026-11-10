@@ -38,11 +38,17 @@ fields (name, hostname, email, owner, first/last/full name) that are not placeho
 and identifiers inside free text under ANY key: host / domain names ending in a
 dotted name with an alphabetic last label that is not a known non-host shape or a
 reserved example domain, quoted spans ('Living Room', 'jsmith') that are not a
-placeholder or a listed schema word, and capitalised possessives ("Jane's AP").
+placeholder or a listed schema word, and capitalised possessives ("Jane's AP"), and
+unquoted name-like tokens in message / messageRaw / statusMessage values ("Device Kitchen AP
+offline").
 
 On every published text file (source, test code, public docs and fixtures alike):
 ObjectId literals whose embedded timestamp is live-plausible (2015-2039) and that are not
 zero-padded or a listed synthetic family.
+
+The secret and estate-name checks also run on every URL-, base64- or hex-decoded
+layer of a line (nested up to MAX_DECODE_DEPTH deep; only layers that decode to
+printable text), so an encoded literal is caught too.
 
 Findings print only "<file>:<line>: <category>" -- never the matched value --
 so no secret is echoed to CI logs.
@@ -52,6 +58,8 @@ from __future__ import annotations
 
 # Keep this import block in its current order (isort is disabled for it).
 # isort: off
+import base64
+import binascii
 import ipaddress
 import json
 import tomllib
@@ -59,6 +67,7 @@ import re
 import shlex
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 # isort: on
 
@@ -344,6 +353,73 @@ def is_partial_possessive(mo):
     return mo.group(1) not in NON_NAME_POSSESSIVES
 
 
+# Message fields. The controller builds message text from a fixed template plus
+# the user-chosen names it interpolates, and an unquoted name ("Device Kitchen AP
+# offline", "Adopted by Jane Smith") has no pattern the other rules can match. In a
+# message field a name-like token therefore replaces the whole value with a placeholder:
+# a capitalised word that does not open a sentence, an opening word that is not an
+# ordinary English message opener (a lone name such as "Kitchen disconnected"), an
+# opener followed by another capitalised word, or a word joined with - or _ that
+# carries a capital or a digit or is camelCase. Lower-case names are not caught by this
+# rule; quoted ones are caught by QUOTED_RE.
+MESSAGE_KEYS = frozenset({"message", "messageRaw", "statusMessage"})
+MESSAGE_NEUTRAL_RE = re.compile(
+    r"\{\w+\}|[A-Za-z_]+-\d{4}|\S*\.example\.(?:invalid|com)\S*|02:00:5e(?::[0-9a-f]{2}){3}",
+    re.IGNORECASE,
+)
+MESSAGE_TOKEN_RE = re.compile(r"[^\W\d_][\w-]*")
+MESSAGE_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+MESSAGE_OPENERS = frozenset(
+    "a an access adopted authentication bad can cannot case client connection could "
+    "device endpoint error failed failure forbidden insufficient invalid matter missing "
+    "must network no not operation permission request requested resource session site "
+    "the there this timed timeout token unable unauthorized unexpected unknown user "
+    "value".split()
+)
+MESSAGE_SAFE_TOKENS = (
+    frozenset(
+        "AP API DHCP DNS GET HEAD HTTP HTTPS ID IP IPv4 IPv6 JSON LAN MAC NTP OK PATCH POST "
+        "PUT DELETE SSH SSID SSL TCP TLS UDP URI URL USB UUID VPN WAN UniFi Wi-Fi".split()
+    )
+    | NON_NAME_POSSESSIVES
+)
+
+
+def message_name_tokens(value):
+    """Name-like tokens in one message value (the tokens are never returned to a log)."""
+    value = QUOTED_RE.sub(lambda mo: " " if is_safe_quoted(quoted_body(mo)) else mo.group(0), value)
+    value = MESSAGE_NEUTRAL_RE.sub(" ", value)
+    found = []
+    for sentence in MESSAGE_SENTENCE_RE.split(value):
+        tokens = MESSAGE_TOKEN_RE.findall(sentence)
+        for index, token in enumerate(tokens):
+            if token in MESSAGE_SAFE_TOKENS:
+                continue
+            # A word that opens a sentence is ordinary English unless a capitalised
+            # word follows it ("Living Room", "Kitchen AP").
+            opens = (
+                index == 0
+                and token.lower() in MESSAGE_OPENERS
+                and not (
+                    len(tokens) > 1
+                    and tokens[1][0].isupper()
+                    and tokens[1] not in MESSAGE_SAFE_TOKENS
+                )
+            )
+            parts = re.split(r"[-_]", token)
+            if len(parts) > 1:
+                name_like = any(
+                    part[:1].isupper() or any(c.isdigit() for c in part) for part in parts
+                )
+            else:
+                name_like = (token[0].isupper() and not opens) or bool(
+                    re.search("[a-z][A-Z]", token)
+                )
+            if name_like:
+                found.append(token)
+    return found
+
+
 def free_text_hits(value):
     """Identifiers inside free-text string values under any key (recorded captures)."""
     hits = []
@@ -363,6 +439,20 @@ def free_text_hits(value):
             hits.append("possessive name in free text")
         if any(is_partial_possessive(m) for m in PARTIAL_POSSESSIVE_RE.finditer(value)):
             hits.append("name word left before a scrubbed possessive")
+    return hits
+
+
+def message_name_hits(value, key=None):
+    """Unquoted name-like tokens in message fields (recorded captures), under any nesting."""
+    hits = []
+    if isinstance(value, list):
+        for item in value:
+            hits.extend(message_name_hits(item, key))
+    elif isinstance(value, dict):
+        for child_key, item in value.items():
+            hits.extend(message_name_hits(item, child_key))
+    elif isinstance(value, str) and key in MESSAGE_KEYS and message_name_tokens(value):
+        hits.append("name-like token in a message field")
     return hits
 
 
@@ -660,6 +750,114 @@ def estate_name_hits(line):
     return [
         "estate / internal name from forbidden-names.txt" for p in FORBIDDEN_NAMES if p.search(line)
     ]
+
+
+# ------------------------------------------------------------ decode-aware literal scan
+# A literal scan only sees what its regex sees: a secret or an estate name that is URL-,
+# base64- or hex-encoded (a deeplink payload, a data URI, a percent-escaped query string)
+# never matches the raw-text patterns above. ``decoded_views`` peels those layers, nested
+# up to MAX_DECODE_DEPTH deep, and the secret and name checks run again on every view.
+# A decoded layer counts only when it is printable UTF-8 text, so hashes, ObjectIds and
+# other opaque tokens (random bytes once decoded) are not views and cannot false-flag.
+MAX_DECODE_DEPTH = 3
+# Hard cap on views per line, so a pathological line cannot make the scan blow up.
+MAX_DECODED_VIEWS = 64
+MIN_ENCODED_TOKEN = 24  # characters; shorter tokens decode to under 18 bytes
+_PERCENT_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+_BASE64_TOKEN_RE = re.compile(
+    rf"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{{{MIN_ENCODED_TOKEN},}}={{0,2}}(?![A-Za-z0-9+/_=-])"
+)
+_HEX_TOKEN_RE = re.compile(
+    rf"(?<![0-9A-Za-z])(?:[0-9A-Fa-f]{{2}}){{{MIN_ENCODED_TOKEN // 2},}}(?![0-9A-Za-z])"
+)
+
+
+def _as_text(data):
+    """``data`` as text when it is wholly printable UTF-8 (tabs and newlines allowed)."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if text and all(ch.isprintable() or ch in "\t\r\n" for ch in text):
+        return text
+    return None
+
+
+def _base64_text(token):
+    body = token.rstrip("=")
+    if "-" in body or "_" in body:
+        if "+" in body or "/" in body:
+            return None  # mixed alphabets: not one base64 payload
+        altchars = b"-_"
+    else:
+        altchars = None
+    if len(body) % 4 == 1:
+        return None
+    padded = body + "=" * (-len(body) % 4)
+    try:
+        return _as_text(base64.b64decode(padded, altchars=altchars, validate=True))
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _decode_once(text):
+    """Every (layer, decoded text) one decoding step below ``text``."""
+    if _PERCENT_RE.search(text):
+        yield "url", urllib.parse.unquote(text)
+    for m in _BASE64_TOKEN_RE.finditer(text):
+        decoded = _base64_text(m.group(0))
+        if decoded is not None:
+            yield "base64", decoded
+    for m in _HEX_TOKEN_RE.finditer(text):
+        decoded = _as_text(bytes.fromhex(m.group(0)))
+        if decoded is not None:
+            yield "hex", decoded
+
+
+def decoded_views(text, depth=MAX_DECODE_DEPTH):
+    """Every text hidden in ``text`` under 1..``depth`` nested URL / base64 / hex
+    layers, as (layers, decoded) pairs; ``layers`` lists the encodings outermost
+    first. The raw text itself is not a view. Bounded by ``depth`` and by
+    MAX_DECODED_VIEWS."""
+    views = []
+    seen = {text}
+    frontier = [((), text)]
+    for _ in range(max(depth, 0)):
+        deeper = []
+        for layers, current in frontier:
+            for layer, decoded in _decode_once(current):
+                if decoded in seen:
+                    continue
+                seen.add(decoded)
+                view = ((*layers, layer), decoded)
+                views.append(view)
+                deeper.append(view)
+                if len(views) >= MAX_DECODED_VIEWS:
+                    return views
+        frontier = deeper
+    return views
+
+
+def _view_labels(text, names):
+    labels = [label for label, pattern in DENYLIST if pattern.search(text)]
+    if names:
+        labels.extend(estate_name_hits(text))
+    return labels
+
+
+def decoded_hits(line, names=False):
+    """Secret shapes (DENYLIST) and, when ``names``, estate names found inside an
+    encoded layer of ``line`` that the raw line does not already carry (the raw checks
+    report those). Labels name the layers, never the decoded value."""
+    views = decoded_views(line)
+    if not views:
+        return []
+    raw = set(_view_labels(line, names))
+    labels = []
+    for layers, decoded in views:
+        where = " inside " + ">".join(layers) + " encoding"
+        labels.extend(label + where for label in _view_labels(decoded, names) if label not in raw)
+    return list(dict.fromkeys(labels))
 
 
 # ------------------------------- ObjectIds with a live-plausible timestamp (all public text)
@@ -961,6 +1159,10 @@ _CREDENTIAL_NAMES = {
     "sshpassword",
     "syslogkey",
     "token",
+    # The WireGuard client .conf (inline PrivateKey / PresharedKey) and its standalone
+    # pre-shared key: runtime CREDENTIAL_FIELDS names, matched in every spelling.
+    "wireguardclientconfigurationfile",
+    "wireguardclientpresharedkey",
     "wpapsk",
     "xapikey",
     "xapitoken",
@@ -1270,6 +1472,8 @@ def scan_text(rel, text, recorded=None):
         if recorded:
             for label in free_text_hits(parsed):
                 findings.append(f"{rel}: {label}")
+            for label in message_name_hits(parsed):
+                findings.append(f"{rel}: {label}")
     # Fixture data only: example configs and the private-only .mcp.json (stripped from
     # the public tree) may name the private services they configure.
     check_names = rel.startswith(FORBIDDEN_SCOPE_PREFIXES) and not rel.startswith(
@@ -1296,6 +1500,8 @@ def scan_text(rel, text, recorded=None):
         if check_names:
             for label in estate_name_hits(line):
                 findings.append(f"{rel}:{lineno}: {label}")
+        for label in decoded_hits(line, names=check_names):
+            findings.append(f"{rel}:{lineno}: {label}")
         if public_ip_hits(line) and not inventory_build_version_line(rel, line):
             findings.append(f"{rel}:{lineno}: public IP not in placeholder allowlist")
     return findings

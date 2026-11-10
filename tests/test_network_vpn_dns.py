@@ -16,8 +16,8 @@ import pytest
 from tests import upstream_harness as uh
 from unifi_fabric import refusals, route_secrets, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import network_vpn_dns as vd
-from unifi_fabric.tools._classic_cmd import ClassicCommandError
+from unifi_fabric.families.vpn import network_vpn_dns as vd
+from unifi_fabric.shared_shapes._classic_cmd import ClassicCommandError
 
 HOST = "console-a"
 SITE = "Default"

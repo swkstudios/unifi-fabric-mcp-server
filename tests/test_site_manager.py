@@ -12,8 +12,7 @@ import respx
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.site_manager import (
+from unifi_fabric.families.site_manager.site_manager import (
     _resolve_ea_host_site,
     compare_site_performance,
     get_host,
@@ -30,6 +29,7 @@ from unifi_fabric.tools.site_manager import (
     query_isp_metrics,
     search_across_sites,
 )
+from unifi_fabric.registry import Registry
 
 
 def _paged(responses):
@@ -781,7 +781,7 @@ class TestCompareSitePerformance:
         health_b = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wlan", "status": "ok"}]}
 
         with patch(
-            "unifi_fabric.tools.site_manager.get_site_health_summary",
+            "unifi_fabric.families.site_manager.site_manager.get_site_health_summary",
             new_callable=AsyncMock,
             side_effect=[health_a, health_b],
         ):
@@ -798,7 +798,7 @@ class TestCompareSitePerformance:
         health_a = {"meta": {"rc": "ok"}, "data": [{"subsystem": "wan", "status": "ok"}]}
 
         with patch(
-            "unifi_fabric.tools.site_manager.get_site_health_summary",
+            "unifi_fabric.families.site_manager.site_manager.get_site_health_summary",
             new_callable=AsyncMock,
             side_effect=[health_a, Exception("connection refused")],
         ):
@@ -1421,7 +1421,7 @@ class TestNamespaceURLPinning:
         """Source-level guard: the migrated module must contain no /ea/ call sites."""
         import inspect
 
-        import unifi_fabric.tools.site_manager as sm_mod
+        import unifi_fabric.families.site_manager.site_manager as sm_mod
 
         src = inspect.getsource(sm_mod)
         ea = "/ea/"

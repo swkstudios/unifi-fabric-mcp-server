@@ -1,4 +1,4 @@
-"""Tests for the shared write-payload sanitizer (``tools/_payload.py``).
+"""Tests for the shared write-payload sanitizer (``shared_shapes/_payload.py``).
 
 These assert the *fixed* behavior: empty-string padding that the UniFi APIs add
 to list fields is removed before a write, while every legitimate value — scalar
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from unifi_fabric.tools._payload import (
+from unifi_fabric.shared_shapes._payload import (
     require_fields,
     sanitize_integration_write,
     strip_empty_list_values,

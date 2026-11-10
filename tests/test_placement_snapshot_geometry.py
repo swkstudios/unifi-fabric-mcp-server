@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from unifi_fabric.client import ResponseShapeError
-from unifi_fabric.tools.placement_snapshot import build_snapshot
+from unifi_fabric.families.innerspace.placement_snapshot import build_snapshot
 
 _RECORDED = (
     Path(__file__).parent

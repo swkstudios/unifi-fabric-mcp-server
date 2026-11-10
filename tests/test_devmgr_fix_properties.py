@@ -10,8 +10,9 @@ import pytest
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import device_commands as commands
-from unifi_fabric.tools import device_mgmt, network_services_proxy, scheduled_tasks
+from unifi_fabric.families.devices import device_commands as commands
+from unifi_fabric.families.devices import device_mgmt, scheduled_tasks
+from unifi_fabric.families.network import network_services_proxy
 
 MAC = "02:00:5e:00:00:01"
 TASK_ID = "000000000000000000000001"
@@ -415,7 +416,7 @@ async def test_metadata_post_reads_execute_with_safety_modes(name, args, policy,
 @pytest.mark.parametrize("rows", [[], [{"_id": TASK_ID, "purpose": "wan"}]])
 @pytest.mark.parametrize("rc", ["error", "error.Invalid", "", None])
 async def test_classic_collection_helpers_reject_failure_verbatim(rows, rc):
-    from unifi_fabric.tools._classic_objects import (
+    from unifi_fabric.shared_shapes._classic_objects import (
         _classic_data,
         networkconf_records,
     )
@@ -440,7 +441,7 @@ async def test_classic_collection_helpers_reject_failure_verbatim(rows, rc):
 @pytest.mark.parametrize("rows", [[], [{"_id": TASK_ID, "name": "task"}]])
 @pytest.mark.parametrize("rc", ["error", "error.Invalid", "", None])
 async def test_write_target_lookup_rejects_classic_failure_verbatim(rows, rc):
-    from unifi_fabric.tools._classic_objects import require_listed_record
+    from unifi_fabric.shared_shapes._classic_objects import require_listed_record
 
     envelope = {"meta": {"rc": rc, "msg": "refusal"}, "data": rows, "future": {"kept": True}}
     client, _ = dependencies()
@@ -583,7 +584,7 @@ async def test_sdk_settings_key_classic_error_scrubbed(configuration, representa
     import httpx
 
     from unifi_fabric.config import APIKeyConfig
-    from unifi_fabric.tools._classic_objects import networkconf_records
+    from unifi_fabric.shared_shapes._classic_objects import networkconf_records
 
     secret = f"synthetic-sdk-{configuration}-pass'\\word"
     echoed = {

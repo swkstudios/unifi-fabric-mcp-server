@@ -175,6 +175,7 @@ import functools
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -190,14 +191,16 @@ from tests._tool_classes import class_axis, tool_batches
 from unifi_fabric import families, read_only, refusals, route_secrets, server
 from unifi_fabric.client import is_dry_run_preview
 from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.families.carrier import carrier_fabric as _carrier_fabric
+from unifi_fabric.families.connector import connector as _connector
+from unifi_fabric.families.mobility import mobility as _mobility
+from unifi_fabric.families.network import network_mobile_wan as _network_mobile_wan
+from unifi_fabric.families.statistics import system_log as _system_log
 from unifi_fabric.redaction import MASKED_FIELDS_KEY, REDACTION_MASK, is_credential_field
 from unifi_fabric.secret_scrub import scrub
-from unifi_fabric.tools import _pagination
-from unifi_fabric.tools import carrier_fabric as _carrier_fabric
-from unifi_fabric.tools import connector as _connector
-from unifi_fabric.tools import mobility as _mobility
-from unifi_fabric.tools import network_mobile_wan as _network_mobile_wan
-from unifi_fabric.tools import system_log as _system_log
+from unifi_fabric.shared_shapes import _incident_document as _ie
+from unifi_fabric.shared_shapes import _pagination
+from unifi_fabric.shared_shapes._history_common import epoch_warnings as _epoch_warnings
 from unifi_fabric.write_body import IDENTITY_FIELDS
 
 #: Records in a large list (invariant b). Lists are uncapped by rule: only the opt-in
@@ -216,13 +219,7 @@ LARGE_LIST_ITEMS = (
 
 
 def _usage_workflows() -> str:
-    from pathlib import Path
-
-    return (
-        (Path(__file__).resolve().parents[1] / "docs/TOOL-USAGE.md")
-        .read_text()
-        .split("## create_network")[0]
-    )
+    return (_ROOT / "docs/TOOL-USAGE.md").read_text().split("## create_network")[0]
 
 
 def _tools() -> dict[str, Any]:
@@ -249,10 +246,18 @@ def _lz_WRITE_TOOLS():
     return sorted(n for n, t in _lz_TOOLS().items() if not _is_read(t))
 
 
+_ROOT = Path(__file__).resolve().parents[1]
+
+
 # --------------------------------------------------------------------------- policy
 # Tools with no upstream call to compare against.
 NO_UPSTREAM = {
     "list_configured_api_keys": "reports the server's own key configuration",
+    "get_server_diagnostic_bundle": (
+        "reports the server's own diagnostics from local state; its opt-in live probes "
+        "summarize each read as a status and count (tests/test_diagnostic_bundle.py)"
+    ),
+    "get_event_stream_status": "reports the recorded stream compatibility and local listeners",
 }
 
 # Documented derived outputs: the tool's contract is a computed view, not records.
@@ -261,6 +266,20 @@ DERIVED = {
     "get_fleet_summary": "documented counts/rollups across the fleet",
     "get_innerspace_summary": "documented counts/rollup of the InnerSpace project",
     "collect_protect_device_changes": "documented add/remove/modify diff of snapshots",
+    "collect_network_incident_evidence": (
+        "documented closed incident-evidence document built from the system-log classes"
+    ),
+    "collect_protect_incident_evidence": (
+        "documented closed incident-evidence document built from the Protect event feed"
+    ),
+    "read_recent_events": "documented buffer/listener state; upstream calls only resolve host/site",
+}
+
+#: The two evidence collectors share one contract check (``_evidence_problems``) and are
+#: told apart only by product. The native event tools stay the verbatim view of every record.
+EVIDENCE_PRODUCT = {
+    "collect_network_incident_evidence": "network",
+    "collect_protect_incident_evidence": "protect",
 }
 
 
@@ -286,6 +305,8 @@ SELECT = {
     "get_device_stp_state": "picks the device by id out of stat/device (STP fields)",
     "get_traffic_route": "picks the route with route_id out of the v2 traffic-route list",
     "get_ap_group": "picks the group with group_id out of the v2 apgroups list",
+    "get_door_lock": "resolves lock_id in the GET /locks list, then reads that one lock",
+    "list_door_lock_unlock_events": "resolves lock_id in GET /locks, then lists its events",
 }
 
 # Lookups a tool makes to resolve an argument (not part of its result by contract).
@@ -310,12 +331,15 @@ AUXILIARY: dict[str, tuple[str, ...]] = {
     "list_wireguard_users": ("/rest/networkconf",),
 }
 
-# Tools whose own upstream is a registry resolution endpoint.
+# Tools whose own upstream is a registry resolution endpoint, or whose only upstream requests
+# are the host/site resolution.
 PRIMARY_RESOLUTION = {
     "list_hosts": "/v1/hosts",
     "list_sites": "/v1/sites",
     "list_local_sites": "/integration/v1/sites",
     "list_all_sites_aggregated": "/v1/sites",
+    # Its only upstream requests resolve host and site; the result is local buffer state.
+    "read_recent_events": "/integration/v1/sites",
 }
 
 # The generic connector relays forward exactly one upstream request and return that
@@ -324,6 +348,7 @@ PRIMARY_RESOLUTION = {
 # including upstream failures; their docs describe this relay result.
 RAW_RELAY = {
     "get_camera_private",
+    "get_protect_alarm_manager_mode",
     "update_camera_private",
     "list_ptz_presets",
     "list_ptz_patrols",
@@ -335,7 +360,6 @@ RAW_RELAY = {
     "reboot_protect_device",
     "adopt_protect_device",
     "unadopt_protect_device",
-    "reboot_nvr",
     "clear_sensor_tamper",
     "fabric_connector_get",
     "fabric_connector_post",
@@ -607,10 +631,232 @@ def _served_once(up: uh.FakeUpstream, suffix: str) -> list[Any]:
     return out
 
 
+def _served_pages(up: uh.FakeUpstream, method: str, suffix: str, within: str = "") -> list[Any]:
+    """Records served to ``method`` requests on paths ending with ``suffix`` (whose query holds
+    ``within``), each distinct page counted once (a page served again is not read twice)."""
+    seen: set[tuple[str, str]] = set()
+    out: list[Any] = []
+    for s in up.served:
+        if s.method != method or not 200 <= s.status < 300 or isinstance(s.body, bytes | str):
+            continue
+        if not s.path.endswith(suffix) or within not in s.query:
+            continue
+        # a page the upstream served again (the same body for another request) counts once
+        page = (s.path, json.dumps(s.body, sort_keys=True, default=str))
+        if page in seen:
+            continue
+        seen.add(page)
+        out.extend(uh.upstream_records(s.body))
+    return out
+
+
+#: The native field each safe attribute is read from (a value is native or null).
+_EVIDENCE_NATIVE_FIELDS = {
+    "network": {
+        "key": "key",
+        "event": "event",
+        "category": "category",
+        "subcategory": "subcategory",
+        "severity": "severity",
+        "type": "type",
+        "status": "status",
+        "target": "target",
+    },
+    "protect": {
+        "type": "type",
+        "category": "category",
+        "score": "score",
+        "end_epoch_ms": "end",
+    },
+}
+
+
+def _evidence_problems(payload: Any, up: uh.FakeUpstream, product: str) -> list[str]:
+    """The contract an incident-evidence document owes in place of pass-through: a closed
+    schema, complete accounting per source, provenance on every record, scrubbed error text
+    that names the request, no invented fields and truthful truncation. The verbatim native
+    view stays available through the native event tools."""
+    p: list[str] = []
+    if not isinstance(payload, dict) or payload.get("dryRun") is True:
+        return ["no evidence document was returned"]
+    # 1. closed schema (the committed JSON Schema, then the models' own rules)
+    committed = json.loads((_ROOT / _ie.SCHEMA_PATH).read_text())
+    try:
+        jsonschema.validate(payload, committed)
+        _ie.validate_document(payload)
+    except Exception as exc:  # noqa: BLE001 - any validation failure is a problem
+        return [f"document is not valid against the closed schema: {str(exc)[:200]}"]
+    if payload["product"] != product:
+        p.append(f"product {payload['product']} != {product}")
+    if payload["causality"] != "not_assessed":
+        p.append("a causal claim")
+    # 7. `_warnings` is a documented derivation, never an invented field: it equals the
+    # repo-wide epoch warnings of the requested bounds and is absent for a plausible window;
+    # an ISO window bound is null only when its epoch value cannot be rendered
+    window = payload["requested_window"]
+    derived = _epoch_warnings(
+        start=window["start_epoch_ms"] // 1000, end=window["end_epoch_ms"] // 1000
+    )
+    if payload.get("_warnings", []) != derived:
+        p.append(f"_warnings {payload.get('_warnings')!r} != the epoch warnings {derived!r}")
+    for bound in ("start", "end"):
+        if (window[bound] is None) != (_ie.window_iso(window[f"{bound}_epoch_ms"]) is None):
+            p.append(f"requested_window.{bound} is null but its epoch value is representable")
+    sources = {s["source_id"]: s for s in payload["sources"]}
+    records_by_source: dict[str, list[dict[str, Any]]] = {sid: [] for sid in sources}
+    for rec in payload["records"]:
+        # 3. provenance on every record, naming a declared source
+        src = sources.get(rec["source_id"])
+        prov = rec["provenance"]
+        if src is None or prov["source_id"] != rec["source_id"] or prov["route"] != src["route"]:
+            p.append(f"{rec['evidence_id']}: provenance does not name a declared source route")
+            continue
+        records_by_source[rec["source_id"]].append(rec)
+    for sid, src in sources.items():
+        cov = src["coverage"]
+        if cov["retention"] != "unknown":
+            p.append(f"{sid}: retention is claimed")
+        if src["outcome"] in _ie._FAILED_OUTCOMES:  # noqa: SLF001
+            # 4. a failure is never empty, names the request and carries scrubbed text
+            failure = src["failure"]
+            if not failure["message"] or not re.search(r"\b(GET|POST) /", failure["message"]):
+                p.append(f"{sid}: failure message does not name the method and path")
+            if scrub(failure["message"]) != failure["message"]:
+                p.append(f"{sid}: failure message carries an unscrubbed secret")
+            continue
+        method, _, route = src["route"].partition(" ")
+        suffix = (
+            f"/system-log/{src['scope']['log_class']}"
+            if product == "network"
+            else "/proxy/protect/api/events"
+        )
+        camera = src["scope"].get("camera_id") or ""
+        served = [r for r in _served_pages(up, method, suffix, camera)]
+        counts = src["counts"]
+        # 2. complete accounting: every row served is a record, a counted duplicate or a
+        # counted malformed row, and every served native id is a record of this source
+        if counts["retrieved"] != len(served):
+            p.append(f"{sid}: retrieved {counts['retrieved']} != {len(served)} served")
+        if (
+            counts["records"] + counts["duplicates_dropped"] + counts["malformed"]
+            != (counts["retrieved"])
+        ):
+            p.append(f"{sid}: records + duplicates + malformed != retrieved")
+        recs = records_by_source[sid]
+        distinct_ids: dict[str, set[str]] = {}
+        idless: set[str] = set()
+        for row in served:
+            if not isinstance(row, dict):
+                continue
+            digest = json.dumps(row, sort_keys=True, default=str)
+            rid = row.get("id")
+            if isinstance(rid, str | int) and not isinstance(rid, bool) and str(rid):
+                distinct_ids.setdefault(str(rid), set()).add(digest)
+            else:
+                idless.add(digest)
+        for rid, rows in distinct_ids.items():
+            kept = [r for r in recs if r["provenance"]["record_id"] == rid]
+            if len(kept) != len(rows):
+                p.append(f"{sid}: id {rid} served as {len(rows)} distinct row(s), {len(kept)} kept")
+        # every served id-less row is exactly one record (never skipped, never merged)
+        if len([r for r in recs if r["provenance"]["record_id"] is None]) != len(idless):
+            p.append(f"{sid}: {len(idless)} id-less rows served, records differ")
+        # 5. no invented fields: each kept attribute is a native value (or null)
+        native = _EVIDENCE_NATIVE_FIELDS[product]
+        by_id = {str(r["id"]): r for r in served if isinstance(r, dict) and r.get("id")}
+        for rec in recs:
+            row = by_id.get(rec["provenance"]["record_id"] or "")
+            if row is None:
+                continue
+            for attr, field in native.items():
+                got = rec["attributes"][attr]
+                if got is not None and got != row.get(field):
+                    p.append(f"{rec['evidence_id']}: {attr}={got!r} is not the native {field}")
+            if rec["time"]["status"] in ("in_window", "out_of_window") and not (
+                row.get(rec["time"]["field"]) is not None
+            ):
+                p.append(f"{rec['evidence_id']}: a time was invented for an absent field")
+    # 6. truthful truncation: a repeated page is flagged, an uncapped complete drain is not
+    truncated = [
+        s
+        for s in payload["sources"]
+        if s["pagination"] and s["pagination"]["truncated"] == "truncated"
+    ]
+    if bool(truncated) != payload["incomplete"]:
+        p.append("incomplete does not match the truncated sources")
+    if up.repeat_pages and payload["sources"] and not payload["incomplete"]:
+        p.append("a repeating upstream was not reported incomplete")
+    # an upstream that serves its pages cleanly (every page once, to a final one) is drained
+    # completely: no cap was set, so nothing may be reported incomplete
+    clean = up.mode in ("paged", "big") and not (
+        up.repeat_pages or up.ignore_offset or up.clamp_limit
+    )
+    if clean and payload["incomplete"]:
+        p.append("an uncapped complete drain was reported incomplete")
+    for src in truncated:
+        if src["outcome"] != "partial" or src["coverage"]["window_coverage"] != "unknown":
+            p.append(f"{src['source_id']}: truncated but not partial with unknown coverage")
+    return p
+
+
+def _evidence_shape_problems(payload: Any, up: uh.FakeUpstream) -> list[str]:
+    """The evidence replacement for (k): an upstream answer of an unexpected shape is a
+    ``parse_failed`` source, described by shape only (its keys, never its values), naming the
+    request, with the HTTP status the upstream answered; never an empty or complete source."""
+    if not isinstance(payload, dict) or "sources" not in payload:
+        return ["no evidence document was returned"]
+    p: list[str] = []
+    served = [s for s in up.served if s.body == {"unexpectedShape": "probe-shape"}]
+    for src in payload["sources"]:
+        if src["outcome"] != "parse_failed":
+            p.append(f"{src['source_id']}: an unexpected shape became {src['outcome']}")
+            continue
+        failure = src["failure"]
+        if failure["http_status"] not in {s.status for s in served}:
+            p.append(f"{src['source_id']}: http_status {failure['http_status']} not the answer's")
+        if "unexpectedShape" not in failure["message"] or "probe-shape" in failure["message"]:
+            p.append(f"{src['source_id']}: the shape is not described by its keys only")
+        if not re.search(r"\b(GET|POST) /", failure["message"]):
+            p.append(f"{src['source_id']}: the message does not name the request")
+    if payload["status"] != "failed" or payload["records"]:
+        p.append(f"status {payload['status']} with {len(payload['records'])} record(s)")
+    return p
+
+
+def _evidence_write_body_problems(
+    payload: Any, expected: Any, write: uh.Served, product: str = "network"
+) -> list[str]:
+    """The evidence replacement for (w) on the write-classified collector: a 2xx answer that
+    is not a JSON listing is never raised. It is a ``parse_failed`` source carrying the
+    answered status and the body verbatim (after the scrubber); a bare empty array is a
+    legitimate empty listing."""
+    if not isinstance(payload, dict) or "sources" not in payload:
+        return [f"no evidence document for body {expected!r}"]
+    p: list[str] = []
+    src = payload["sources"][0]
+    if isinstance(expected, list):
+        if (src["outcome"], payload["status"]) != ("empty", "empty") or src["counts"]["retrieved"]:
+            p.append(f"an empty array listing became {src['outcome']}")
+        return p
+    if src["outcome"] != "parse_failed" or payload["status"] != "failed":
+        return [f"body {expected!r} became {src['outcome']}"]
+    failure = src["failure"]
+    if failure["http_status"] != write.status:
+        p.append(f"http_status {failure['http_status']} != the answered {write.status}")
+    said = "an empty body" if expected is None else json.dumps(expected)
+    if said not in failure["message"] and str(expected) not in failure["message"]:
+        p.append(f"the body {expected!r} is not carried verbatim in the failure")
+    if not re.search(r"\bPOST /", failure["message"]):
+        p.append("the failure does not name the method and path")
+    return p
+
+
 def _derived_problems(name: str, payload: Any, up: uh.FakeUpstream) -> list[str]:
     """Each documented derived output's counts/rollups match the drained input."""
     p: list[str] = []
-    if name == "get_fleet_summary":
+    if name in EVIDENCE_PRODUCT:
+        p += _evidence_problems(payload, up, EVIDENCE_PRODUCT[name])
+    elif name == "get_fleet_summary":
         hosts = _served_once(up, "/v1/hosts")
         sites = _served_once(up, "/v1/sites")
         wrappers = _served_once(up, "/v1/devices")
@@ -659,9 +905,83 @@ def _derived_problems(name: str, payload: Any, up: uh.FakeUpstream) -> list[str]
             shown = sum(1 for t in nodes if t.get("display_name"))
             if shown + sum(withheld.values()) < named:
                 p.append(f"{kind}: {named - shown} names dropped without a _withheld count")
+    elif name == "read_recent_events":
+        # No product stream is supported: the documented answer is the unsupported state,
+        # never an empty event list that could pass for a quiet stream. Fail closed: when any
+        # product becomes supported, assert that events[].event is verbatim against the served
+        # frames (pass-through holds for buffered events) before the state assertion is relaxed.
+        from unifi_fabric.stream_buffers import COMPATIBILITY
+
+        record = COMPATIBILITY.get(payload.get("product") or "network")
+        if payload.get("state") != "unsupported" or "events" in payload:
+            p.append(f"unsupported stream not reported as such: {str(payload)[:160]}")
+        elif record is not None and payload.get("use_instead") != list(record.fallback_tools):
+            p.append("use_instead does not name the recorded fallback tools")
     else:
         p.append("derived tool without a count check")
     return p
+
+
+#: The write-safety properties. A derived document is exempt from response-shape pass-through
+#: only; none of these may consult ``DERIVED`` to skip or soften a tool.
+_WRITE_SAFETY_PROPERTIES = frozenset({"e", "n", "w", "aa", "ba", "dd", "bm", "bn", "l15"})
+
+
+def test_write_safety_properties_never_consult_the_derived_table():
+    """No eligibility function or test body of a write-safety property references DERIVED."""
+    import inspect
+    import sys
+
+    offenders = []
+    for name, obj in vars(sys.modules[__name__]).items():
+        match = re.match(r"(?:_eligible|test)_([a-z]+\d*)_", name)
+        if match and match.group(1) in _WRITE_SAFETY_PROPERTIES and callable(obj):
+            target = getattr(obj, "__wrapped__", obj)
+            try:
+                source = inspect.getsource(target)
+            except (OSError, TypeError):
+                continue
+            if re.search(r"\bDERIVED\b", source):
+                offenders.append(name)
+    assert offenders == [], f"write-safety properties consult DERIVED: {offenders}"
+
+
+async def test_every_derived_write_tool_is_exercised_by_the_write_safety_properties(monkeypatch):
+    """A derived write (the Network evidence collector) keeps the full write contract: it is
+    in the write set every write-safety property selects from, reaches its write, raises the
+    client's error (never an absorbed source failure) on an uncertain outcome, and is sent
+    exactly once."""
+    from fastmcp.exceptions import ToolError
+
+    from tests import test_invariants_delta15_write_outcomes as l15
+
+    derived_writes = sorted(set(DERIVED) & set(_lz_WRITE_TOOLS()))
+    # The Network collector is a read since its system-log POST was allowlisted, so no
+    # DERIVED member is a write today; the loop keeps any future one fully exercised.
+    assert "collect_network_incident_evidence" not in derived_writes, derived_writes
+    # (w) and (n) select from the write set; (l15) from the whole catalog
+    assert set(derived_writes) <= set(_lz_W_WRITE_TOOLS())
+    assert set(derived_writes) <= set(_lz_TOOLS())
+    for name in derived_writes:
+        reached = uh.FakeUpstream()
+        await _call(monkeypatch, name, reached)
+        assert reached.writes(), f"{name}: no write reached the upstream (property vacuous)"
+        for status in (500, 502, 503, 504):
+            failing = uh.FakeUpstream(write_status=status, error_body='{"code":"boom"}')
+            with pytest.raises(ToolError, match=str(status)):
+                await _call(monkeypatch, name, failing)
+            assert len(failing.writes()) == 1, f"{name}: HTTP {status} write sent twice"
+        for failure in l15.FAILURES:
+            up = l15.UncertainUpstream(failure)
+            with pytest.raises(ToolError) as raised:
+                await _call(monkeypatch, name, up)
+            assert l15.WARNING in str(raised.value), f"{name}: {failure} outcome hidden"
+            sent = [
+                e
+                for e in up.served
+                if e.method != "GET" or uh.is_write_request(e.method, e.path, e.sent_json)
+            ]
+            assert len(sent) == 1, f"{name}: {failure} sent {len(sent)} requests"
 
 
 def test_every_derived_tool_has_a_count_check():
@@ -1119,9 +1439,7 @@ _MARKUP = re.compile(r"\]\(https?://|!\[|&lt;|&gt;|&amp;|</?[a-zA-Z][^>]*>")
 def test_f_readme_confirm_count_matches_the_registry():
     """The count in docs/COVERAGE.md of tools that accept the ignored ``confirm`` parameter is the
     number of registered tools whose input schema has it (it said 11 while 43 did)."""
-    from pathlib import Path
-
-    readme = (Path(__file__).resolve().parents[1] / "docs" / "COVERAGE.md").read_text()
+    readme = (_ROOT / "docs" / "COVERAGE.md").read_text()
     stated = re.findall(r"(\d+) write and action tools[^\n]*?accept an optional `confirm`", readme)
     actual = sum("confirm" in (t.parameters.get("properties") or {}) for t in _lz_TOOLS().values())
     assert stated, "docs/COVERAGE.md no longer states how many tools accept confirm"
@@ -1145,6 +1463,17 @@ _SCALAR_TWIN_UPDATES = {
     ),
 }
 
+#: get_X / update_X twins whose update takes per-item change lists, never the read record
+#: (no object parameter), so the get -> update record round trip does not apply. Their own
+#: tests prove that _-prefixed keys inside a change item are never written back.
+_LIST_TWIN_UPDATES = {
+    "update_switch_port_overrides": (
+        "takes ports (per-port change objects) and remove_ports; _-prefixed keys inside a "
+        "port change are dropped before the PUT "
+        "(test_switch_port_overrides.test_additive_keys_in_requested_fields_are_never_written)"
+    ),
+}
+
 
 def _round_trip_pairs() -> list[tuple[str, str]]:
     from tests.test_return_shapes import READ_TO_WRITE
@@ -1153,7 +1482,11 @@ def _round_trip_pairs() -> list[tuple[str, str]]:
     for name in _lz_TOOLS():
         if name.startswith("get_"):
             twin = "update_" + name[4:]
-            if twin in _lz_TOOLS() and twin not in _SCALAR_TWIN_UPDATES:
+            if (
+                twin in _lz_TOOLS()
+                and twin not in _SCALAR_TWIN_UPDATES
+                and twin not in _LIST_TWIN_UPDATES
+            ):
                 pairs.setdefault(name, twin)
     return sorted(pairs.items())
 
@@ -1162,6 +1495,12 @@ def test_g_scalar_twin_updates_take_no_object():
     """An exempt twin really takes no object parameter (an exemption cannot go stale)."""
     assert "update_protect_device_password" in _SCALAR_TWIN_UPDATES
     for name in _SCALAR_TWIN_UPDATES:
+        assert _object_param(_lz_TOOLS()[name]) is None, name
+
+
+def test_g_list_twin_updates_take_no_object():
+    """A list-change twin really takes no object parameter (the exemption cannot go stale)."""
+    for name in _LIST_TWIN_UPDATES:
         assert _object_param(_lz_TOOLS()[name]) is None, name
 
 
@@ -1809,7 +2148,8 @@ _KEY_IDS = ("k-alpha", "k-beta")
 
 def _keys_used(name: str, up: uh.FakeUpstream) -> set[str]:
     """API keys the tool's own requests rode (registry resolution excluded, except for
-    the tools whose result IS the resolution list)."""
+    the tools whose result IS the resolution list, or whose only upstream requests are the
+    host/site resolution)."""
     prim = PRIMARY_RESOLUTION.get(name)
     return {s.api_key for s in up.served if not s.resolution or (prim and s.path.endswith(prim))}
 
@@ -2177,6 +2517,12 @@ async def test_k_unexpected_shape_is_never_an_empty_result(monkeypatch, name):
         return
     if not any(s.body == {"unexpectedShape": "probe-shape"} for s in up.served):
         return  # binary endpoints keep answering bytes; nothing JSON-shaped to check
+    if name in EVIDENCE_PRODUCT:
+        # a derived document does not repeat the upstream body: the failed source describes
+        # the shape (its keys) and the request instead of vanishing into an empty result
+        problems = _evidence_shape_problems(uh.result_payload(res), up)
+        assert problems == [], f"{name}: " + "; ".join(problems[:4])
+        return
     text = uh.all_strings(uh.result_payload(res))
     assert "probe-shape" in text, (
         f"{name}: an unexpected upstream shape vanished into a result: {text[:200]}"
@@ -2830,7 +3176,7 @@ def _body_returned(payload: Any, expected: Any) -> bool:
     )
 
 
-#: Writes that require affirmative Classic success (meta.rc == "ok", tools/_classic_cmd.py):
+#: Writes that require affirmative Classic success (meta.rc == "ok", shared_shapes/_classic_cmd.py):
 #: their bare body is served inside a Classic envelope (a bare body is not success).
 AFFIRMATIVE_CLASSIC_WRITES = frozenset(
     {
@@ -2924,6 +3270,12 @@ async def test_w_write_body_returned_verbatim_never_raised(monkeypatch, name, bo
     assert up.writes(), f"{name}: no write reached the transport"
     payload = uh.result_payload(res)
     expected = uh.DECODED_BODIES[body]
+    if name in EVIDENCE_PRODUCT:
+        # a derived write returns a document, not the body: the body is carried verbatim in
+        # the failed source, and the applied write is never reported as raised
+        problems = _evidence_write_body_problems(payload, expected, up.writes()[0])
+        assert problems == [], f"{name}: " + "; ".join(problems)
+        return
     if up.affirmative_classic and uh.family(up.writes()[0].path) == "classic":
         expected = {"meta": {"rc": "ok"}, "data": expected}
         if name in AFFIRMATIVE_CLASSIC_WRITES:
@@ -3610,7 +3962,7 @@ def _lz_PROTECT_COLLECTORS():
 
 @lazy_parametrize("name", lambda: _lz_PROTECT_COLLECTORS())
 async def test_c7_collector_never_silently_skips_an_idless_record(monkeypatch, name):
-    import unifi_fabric.tools.protect as protect_mod
+    import unifi_fabric.families.protect.protect as protect_mod
 
     async def _no_sleep(_seconds: float) -> None:
         return None
@@ -3628,6 +3980,16 @@ async def test_c7_collector_never_silently_skips_an_idless_record(monkeypatch, n
         if isinstance(rec, dict) and str(rec.get("name", "")).startswith("idless-probe")
     ]
     assert served, f"{name}: harness served no id-less record"
+    if name in EVIDENCE_PRODUCT:
+        # the document keeps no free text: every served id-less row is exactly one record
+        # (an identical repeat is a counted duplicate), never skipped or merged
+        # (this upstream answers an extra id-less row on every page, so its drain can only
+        # end on a repeated page: reporting the drain incomplete is the truthful answer)
+        problems = _evidence_problems(payload, up, EVIDENCE_PRODUCT[name])
+        assert problems == [], f"{name}: " + "; ".join(problems[:4])
+        idless = [r for r in payload["records"] if r["provenance"]["record_id"] is None]
+        assert len(idless) == len(set(served)), f"{name}: id-less rows lost: {len(idless)}"
+        return
     text = uh.all_strings(payload)
     missing = [n for n in served if n not in text]
     assert missing == [], f"{name}: id-less records silently skipped: {missing[:3]}"
@@ -3881,7 +4243,7 @@ async def _eligible_bc_write_forwards_every_field_its_spec_schema_accepts(monkey
         for param in _object_params(name):
             args[param] = {**(args.get(param) or {}), **probes}
     else:
-        from unifi_fabric.tools import _payload
+        from unifi_fabric.shared_shapes import _payload
 
         probes = {f: f"probe-{f}" for f in accepted & _payload._INTEGRATION_READONLY_FIELDS}
         props = (tool.parameters or {}).get("properties") or {}
@@ -3922,7 +4284,7 @@ async def test_bc_write_forwards_every_field_its_spec_schema_accepts(monkeypatch
         for param in _object_params(name):
             args[param] = {**(args.get(param) or {}), **probes}
     else:
-        from unifi_fabric.tools import _payload
+        from unifi_fabric.shared_shapes import _payload
 
         probes = {f: f"probe-{f}" for f in accepted & _payload._INTEGRATION_READONLY_FIELDS}
         props = (tool.parameters or {}).get("properties") or {}
@@ -5013,7 +5375,6 @@ def _aa_extra_contracts() -> dict[str, tuple[str, str | None, str | None, str]]:
             v2 + "/trafficroutes",
             "_id",
         ),
-        "delete_traffic_rule": (v2 + "/trafficrules/{id}/", "rule_id", v2 + "/trafficrules", "_id"),
         "delete_wifi_broadcast": (
             integration + "/wifi/broadcasts/{id}",
             "broadcast_id",
@@ -5291,7 +5652,7 @@ def _lz_DELETION_TOOLS():
 
 def test_aa_every_delete_family_description_states_the_canonical_result_shape():
     """Every delete/remove/revoke result description names its exact public shape."""
-    assert len(_lz_DELETION_TOOLS()) == 73
+    assert len(_lz_DELETION_TOOLS()) == 72
     missing = [
         name
         for name in _lz_DELETION_TOOLS()
@@ -6420,8 +6781,6 @@ def _lz_BR_TOOLS():
 _BR_KNOWN_RESOLVED = {
     "update_port_forward": "forward_id",
     "delete_port_forward": "forward_id",
-    "update_traffic_rule": "rule_id",
-    "delete_traffic_rule": "rule_id",
     "update_traffic_route": "route_id",
     "delete_traffic_route": "route_id",
     "update_user": "user_id",

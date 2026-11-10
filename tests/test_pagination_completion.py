@@ -6,7 +6,7 @@ import pytest
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools._pagination import collect_offset
+from unifi_fabric.shared_shapes._pagination import collect_offset
 
 
 @pytest.mark.parametrize("helper", ["collect", "client"])

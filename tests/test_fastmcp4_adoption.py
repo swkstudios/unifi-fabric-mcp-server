@@ -25,6 +25,7 @@ from unifi_fabric.argument_errors import ArgumentErrorMiddleware
 from unifi_fabric.config import MCPTransportSettings
 from unifi_fabric.discovery import META_TOOLS
 from unifi_fabric.families import apply_tool_family_filter
+from unifi_fabric.local_components import tool_components
 from unifi_fabric.tool_titles import ACRONYMS, acronym_title, install_tool_titles
 
 _HEADERS = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
@@ -42,7 +43,7 @@ def _run(coro: Any) -> Any:
 
 
 def _catalog_count(srv: Any) -> int:
-    return len(srv.mcp._local_provider._components)  # noqa: SLF001 - registered catalog
+    return len(tool_components(srv.mcp))
 
 
 def _advertised_count(srv: Any) -> int:
@@ -183,7 +184,7 @@ class TestToolTitles:
         assert titles == {"list_isp_things": "Custom Title", "get_acl_thing": "Get ACL Thing"}
 
     def test_titles_coexist_with_redaction_and_argument_errors(self) -> None:
-        tools = server.mcp._local_provider._components.values()  # noqa: SLF001
+        tools = tool_components(server.mcp)
         assert all(getattr(t.fn, "_unifi_redaction_wrapped", False) for t in tools)
         assert all(t.title == acronym_title(t.name) for t in tools)
         assert any(isinstance(m, ArgumentErrorMiddleware) for m in server.mcp.middleware)

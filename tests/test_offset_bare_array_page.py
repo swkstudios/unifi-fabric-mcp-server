@@ -11,7 +11,6 @@ from __future__ import annotations
 import functools
 import importlib
 import logging
-import pkgutil
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qsl
@@ -24,8 +23,8 @@ from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
-from unifi_fabric import tools as tools_pkg
-from unifi_fabric.tools import _pagination
+from tests._tool_classes import tool_module_names
+from unifi_fabric.shared_shapes import _pagination
 
 TOOLS = cti.TOOLS
 _call = cti._call
@@ -111,8 +110,8 @@ def _spy_offset_helper(monkeypatch) -> list[Any]:
         calls.append(collected)
         return real(collected)
 
-    for info in pkgutil.iter_modules(tools_pkg.__path__):
-        mod = importlib.import_module(f"{tools_pkg.__name__}.{info.name}")
+    for name in tool_module_names():
+        mod = importlib.import_module(name)
         if getattr(mod, "offset_list_result", None) is real:
             monkeypatch.setattr(mod, "offset_list_result", spy)
     return calls

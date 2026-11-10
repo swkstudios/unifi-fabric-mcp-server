@@ -4,29 +4,33 @@
 The catalog keeps growing, so these generated figures are never hand-edited. This script
 measures the running server and rewrites these figures in place:
 
-* the registered tool count wherever the README states the catalog size, and in
-  the current CHANGELOG release section (Highlights and the catalog-size note);
+* the README blocks it owns in the block registry (``BLOCKS`` in scripts/doc_blocks.py):
+  ``catalog-headline`` and ``how-it-works-catalog`` (the registered tool count) and
+  ``verification-status`` (the CI tool count and the docs/COVERAGE.md live evidence). It
+  rewrites nothing else in the README but the installation versions: prose outside a
+  generated block is free, and a missing or broken block fails the run;
+* the registered tool count in the current CHANGELOG release section (Highlights and the
+  catalog-size note);
 * the docs/CATALOG.md family table: tool count and ``tools/list`` size per listed
   ``UNIFI_FAMILY_ALLOW`` value (UTF-8 JSON-RPC response line, 1 KB = 1000 bytes);
 * the docs/CONFIGURATION.md family-count table: tools and write tools of each family
   (``families.ALL_FAMILIES``; a missing or extra row fails the run). Covers text is editorial;
-* the docs/CONFIGURATION.md opt-out table (and the README's, if it has one): write tools
+* the docs/CONFIGURATION.md opt-out table: write tools
   hidden and tools listed under each per-area
   ``UNIFI_WRITE_EXCEPTIONS`` deny entry and ``UNIFI_WRITE_POLICY=deny``, from the startup
   selection functions themselves;
-* the README domain table: the tool count of each row, from the rule table ``DOMAINS``
-  below (every registered tool is counted in exactly one domain; an unclassified tool, or a
-  README row without a rule, fails the run). The Purpose text stays editorial;
+* no domain table: ``DOMAINS`` below still classifies every registered tool into exactly one
+  domain (an unclassified tool fails the run), and the counts must sum to the catalog;
 * the docs/CATALOG.md mode table: advertised tools, domain tools available and exact compact
   ``tools/list`` result bytes for ``UNIFI_TOOL_MODE=full`` and ``discovery``;
-* the pinned-spec body-shape figures (shaped count, free-form count, compact bytes), in the
-  README, docs/CATALOG.md, the CHANGELOG and docs/MIGRATING-0.7.md;
-* the README product table, first-screen counts and sizes, installation versions, and
-  verification evidence from docs/COVERAGE.md;
+* the pinned-spec body-shape figures (shaped count, free-form count, compact bytes), in
+  docs/CATALOG.md, the CHANGELOG and docs/MIGRATING-0.7.md;
+* the installation versions (package pins, image tags, release bundle links and the encoded
+  install-badge pins) in README.md, docs/DOCKER.md and the Claude Desktop bundle README;
 * the catalog and ignored-confirm parameter counts in docs/COVERAGE.md;
 * the read-only and write annotation counts in CHANGELOG and the migration guide;
-* the official-only figures, wherever README.md, AGENTS.md, llms.txt and
-  docs/CONFIGURATION.md state them: the tools that remain and are excluded in full mode
+* the official-only figures, wherever AGENTS.md, llms.txt and docs/CONFIGURATION.md state
+  them: the tools that remain and are excluded in full mode
   under the official-only recipe ``UNIFI_EXCLUDE=unofficial,source:relay``
   (``OFFICIAL_ONLY_EXCLUDE``), the same with ``UNIFI_WRITE_POLICY=deny``, and the generic
   relays that ``unofficial`` alone keeps. The run fails if any tool the recipe leaves
@@ -38,15 +42,17 @@ measures the running server and rewrites these figures in place:
 Measurement matches tests/test_readme_catalog_size.py: the package entry point is
 started over stdio with a placeholder key, sent ``initialize`` and ``tools/list``,
 and the reply is counted. The families listed in the catalog table are an editorial
-choice and are kept; only their figures are regenerated. The same holds for the domain
-rows: the labels and Purpose text are editorial, the counts are measured.
+choice and are kept; only their figures are regenerated.
 
 A CHANGELOG section whose heading carries a date has shipped: the generator leaves it
 untouched, so no restore step is needed after a run on a released tree.
 
 Usage:
-    python3 scripts/gen_catalog_figures.py          # rewrite README.md and CHANGELOG.md
+    python3 scripts/gen_catalog_figures.py          # rewrite the figures in place
     python3 scripts/gen_catalog_figures.py --check  # exit 1 if any figure is stale (CI)
+
+``python3 scripts/regen_docs.py`` runs this generator together with the other documentation
+generators.
 """
 
 from __future__ import annotations
@@ -97,7 +103,6 @@ _MODE_ROW_RE = re.compile(
     r"^\| `(full|discovery)`( \(default\))? \| \d+ \| \d+ \| \d+ \| ~\d+ KB \|$", re.M
 )
 DOMAIN_TABLE_HEADER = "| Domain | Domain tools available | Purpose |"
-_DOMAIN_ROW_RE = re.compile(r"^\| \*\*([^|]+)\*\* \| (\d+) \|", re.M)
 _RELEASE_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\]", re.M)
 #: A released (shipped) CHANGELOG heading: ``## [X.Y.Z] - YYYY-MM-DD``.
 _DATED_RE = re.compile(r"^## \[\d+\.\d+\.\d+\] - \d{4}-\d{2}-\d{2}", re.M)
@@ -247,7 +252,7 @@ def official_only_leaks(names: list[str]) -> list[str]:
 def shape_totals() -> tuple[int, int, int]:
     """(shaped body parameters, free-form object parameters, compact bytes of all shapes)."""
     sys.path.insert(0, str(ROOT / "src"))
-    from unifi_fabric._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
 
     size = sum(
         len(json.dumps(shape, separators=(",", ":"), ensure_ascii=False).encode())
@@ -297,6 +302,7 @@ PROTECT_MODULES = (
     "protect_private",
     "protect_camera_recording",
     "protect_device_lifecycle",
+    "protect_door_locks",
     "protect_events_cases",
     "protect_users_assets",
     "protect_automation_backup",
@@ -358,6 +364,7 @@ DOMAINS: tuple[Domain, ...] = (
             "device_commands",
             "scheduled_tasks",
             "device_radios",
+            "switch_port_overrides",
             "network_device_operations",
         ),
     ),
@@ -388,9 +395,6 @@ DOMAINS: tuple[Domain, ...] = (
             "update_traffic_matching_list",
             "delete_traffic_matching_list",
             "list_traffic_rules",
-            "create_traffic_rule",
-            "update_traffic_rule",
-            "delete_traffic_rule",
             "list_traffic_routes",
             "create_traffic_route",
             "get_traffic_route",
@@ -476,7 +480,12 @@ DOMAINS: tuple[Domain, ...] = (
     ),
     Domain(
         "Protect",
-        modules=("protect_private", "protect_camera_recording", "protect_device_lifecycle"),
+        modules=(
+            "protect_private",
+            "protect_camera_recording",
+            "protect_device_lifecycle",
+            "protect_door_locks",
+        ),
         delegates=PROTECT_MODULES,
     ),
     Domain("Protect Events & Cases", modules=("protect_events_cases",)),
@@ -492,7 +501,7 @@ DOMAINS: tuple[Domain, ...] = (
     Domain("Mobility", delegates=("mobility",)),
     Domain("Carrier / ISP Fabric", delegates=("carrier_fabric",)),
     Domain("Connector Relay", delegates=("connector",)),
-    Domain("Statistics, History & Logs", modules=("statistics", "system_log")),
+    Domain("Statistics, History & Logs", modules=("statistics", "system_log", "event_streams")),
     Domain("Placement Snapshot", delegates=("placement_snapshot",)),
 )
 
@@ -596,12 +605,12 @@ def selection_counts() -> tuple[dict[str, tuple[int, int]], dict[str | None, int
     import unifi_fabric.server as server
     from unifi_fabric import switches
     from unifi_fabric.families import ALL_FAMILIES, build_family_index
+    from unifi_fabric.families.connector.connector import CONNECTOR_WRITE_ENV
     from unifi_fabric.read_only_tools import (
         _is_read_tool,
         apply_area_opt_out_tool_filter,
         apply_read_only_tool_filter,
     )
-    from unifi_fabric.tools.connector import CONNECTOR_WRITE_ENV
 
     async def run() -> tuple[dict[str, tuple[int, int]], dict[str | None, int]]:
         tools = await server.mcp.list_tools()
@@ -775,6 +784,47 @@ def _sub(
     return new
 
 
+class MarkerError(RuntimeError):
+    """A generated block is missing, duplicated, unregistered, out of order or crossed."""
+
+
+#: This generator's name in the block registry (``BLOCKS`` in scripts/doc_blocks.py).
+OWNER = "gen_catalog_figures"
+
+
+def _doc_blocks():
+    """scripts/doc_blocks.py, the block registry, loaded by path: this module runs as a script,
+    is imported from ``scripts`` and is loaded by path in tests. Loaded on first use, so a copy
+    of this file that never renders a block needs no sibling registry."""
+    import importlib.util
+
+    path = Path(__file__).with_name("doc_blocks.py")
+    module = sys.modules.get("doc_blocks")
+    if module is not None and Path(module.__file__ or "").resolve() == path.resolve():
+        return module
+    spec = importlib.util.spec_from_file_location("doc_blocks", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("scripts/doc_blocks.py is missing")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["doc_blocks"] = module  # dataclasses resolve their module
+    spec.loader.exec_module(module)
+    return module
+
+
+def fill_blocks(path: Path, text: str, renderers: dict[str, Callable[[], str]]) -> str:
+    """``text`` with this generator's registered blocks of ``path`` regenerated.
+
+    Every block the registry lists for ``path`` must be present once, in order, with intact
+    markers (whoever owns it); otherwise ``MarkerError`` names the file and the marker, in
+    write and --check modes alike, before anything is written.
+    """
+    where = path.relative_to(ROOT).as_posix()
+    new, found = _doc_blocks().fill(where, text, OWNER, renderers)
+    if found:
+        raise MarkerError("; ".join(f"{where}: {block}: {message}" for block, message in found))
+    return new
+
+
 def render_official_only(
     text: str, fig: Figures, where: str, *, relays: bool = False, deny: bool = False
 ) -> str:
@@ -814,30 +864,76 @@ def render_official_only(
 CURSOR_DEEPLINK_RE = re.compile(
     r"(cursor\.com/en/install-mcp\?[^\"\s]*?config=)([A-Za-z0-9_+/-]+=*)"
 )
-# A pin is X.Y.Z plus any suffix (rc1, .post1, .1, -dev.1). The whole token is replaced, so a
-# hand-edited suffixed pin is re-rendered and fails --check instead of surviving it.
-PIN_TAIL = r"(?:[.+_-]?[0-9A-Za-z]+)*"
-CURSOR_PIN_RE = re.compile(r"(unifi-fabric-mcp-server==)\d+\.\d+\.\d+" + PIN_TAIL)
+# A pin is X.Y.Z plus any suffix (rc1, .post1, .1, -dev.1, +local, %2Blocal in a URL). The
+# whole token is replaced, so a hand-edited suffixed pin is re-rendered and fails --check
+# instead of surviving it. Every pin position below uses this one tail.
+# Linear grammar: one alphanumeric run, then any number of (separator, run) pairs. The
+# separator is mandatory, so no input has two ways to be split and a near miss fails in
+# one pass instead of trying every split.
+PIN_TAIL = r"[0-9A-Za-z]*(?:(?:[.+_-]|%2[Bb])[0-9A-Za-z]+)*"
+PIN_BODY = r"\d+\.\d+\.\d+" + PIN_TAIL
+CURSOR_PIN_RE = re.compile(r"(unifi-fabric-mcp-server==)" + PIN_BODY)
+
+#: Every plain-text pin position: (what it is, pattern). Group 1 is the text before the
+#: version; the match ends at the end of the version token.
+PIN_KINDS = (
+    ("package pin (unifi-fabric-mcp-server==VERSION)", r"(unifi-fabric-mcp-server==)" + PIN_BODY),
+    (
+        "VS Code install-badge pin (unifi-fabric-mcp-server%3D%3DVERSION)",
+        r"(?i)(unifi-fabric-mcp-server%3D%3D)" + PIN_BODY,
+    ),
+    (
+        "container image tag (ghcr.io/.../unifi-fabric-mcp-server:VERSION)",
+        r"(ghcr\.io/[^/\s]+/unifi-fabric-mcp-server:)" + PIN_BODY,
+    ),
+    ("release download link (releases/download/vVERSION)", r"(releases/download/v)" + PIN_BODY),
+    (
+        "extension bundle file name (unifi-fabric-VERSION.mcpb)",
+        r"(/unifi-fabric-)" + PIN_BODY + r"(?=\.mcpb)",
+    ),
+)
+
+
+#: The VS Code install link itself (the badge's href) carrying the encoded pin, not merely text
+#: that holds the encoded token.
+VSCODE_BADGE_RE = (
+    r"(?i)(?:vscode(?:-insiders)?\.dev/redirect/mcp/install|vscode(?:-insiders)?:mcp/install)\?"
+    r"[^\"\s<>]*?unifi-fabric-mcp-server%3D%3D" + PIN_BODY
+)
+
+
+def _decode_cursor_payload(payload: str) -> tuple[str, bool] | None:
+    """The config JSON text inside a Cursor deeplink payload, and whether the payload uses the
+    URL-safe alphabet; ``None`` when the payload does not decode."""
+    urlsafe = "-" in payload or "_" in payload
+    bare = payload.rstrip("=")
+    decode = base64.urlsafe_b64decode if urlsafe else base64.b64decode
+    try:
+        return decode(bare + "=" * (-len(bare) % 4)).decode(), urlsafe
+    except ValueError:
+        return None
 
 
 def _repin_cursor_config(m: re.Match[str], version: str) -> str:
-    """Re-pin the package inside a Cursor deeplink's base64 config, keeping its alphabet and
-    padding. A payload that does not decode, or holds no pin, is left untouched."""
+    """Re-pin the package inside a Cursor deeplink's base64 config, keeping its alphabet.
+
+    A payload that does not decode, or holds no pin, is left untouched here (``pin_findings``
+    reports it). Padding follows the payload's own style: a payload that carries ``=`` stays
+    padded, and so does one whose length needs none (that says nothing about its style, and a
+    longer or shorter version can need padding); only a payload that is unpadded although its
+    length needs padding is written unpadded."""
     payload = m[2]
-    urlsafe = "-" in payload or "_" in payload
-    bare = payload.rstrip("=")
-    padded = bare + "=" * (-len(bare) % 4)
-    decode = base64.urlsafe_b64decode if urlsafe else base64.b64decode
-    encode = base64.urlsafe_b64encode if urlsafe else base64.b64encode
-    try:
-        config = decode(padded).decode()
-    except ValueError:
+    decoded = _decode_cursor_payload(payload)
+    if decoded is None:
         return m[0]
+    config, urlsafe = decoded
     pinned = CURSOR_PIN_RE.sub(lambda p: p[1] + version, config)
     if pinned == config:
         return m[0]
+    encode = base64.urlsafe_b64encode if urlsafe else base64.b64encode
     encoded = encode(pinned.encode()).decode()
-    if len(bare) == len(payload):
+    bare = payload.rstrip("=")
+    if len(bare) == len(payload) and len(bare) % 4:
         encoded = encoded.rstrip("=")
     return m[1] + encoded
 
@@ -848,16 +944,67 @@ def render_install_versions(text: str, version: str) -> str:
     The install badges carry the pin twice more in encoded form: URL-encoded in the VS Code
     deeplink and base64 in the Cursor deeplink; both are rewritten too."""
     text = CURSOR_DEEPLINK_RE.sub(lambda m: _repin_cursor_config(m, version), text)
-    patterns = (
-        r"(unifi-fabric-mcp-server==)\d+\.\d+\.\d+" + PIN_TAIL,
-        r"(?i)(unifi-fabric-mcp-server%3D%3D)\d+\.\d+\.\d+" + PIN_TAIL,
-        r"(ghcr\.io/[^/\s]+/unifi-fabric-mcp-server:)\d+\.\d+\.\d+" + PIN_TAIL,
-        r"(releases/download/v)\d+\.\d+\.\d+" + PIN_TAIL,
-        r"(/unifi-fabric-)\d+\.\d+\.\d+(?=\.mcpb)",
-    )
-    for pattern in patterns:
+    for _what, pattern in PIN_KINDS:
         text = re.sub(pattern, lambda m: m[1] + version, text)
     return text
+
+
+def pin_findings(text: str, version: str, where: str) -> list[str]:
+    """One line per pin in ``text`` that is not ``version``: ``where:LINE: WHAT is X, expected
+    Y``. The Cursor badge is named too (it is base64, so a diff of it shows nothing a reader
+    can act on)."""
+    found: list[tuple[int, str]] = []
+    for what, pattern in PIN_KINDS:
+        for m in re.finditer(pattern, text):
+            token = m[0][len(m[1]) :]
+            if token != version:
+                found.append((m.start(), f"{what} is {token}, expected {version}"))
+    for m in CURSOR_DEEPLINK_RE.finditer(text):
+        decoded = _decode_cursor_payload(m[2])
+        if decoded is None:
+            found.append((m.start(), "Cursor install-badge config does not decode"))
+            continue
+        pins = list(CURSOR_PIN_RE.finditer(decoded[0]))
+        if not pins:
+            found.append((m.start(), "Cursor install-badge config holds no package pin"))
+        for p in pins:
+            token = p[0][len(p[1]) :]
+            if token != version:
+                found.append(
+                    (
+                        m.start(),
+                        f"Cursor install-badge pin (base64 config) is {token}, expected {version}",
+                    )
+                )
+    return [f"{where}:{text.count(chr(10), 0, pos) + 1}: {msg}" for pos, msg in sorted(found)]
+
+
+def require_install_badges(text: str, where: str) -> None:
+    """Fail closed when the VS Code or Cursor install badge is gone or carries no pin.
+
+    ``render_install_versions`` rewrites only a pin it finds, so a deleted badge, a payload that
+    does not decode, or a config with no pin would otherwise pass ``--check`` and be caught only
+    by the test suite."""
+    problems: list[str] = []
+    if not re.search(VSCODE_BADGE_RE, text):
+        problems.append(
+            "no VS Code install badge with a pin (unifi-fabric-mcp-server%3D%3DVERSION)"
+        )
+    cursor = list(CURSOR_DEEPLINK_RE.finditer(text))
+    if not cursor:
+        problems.append("no Cursor install badge (cursor.com/en/install-mcp?...&config=...)")
+    for m in cursor:
+        decoded = _decode_cursor_payload(m[2])
+        line = text.count("\n", 0, m.start()) + 1
+        if decoded is None:
+            problems.append(f"line {line}: the Cursor install badge config does not decode")
+        elif not CURSOR_PIN_RE.search(decoded[0]):
+            problems.append(f"line {line}: the Cursor install badge config pins no package version")
+    if problems:
+        raise MarkerError(
+            f"{where}: " + "; ".join(problems) + ". Restore the badge, then run "
+            "python3 scripts/regen_docs.py"
+        )
 
 
 def render_catalog_size_prose(text: str, fig: Figures, where: str, *, required: bool) -> str:
@@ -906,109 +1053,8 @@ def render_switch_table(text: str, fig: Figures, where: str) -> str:
     return text[:start] + block + text[end:]
 
 
-def render_readme(text: str, fig: Figures) -> str:
-    t = str(fig.tools)
-    text = render_install_versions(text, PUBLISHED_VERSION)
-    if re.search(OFFICIAL_ONLY_RE, text):
-        text = render_official_only(text, fig, "README", deny=False)
-    text = _sub(
-        text,
-        r"\*\*\d+ tools, loaded on demand\.\*\*",
-        lambda m: f"**{t} tools, loaded on demand.**",
-        "README",
-        required=False,
-    )
-    text = _sub(
-        text,
-        r"loading the entire \d+-tool catalog",
-        lambda m: f"loading the entire {t}-tool catalog",
-        "README",
-    )
-    text = _sub(
-        text,
-        r"\*\* \d+ tools across Site Manager",
-        lambda m: f"** {t} tools across Site Manager",
-        "README",
-        required=False,
-    )
-    text = _sub(
-        text,
-        r"(?m)^- \d+ tools across",
-        lambda m: f"- {t} tools across",
-        "README",
-        required=False,
-    )
-    text = _sub(
-        text,
-        r"By default the client sees \d+ discovery meta-tools",
-        lambda m: f"By default the client sees {fig.modes['discovery'][0]} discovery meta-tools",
-        "README",
-        required=False,
-    )
-    text = _sub(
-        text,
-        r"Discovery mode advertises \d+ tools in about \d+ KB while reaching the full catalog; "
-        r"full mode uses about \d+ KB\.",
-        lambda m: (
-            f"Discovery mode advertises {fig.modes['discovery'][0]} tools in about "
-            f"{_kb(fig.modes['discovery'][1])} KB "
-            f"while reaching the full catalog; full mode uses about {_kb(fig.modes['full'][1])} KB."
-        ),
-        "README",
-        required=False,
-    )
-
-    text = _sub(
-        text,
-        r"\*\*\d+ tools\*\* organized",
-        lambda m: f"**{t} tools** organized",
-        "README",
-        required=False,
-    )
-    text = _sub(
-        text,
-        r"including all \d+ tool names",
-        lambda m: f"including all {t} tool names",
-        "README",
-        required=False,
-    )
-    text = render_catalog_size_prose(text, fig, "README", required=False)
-
-    if SWITCH_TABLE_HEADER in text:
-        text = render_switch_table(text, fig, "README")
-
-    groups = {
-        "Site Manager and fleet": ("Fleet & Aggregation", "Site Manager"),
-        "Protect": tuple(k for k in fig.domains if k.startswith("Protect")),
-        "InnerSpace": ("InnerSpace", "Placement Snapshot"),
-        "Mobility": ("Mobility",),
-        "Carrier Fabric": ("Carrier / ISP Fabric",),
-        "Generic connector relay": ("Connector Relay",),
-    }
-    assigned = {name for names in groups.values() for name in names}
-    groups["Network"] = tuple(name for name in fig.domains if name not in assigned)
-    product_order = (
-        "Site Manager and fleet",
-        "Network",
-        "Protect",
-        "InnerSpace",
-        "Mobility",
-        "Carrier Fabric",
-        "Generic connector relay",
-    )
-    rows = ["<!-- product-table:start -->", "| Product | Tools |", "|---|---:|"]
-    rows += [
-        f"| {product} | {sum(fig.domains[n] for n in groups[product])} |"
-        for product in product_order
-    ]
-    rows.append("<!-- product-table:end -->")
-    text = re.sub(
-        r"<!-- product-table:start -->.*?<!-- product-table:end -->",
-        lambda _: "\n".join(rows),
-        text,
-        flags=re.S,
-    )
-
+def verification_status(fig: Figures) -> str:
+    """The README verification table: the CI tool count and the COVERAGE live evidence."""
     match = re.search(
         r"<!-- live-evidence: passed=(\d+) writes=(\d+) total=(\d+) "
         r"build=([0-9a-f]+) date=(\d{4}-\d{2}-\d{2}) -->",
@@ -1017,41 +1063,57 @@ def render_readme(text: str, fig: Figures) -> str:
     if not match:
         raise RuntimeError("COVERAGE live evidence marker is missing")
     passed, writes, total, build, date = match.groups()
-    verification = "\n".join(
+    return "\n".join(
         (
-            "<!-- verification-status:start -->",
             "| Evidence | Result |",
             "|---|---|",
-            f"| Every tool runs in CI against a simulated upstream | {t} tools |",
+            f"| Every tool runs in CI against a simulated upstream | {fig.tools} tools |",
             f"| Live-tested on a real console | {passed} of {total} passed on build "
             f"`{build}`, {date} |",
             f"| Live write tools passed | {writes} on that build and date |",
-            "<!-- verification-status:end -->",
         )
     )
-    text = re.sub(
-        r"<!-- verification-status:start -->.*?<!-- verification-status:end -->",
-        lambda _: verification,
-        text,
-        flags=re.S,
-    )
 
-    if DOMAIN_TABLE_HEADER in text:
-        start, end = _table_block(text, DOMAIN_TABLE_HEADER)
-        labels = [label.strip() for label, _ in _DOMAIN_ROW_RE.findall(text[start:end])]
-        if labels != list(fig.domains):
-            raise RuntimeError(
-                "README domain table rows differ from DOMAINS (labels and order must match): "
-                f"README {labels}, DOMAINS {list(fig.domains)}"
+
+def readme_blocks(fig: Figures) -> dict[str, Callable[[], str]]:
+    """The README blocks this generator owns (``BLOCKS`` in scripts/doc_blocks.py), by name.
+
+    The text around each figure is fixed here; the README prose outside the blocks is free and
+    no generator rewrites it.
+    """
+    t = fig.tools
+    return {
+        "catalog-headline": lambda: "\n".join(
+            (
+                f"- **{t} tools, loaded on demand.** Discovery mode gives your assistant a small",
+                "  search-and-call toolset instead of flooding its context with the whole catalog;",
+                "  the full catalog is one setting away.",
             )
+        ),
+        "how-it-works-catalog": lambda: "\n".join(
+            (
+                "By default, the server exposes a small set of discovery tools to your assistant "
+                "rather",
+                f"than loading the entire {t}-tool catalog into context at once. When you ask a "
+                "question",
+                "or request a change, the assistant searches the catalog, inspects the matching "
+                "tool, and",
+                "calls it through the server.",
+            )
+        ),
+        "verification-status": lambda: verification_status(fig),
+    }
 
-        def domain_row(m: re.Match[str]) -> str:
-            return f"| **{m.group(1)}** | {fig.domains[m.group(1).strip()]} |"
 
-        block = _DOMAIN_ROW_RE.sub(domain_row, text[start:end])
-        text = text[:start] + block + text[end:]
+def render_readme(text: str, fig: Figures) -> str:
+    """README.md: the install pins (``published-version.txt``) and this generator's blocks.
 
-    return text
+    Nothing else in the README is rewritten: a figure outside a generated block is hand-written
+    prose (tests/test_docs_currency.py holds any "N tools" there to the registry).
+    """
+    require_install_badges(text, "README.md")
+    text = render_install_versions(text, PUBLISHED_VERSION)
+    return fill_blocks(README, text, readme_blocks(fig))
 
 
 def render_catalog(text: str, fig: Figures) -> str:
@@ -1220,6 +1282,29 @@ def render_site_stats(version: str, tools: int, coverage_text: str) -> str:
     return module.render(version, tools, coverage_text)
 
 
+#: Diff lines --check prints per stale file; the rest is summarised.
+DIFF_LINES = 120
+
+
+def print_diff(path: Path, new: str) -> None:
+    """A unified diff (to stderr) from ``path`` on disk to the regenerated ``new`` text."""
+    import difflib
+
+    rel = path.relative_to(ROOT).as_posix()
+    lines = list(
+        difflib.unified_diff(
+            path.read_text().splitlines(keepends=True),
+            new.splitlines(keepends=True),
+            f"a/{rel}",
+            f"b/{rel}",
+        )
+    )
+    for line in lines[:DIFF_LINES]:
+        sys.stderr.write(line if line.endswith("\n") else line + "\n")
+    if len(lines) > DIFF_LINES:
+        print(f"... {len(lines) - DIFF_LINES} more diff lines for {rel}", file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -1227,6 +1312,42 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail when any figure is stale")
     args = parser.parse_args()
 
+    try:
+        outputs, fig = render_outputs()
+    except MarkerError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    summary = (
+        f"{fig.tools} tools; full tools/list ~{fig.full_kb} KB; "
+        f"modes {json.dumps(fig.modes)}; shapes {fig.shaped} shaped, {fig.free} free, "
+        f"{fig.shape_bytes:,} bytes"
+    )
+    stale = [path for path, new in outputs.items() if path.read_text() != new]
+    if args.check:
+        if stale:
+            for path in stale:
+                for finding in pin_findings(
+                    path.read_text(), PUBLISHED_VERSION, path.relative_to(ROOT).as_posix()
+                ):
+                    print(f"stale pin: {finding}", file=sys.stderr)
+                print_diff(path, outputs[path])
+            names = ", ".join(p.relative_to(ROOT).as_posix() for p in stale)
+            print(
+                f"Catalog figures are stale in {names} ({summary}); "
+                "run python3 scripts/gen_catalog_figures.py",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"Catalog figures are current: {summary}", file=sys.stderr)
+        return 0
+    for path in stale:
+        path.write_text(outputs[path])
+    print(f"Wrote catalog figures ({summary}) to {len(stale)} file(s)", file=sys.stderr)
+    return 0
+
+
+def render_outputs() -> tuple[dict[Path, str], Figures]:
+    """Every output file rendered in memory; nothing is written until all of them succeed."""
     readme, changelog = README.read_text(), CHANGELOG.read_text()
     fig = measure(CATALOG.read_text())
     version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
@@ -1249,27 +1370,7 @@ def main() -> int:
         LLMS: render_official_only(LLMS.read_text(), fig, "llms.txt"),
         SITE_STATS: render_site_stats(version, fig.tools, COVERAGE.read_text()),
     }
-    summary = (
-        f"{fig.tools} tools; full tools/list ~{fig.full_kb} KB; "
-        f"modes {json.dumps(fig.modes)}; shapes {fig.shaped} shaped, {fig.free} free, "
-        f"{fig.shape_bytes:,} bytes"
-    )
-    stale = [path for path, new in outputs.items() if path.read_text() != new]
-    if args.check:
-        if stale:
-            names = ", ".join(p.relative_to(ROOT).as_posix() for p in stale)
-            print(
-                f"Catalog figures are stale in {names} ({summary}); "
-                "run python3 scripts/gen_catalog_figures.py",
-                file=sys.stderr,
-            )
-            return 1
-        print(f"Catalog figures are current: {summary}", file=sys.stderr)
-        return 0
-    for path in stale:
-        path.write_text(outputs[path])
-    print(f"Wrote catalog figures ({summary}) to {len(stale)} file(s)", file=sys.stderr)
-    return 0
+    return outputs, fig
 
 
 if __name__ == "__main__":

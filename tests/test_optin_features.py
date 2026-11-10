@@ -17,13 +17,12 @@ import ast
 import inspect
 import json
 import os
-from pathlib import Path
 
 import httpx
 import pytest
 import respx
 
-import unifi_fabric
+from tests._tool_classes import tool_module_paths
 from unifi_fabric.audit import _AUDIT_START, AuditStream, build_audit_sink
 from unifi_fabric.client import UniFiClient, is_write_request
 from unifi_fabric.config import Settings
@@ -123,10 +122,9 @@ def test_registering_tool_modules_are_all_scanned() -> None:
     """Every tools/ module with a register function is scanned for family tools."""
     from unifi_fabric.families import _REGISTER_MODULES, MODULE_FAMILY
 
-    tools_dir = Path(unifi_fabric.__file__).parent / "tools"
     registering = {
         path.stem
-        for path in tools_dir.glob("*.py")
+        for path in tool_module_paths()
         if any(
             isinstance(node, ast.FunctionDef) and node.name == "register"
             for node in ast.parse(path.read_text()).body
@@ -473,9 +471,8 @@ def _sample_path(arg: ast.expr, consts: dict[str, str]) -> str:
 
 def _enumerate_write_callsites() -> list[tuple[str, str, int, str]]:
     """Return (module, http_method, lineno, sample_path) for every tool-layer write call."""
-    tools_dir = Path(unifi_fabric.__file__).parent / "tools"
     sites: list[tuple[str, str, int, str]] = []
-    for pyfile in sorted(tools_dir.glob("*.py")):
+    for pyfile in sorted(tool_module_paths()):
         tree = ast.parse(pyfile.read_text())
         consts = _module_string_consts(tree)
         for node in ast.walk(tree):

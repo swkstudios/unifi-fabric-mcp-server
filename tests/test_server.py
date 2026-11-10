@@ -94,6 +94,8 @@ class TestLifespan:
         """Minimal FastMCP double for the lifecycle's discovery-mode setup."""
         app = MagicMock()
         app.list_tools = AsyncMock(return_value=[])
+        # The lifespan also records prompt names for trace export (awaited like list_tools).
+        app.list_prompts = AsyncMock(return_value=[])
         return app
 
     def setup_method(self):

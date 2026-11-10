@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.families.devices.device_mgmt import _classic_devmgr
+from unifi_fabric.families.vpn.vpn import _get_radius_profile, _get_vpn_server
 from unifi_fabric.spec_limits import argument_problems, limit_problems
-from unifi_fabric.tools.device_mgmt import _classic_devmgr
-from unifi_fabric.tools.vpn import _get_radius_profile, _get_vpn_server
 
 SITE = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 DEVICE = "11111111-2222-3333-4444-555555555555"

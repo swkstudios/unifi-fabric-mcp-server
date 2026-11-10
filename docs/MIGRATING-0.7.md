@@ -2,7 +2,7 @@
 
 This guide preserves the complete 0.7.0 behaviour and compatibility notes. Each entry records the former behaviour, the new behaviour, affected tools, and the caller action where applicable.
 
-0.7.1 replaced the 0.7.0 write and exposure settings with `UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE`, without aliases. This guide names each 0.7.0 setting by its 0.7.1 replacement. Upgrading from 0.7.0: the old names, the exact mapping and a one-command migrator are in [MIGRATING-0.7.1.md](MIGRATING-0.7.1.md).
+0.7.1 replaced the 0.7.0 write and exposure settings with `UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE`, without aliases. This guide names each 0.7.0 setting by its 0.7.1 replacement. Upgrading from 0.7.0: the old names, the exact mapping and a one-command migrator are in [MIGRATING-0.7.1.md](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md).
 
 ## Tool discovery default
 
@@ -176,7 +176,7 @@ restored exactly only with read-only mode off.
   compact TypeScript-like outline in the field description, for example
   `{zoneId:string(uuid),trafficFilter?:...}`. Local aliases such as `T1` refer to
   definitions in the outline's trailing `where T1=...` clause. Unknown fields remain allowed;
-  no new validation constraints are added. The other 192 object parameters are
+  no new validation constraints are added. The other 187 object parameters are
   explicitly described as free-form. The shapes are 69,295 bytes of compact JSON, and a
   size-budget test (`tests/test_catalog_size_budget.py`) holds the catalog to an average
   of 2,400 bytes per tool, any one tool's input schema to 10,000 bytes, the shapes to an
@@ -874,8 +874,8 @@ restored exactly only with read-only mode off.
 
   Affected tools: the 280 tools that exist in 0.6.2 and declare input properties, which
   include `get_sdwan_config`, `get_sdwan_config_status` and `search_across_sites`; see the
-  [public tool catalog](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/docs/TOOLS.md#tool-categories)
-  for the full surface.
+  [public tool catalog at the v0.7.0 tag](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/docs/TOOLS.md#tool-categories),
+  pinned to v0.7.0 on purpose because this change shipped in 0.7.0, for the full surface.
 
 ### change-062
 
@@ -1067,8 +1067,8 @@ changes.
 
 ### change-073
 
-- Tool annotations: the 332 read-only tools advertise `readOnlyHint: true` and
-  `destructiveHint: false`; the 460 write tools advertise `readOnlyHint: false` and
+- Tool annotations: the 343 read-only tools advertise `readOnlyHint: true` and
+  `destructiveHint: false`; the 455 write tools advertise `readOnlyHint: false` and
   `destructiveHint: true`. 0.6.2 sent none, so clients showed every tool as a
   destructive write. Fifteen tools with read-style names are still annotated as writes
   because their upstream route is a POST not yet proven read-only: `get_inactive_sim_slot`,
@@ -1104,7 +1104,7 @@ changes.
   Classic `_id`, so a read result fed back into an update round-trips; no-op and verification checks ignore them too. The connector relay
   sends its body exactly as given.
 
-  Affected tools: 115 tools other than the connector relay (the write tools that exist in 0.6.2); see the [public tool catalog](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/docs/TOOLS.md#tool-categories).
+  Affected tools: 115 tools other than the connector relay (the write tools that exist in 0.6.2); see the [public tool catalog at the v0.7.0 tag](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.0/docs/TOOLS.md#tool-categories), pinned to v0.7.0 on purpose because this change shipped in 0.7.0.
 
 ### change-077
 

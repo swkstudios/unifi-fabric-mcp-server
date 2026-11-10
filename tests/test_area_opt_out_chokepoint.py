@@ -36,8 +36,8 @@ from tests import upstream_harness as uh
 from tests._tool_classes import tool_batches
 from unifi_fabric import switches
 from unifi_fabric._read_only_audit import derive_write_tools, write_verbs_for
+from unifi_fabric.families.connector import connector
 from unifi_fabric.read_only import AreaOptOutError, decoded_path
-from unifi_fabric.tools import connector
 
 TOOLS = cti.TOOLS
 

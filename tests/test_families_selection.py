@@ -200,7 +200,7 @@ async def test_list_tool_families_reports_the_thirteen():
     restore = await apply_tool_mode(app, "discovery")
     try:
         async with Client(app) as client:
-            rows = (await client.call_tool("list_tool_families", {})).data
+            rows = (await client.call_tool("list_tool_families", {})).structured_content["result"]
             assert [row["family"] for row in rows] == list(ALL_FAMILIES)
             assert {row["family"]: row["tools"] for row in rows} == dict(expected)
             for family in ALL_FAMILIES:
@@ -208,7 +208,7 @@ async def test_list_tool_families_reports_the_thirteen():
                     await client.call_tool(
                         "search_tools", {"query": "", "family": family, "limit": None}
                     )
-                ).data
+                ).structured_content["result"]
                 assert len(found) == expected[family]
             with pytest.raises(Exception, match="valid families"):
                 await client.call_tool("search_tools", {"query": "", "family": NOT_FAMILIES[0]})
@@ -280,9 +280,11 @@ async def _check_selection(mode, allowed, disabled):
                 }
                 found = (
                     await client.call_tool("search_tools", {"query": "", "limit": len(before)})
-                ).data
+                ).structured_content["result"]
                 assert {row["name"] for row in found} == expected
-                counts = (await client.call_tool("list_tool_families", {})).data
+                counts = (await client.call_tool("list_tool_families", {})).structured_content[
+                    "result"
+                ]
                 assert counts == [
                     {"family": family, "tools": sum(index[name] == family for name in expected)}
                     for family in sorted(permitted)

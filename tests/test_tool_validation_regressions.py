@@ -6,9 +6,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools._continuation import decode_continuation
-from unifi_fabric.tools.innerspace import _fetch_project_document
-from unifi_fabric.tools.protect import collect_protect_device_changes, collect_protect_events
+from unifi_fabric.families.innerspace.innerspace import _fetch_project_document
+from unifi_fabric.families.protect.protect import (
+    collect_protect_device_changes,
+    collect_protect_events,
+)
+from unifi_fabric.shared_shapes._continuation import decode_continuation
 
 
 @pytest.mark.parametrize(

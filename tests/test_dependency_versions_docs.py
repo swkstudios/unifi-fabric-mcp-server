@@ -59,20 +59,26 @@ RELEASED_RUNTIME = _RELEASED["runtime_pins"]
 CHANGED = {n: (OLD[n], RELEASED[n]) for n in OLD.keys() & RELEASED.keys() if OLD[n] != RELEASED[n]}
 
 
-# The frozen 0.7.0 lock fixture and the released [0.7.0] CHANGELOG section, byte for byte.
+# The frozen 0.7.0 lock fixture, byte for byte (the released [0.7.0] CHANGELOG section is
+# pinned by tests/test_released_changelog_verbatim.py, which runs in the private tree only).
 # The fixture holds the pins of requirements.lock and requirements-runtime.lock at the v0.7.0
 # tag (72972915); the section is the text the v0.7.0 tag published. A dependency refresh or
 # upgrade after 0.7.0 records itself in the current release section and leaves both alone:
 # a mismatch here means released history was rewritten, so restore the file or section from
 # the v0.7.0 tag instead of updating the digest.
 RELEASED_LOCK_SHA256 = "f6261fe6ad6e860002bf200313f50259cb025b49acf03a714855eed47fe61b73"
-RELEASED_CHANGELOG_SHA256 = "9c949cf2b8e732642d7bec67a75ef0825ec433eca705c5ee48d623015a731c32"
 
 
 def _release_section(version: str) -> str:
     text = CHANGELOG.read_text()
     section = text[text.index(f"## [{version}]") :]
     return section[: section.find("\n## [", 1)]
+
+
+def _releases_after(version: str) -> list[str]:
+    """Every numbered CHANGELOG section newer than ``version``, newest first."""
+    names = re.findall(r"^## \[(\d+\.\d+\.\d+)\]", CHANGELOG.read_text(), re.MULTILINE)
+    return [name for name in names if Version(name) > Version(version)]
 
 
 def test_released_0_7_0_lock_fixture_is_frozen():
@@ -86,39 +92,21 @@ def test_released_0_7_0_lock_fixture_is_frozen():
     assert "72972915" in _RELEASED["source"]
 
 
-def test_released_0_7_0_changelog_section_is_verbatim():
-    section = _release_section("0.7.0")
-    # Built at runtime so the private org never appears as a literal: the transform's
-    # sed must not rewrite this detection string, and the public leak scan must not
-    # find it in the shipped test corpus.
-    private_org = "".join(("Tekno", "Central"))
-    if f"github.com/{private_org}/" not in section:
-        # The public-release transform rewrites the private org to the public one inside
-        # this section's migration links, so the shipped text cannot match a digest taken
-        # from the private tree. The guard stays live where the section is actually
-        # edited - the private tree - and is skipped in the generated public tree.
-        # Do NOT "fix" this by normalising the org: the section carries 38 deliberate
-        # public-org links of its own, so a blanket rewrite corrupts them.
-        import pytest
-
-        pytest.skip("public tree: the org in this section is rewritten by the transform")
-    digest = hashlib.sha256(section.encode()).hexdigest()
-    assert digest == RELEASED_CHANGELOG_SHA256, (
-        "the released [0.7.0] CHANGELOG section differs from the v0.7.0 tag text"
-    )
-
-
 def test_current_release_records_the_fastmcp_upgrade_since_0_7_0():
     old, new = RELEASED["fastmcp"], HEAD["fastmcp"]
     assert HEAD["fastmcp-slim"] == new and RUNTIME["fastmcp"] == new
     if old == new:
         return
+    # The upgrade is recorded once, in the release that shipped it (0.7.1 for 4.1.6): any
+    # section after 0.7.0, not only the in-flight one, so opening the next release section
+    # does not lose it.
     lines = [
         line
-        for line in _release_section(VERSION).splitlines()
+        for version in _releases_after("0.7.0")
+        for line in _release_section(version).splitlines()
         if line.startswith(f"- FastMCP {new} (from {old};")
     ]
-    assert len(lines) == 1, f"[{VERSION}] does not record FastMCP {old} to {new}"
+    assert len(lines) == 1, f"no release after 0.7.0 records FastMCP {old} to {new} once"
     # The enum/const JSON-equality comparison came with the 4.1.6 upgrade, so the current
     # release notes carry it and the 0.7.0 migration entry does not.
     assert "JSON equality" in lines[0]

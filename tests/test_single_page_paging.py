@@ -16,8 +16,9 @@ from httpx import Request, Response
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import mobility, network
-from unifi_fabric.tools.clients import _list_clients
+from unifi_fabric.families.clients.clients import _list_clients
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network import network
 
 BASE = "https://api.ui.com"
 HOST = "AABBCCDDEEFF0000:1"

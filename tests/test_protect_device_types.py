@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from unifi_fabric.tools import _protect_device_types as pdt
+from unifi_fabric.families.protect import _protect_device_types as pdt
 
 EXPECTED = (
     "aiport",
@@ -31,7 +31,10 @@ def test_collections_are_unique_plurals():
     collections = [r.collection for r in pdt.DEVICE_ROUTES.values()]
     assert len(set(collections)) == len(collections)
     for device_type, routes in pdt.DEVICE_ROUTES.items():
-        expected = "nvr" if device_type is pdt.ProtectDeviceType.NVR else device_type.value + "s"
+        # Protect 7.x serves door locks under /locks (5.x had /doorlocks).
+        expected = {"nvr": "nvr", "doorlock": "locks"}.get(
+            device_type.value, device_type.value + "s"
+        )
         assert routes.collection == expected
         assert all(m in {"GET", "POST", "PUT", "PATCH", "DELETE"} for m in routes.actions.values())
 

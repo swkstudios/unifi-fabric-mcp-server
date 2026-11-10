@@ -3,13 +3,14 @@
 import asyncio
 
 from unifi_fabric import server
+from unifi_fabric.local_components import tool_components
 
 
 def test_every_tool_advertises_explicit_directory_hints():
     tools = asyncio.run(server.mcp.list_tools())
     assert tools
     assert {"list_hosts", "create_wifi_broadcast"} <= {tool.name for tool in tools}
-    assert len(tools) == len(server.mcp._local_provider._components)
+    assert len(tools) == len(tool_components(server.mcp))
     missing = []
     for tool in tools:
         hints = (

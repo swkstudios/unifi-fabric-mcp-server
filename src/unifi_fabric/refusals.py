@@ -138,19 +138,66 @@ _NETWORK_PROBE = "live probe, Network 11.0.81 (kept by the refusal policy)"
 
 REFUSALS: tuple[Refusal, ...] = (
     Refusal(
+        "incident-evidence-window",
+        SELECTOR_SYNTAX,
+        "the incident-evidence collectors' own argument grammar: the window is integer epoch "
+        "seconds the server converts to a half-open millisecond window (end after start, so an "
+        "empty window names nothing; a negative or millisecond-size bound is not refused, it "
+        "is sent with a warning), and a source list (log_classes, cameras, types) is a list "
+        "of strings naming at least one source "
+        "(the Network collector's log_classes may name only a class on the read-POST allowlist)",
+        r"^collect_(?:network|protect)_incident_evidence (?:window: |\w+ names no source"
+        r"|\w+ must be a list of strings|log_classes may name only a read-allowlisted)",
+        (
+            "shared_shapes/_incident_document.py:evidence_window",
+            "shared_shapes/_incident_document.py:evidence_selectors",
+            "families/statistics/system_log.py:_collect_network_incident_evidence",
+        ),
+        tools=frozenset({"collect_network_incident_evidence", "collect_protect_incident_evidence"}),
+    ),
+    Refusal(
+        "event-stream-site-selector",
+        SELECTOR_SYNTAX,
+        "The event-stream tools' own key grammar: a Network buffer is per console and site, "
+        "a Protect buffer per console, so site is required for network and refused for "
+        "protect (an argument naming nothing, or naming a selector the product does not have)",
+        r"^site is a Network selector; Protect events are per console|"
+        r"^site is required for product 'network'",
+        ("families/statistics/event_streams.py:_check_site_selector",),
+        frozenset({"read_recent_events"}),
+    ),
+    Refusal(
+        "event-stream-product",
+        SELECTOR_SYNTAX,
+        "The event-stream products are the server's own closed set (network, protect); the "
+        "tool schemas already restrict product to it",
+        r"^Unknown event-stream product ",
+        ("stream_buffers.py:compatibility", "stream_buffers.py:StreamManager.compatibility"),
+        frozenset({"get_event_stream_status", "read_recent_events"}),
+    ),
+    Refusal(
+        "event-stream-cursor",
+        SELECTOR_SYNTAX,
+        "The buffer cursor is the server's own sequence number: a value beyond the newest seq "
+        "this process issued names no position (a restarted server starts again at 0)",
+        r"^after_seq \d+ is beyond this buffer's newest seq ",
+        ("stream_buffers.py:EventBuffer.read",),
+        frozenset({"read_recent_events"}),
+    ),
+    Refusal(
         "network-batch-delete-ids-type",
         JSON_VALIDITY,
         "the v2 batch-delete tools send a bare JSON array of id strings; a value that is "
         "not a list cannot be that body (an empty list is accepted)",
         r"^batch-delete ids must be a list of id strings",
-        ("tools/network_dpi_policy.py:_batch_ids",),
+        ("families/network/network_dpi_policy.py:_batch_ids",),
     ),
     Refusal(
         "network-client-write-json",
         JSON_VALIDITY,
         "Network client write bodies must be JSON-serialisable before selector resolution.",
         r"^The write body must be JSON-serialisable",
-        ("tools/network_clients_guests.py:_validate_json_body",),
+        ("families/network/network_clients_guests.py:_validate_json_body",),
     ),
     Refusal(
         "protect-assets-json-types",
@@ -161,11 +208,11 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^ignore_file_extension must be a boolean|^filename must be a string|"
         r"^content_type must be a string|^content_base64 must be a base64 string",
         (
-            "tools/protect_users_assets.py:_body",
-            "tools/protect_users_assets.py:set_protect_notifications_muted",
-            "tools/protect_users_assets.py:update_protect_device_password",
-            "tools/protect_users_assets.py:delete_protect_file",
-            "tools/protect_users_assets.py:upload_ringtone",
+            "families/protect/protect_users_assets.py:_body",
+            "families/protect/protect_users_assets.py:set_protect_notifications_muted",
+            "families/protect/protect_users_assets.py:update_protect_device_password",
+            "families/protect/protect_users_assets.py:delete_protect_file",
+            "families/protect/protect_users_assets.py:upload_ringtone",
         ),
     ),
     Refusal(
@@ -173,7 +220,7 @@ REFUSALS: tuple[Refusal, ...] = (
         SELECTOR_SYNTAX,
         "Server binary-upload encoding: content_base64 is parsed locally into multipart bytes",
         r"^content_base64 must be valid base64",
-        ("tools/protect_users_assets.py:upload_ringtone",),
+        ("families/protect/protect_users_assets.py:upload_ringtone",),
     ),
     Refusal(
         "protect-assets-lookup",
@@ -181,16 +228,69 @@ REFUSALS: tuple[Refusal, ...] = (
         "Resolve a Protect asset id against the upstream collection "
         "before selecting its native spelling",
         r"^Unknown Protect .*valid choices:",
-        ("tools/protect_users_assets.py:_find",),
+        ("families/protect/protect_users_assets.py:_find",),
         upstream_reason="missing-target",
+    ),
+    Refusal(
+        "protect-lock-lookup",
+        UPSTREAM_JUDGED,
+        "Resolve a Protect door lock id against the console's GET /locks list before the "
+        "per-lock request; the error lists the valid locks",
+        r"^Unknown door lock .*valid choices:",
+        ("families/protect/protect_door_locks.py:_require_known_lock",),
+        upstream_reason="the lock is identified from the upstream GET /locks list",
     ),
     Refusal(
         "protect-assets-incomplete-target",
         UPSTREAM_JUDGED,
         "An upstream incomplete collection cannot identify a unique safe write target",
         r"^Cannot select a Protect write target from an incomplete collection",
-        ("tools/protect_users_assets.py:_complete",),
+        ("families/protect/protect_users_assets.py:_complete",),
         upstream_reason="incomplete-list",
+    ),
+    Refusal(
+        "protect-resource-uri-query",
+        SELECTOR_SYNTAX,
+        "The Protect resource URI query options the server parses itself: window_seconds "
+        "(a positive whole number of seconds) and high_quality (true or false)",
+        r"^window_seconds must be a positive whole number|^high_quality must be true or false"
+        r"|^window_seconds is longer than the time since 1970-01-01",
+        (
+            "protect_resources.py:parse_window_seconds",
+            "protect_resources.py:parse_high_quality",
+            "protect_resources.py:ProtectResources._events",
+        ),
+    ),
+    Refusal(
+        "switch-port-override-selection",
+        SELECTOR_SYNTAX,
+        "update_switch_port_overrides' own port selection: each port named once, never both "
+        "updated and removed, remove_ports entries are 1-based port numbers, and explicit "
+        "empty ports/remove_ports lists that name no port at all",
+        r"^Ambiguous port selection: |^remove_ports entry must be a positive integer port"
+        r"|^No port selected: ports and remove_ports are both empty",
+        (
+            "families/devices/switch_port_overrides.py:_port_number",
+            "families/devices/switch_port_overrides.py:_validate_request",
+        ),
+    ),
+    Refusal(
+        "switch-port-override-device",
+        UPSTREAM_JUDGED,
+        "the switch's ports, current overrides and port profiles are read from stat/device "
+        "rest/portconf and rest/networkconf before the merged array is built",
+        r"^Unknown port_idx \d+ on this switch; valid ports: |^Unknown \w+_port_idx .* "
+        r"valid ports: |^Port \d+ has no override to remove; |it is not a switch\. Choose a "
+        r"switch|^Unknown portconf_id .* valid port profiles"
+        r"|^Unknown \w+_networkconf_ids? .* valid networks from list_networks"
+        r"|^port \d+ field \w+_networkconf_ids? must be a ",
+        (
+            "families/devices/switch_port_overrides.py:_check_against_device",
+            "families/devices/switch_port_overrides.py:_check_networks",
+            "families/devices/switch_port_overrides.py:_overrides",
+            "families/devices/switch_port_overrides.py:_update_switch_port_overrides",
+        ),
+        upstream_reason="the selection is checked against the switch read from the upstream",
     ),
     # ------------------------------------------------------------ 1. selector syntax
     Refusal(
@@ -207,7 +307,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "selector_args.py:SelectorArgumentMiddleware.on_call_tool",
             "client.py:validate_selector",
             "client.py:UniFiClient.get_key_by_label",
-            "tools/statistics.py:_select_one_record",
+            "families/statistics/statistics.py:_select_one_record",
         ),
     ),
     Refusal(
@@ -215,7 +315,7 @@ REFUSALS: tuple[Refusal, ...] = (
         UPSTREAM_JUDGED,
         "an update or delete target is resolved in its v2 collection first",
         r"^Unknown (energy-saving policy|power supervisor|power-supervisor link) ",
-        ("tools/network_switching_power.py:_listed_record",),
+        ("families/network/network_switching_power.py:_listed_record",),
         upstream_reason="the target is identified from the upstream collection",
     ),
     Refusal(
@@ -241,7 +341,15 @@ REFUSALS: tuple[Refusal, ...] = (
         "/stat/device record itself (port_idx is never sent upstream), and a negative "
         "index names no row",
         r"^'port_idx' must be a non-negative port number",
-        ("tools/statistics.py:_get_device_port_state",),
+        ("families/statistics/statistics.py:_get_device_port_state",),
+    ),
+    Refusal(
+        "client-ip-selector",
+        SELECTOR_SYNTAX,
+        "get_client_wifi_experience client_ip: the value is interpolated into the URL path "
+        "(wifiman/{client_ip}), so only one bare IPv4 or IPv6 address is sent",
+        r"^'client_ip' ",
+        ("families/network/network_controller_insights.py:_client_ip",),
     ),
     Refusal(
         "path-segment",
@@ -257,7 +365,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "client.py:validate_id",
             "client.py:path_segment",
             "client.py:validate_host_id",
-            "tools/innerspace.py:_asset_filename_segment",
+            "families/innerspace/innerspace.py:_asset_filename_segment",
         ),
     ),
     Refusal(
@@ -277,8 +385,8 @@ REFUSALS: tuple[Refusal, ...] = (
         "console default and passes through)",
         r"^(firmware_)?url must be an http or https URL with a host",
         (
-            "tools/device_mgmt.py:_upgrade_device",
-            "tools/network_device_operations.py:update_device_battery_settings",
+            "families/devices/device_mgmt.py:_upgrade_device",
+            "families/network/network_device_operations.py:update_device_battery_settings",
         ),
     ),
     Refusal(
@@ -291,8 +399,8 @@ REFUSALS: tuple[Refusal, ...] = (
         "exist only in the assign body, so the call would silently drop them)",
         r"^shortcut_ids must be a non-empty list|only apply to step 'assign'",
         (
-            "tools/protect_ptz_doorbell.py:delete_camera_shortcut",
-            "tools/protect_ptz_doorbell.py:enroll_doorbell_credential",
+            "families/protect/protect_ptz_doorbell.py:delete_camera_shortcut",
+            "families/protect/protect_ptz_doorbell.py:enroll_doorbell_credential",
         ),
     ),
     Refusal(
@@ -305,14 +413,14 @@ REFUSALS: tuple[Refusal, ...] = (
         r"[Cc]onnector path |resolved path |^'path' must not be empty|site placeholder "
         r"|^Invalid scope |^scope=|connector_write does not handle|Unresolved placeholder",
         (
-            "tools/connector.py:_check_raw_charset",
-            "tools/connector.py:_check_placeholders",
-            "tools/connector.py:_check_final_charset",
-            "tools/connector.py:_validate_relay_path",
-            "tools/connector.py:_check_site_given",
-            "tools/connector.py:_substitute_site",
-            "tools/connector.py:_check_scope",
-            "tools/connector.py:connector_write",
+            "families/connector/connector.py:_check_raw_charset",
+            "families/connector/connector.py:_check_placeholders",
+            "families/connector/connector.py:_check_final_charset",
+            "families/connector/connector.py:_validate_relay_path",
+            "families/connector/connector.py:_check_site_given",
+            "families/connector/connector.py:_substitute_site",
+            "families/connector/connector.py:_check_scope",
+            "families/connector/connector.py:connector_write",
         ),
     ),
     Refusal(
@@ -328,18 +436,18 @@ REFUSALS: tuple[Refusal, ...] = (
         r"| source must be one of | source conflict: |^list_network_events scope conflict: "
         r"|^get_scoped_system_log scope must be one of ",
         (
-            "tools/clients.py:resolve_list_source",
-            "tools/client_records.py:_guest_source",
-            "tools/system_log.py:_vpn_user_connection_log",
-            "tools/system_log.py:_get_scoped_system_log",
-            "tools/statistics.py:_get_client_link_diagnostics",
-            "tools/site_manager.py:validate_isp_sites",
-            "tools/protect.py:_body_with_name",
-            "tools/carrier_fabric.py:register.update_carrier_subscriber",
-            "tools/clients.py:_resolve_client_filter",
-            "tools/site_manager.py:list_devices",
-            "tools/_keys.py:page_mode_scope",
-            "tools/carrier_fabric.py:_create_key",
+            "families/clients/clients.py:resolve_list_source",
+            "families/clients/client_records.py:_guest_source",
+            "families/statistics/system_log.py:_vpn_user_connection_log",
+            "families/statistics/system_log.py:_get_scoped_system_log",
+            "families/statistics/statistics.py:_get_client_link_diagnostics",
+            "families/site_manager/site_manager.py:validate_isp_sites",
+            "families/protect/protect.py:_body_with_name",
+            "families/carrier/carrier_fabric.py:register.update_carrier_subscriber",
+            "families/clients/clients.py:_resolve_client_filter",
+            "families/site_manager/site_manager.py:list_devices",
+            "shared_shapes/_keys.py:page_mode_scope",
+            "families/carrier/carrier_fabric.py:_create_key",
         ),
     ),
     Refusal(
@@ -349,7 +457,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "view does not use: start / end with view topology (a snapshot), timestamp with "
         "logs-all / timeline / timestamps (a window); the argument would be silently dropped",
         r"^Client observability view ",
-        ("tools/network_clients_guests.py:_check_observability_arguments",),
+        ("families/network/network_clients_guests.py:_check_observability_arguments",),
     ),
     Refusal(
         "n08-routing-argument-grammar",
@@ -361,10 +469,10 @@ REFUSALS: tuple[Refusal, ...] = (
         r"(required for|not used with) action |^group is not used with action "
         r"|^reservations is an empty list",
         (
-            "tools/network_routing_topology.py:import_dhcp_reservations",
-            "tools/network_routing_topology.py:_choice",
-            "tools/network_routing_topology.py:_paired_id",
-            "tools/network_routing_topology.py:manage_mclag_group",
+            "families/network/network_routing_topology.py:import_dhcp_reservations",
+            "families/network/network_routing_topology.py:_choice",
+            "families/network/network_routing_topology.py:_paired_id",
+            "families/network/network_routing_topology.py:manage_mclag_group",
         ),
     ),
     Refusal(
@@ -373,7 +481,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "a free-form profile / params object that also carries a key a typed argument sets "
         "(mac, pin): the typed value is sent, so the object's key would be silently replaced",
         r"^(profile|params) must not contain ",
-        ("tools/network_mobile_wan.py:_reject_named_keys",),
+        ("families/network/network_mobile_wan.py:_reject_named_keys",),
     ),
     Refusal(
         "mac-or-id-selector",
@@ -385,15 +493,15 @@ REFUSALS: tuple[Refusal, ...] = (
         r"|^mac is empty: pass one (device|client) MAC|^Not a MAC address( in [a-z_]+)?: "
         r"|^ap_mac must be a MAC address|^mac must be a device MAC",
         (
-            "tools/clients.py:_validate_client_ref",
-            "tools/network_clients_guests.py:authorize_guest",
-            "tools/network_mobile_wan.py:_check_mac",
-            "tools/network_mobile_wan.py:_check_macs",
-            "tools/device_mgmt.py:_approve_pending_device",
-            "tools/device_mgmt.py:_forget_device",
-            "tools/client_records.py:_require_macs",
-            "tools/client_records.py:_create_client_reservation",
-            "tools/device_commands.py:advanced_adopt_device",
+            "families/clients/clients.py:_validate_client_ref",
+            "families/network/network_clients_guests.py:authorize_guest",
+            "families/network/network_mobile_wan.py:_check_mac",
+            "families/network/network_mobile_wan.py:_check_macs",
+            "families/devices/device_mgmt.py:_approve_pending_device",
+            "families/devices/device_mgmt.py:_forget_device",
+            "families/clients/client_records.py:_require_macs",
+            "families/clients/client_records.py:_create_client_reservation",
+            "families/devices/device_commands.py:advanced_adopt_device",
         ),
     ),
     Refusal(
@@ -403,7 +511,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "itself (selector_syntax.name_reason): empty or a control character; surrounding "
         "whitespace is a legal name and is looked up",
         r"^(camera_id|sensor_id|device_id) (must not be empty|contains a control character)",
-        ("tools/protect_private.py:_resolve",),
+        ("families/protect/protect_private.py:_resolve",),
     ),
     Refusal(
         "protect-private-device-type",
@@ -413,9 +521,9 @@ REFUSALS: tuple[Refusal, ...] = (
         "checked again on the direct call path, where no schema validation runs",
         r"^device_type must be camera or sensor",
         (
-            "tools/protect_private.py:reboot_protect_device",
-            "tools/protect_private.py:adopt_protect_device",
-            "tools/protect_private.py:unadopt_protect_device",
+            "families/protect/protect_private.py:reboot_protect_device",
+            "families/protect/protect_private.py:adopt_protect_device",
+            "families/protect/protect_private.py:unadopt_protect_device",
         ),
     ),
     Refusal(
@@ -431,7 +539,7 @@ REFUSALS: tuple[Refusal, ...] = (
         r"|^shortcut\.shortcut(\.type)? must be "
         r"|^(linkedCamera|linkedDoor|webhook) shortcut (is missing required fields: "
         r"|\w+ must be a non-empty string|timeout must be a number)",
-        ("tools/protect_ptz_doorbell.py:_validate_shortcut_element",),
+        ("families/protect/protect_ptz_doorbell.py:_validate_shortcut_element",),
     ),
     Refusal(
         "innerspace-internal-arguments",
@@ -440,13 +548,13 @@ REFUSALS: tuple[Refusal, ...] = (
         "the server interpolates into the route path must be a UUID, and an upload's "
         "content must be base64, an empty captures / plans list names nothing, and a mode "
         "given both as an argument and a transform key would be silently replaced "
-        "(tools/innerspace_internal.py)",
+        "(families/innerspace/innerspace_internal.py)",
         r"^Invalid InnerSpace '(plan_id|token)': expected a UUID|^content_base64 is not "
         r"valid base64|^InnerSpace arguments: ",
         (
-            "tools/innerspace_internal.py:_argument_grammar",
-            "tools/innerspace_internal.py:_uuid",
-            "tools/innerspace_internal.py:_decode_upload",
+            "families/innerspace/innerspace_internal.py:_argument_grammar",
+            "families/innerspace/innerspace_internal.py:_uuid",
+            "families/innerspace/innerspace_internal.py:_decode_upload",
         ),
     ),
     # ------------------------------------------------------------ 2. pinned spec
@@ -467,7 +575,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "SPEC_REQUIRED_FIELDS: a create/action body without a field the published request "
         "schema requires",
         r"^(?P<tool>[\w ]+) requires: ",
-        ("tools/_payload.py:require_fields",),
+        ("shared_shapes/_payload.py:require_fields",),
         SPEC_REQUIRED_LABELS,
     ),
     Refusal(
@@ -502,13 +610,13 @@ REFUSALS: tuple[Refusal, ...] = (
         r"|^'[\w]+' must be \d+-\d+ characters|^'[\w]+' must be a string$|^Invalid sort "
         r"|^suspended must be a boolean",
         (
-            "tools/carrier_fabric.py:_validate_len",
-            "tools/carrier_fabric.py:_validate_subscriber_number",
-            "tools/carrier_fabric.py:_validate_bytes",
-            "tools/carrier_fabric.py:_validate_metadata",
-            "tools/carrier_fabric.py:update_carrier_subscriber",
-            "tools/carrier_fabric.py:list_carrier_subscribers",
-            "tools/carrier_fabric.py:register.update_carrier_subscriber",
+            "families/carrier/carrier_fabric.py:_validate_len",
+            "families/carrier/carrier_fabric.py:_validate_subscriber_number",
+            "families/carrier/carrier_fabric.py:_validate_bytes",
+            "families/carrier/carrier_fabric.py:_validate_metadata",
+            "families/carrier/carrier_fabric.py:update_carrier_subscriber",
+            "families/carrier/carrier_fabric.py:list_carrier_subscribers",
+            "families/carrier/carrier_fabric.py:register.update_carrier_subscriber",
         ),
     ),
     Refusal(
@@ -521,9 +629,9 @@ REFUSALS: tuple[Refusal, ...] = (
         r"expected an IPv4 address|^Invalid dhcp_mode |^dhcp_lease_time must|^'[\w]+' must "
         r"be \d+-\d+ characters|^'[\w]+' must be a string$",
         (
-            "tools/mobility.py:_validate_ipv4",
-            "tools/mobility.py:_validate_len",
-            "tools/mobility.py:update_mobility_device_network",
+            "families/mobility/mobility.py:_validate_ipv4",
+            "families/mobility/mobility.py:_validate_len",
+            "families/mobility/mobility.py:update_mobility_device_network",
         ),
     ),
     Refusal(
@@ -539,13 +647,13 @@ REFUSALS: tuple[Refusal, ...] = (
         r"must be non-empty)|^'output_id' must be an integer|^content_type must be a MIME "
         r"type|^Cannot tell the upload's MIME type|^file_content_base64 is not valid base64",
         (
-            "tools/protect.py:pos_ingest_transaction",
-            "tools/protect.py:create_arm_profile",
-            "tools/protect.py:require_nonempty_qualities",
-            "tools/protect.py:_output_channel",
-            "tools/protect.py:upload_content_type",
-            "tools/protect.py:upload_protect_file",
-            "tools/protect_recognition_search.py:_upload_files",
+            "families/protect/protect.py:pos_ingest_transaction",
+            "families/protect/protect.py:create_arm_profile",
+            "families/protect/protect.py:require_nonempty_qualities",
+            "families/protect/protect.py:_output_channel",
+            "families/protect/protect.py:upload_content_type",
+            "families/protect/protect.py:upload_protect_file",
+            "families/protect/protect_recognition_search.py:_upload_files",
         ),
     ),
     Refusal(
@@ -554,7 +662,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "network-11.0.97 executeConnectedClientAction: the action discriminator "
         "[AUTHORIZE_GUEST_ACCESS, UNAUTHORIZE_GUEST_ACCESS]",
         r"^action\.action must be one of ",
-        ("tools/clients.py:_check_client_action",),
+        ("families/clients/clients.py:_check_client_action",),
     ),
     Refusal(
         "innerspace-mode",
@@ -562,7 +670,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "innerspace-1.3.23: the render mode enum [2D, 3D] (the argument is normalised "
         "case-insensitively first)",
         r"^Invalid mode .*: expected one of 2D, 3D",
-        ("tools/innerspace.py:_normalize_mode",),
+        ("families/innerspace/innerspace.py:_normalize_mode",),
     ),
     Refusal(
         "isp-query",
@@ -574,9 +682,9 @@ REFUSALS: tuple[Refusal, ...] = (
         r"not be empty or whitespace \(.*\); pass an ISO 8601|^sites\[\d+\] (must be a|"
         r"needs a )|must be a non-empty ISO 8601",
         (
-            "tools/site_manager.py:get_isp_metrics",
-            "tools/site_manager.py:validate_isp_query",
-            "tools/site_manager.py:validate_isp_sites",
+            "families/site_manager/site_manager.py:get_isp_metrics",
+            "families/site_manager/site_manager.py:validate_isp_query",
+            "families/site_manager/site_manager.py:validate_isp_sites",
         ),
     ),
     # ------------------------------------------------------------ 3. live-probed enums
@@ -587,7 +695,10 @@ REFUSALS: tuple[Refusal, ...] = (
         "the Classic stat endpoints ignore an unknown value and answer the full set",
         r"is not a session class; valid: |^Invalid interval .*: expected one of |^Invalid "
         r"scope .*: expected one of ",
-        ("tools/statistics.py:_list_client_sessions", "tools/statistics.py:_get_historical_stats"),
+        (
+            "families/statistics/statistics.py:_list_client_sessions",
+            "families/statistics/statistics.py:_get_historical_stats",
+        ),
     ),
     # ------------------------------------------------------------ 4. JSON validity
     Refusal(
@@ -616,8 +727,9 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^Invalid arguments for tool |^Text arguments must be strings\.$",
         (
             "argument_errors.py:ArgumentErrorMiddleware.on_call_tool",
-            "tools/device_radios.py:RadioChanges._no_null_fields",
-            "tools/protect_automation_backup.py:_text",
+            "families/devices/device_radios.py:RadioChanges._no_null_fields",
+            "families/devices/switch_port_overrides.py:PortOverrideChange._fields_present",
+            "families/protect/protect_automation_backup.py:_text",
         ),
     ),
     Refusal(
@@ -631,9 +743,9 @@ REFUSALS: tuple[Refusal, ...] = (
         r"|^body\.pageNumber continuation requires|^body\.pageSize must be a positive integer "
         r"when following _nextPage",
         (
-            "tools/_continuation.py:decode_continuation",
-            "tools/_pagination.py:cursor_continuation",
-            "tools/network_nat_qos_traffic.py:_flow_page_batch",
+            "shared_shapes/_continuation.py:decode_continuation",
+            "shared_shapes/_pagination.py:cursor_continuation",
+            "families/network/network_nat_qos_traffic.py:_flow_page_batch",
         ),
     ),
     Refusal(
@@ -649,7 +761,7 @@ REFUSALS: tuple[Refusal, ...] = (
         r"|^[A-Za-z_][A-Za-z_.]* is zero-based and must be 0 or more; got "
         r"|^[A-Za-z_][A-Za-z_.]* must be 0 or more; got ",
         (
-            "tools/_pagination.py:validate_pagination",
+            "shared_shapes/_pagination.py:validate_pagination",
             "client.py:UniFiClient.paginate_offset",
         ),
     ),
@@ -660,10 +772,10 @@ REFUSALS: tuple[Refusal, ...] = (
         r"requires a JSON object with fields: |must be an object\.$|' must be a JSON object; got "
         r"|^create_firewall_rule requires a JSON object$",
         (
-            "tools/_payload.py:require_fields",
-            "tools/network_services_proxy.py:create_firewall_rule",
-            "tools/protect_automation_backup.py:_body",
-            "tools/protect_recognition_search.py:_object",
+            "shared_shapes/_payload.py:require_fields",
+            "families/network/network_services_proxy.py:create_firewall_rule",
+            "families/protect/protect_automation_backup.py:_body",
+            "families/protect/protect_recognition_search.py:_object",
         ),
     ),
     Refusal(
@@ -672,7 +784,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "report_ai_false_positive with an empty reported_thumbnails list: no thumbnail is "
         "named, so there is nothing to report",
         r"^reported_thumbnails must be a non-empty list",
-        ("tools/protect_recognition_search.py:_report_ai_false_positive",),
+        ("families/protect/protect_recognition_search.py:_report_ai_false_positive",),
     ),
     Refusal(
         "recognition-object-ids-empty",
@@ -680,7 +792,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "create_recognition_object_group with an empty or non-list object_ids: no recognized "
         "object is named, so there is nothing to group",
         r"^object_ids must be a non-empty list|^'object_ids' must be a list of object id strings",
-        ("tools/protect_recognition_search.py:_create_recognition_object_group",),
+        ("families/protect/protect_recognition_search.py:_create_recognition_object_group",),
     ),
     Refusal(
         "recognition-id-list",
@@ -690,7 +802,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "would move",
         r"^(detection_ids|from_group_ids) must be a non-empty list"
         r"|^'(detection_ids|from_group_ids)' must be a list of ",
-        ("tools/protect_recognition_search.py:_id_list",),
+        ("families/protect/protect_recognition_search.py:_id_list",),
     ),
     Refusal(
         "recognition-merge-into-itself",
@@ -698,7 +810,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "merge_recognition_groups whose from_group_ids names to_group_id: a group cannot be "
         "merged into itself",
         r"^from_group_ids must not contain to_group_id ",
-        ("tools/protect_recognition_search.py:_merge_recognition_groups",),
+        ("families/protect/protect_recognition_search.py:_merge_recognition_groups",),
     ),
     Refusal(
         "mac-table-query-array",
@@ -707,7 +819,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "the route deserializes a list of {mac, ports}",
         r"^'query' must be a JSON array of \{mac, ports\} objects|^query must be a non-empty "
         r"list|^'query\[\d+\]' must be a JSON object",
-        ("tools/network_switching_power.py:query_switch_mac_tables",),
+        ("families/network/network_switching_power.py:query_switch_mac_tables",),
     ),
     Refusal(
         "port-reset-list",
@@ -717,14 +829,14 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^'ports' must be a JSON array of \{port_idx|^ports must be a non-empty list"
         r"|^'ports\[\d+\]' must be an object with an integer port_idx"
         r"|^'ports\[\d+\]\.unit_id' must be an integer, got ",
-        ("tools/network_device_operations.py:_port_list",),
+        ("families/network/network_device_operations.py:_port_list",),
     ),
     Refusal(
         "hide-flag-type",
         JSON_VALIDITY,
         "hide_face_detection_enhanced_image with a hide value that is not a JSON boolean",
         r"^'hide' must be a boolean \(true to hide, false to show\)",
-        ("tools/protect_recognition_search.py:_hide_face_detection_enhanced_image",),
+        ("families/protect/protect_recognition_search.py:_hide_face_detection_enhanced_image",),
     ),
     Refusal(
         "recognition-selector-type",
@@ -733,21 +845,21 @@ REFUSALS: tuple[Refusal, ...] = (
         "the error names the shape received instead of calling it empty",
         r"^'(event_id|group_id|to_group_id|(object_ids|detection_ids|from_group_ids)\[\d+\])'"
         r" must be a string; got ",
-        ("tools/protect_recognition_search.py:_selector",),
+        ("families/protect/protect_recognition_search.py:_selector",),
     ),
     Refusal(
         "detection-statistics-period-type",
         JSON_VALIDITY,
         "get_detection_statistics period that is neither an integer nor a string",
         r"^period must be an integer or string",
-        ("tools/protect_recognition_search.py:_get_detection_statistics",),
+        ("families/protect/protect_recognition_search.py:_get_detection_statistics",),
     ),
     Refusal(
         "epoch-type",
         JSON_VALIDITY,
         "an epoch-seconds argument that is not a JSON integer",
         r"must be an integer epoch-seconds timestamp",
-        ("tools/_history_common.py:require_epoch_seconds",),
+        ("shared_shapes/_history_common.py:require_epoch_seconds",),
     ),
     Refusal(
         "radio-channel-grammar",
@@ -757,7 +869,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "primary channel within ng/na/6e (hardware bounds are checked only "
         "after reading device capabilities)",
         r"Invalid channel .* for radio band",
-        ("tools/device_radios.py:_validate_channel",),
+        ("families/devices/device_radios.py:_validate_channel",),
     ),
     Refusal(
         "collector-control-bounds",
@@ -769,8 +881,8 @@ REFUSALS: tuple[Refusal, ...] = (
         r"poll_interval_seconds must be (a finite number|at least 0 seconds)|"
         r"(max_events|max_changes) must be a positive integer or None)",
         (
-            "tools/protect.py:_validate_collector_controls",
-            "tools/protect.py:_validate_collector_limit",
+            "families/protect/protect.py:_validate_collector_controls",
+            "families/protect/protect.py:_validate_collector_limit",
         ),
     ),
     Refusal(
@@ -779,8 +891,8 @@ REFUSALS: tuple[Refusal, ...] = (
         "private v2 object/array JSON body contract; finite JSON leaves only",
         r"^body must |^blocks must ",
         (
-            "tools/network_dpi_policy.py:_body",
-            "tools/network_dpi_policy.py:set_firewall_app_blocks",
+            "families/network/network_dpi_policy.py:_body",
+            "families/network/network_dpi_policy.py:set_firewall_app_blocks",
         ),
     ),
     # ------------------------------------------------------------ operator policy
@@ -794,9 +906,9 @@ REFUSALS: tuple[Refusal, ...] = (
             "read_only_tools.py:ReadOnlyToolMiddleware.on_call_tool",
             "read_only.py:guard_request",
             "read_only.py:guard_action",
-            "tools/network_wifi_radio.py:_post",
-            "tools/network_wifi_radio.py:start_spectrum_scan",
-            "tools/network_wifi_radio.py:configure_wifi_wan",
+            "families/network/network_wifi_radio.py:_post",
+            "families/network/network_wifi_radio.py:start_spectrum_scan",
+            "families/network/network_wifi_radio.py:configure_wifi_wan",
         ),
     ),
     # Before area-write-opt-out: its message names the active opt-out variable(s).
@@ -805,10 +917,10 @@ REFUSALS: tuple[Refusal, ...] = (
         OPERATOR_POLICY,
         "a relayed mutation on an unclassified route (a path in no mapped UniFi namespace) "
         "while a per-area write opt-out is active: its area cannot be proven "
-        "(relay design, tools/connector.py); GETs, and "
+        "(relay design, families/connector/connector.py); GETs, and "
         "mutations with no opt-out set, relay",
         r"unclassified route is refused while a per-area write opt-out is active",
-        ("tools/connector.py:_check_unclassified_mutation",),
+        ("families/connector/connector.py:_check_unclassified_mutation",),
     ),
     Refusal(
         "area-write-opt-out",
@@ -823,16 +935,16 @@ REFUSALS: tuple[Refusal, ...] = (
             "read_only_tools.py:AreaOptOutMiddleware.on_call_tool",
             "read_only.py:guard_area_write",
             "read_only.py:guard_tool_write",
-            "tools/connector.py:_check_area_opt_out",
-            "tools/connector.py:connector_get",
-            "tools/carrier_fabric.py:_require_writes",
-            "tools/mobility.py:_require_writes",
-            "tools/protect.py:_require_mutations",
-            "tools/protect_private.py:_guard",
-            "tools/network_wifi_radio.py:_post",
-            "tools/network_wifi_radio.py:start_spectrum_scan",
-            "tools/network_wifi_radio.py:configure_wifi_wan",
-            "tools/matter.py:_write_guard",
+            "families/connector/connector.py:_check_area_opt_out",
+            "families/connector/connector.py:connector_get",
+            "families/carrier/carrier_fabric.py:_require_writes",
+            "families/mobility/mobility.py:_require_writes",
+            "families/protect/protect.py:_require_mutations",
+            "families/protect/protect_private.py:_guard",
+            "families/network/network_wifi_radio.py:_post",
+            "families/network/network_wifi_radio.py:start_spectrum_scan",
+            "families/network/network_wifi_radio.py:configure_wifi_wan",
+            "families/network/matter.py:_write_guard",
         ),
     ),
     Refusal(
@@ -894,12 +1006,13 @@ REFUSALS: tuple[Refusal, ...] = (
         (
             "write_body.py:require_update_fields",
             "write_body.py:require_unmasked_fields",
-            "tools/device_radios.py:_update_device_radio",
+            "families/devices/device_radios.py:_update_device_radio",
+            "families/devices/switch_port_overrides.py:_validate_request",
             "write_body.py:EmptyUpdateMiddleware.on_call_tool",
-            "tools/protect.py:_fields_to_send",
-            "tools/protect_private.py:_settings_body",
+            "families/protect/protect.py:_fields_to_send",
+            "families/protect/protect_private.py:_settings_body",
             "client.py:UniFiClient._request",
-            "tools/network_device_operations.py:_empty",
+            "families/network/network_device_operations.py:_empty",
         ),
     ),
     # ------------------------------------------------------------ upstream-judged
@@ -908,7 +1021,7 @@ REFUSALS: tuple[Refusal, ...] = (
         UPSTREAM_JUDGED,
         "Classic API envelope meta.rc other than ok is an upstream error even at HTTP 200",
         r'"meta"\s*:\s*\{',
-        ("tools/_classic_objects.py:checked_classic_response",),
+        ("shared_shapes/_classic_objects.py:checked_classic_response",),
         upstream_reason="The Classic envelope rc is judged from the upstream response.",
     ),
     Refusal(
@@ -925,7 +1038,7 @@ REFUSALS: tuple[Refusal, ...] = (
         UPSTREAM_JUDGED,
         "a capped upstream scheduled-task enumeration cannot safely resolve an id",
         r"Scheduled-task lookup is incomplete",
-        ("tools/scheduled_tasks.py:_resolve",),
+        ("families/devices/scheduled_tasks.py:_resolve",),
         upstream_reason="Id resolution requires the upstream scheduled-task enumeration.",
     ),
     Refusal(
@@ -950,51 +1063,51 @@ REFUSALS: tuple[Refusal, ...] = (
             "registry.py:Registry.resolve_site_slug",
             "registry.py:_assert_uuid",
             "matching.py:find_by_id",
-            "tools/network_mobile_wan.py:_device_macs",
-            "tools/network_mobile_wan.py:_find_sla",
-            "tools/_classic_objects.py:select_classic_record",
-            "tools/network_wifi_radio.py:_select_wan",
-            "tools/network_security_diagnostics.py:_require_record",
-            "tools/_classic_objects.py:require_listed_record",
-            "tools/_classic_objects.py:resolve_device_tag_record",
-            "tools/network_device_operations.py:_match_device",
-            "tools/vpn.py:_select_by_id",
-            "tools/network_vpn_dns.py:_select_users",
-            "tools/network_services_proxy.py:get_traffic_route",
-            "tools/network_services_proxy.py:get_wlan_group",
-            "tools/network_services_proxy.py:_mutate_port_profile_exclusion",
-            "tools/network_services_proxy.py:_classic_networkconf_id",
-            "tools/protect.py:_resolve_camera_refs",
-            "tools/protect.py:delete_arm_profile",
-            "tools/protect.py:get_arm_profile",
-            "tools/protect.py:update_arm_profile",
-            "tools/protect.py:update_arm_profile_settings",
-            "tools/protect_private.py:_resolve",
-            "tools/protect_automation_backup.py:_known",
-            "tools/protect_automation_backup.py:_rows",
-            "tools/protect_ptz_doorbell.py:_require_slot",
-            "tools/protect_ptz_doorbell.py:_require_shortcuts",
-            "tools/protect_recognition_search.py:_find_group",
-            "tools/clients.py:_resolve_client",
-            "tools/clients.py:_client_mac",
-            "tools/network_clients_guests.py:_write_client_target",
-            "tools/network_clients_guests.py:_write_client_mac_for",
-            "tools/network_clients_guests.py:authorize_guest",
-            "tools/device_mgmt.py:_resolve_device_id_cached",
-            "tools/statistics.py:_get_device_port_state",
-            "tools/statistics.py:_get_client_link_diagnostics",
-            "tools/statistics.py:_matching_record",
-            "tools/statistics.py:_select_one_record",
-            "tools/site_manager.py:_proxy_site_for_ea",
-            "tools/site_manager.py:_resolve_ea_site_record",
-            "tools/site_manager.py:get_site_health_summary",
-            "tools/innerspace_internal.py:_select_plan",
-            "tools/client_records.py:_resolve_user",
-            "tools/client_records.py:_resolve_network_id",
-            "tools/client_records.py:_extend_guest",
-            "tools/site_admin.py:_select_site",
-            "tools/site_config.py:_select_config_record",
-            "tools/site_config.py:_set_client_user_group",
+            "families/network/network_mobile_wan.py:_device_macs",
+            "families/network/network_mobile_wan.py:_find_sla",
+            "shared_shapes/_classic_objects.py:select_classic_record",
+            "families/network/network_wifi_radio.py:_select_wan",
+            "families/network/network_security_diagnostics.py:_require_record",
+            "shared_shapes/_classic_objects.py:require_listed_record",
+            "shared_shapes/_classic_objects.py:resolve_device_tag_record",
+            "families/network/network_device_operations.py:_match_device",
+            "families/vpn/vpn.py:_select_by_id",
+            "families/vpn/network_vpn_dns.py:_select_users",
+            "families/network/network_services_proxy.py:get_traffic_route",
+            "families/network/network_services_proxy.py:get_wlan_group",
+            "families/network/network_services_proxy.py:_mutate_port_profile_exclusion",
+            "families/network/network_services_proxy.py:_classic_networkconf_id",
+            "families/protect/protect.py:_resolve_camera_refs",
+            "families/protect/protect.py:delete_arm_profile",
+            "families/protect/protect.py:get_arm_profile",
+            "families/protect/protect.py:update_arm_profile",
+            "families/protect/protect.py:update_arm_profile_settings",
+            "families/protect/protect_private.py:_resolve",
+            "families/protect/protect_automation_backup.py:_known",
+            "families/protect/protect_automation_backup.py:_rows",
+            "families/protect/protect_ptz_doorbell.py:_require_slot",
+            "families/protect/protect_ptz_doorbell.py:_require_shortcuts",
+            "families/protect/protect_recognition_search.py:_find_group",
+            "families/clients/clients.py:_resolve_client",
+            "families/clients/clients.py:_client_mac",
+            "families/network/network_clients_guests.py:_write_client_target",
+            "families/network/network_clients_guests.py:_write_client_mac_for",
+            "families/network/network_clients_guests.py:authorize_guest",
+            "families/devices/device_mgmt.py:_resolve_device_id_cached",
+            "families/statistics/statistics.py:_get_device_port_state",
+            "families/statistics/statistics.py:_get_client_link_diagnostics",
+            "families/statistics/statistics.py:_matching_record",
+            "families/statistics/statistics.py:_select_one_record",
+            "families/site_manager/site_manager.py:_proxy_site_for_ea",
+            "families/site_manager/site_manager.py:_resolve_ea_site_record",
+            "families/site_manager/site_manager.py:get_site_health_summary",
+            "families/innerspace/innerspace_internal.py:_select_plan",
+            "families/clients/client_records.py:_resolve_user",
+            "families/clients/client_records.py:_resolve_network_id",
+            "families/clients/client_records.py:_extend_guest",
+            "families/network/site_admin.py:_select_site",
+            "families/network/site_config.py:_select_config_record",
+            "families/network/site_config.py:_set_client_user_group",
         ),
         upstream_reason="Selector lookup requires upstream records and valid choices.",
     ),
@@ -1006,8 +1119,8 @@ REFUSALS: tuple[Refusal, ...] = (
         "records)",
         r"body _id .* does not match the resolved record _id ",
         (
-            "tools/device_mgmt.py:_update_device_tag",
-            "tools/site_config.py:_addressed_config_body",
+            "families/devices/device_mgmt.py:_update_device_tag",
+            "families/network/site_config.py:_addressed_config_body",
         ),
         upstream_reason="The body _id is compared with the record resolved upstream.",
     ),
@@ -1019,7 +1132,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "usable native id, or a list of the wrong shape, is an upstream record problem",
         r"^Matter node '.*' not found; valid: |^Selected Matter node has invalid native id "
         r"|^Unexpected response shape from GET .*/matter/nodes",
-        ("tools/matter.py:_matter_node_id",),
+        ("families/network/matter.py:_matter_node_id",),
         upstream_reason="The node is identified from the upstream node list.",
     ),
     Refusal(
@@ -1029,7 +1142,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "read-before record whose id is another subscriber stops the call before any write "
         "(a decision on the upstream record, not on an argument)",
         r"^Read-before subscriber identity does not match the addressed subscriber",
-        ("tools/carrier_fabric.py:update_carrier_subscriber",),
+        ("families/carrier/carrier_fabric.py:update_carrier_subscriber",),
         upstream_reason="The subscriber identity is read from the upstream before the write.",
     ),
     Refusal(
@@ -1038,7 +1151,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "an N08 update, delete, migrate or detach target is resolved in its v2 / Classic "
         "collection first; the error lists every valid id",
         r"^(BGP config|OSPF router|MC-LAG group|switch stack|network) '.*' not found; valid: ",
-        ("tools/network_routing_topology.py:_listed_record",),
+        ("families/network/network_routing_topology.py:_listed_record",),
         upstream_reason="the target is identified from the upstream collection",
     ),
     Refusal(
@@ -1050,16 +1163,16 @@ REFUSALS: tuple[Refusal, ...] = (
         r"(array|object)|^Unexpected Protect \w+ response: |^Read-before GET .* needs an "
         r"object, received |connected client list is incomplete",
         (
-            "tools/network_clients_guests.py:_write_client_target",
-            "tools/protect_automation_backup.py:_rows",
-            "tools/network_vpn_dns.py:update_ipsec_settings",
-            "tools/protect_recognition_search.py:_find_group",
-            "tools/network_routing_topology.py:_rows",
-            "tools/network_routing_topology.py:_singleton",
-            "tools/network_device_operations.py:_site_devices",
-            "tools/network_device_operations.py:_match_device",
-            "tools/network_device_operations.py:_id_of",
-            "tools/system_log.py:_page_rows",
+            "families/network/network_clients_guests.py:_write_client_target",
+            "families/protect/protect_automation_backup.py:_rows",
+            "families/vpn/network_vpn_dns.py:update_ipsec_settings",
+            "families/protect/protect_recognition_search.py:_find_group",
+            "families/network/network_routing_topology.py:_rows",
+            "families/network/network_routing_topology.py:_singleton",
+            "families/network/network_device_operations.py:_site_devices",
+            "families/network/network_device_operations.py:_match_device",
+            "families/network/network_device_operations.py:_id_of",
+            "families/statistics/system_log.py:_page_rows",
         ),
         upstream_reason="Response shape requires an upstream response.",
     ),
@@ -1069,13 +1182,13 @@ REFUSALS: tuple[Refusal, ...] = (
         SELECTOR_SYNTAX,
         "the Classic command helper's own grammar: the manager name it interpolates into "
         "the cmd/<manager> path, the command name it sends as cmd, and parameters that must "
-        "be an object that does not override cmd (tools/_classic_cmd.py)",
+        "be an object that does not override cmd (shared_shapes/_classic_cmd.py)",
         r"^Invalid Classic command (manager|name) |^Classic command parameters must ",
         (
-            "tools/_classic_cmd.py:validate_manager",
-            "tools/_classic_cmd.py:validate_command",
-            "tools/_classic_cmd.py:classic_command_body",
-            "tools/network_mobile_wan.py:_object_arg",
+            "shared_shapes/_classic_cmd.py:validate_manager",
+            "shared_shapes/_classic_cmd.py:validate_command",
+            "shared_shapes/_classic_cmd.py:classic_command_body",
+            "families/network/network_mobile_wan.py:_object_arg",
         ),
     ),
     Refusal(
@@ -1084,7 +1197,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "a Classic command parameter JSON cannot carry (NaN, Infinity, a non-string key, a "
         "non-JSON object)",
         r"^Classic command parameters are not JSON: ",
-        ("tools/_classic_cmd.py:classic_command_body",),
+        ("shared_shapes/_classic_cmd.py:classic_command_body",),
     ),
     Refusal(
         "protect-events-cases-argument-grammar",
@@ -1095,7 +1208,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "action 'download', and a fields key a typed argument also sets (each would be "
         "silently dropped or replaced)",
         r"^Protect events and cases arguments: ",
-        ("tools/protect_events_cases.py:_argument_grammar",),
+        ("families/protect/protect_events_cases.py:_argument_grammar",),
     ),
     Refusal(
         "protect-edge-export-arguments",
@@ -1104,7 +1217,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "that takes none: start or end with action 'download' (they would be silently "
         "dropped; only prepare sends them)",
         r"^start and end only apply to action 'prepare'",
-        ("tools/protect_camera_recording.py:export_edge_recording",),
+        ("families/protect/protect_camera_recording.py:export_edge_recording",),
     ),
     Refusal(
         "protect-device-route",
@@ -1112,15 +1225,15 @@ REFUSALS: tuple[Refusal, ...] = (
         "the Protect private-API route mapper's own grammar: a device type outside the "
         "enum, an action not sourced for the type, a missing id, or an id on the nvr "
         "singleton, or an empty camera_ids list that names no camera to pair "
-        "(tools/_protect_device_types.py)",
+        "(families/protect/_protect_device_types.py)",
         r"^Invalid device_type |^Invalid action .* for Protect |is a singleton and takes no "
         r"device id|^A device id is required for Protect "
         r"|^camera_ids must be a non-empty list of camera ids",
         (
-            "tools/_protect_device_types.py:require_camera_ids",
-            "tools/_protect_device_types.py:parse_device_type",
-            "tools/_protect_device_types.py:action_method",
-            "tools/_protect_device_types.py:device_path",
+            "families/protect/_protect_device_types.py:require_camera_ids",
+            "families/protect/_protect_device_types.py:parse_device_type",
+            "families/protect/_protect_device_types.py:action_method",
+            "families/protect/_protect_device_types.py:device_path",
         ),
     ),
     Refusal(
@@ -1139,18 +1252,18 @@ REFUSALS: tuple[Refusal, ...] = (
             r"(x_)?uplink_(security|band|ssid|password|identity) "
         ),
         (
-            "tools/network_wifi_radio.py:_mac",
-            "tools/network_wifi_radio.py:_epoch",
-            "tools/network_wifi_radio.py:_wifi_security",
-            "tools/network_wifi_radio.py:_wifi_band",
-            "tools/network_wifi_radio.py:_wifi_string",
-            "tools/network_wifi_radio.py:preview_radio_ai_optimization",
-            "tools/network_wifi_radio.py:apply_radio_ai_optimization",
-            "tools/network_wifi_radio.py:get_radio_history",
-            "tools/network_wifi_radio.py:control_wifi_doctor_optimization",
-            "tools/network_wifi_radio.py:get_wifi_stats",
-            "tools/network_wifi_radio.py:start_wifi_quick_scan",
-            "tools/network_wifi_radio.py:configure_wifi_wan",
+            "families/network/network_wifi_radio.py:_mac",
+            "families/network/network_wifi_radio.py:_epoch",
+            "families/network/network_wifi_radio.py:_wifi_security",
+            "families/network/network_wifi_radio.py:_wifi_band",
+            "families/network/network_wifi_radio.py:_wifi_string",
+            "families/network/network_wifi_radio.py:preview_radio_ai_optimization",
+            "families/network/network_wifi_radio.py:apply_radio_ai_optimization",
+            "families/network/network_wifi_radio.py:get_radio_history",
+            "families/network/network_wifi_radio.py:control_wifi_doctor_optimization",
+            "families/network/network_wifi_radio.py:get_wifi_stats",
+            "families/network/network_wifi_radio.py:start_wifi_quick_scan",
+            "families/network/network_wifi_radio.py:configure_wifi_wan",
         ),
     ),
     Refusal(
@@ -1162,7 +1275,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "sends only cmd='pcap-stop'; the start body's cmd is the route's own)",
         r"^(catalog|mode|action) must be one of |^capture_id is (required )?for action="
         r"|^options (must not override cmd|is for action='start' only)",
-        ("tools/network_security_diagnostics.py:_grammar",),
+        ("families/network/network_security_diagnostics.py:_grammar",),
     ),
     Refusal(
         "n11-argument-type",
@@ -1170,7 +1283,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "an N11 body argument that is not a JSON object, or a flag that is not a JSON boolean",
         r"^(certificate|profile|changes|body|options) must be a JSON object; got "
         r"|^(active_only|memory_optimized) must be a boolean; got ",
-        ("tools/network_security_diagnostics.py:_wrong_type",),
+        ("families/network/network_security_diagnostics.py:_wrong_type",),
     ),
     Refusal(
         "n07-argument-grammar",
@@ -1184,9 +1297,9 @@ REFUSALS: tuple[Refusal, ...] = (
         ),
         r"names no WireGuard user|^Invalid site VPN action |^Site VPN arguments name ",
         (
-            "tools/network_vpn_dns.py:_require_user_refs",
-            "tools/network_vpn_dns.py:_require_items",
-            "tools/network_vpn_dns.py:control_site_vpn",
+            "families/vpn/network_vpn_dns.py:_require_user_refs",
+            "families/vpn/network_vpn_dns.py:_require_items",
+            "families/vpn/network_vpn_dns.py:control_site_vpn",
         ),
     ),
     Refusal(
@@ -1205,10 +1318,10 @@ REFUSALS: tuple[Refusal, ...] = (
             r"|^body is not supported for client view"
         ),
         (
-            "tools/network_proav_sandbox.py:_choice",
-            "tools/network_proav_sandbox.py:_mac",
-            "tools/network_proav_sandbox.py:_multicast_route",
-            "tools/network_proav_sandbox.py:get_multicast_insights",
+            "families/network/network_proav_sandbox.py:_choice",
+            "families/network/network_proav_sandbox.py:_mac",
+            "families/network/network_proav_sandbox.py:_multicast_route",
+            "families/network/network_proav_sandbox.py:get_multicast_insights",
         ),
     ),
     Refusal(
@@ -1226,9 +1339,9 @@ REFUSALS: tuple[Refusal, ...] = (
             r"must be an integer epoch-milliseconds timestamp"
         ),
         (
-            "tools/network_proav_sandbox.py:_object",
-            "tools/network_proav_sandbox.py:_query",
-            "tools/network_proav_sandbox.py:_epoch_ms",
+            "families/network/network_proav_sandbox.py:_object",
+            "families/network/network_proav_sandbox.py:_query",
+            "families/network/network_proav_sandbox.py:_epoch_ms",
         ),
     ),
     Refusal(
@@ -1242,8 +1355,8 @@ REFUSALS: tuple[Refusal, ...] = (
         ),
         r"^'action' must be one of |^'mac' must be a MAC address such as ",
         (
-            "tools/network_controller_admin.py:_choice",
-            "tools/network_controller_admin.py:_mac",
+            "families/network/network_controller_admin.py:_choice",
+            "families/network/network_controller_admin.py:_mac",
         ),
     ),
     Refusal(
@@ -1256,9 +1369,9 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^Unknown device MAC |^Unexpected response shape from GET "
         r"|returned \d+ admin records; expected exactly one",
         (
-            "tools/network_controller_admin.py:_device_mac",
-            "tools/network_controller_admin.py:_rows",
-            "tools/network_controller_admin.py:update_my_admin_profile.read",
+            "families/network/network_controller_admin.py:_device_mac",
+            "families/network/network_controller_admin.py:_rows",
+            "families/network/network_controller_admin.py:update_my_admin_profile.read",
         ),
         upstream_reason="the target is identified from the upstream collection",
     ),
@@ -1269,7 +1382,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "of the three GET routes under /proxy/protect/api/detection-search "
         "(inventory_protect_5.3.18: detection-search, /labels, /progress)",
         r"^Invalid section .* for detection search metadata",
-        ("tools/protect_recognition_search.py:_get_detection_search_metadata",),
+        ("families/protect/protect_recognition_search.py:_get_detection_search_metadata",),
     ),
     Refusal(
         "classic-rc-not-ok",
@@ -1279,14 +1392,14 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^Classic command error from POST |^Unexpected Classic command response shape"
         r"|^Classic read error from GET ",
         (
-            "tools/_classic_cmd.py:classic_command",
-            "tools/_classic_cmd.py:command_data",
-            "tools/network_controller_insights.py:_classic_get",
-            "tools/network_controller_admin.py:_classic_post",
+            "shared_shapes/_classic_cmd.py:classic_command",
+            "shared_shapes/_classic_cmd.py:command_data",
+            "families/network/network_controller_insights.py:_classic_get",
+            "families/network/network_controller_admin.py:_classic_post",
         ),
         upstream_reason="Classic success (meta.rc) requires an upstream response.",
     ),
-    # ------------------------------------------------------------ GS3 lane NC
+    # ------------------------------------------- NAT, QoS and traffic-observability tools
     Refusal(
         "nc-argument-type",
         JSON_VALIDITY,
@@ -1296,11 +1409,11 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^\w+ must be a JSON object(, got| or array, got)|^\w+ must be an integer Unix "
         r"epoch in milliseconds|^top must be an integer, e\.g\.|^period must be a string",
         (
-            "tools/network_nat_qos_traffic.py:_nc_object",
-            "tools/network_nat_qos_traffic.py:_nc_object_or_array",
-            "tools/network_nat_qos_traffic.py:_nc_epoch_ms",
-            "tools/network_nat_qos_traffic.py:_nc_integer",
-            "tools/network_nat_qos_traffic.py:get_latest_traffic_flow_stats",
+            "families/network/network_nat_qos_traffic.py:_nc_object",
+            "families/network/network_nat_qos_traffic.py:_nc_object_or_array",
+            "families/network/network_nat_qos_traffic.py:_nc_epoch_ms",
+            "families/network/network_nat_qos_traffic.py:_nc_integer",
+            "families/network/network_nat_qos_traffic.py:get_latest_traffic_flow_stats",
         ),
     ),
     Refusal(
@@ -1309,7 +1422,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "NC QoS batch routes (batch-delete, batch-reorder): an empty list names no rule, so "
         "there is nothing to delete or reorder",
         r"^\w+ is an empty list, so it names no QoS rule",
-        ("tools/network_nat_qos_traffic.py:_nc_object_or_array",),
+        ("families/network/network_nat_qos_traffic.py:_nc_object_or_array",),
     ),
     Refusal(
         "nc-topology-view",
@@ -1319,7 +1432,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "history/at/{at}) and each route takes exactly its own path/query arguments",
         r"^view must be one of |^view 'live' takes no start|^view 'at' requires at"
         r"|^view '(timeline|timestamps)' requires start and end",
-        ("tools/network_nat_qos_traffic.py:get_topology_snapshot",),
+        ("families/network/network_nat_qos_traffic.py:get_topology_snapshot",),
     ),
     Refusal(
         "nc-upstream-record-selection",
@@ -1329,13 +1442,13 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^Unknown (NAT rule|QoS rule|content filter) |[Uu]nexpected response shape from "
         r"(GET|POST) |has no string _id or id",
         (
-            "tools/network_nat_qos_traffic.py:_nc_rows",
-            "tools/network_nat_qos_traffic.py:_nc_listed",
-            "tools/network_nat_qos_traffic.py:_nc_target",
-            "tools/network_nat_qos_traffic.py:delete_qos_rule",
-            "tools/network_nat_qos_traffic.py:_nc_page_items",
-            "tools/network_nat_qos_traffic.py:_nc_has_more",
-            "tools/network_nat_qos_traffic.py:_nc_drain",
+            "families/network/network_nat_qos_traffic.py:_nc_rows",
+            "families/network/network_nat_qos_traffic.py:_nc_listed",
+            "families/network/network_nat_qos_traffic.py:_nc_target",
+            "families/network/network_nat_qos_traffic.py:delete_qos_rule",
+            "families/network/network_nat_qos_traffic.py:_nc_page_items",
+            "families/network/network_nat_qos_traffic.py:_nc_has_more",
+            "families/network/network_nat_qos_traffic.py:_nc_drain",
         ),
         upstream_reason="the target and the page controls are read from the upstream",
     ),
@@ -1347,12 +1460,12 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^'[\w\[\]]+' must be (an integer|a boolean|a string|an object \(mapping\)|an "
         r"array), got ",
         (
-            "tools/network_device_operations.py:_check_int",
-            "tools/network_device_operations.py:_check_bool",
-            "tools/network_device_operations.py:_check_str",
-            "tools/network_device_operations.py:_check_object",
-            "tools/network_device_operations.py:_require_object",
-            "tools/network_device_operations.py:_check_list",
+            "families/network/network_device_operations.py:_check_int",
+            "families/network/network_device_operations.py:_check_bool",
+            "families/network/network_device_operations.py:_check_str",
+            "families/network/network_device_operations.py:_check_object",
+            "families/network/network_device_operations.py:_require_object",
+            "families/network/network_device_operations.py:_check_list",
         ),
     ),
     Refusal(
@@ -1363,7 +1476,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "clearing, estimate_body without time_estimate, an outlet index given twice, an empty "
         "battery_ids list, an empty bulk payload list)",
         r"^Device operation arguments: ",
-        ("tools/network_device_operations.py:_grammar",),
+        ("families/network/network_device_operations.py:_grammar",),
     ),
     Refusal(
         "device-operations-classic-rc",
@@ -1371,7 +1484,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "a Classic device list or bulk PUT the controller answered HTTP 2xx without "
         "meta.rc == ok; the error carries the full upstream body",
         r"^Classic error from (GET|PUT) ",
-        ("tools/network_device_operations.py:_classic_ok",),
+        ("families/network/network_device_operations.py:_classic_ok",),
         upstream_reason="Classic success (meta.rc) requires an upstream response.",
     ),
 )

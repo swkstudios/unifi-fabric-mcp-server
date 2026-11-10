@@ -84,8 +84,24 @@ def test_missing_key_names_the_env_vars(capsys, _clean_key_env):
     assert captured.err == (
         "placement snapshot export failed: placement snapshot export requires an API key: "
         'set UNIFI_API_KEY, or UNIFI_API_KEYS to a JSON list of {"key": ..., "label": ...} '
-        "objects\n"
+        "objects, or point UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND (UNIFI_API_KEYS_FILE / "
+        "UNIFI_API_KEYS_COMMAND for the list) at where the key is kept\n"
     )
+
+
+def test_missing_key_hint_names_the_provider_settings(capsys, _clean_key_env):
+    """The hint lists every way to supply a key, the file and helper providers included."""
+    assert cli.main(["--host", "HQ-Unifi"]) == 1
+    err = capsys.readouterr().err
+    for name in (
+        "UNIFI_API_KEY",
+        "UNIFI_API_KEYS",
+        "UNIFI_API_KEY_FILE",
+        "UNIFI_API_KEY_COMMAND",
+        "UNIFI_API_KEYS_FILE",
+        "UNIFI_API_KEYS_COMMAND",
+    ):
+        assert name in err, name
 
 
 def test_empty_key_is_named_by_label(monkeypatch, capsys, _clean_key_env):

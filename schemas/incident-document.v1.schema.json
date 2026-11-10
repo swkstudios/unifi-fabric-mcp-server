@@ -1,0 +1,1238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unifi-fabric-incident-evidence/v1",
+  "$defs": {
+    "Counts": {
+      "additionalProperties": false,
+      "description": "Record counts for a source.",
+      "properties": {
+        "retrieved": {
+          "description": "Rows read.",
+          "title": "Retrieved",
+          "type": "integer"
+        },
+        "records": {
+          "description": "Records kept in the document for this source.",
+          "title": "Records",
+          "type": "integer"
+        },
+        "in_window": {
+          "description": "Kept records whose time is in the window.",
+          "title": "In Window",
+          "type": "integer"
+        },
+        "out_of_window": {
+          "description": "Kept records whose time is outside the window.",
+          "title": "Out Of Window",
+          "type": "integer"
+        },
+        "untimed": {
+          "description": "Kept records with a missing, malformed or zoneless time.",
+          "title": "Untimed",
+          "type": "integer"
+        },
+        "duplicates_dropped": {
+          "description": "Rows identical, field for field, to a row already read: not kept twice.",
+          "title": "Duplicates Dropped",
+          "type": "integer"
+        },
+        "conflicting": {
+          "description": "Repeats of a record id whose native row differs from the first one read.",
+          "title": "Conflicting",
+          "type": "integer"
+        },
+        "malformed": {
+          "description": "Rows that are not JSON objects: counted, never made into records.",
+          "title": "Malformed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retrieved",
+        "records",
+        "in_window",
+        "out_of_window",
+        "untimed",
+        "duplicates_dropped",
+        "conflicting",
+        "malformed"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "description": "What part of the requested window the source covered.",
+      "properties": {
+        "queried_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Window"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The window sent upstream; null when no request was sent."
+        },
+        "observed_window": {
+          "$ref": "#/$defs/ObservedWindow",
+          "description": "In-window event times returned."
+        },
+        "window_coverage": {
+          "description": "covered: the whole requested window was queried and every page read; unknown: the drain stopped early; not_covered: the source failed.",
+          "enum": [
+            "covered",
+            "not_covered",
+            "unknown"
+          ],
+          "title": "Window Coverage",
+          "type": "string"
+        },
+        "retention": {
+          "const": "unknown",
+          "description": "Always unknown (see retention_reason).",
+          "title": "Retention",
+          "type": "string"
+        },
+        "retention_reason": {
+          "description": "Why retention coverage is unknown.",
+          "title": "Retention Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "queried_window",
+        "observed_window",
+        "window_coverage",
+        "retention",
+        "retention_reason"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "description": "One exact identifier the record names.",
+      "properties": {
+        "kind": {
+          "description": "What the identifier names. network_station is a MAC whose client or device role the record does not state.",
+          "enum": [
+            "network_client",
+            "network_device",
+            "network_station",
+            "ip_address",
+            "camera",
+            "sensor"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id_kind": {
+          "description": "The identifier's form.",
+          "enum": [
+            "mac",
+            "ip",
+            "protect_camera_id",
+            "protect_device_id"
+          ],
+          "title": "Id Kind",
+          "type": "string"
+        },
+        "id": {
+          "description": "The identifier exactly as the record gives it.",
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "description": "The native field or parameter that holds it.",
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id_kind",
+        "id",
+        "role"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "EpochWarning": {
+      "additionalProperties": false,
+      "description": "A warning about a window bound that is negative or looks like epoch milliseconds.",
+      "properties": {
+        "code": {
+          "description": "Which heuristic fired.",
+          "enum": [
+            "EPOCH_SECONDS_NEGATIVE",
+            "EPOCH_SECONDS_LOOKS_LIKE_MILLISECONDS"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "argument": {
+          "description": "The argument that looks wrong.",
+          "enum": [
+            "start",
+            "end"
+          ],
+          "title": "Argument",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value as given (epoch seconds); it was sent unchanged.",
+          "title": "Value",
+          "type": "integer"
+        },
+        "message": {
+          "description": "What was sent and what to pass instead.",
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "argument",
+        "value",
+        "message"
+      ],
+      "title": "EpochWarning",
+      "type": "object"
+    },
+    "EventTime": {
+      "additionalProperties": false,
+      "description": "When the event happened, as the record states it, and where it falls in the window.",
+      "properties": {
+        "status": {
+          "description": "in_window / out_of_window for a usable time; missing, malformed or ambiguous_timezone (no UTC offset) when the record gives no usable time.",
+          "enum": [
+            "in_window",
+            "out_of_window",
+            "missing",
+            "malformed",
+            "ambiguous_timezone"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "field": {
+          "description": "The native field the time was read from.",
+          "title": "Field",
+          "type": "string"
+        },
+        "original_type": {
+          "description": "JSON type of the native value.",
+          "enum": [
+            "absent",
+            "null",
+            "string",
+            "integer",
+            "float",
+            "boolean",
+            "object",
+            "array"
+          ],
+          "title": "Original Type",
+          "type": "string"
+        },
+        "utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "UTC ISO 8601 time; null without a usable time.",
+          "title": "Utc"
+        },
+        "epoch_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Epoch milliseconds; null without a usable time.",
+          "title": "Epoch Ms"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "enum": [
+                "second",
+                "millisecond",
+                "microsecond"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Precision the native value carries; null without a usable time.",
+          "title": "Precision"
+        }
+      },
+      "required": [
+        "status",
+        "field",
+        "original_type",
+        "utc",
+        "epoch_ms",
+        "precision"
+      ],
+      "title": "EventTime",
+      "type": "object"
+    },
+    "EvidenceRecord": {
+      "additionalProperties": false,
+      "description": "One normalized event.",
+      "properties": {
+        "evidence_id": {
+          "description": "Stable id: SOURCE_ID|id|NATIVE_ID, or SOURCE_ID|sha256:DIGEST for a record without a native id; a conflicting repeat adds |v:DIGEST.",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "product": {
+          "description": "The product that served the record.",
+          "enum": [
+            "network",
+            "protect"
+          ],
+          "title": "Product",
+          "type": "string"
+        },
+        "source_id": {
+          "description": "The source the record came from.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/EventTime",
+          "description": "The event time and its window placement."
+        },
+        "attributes": {
+          "description": "Safe native fields, by product.",
+          "discriminator": {
+            "mapping": {
+              "network": "#/$defs/NetworkAttributes",
+              "protect": "#/$defs/ProtectAttributes"
+            },
+            "propertyName": "product"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NetworkAttributes"
+            },
+            {
+              "$ref": "#/$defs/ProtectAttributes"
+            }
+          ],
+          "title": "Attributes"
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity",
+          "description": "Identifiers the record names."
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance",
+          "description": "Where the record came from."
+        }
+      },
+      "required": [
+        "evidence_id",
+        "product",
+        "source_id",
+        "time",
+        "attributes",
+        "identity",
+        "provenance"
+      ],
+      "title": "EvidenceRecord",
+      "type": "object"
+    },
+    "Failure": {
+      "additionalProperties": false,
+      "description": "Why a source produced no evidence.",
+      "properties": {
+        "kind": {
+          "description": "unsupported (HTTP 404/405/501), permission_denied (403), auth_failed (401), rejected (another 4xx), unavailable (5xx, 429 or no answer), parse_failed (an answer of an unexpected shape).",
+          "enum": [
+            "unsupported",
+            "permission_denied",
+            "auth_failed",
+            "rejected",
+            "unavailable",
+            "parse_failed"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "http_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Upstream HTTP status; null without one.",
+          "title": "Http Status"
+        },
+        "message": {
+          "description": "The upstream error text, with configured secrets masked.",
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "http_status",
+        "message"
+      ],
+      "title": "Failure",
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "description": "Which entities the record names, and how certain that is.",
+      "properties": {
+        "status": {
+          "description": "exact: every identifier has a known role and form; ambiguous: a role or form is unstated or two identifiers conflict; missing: no identifier in known fields.",
+          "enum": [
+            "exact",
+            "ambiguous",
+            "missing"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the status is ambiguous or missing; else null.",
+          "title": "Reason"
+        },
+        "entities": {
+          "description": "The identifiers, ordered by role and id.",
+          "items": {
+            "$ref": "#/$defs/Entity"
+          },
+          "title": "Entities",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "entities"
+      ],
+      "title": "Identity",
+      "type": "object"
+    },
+    "NetworkAttributes": {
+      "additionalProperties": false,
+      "description": "The safe Network system-log fields kept for a record (free text is never kept).",
+      "properties": {
+        "product": {
+          "const": "network",
+          "description": "Always network.",
+          "title": "Product",
+          "type": "string"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event key, e.g. THREAT_DETECTED_KNOWN_SOURCE_CLIENT.",
+          "title": "Key"
+        },
+        "event": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event name.",
+          "title": "Event"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Category, e.g. SECURITY.",
+          "title": "Category"
+        },
+        "subcategory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Subcategory.",
+          "title": "Subcategory"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Severity as the controller states it.",
+          "title": "Severity"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event type.",
+          "title": "Type"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Alert status, e.g. NEW.",
+          "title": "Status"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the event targets, e.g. DEVICE.",
+          "title": "Target"
+        },
+        "wrong_typed_fields": {
+          "description": "Native fields that are present with a value of the wrong JSON type and so are null here. A field that is simply absent (or null) is not listed.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Wrong Typed Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "product",
+        "key",
+        "event",
+        "category",
+        "subcategory",
+        "severity",
+        "type",
+        "status",
+        "target",
+        "wrong_typed_fields"
+      ],
+      "title": "NetworkAttributes",
+      "type": "object"
+    },
+    "ObservedWindow": {
+      "additionalProperties": false,
+      "description": "The earliest and latest in-window event times a source returned (null when none).",
+      "properties": {
+        "earliest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Earliest in-window event time, UTC ISO 8601.",
+          "title": "Earliest"
+        },
+        "latest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest in-window event time, UTC ISO 8601.",
+          "title": "Latest"
+        },
+        "earliest_epoch_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Earliest in-window event time, epoch ms.",
+          "title": "Earliest Epoch Ms"
+        },
+        "latest_epoch_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest in-window event time, epoch ms.",
+          "title": "Latest Epoch Ms"
+        }
+      },
+      "required": [
+        "earliest",
+        "latest",
+        "earliest_epoch_ms",
+        "latest_epoch_ms"
+      ],
+      "title": "ObservedWindow",
+      "type": "object"
+    },
+    "Pagination": {
+      "additionalProperties": false,
+      "description": "How much of the source's listing was read.",
+      "properties": {
+        "truncated": {
+          "description": "truncated when the drain stopped early (the opt-in page cap, a repeated or early-empty page, or a short declared total); else not_truncated.",
+          "enum": [
+            "not_truncated",
+            "truncated"
+          ],
+          "title": "Truncated",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the drain stopped early; else null.",
+          "title": "Reason"
+        },
+        "upstream_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The total the API declared, when it declared one.",
+          "title": "Upstream Total"
+        },
+        "retrieved": {
+          "description": "Rows read from the source.",
+          "title": "Retrieved",
+          "type": "integer"
+        },
+        "page_cap": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "UNIFI_PAGINATE_MAX_PAGES when the operator set it; else null (no cap).",
+          "title": "Page Cap"
+        }
+      },
+      "required": [
+        "truncated",
+        "reason",
+        "upstream_total",
+        "retrieved",
+        "page_cap"
+      ],
+      "title": "Pagination",
+      "type": "object"
+    },
+    "ProtectAttributes": {
+      "additionalProperties": false,
+      "description": "The safe Protect event fields kept for a record (descriptions and media are never kept).",
+      "properties": {
+        "product": {
+          "const": "protect",
+          "description": "Always protect.",
+          "title": "Product",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event type, e.g. motion or smartDetectZone.",
+          "title": "Type"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event category, e.g. smart.",
+          "title": "Category"
+        },
+        "smart_detect_types": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Smart-detect subtypes, e.g. person; null when the event has none.",
+          "title": "Smart Detect Types"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Detection score as the event states it.",
+          "title": "Score"
+        },
+        "end_epoch_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Event end, epoch milliseconds, when the event gives an integer end.",
+          "title": "End Epoch Ms"
+        },
+        "wrong_typed_fields": {
+          "description": "Native fields that are present with a value of the wrong JSON type (or, for smartDetectTypes, with a non-string entry that was left out) and so are null or reduced here. A field that is simply absent (or null) is not listed.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Wrong Typed Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "product",
+        "type",
+        "category",
+        "smart_detect_types",
+        "score",
+        "end_epoch_ms",
+        "wrong_typed_fields"
+      ],
+      "title": "ProtectAttributes",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Where a record came from.",
+      "properties": {
+        "product": {
+          "description": "The product that served the record.",
+          "enum": [
+            "network",
+            "protect"
+          ],
+          "title": "Product",
+          "type": "string"
+        },
+        "source_id": {
+          "description": "The source (see sources[].source_id).",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "route": {
+          "description": "HTTP method and route template that was read.",
+          "title": "Route",
+          "type": "string"
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The native record id; null when it has none.",
+          "title": "Record Id"
+        },
+        "record_id_field": {
+          "description": "The native field the record id is read from.",
+          "title": "Record Id Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "product",
+        "source_id",
+        "route",
+        "record_id",
+        "record_id_field"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "The console (and site) the document covers.",
+      "properties": {
+        "host_id": {
+          "description": "The console id.",
+          "title": "Host Id",
+          "type": "string"
+        },
+        "site": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Network site slug; null for Protect.",
+          "title": "Site"
+        }
+      },
+      "required": [
+        "host_id",
+        "site"
+      ],
+      "title": "Scope",
+      "type": "object"
+    },
+    "SourceResult": {
+      "additionalProperties": false,
+      "description": "One source's outcome, coverage and counts.",
+      "properties": {
+        "source_id": {
+          "description": "Stable source id, e.g. network.system_log.all.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "product": {
+          "description": "The product the source reads.",
+          "enum": [
+            "network",
+            "protect"
+          ],
+          "title": "Product",
+          "type": "string"
+        },
+        "route": {
+          "description": "HTTP method and route template.",
+          "title": "Route",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/SourceScope",
+          "description": "What the source read."
+        },
+        "outcome": {
+          "description": "complete, empty (no in-window record), partial (see partial_reasons), or a failure kind (see failure).",
+          "enum": [
+            "complete",
+            "empty",
+            "partial",
+            "unsupported",
+            "permission_denied",
+            "auth_failed",
+            "rejected",
+            "unavailable",
+            "parse_failed"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "partial_reasons": {
+          "description": "Why the outcome is partial; empty otherwise.",
+          "items": {
+            "enum": [
+              "truncated",
+              "untimed_records",
+              "conflicting_records",
+              "malformed_rows",
+              "window_coverage_unknown"
+            ],
+            "type": "string"
+          },
+          "title": "Partial Reasons",
+          "type": "array"
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Failure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The failure; null unless the source failed."
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage",
+          "description": "Window and retention coverage."
+        },
+        "pagination": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pagination"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Drain state; null when the source failed."
+        },
+        "counts": {
+          "$ref": "#/$defs/Counts",
+          "description": "Record counts."
+        }
+      },
+      "required": [
+        "source_id",
+        "product",
+        "route",
+        "scope",
+        "outcome",
+        "partial_reasons",
+        "failure",
+        "coverage",
+        "pagination",
+        "counts"
+      ],
+      "title": "SourceResult",
+      "type": "object"
+    },
+    "SourceScope": {
+      "additionalProperties": false,
+      "description": "What one source read.",
+      "properties": {
+        "host_id": {
+          "description": "The console id the source read.",
+          "title": "Host Id",
+          "type": "string"
+        },
+        "site": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Network site slug; null for Protect.",
+          "title": "Site"
+        },
+        "log_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Network system-log class; null for Protect.",
+          "title": "Log Class"
+        },
+        "camera_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Protect camera filter; null for all cameras.",
+          "title": "Camera Id"
+        },
+        "event_types": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Protect event types sent as a filter; null when not filtered.",
+          "title": "Event Types"
+        }
+      },
+      "required": [
+        "host_id",
+        "site",
+        "log_class",
+        "camera_id",
+        "event_types"
+      ],
+      "title": "SourceScope",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "description": "A half-open UTC window: ``start`` inclusive, ``end`` exclusive.\n\nThe ``*_epoch_ms`` fields are authoritative. An ISO bound is null exactly when its epoch\nvalue lies outside 0001-01-01T00:00:00.000Z to 9999-12-31T23:59:59.999Z (a value a\ncaller passed in the wrong unit is still sent and reported, never refused).",
+      "properties": {
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Window start, UTC ISO 8601 with milliseconds (inclusive); null when start_epoch_ms is outside years 1 to 9999.",
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Window end, UTC ISO 8601 with milliseconds (exclusive); null when end_epoch_ms is outside years 1 to 9999.",
+          "title": "End"
+        },
+        "start_epoch_ms": {
+          "description": "Window start, epoch milliseconds (inclusive); authoritative.",
+          "title": "Start Epoch Ms",
+          "type": "integer"
+        },
+        "end_epoch_ms": {
+          "description": "Window end, epoch milliseconds (exclusive); authoritative.",
+          "title": "End Epoch Ms",
+          "type": "integer"
+        },
+        "bounds": {
+          "const": "half_open",
+          "default": "half_open",
+          "description": "Always half_open: start <= t < end.",
+          "title": "Bounds",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "start_epoch_ms",
+        "end_epoch_ms"
+      ],
+      "title": "Window",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Normalized incident evidence from one product on one console.",
+  "properties": {
+    "schema_name": {
+      "const": "unifi-fabric-incident-evidence",
+      "description": "Always unifi-fabric-incident-evidence.",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Schema version; 1.",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "product": {
+      "description": "The product every source reads.",
+      "enum": [
+        "network",
+        "protect"
+      ],
+      "title": "Product",
+      "type": "string"
+    },
+    "status": {
+      "description": "complete: every source complete or empty with at least one complete; empty: every source empty; failed: every source failed; partial: anything else.",
+      "enum": [
+        "complete",
+        "empty",
+        "partial",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "causality": {
+      "const": "not_assessed",
+      "description": "Always not_assessed: records are ordered by time only and no record is claimed to cause another.",
+      "title": "Causality",
+      "type": "string"
+    },
+    "ordering": {
+      "const": "event_time_then_source",
+      "description": "Records sort by event time, product, source id, native record id and evidence id; records without a usable time sort last.",
+      "title": "Ordering",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope",
+      "description": "The console (and site) read."
+    },
+    "requested_window": {
+      "$ref": "#/$defs/Window",
+      "description": "The window the caller asked for."
+    },
+    "collected_at": {
+      "description": "When the collection ran, UTC ISO 8601; never used as an event time.",
+      "title": "Collected At",
+      "type": "string"
+    },
+    "incomplete": {
+      "description": "True exactly when some source is truncated (its drain stopped early); the repo-wide signal that this is not everything the console holds.",
+      "title": "Incomplete",
+      "type": "boolean"
+    },
+    "incompleteReason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Why the document is incomplete, naming each truncated source. Present only when incomplete is true (like every other result that carries the flag).",
+      "title": "Incompletereason"
+    },
+    "sources": {
+      "description": "Every source, in request order.",
+      "items": {
+        "$ref": "#/$defs/SourceResult"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "records": {
+      "description": "Every record, in order.",
+      "items": {
+        "$ref": "#/$defs/EvidenceRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "_warnings": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/EpochWarning"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "One entry per window bound that is negative or looks like epoch milliseconds (the repo-wide epoch warning); the bound was sent unchanged. Present only when there is one.",
+      "title": "Warnings"
+    }
+  },
+  "required": [
+    "schema_name",
+    "schema_version",
+    "product",
+    "status",
+    "causality",
+    "ordering",
+    "scope",
+    "requested_window",
+    "collected_at",
+    "incomplete",
+    "sources",
+    "records"
+  ],
+  "title": "IncidentEvidence",
+  "type": "object"
+}

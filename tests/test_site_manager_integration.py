@@ -18,8 +18,7 @@ import pytest_asyncio
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.site_manager import (
+from unifi_fabric.families.site_manager.site_manager import (
     get_host,
     get_isp_metrics,
     get_sdwan_config,
@@ -30,6 +29,7 @@ from unifi_fabric.tools.site_manager import (
     list_sites,
     query_isp_metrics,
 )
+from unifi_fabric.registry import Registry
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated

@@ -12,7 +12,7 @@ import pytest
 from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric import server
-from unifi_fabric.tools.device_radios import _get_device_radios, _update_device_radio
+from unifi_fabric.families.devices.device_radios import _get_device_radios, _update_device_radio
 
 
 @pytest.fixture
@@ -295,7 +295,7 @@ async def test_empty_radio_update_rejected_before_any_reads(monkeypatch, radio_u
 
 
 def test_diff_distinguishes_boolean_from_integer_readback():
-    from unifi_fabric.tools.device_radios import _diff
+    from unifi_fabric.families.devices.device_radios import _diff
 
     before = [{"radio": "na", "min_rssi_enabled": True}]
     after = [{"radio": "na", "min_rssi_enabled": 1}]
@@ -450,7 +450,7 @@ async def test_unsuccessful_verification_keeps_write_evidence(monkeypatch, radio
 @pytest.mark.parametrize("bad", [None, [], "bad", 42])
 def test_classic_success_rejects_malformed_shapes(bad):
     from unifi_fabric.client import UniFiConnectionError
-    from unifi_fabric.tools._device_config import require_classic_success
+    from unifi_fabric.families.devices._device_config import require_classic_success
 
     with pytest.raises(UniFiConnectionError):
         require_classic_success(bad, "/stat/device")
@@ -572,7 +572,7 @@ async def test_registered_empty_radio_update_sends_zero_requests(
 
 
 async def test_registered_radio_width_schema_matches_positive_runtime_constraint():
-    from unifi_fabric.tools.device_radios import RadioChanges
+    from unifi_fabric.families.devices.device_radios import RadioChanges
 
     tool = await server.mcp.get_tool("update_device_radio")
     schema = tool.parameters["$defs"]["RadioChanges"]["properties"]["ht"]
@@ -604,8 +604,8 @@ async def test_registered_sibling_empty_update_sends_zero_requests(
 @pytest.mark.parametrize("redact", [False, True])
 def test_malformed_radio_record_redacts_interpolated_credentials_when_enabled(redact):
     from unifi_fabric.client import UniFiConnectionError
+    from unifi_fabric.families.devices.device_radios import _radio_rows, _radios_by_band
     from unifi_fabric.redaction import write_redaction_scope
-    from unifi_fabric.tools.device_radios import _radio_rows, _radios_by_band
 
     secret = "RADIO_SECRET_SENTINEL"
     identifier = f'{{"password":"{secret}"}}'
@@ -628,8 +628,8 @@ def test_malformed_radio_record_redacts_interpolated_credentials_when_enabled(re
 )
 def test_classic_device_error_uses_shared_credential_formatter(body):
     from unifi_fabric.client import UniFiConnectionError
+    from unifi_fabric.families.devices._device_config import require_classic_success
     from unifi_fabric.redaction import write_redaction_scope
-    from unifi_fabric.tools._device_config import require_classic_success
 
     with write_redaction_scope(True), pytest.raises(UniFiConnectionError) as exc:
         require_classic_success(body, "/stat/device")
@@ -639,7 +639,7 @@ def test_classic_device_error_uses_shared_credential_formatter(body):
 async def test_classic_success_accepts_body_without_meta():
     from unittest.mock import AsyncMock
 
-    from unifi_fabric.tools._device_config import update_device_config
+    from unifi_fabric.families.devices._device_config import update_device_config
 
     client = AsyncMock()
     client.dry_run = False

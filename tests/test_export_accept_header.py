@@ -9,7 +9,7 @@ import pytest
 from tests import upstream_harness as uh
 from tests.test_traffic_flows_page_batching import FlowsUpstream
 from unifi_fabric import server
-from unifi_fabric.tools import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import network_nat_qos_traffic as nc
 
 
 class ExportAcceptUpstream(FlowsUpstream):

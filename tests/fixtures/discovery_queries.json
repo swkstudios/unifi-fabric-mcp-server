@@ -2,6 +2,7 @@
   "generator": "scripts/gen_discovery_queries.py",
   "tools": [
     "accept_ironclad_terms",
+    "acknowledge_critical_alert",
     "activate_lte_trial",
     "activate_ssl_inspection_certificate",
     "add_protect_case_asset",
@@ -30,7 +31,6 @@
     "bulk_update_objects",
     "bulk_upload_vehicle_groups",
     "calibrate_camera",
-    "calibrate_door_lock",
     "cancel_cloud_archive_task",
     "cancel_controller_backup",
     "cancel_rolling_upgrade",
@@ -40,8 +40,10 @@
     "clear_sensor_tamper",
     "clear_switch_counters",
     "clone_device_config",
+    "collect_network_incident_evidence",
     "collect_protect_device_changes",
     "collect_protect_events",
+    "collect_protect_incident_evidence",
     "commission_matter_node",
     "compare_site_performance",
     "configure_camera_wifi",
@@ -113,7 +115,6 @@
     "create_test_config",
     "create_traffic_matching_list",
     "create_traffic_route",
-    "create_traffic_rule",
     "create_user_group",
     "create_vpn_client",
     "create_vpn_server",
@@ -178,7 +179,6 @@
     "delete_test_config",
     "delete_traffic_matching_list",
     "delete_traffic_route",
-    "delete_traffic_rule",
     "delete_user_group",
     "delete_vpn_client",
     "delete_vpn_server",
@@ -227,7 +227,6 @@
     "get_bgp_status",
     "get_bridge",
     "get_camera",
-    "get_camera_adoption_qr",
     "get_camera_analytics",
     "get_camera_lux",
     "get_camera_playback_history",
@@ -240,9 +239,11 @@
     "get_channel_plan",
     "get_chime",
     "get_client",
+    "get_client_dpi_usage",
     "get_client_insights",
     "get_client_link_diagnostics",
     "get_client_observability",
+    "get_client_wifi_experience",
     "get_cloud_archive_status",
     "get_console_general_info",
     "get_controller_stats",
@@ -260,8 +261,10 @@
     "get_device_tx_retries",
     "get_digital_twin_layout",
     "get_dns_policy",
+    "get_door_lock",
     "get_dynamic_dns",
     "get_enriched_configuration",
+    "get_event_stream_status",
     "get_firewall_group",
     "get_firewall_policy",
     "get_firewall_policy_ordering",
@@ -321,11 +324,11 @@
     "get_port_profile",
     "get_proav_matrix",
     "get_proav_snapshot",
+    "get_protect_alarm_manager_mode",
     "get_protect_application_info",
     "get_protect_automation_history",
     "get_protect_bootstrap",
     "get_protect_case_activity",
-    "get_protect_case_asset_snapshot",
     "get_protect_device_metrics",
     "get_protect_device_password",
     "get_protect_event",
@@ -351,11 +354,13 @@
     "get_sensor",
     "get_sensor_private",
     "get_sensor_readings",
+    "get_server_diagnostic_bundle",
     "get_setting",
     "get_shadow_mode_status",
     "get_siren",
     "get_site_dashboard",
     "get_site_degradation_status",
+    "get_site_dpi_usage",
     "get_site_health_summary",
     "get_site_inventory",
     "get_site_statistics",
@@ -366,6 +371,7 @@
     "get_ssl_inspection_settings",
     "get_static_route",
     "get_support_file",
+    "get_switch_port_overrides",
     "get_switch_stack",
     "get_system_info",
     "get_system_log",
@@ -440,6 +446,7 @@
     "list_dhcp_options",
     "list_dns_policies",
     "list_doh_servers",
+    "list_door_lock_unlock_events",
     "list_door_locks",
     "list_dpi_applications",
     "list_dpi_categories",
@@ -586,8 +593,8 @@
     "query_switch_mac_tables",
     "query_teleport_invitations",
     "query_traffic_flows",
+    "read_recent_events",
     "readopt_protect_device",
-    "reboot_nvr",
     "reboot_protect_device",
     "reboot_unifi_os_console",
     "recognize_image",
@@ -648,7 +655,6 @@
     "set_device_alignment_mode",
     "set_device_rearrange_mode",
     "set_device_tag_assignments",
-    "set_door_lock_auto_close",
     "set_door_lock_state",
     "set_edge_storage_mount_state",
     "set_firewall_app_blocks",
@@ -676,6 +682,7 @@
     "start_wifi_quick_scan",
     "stop_speaker_stream",
     "suggest_network_settings",
+    "suggest_service_port",
     "suspend_carrier_subscriber",
     "test_doorbell_ringtone",
     "transfer_camera_management",
@@ -750,7 +757,6 @@
     "update_protect_device_tag",
     "update_protect_user",
     "update_protect_user_group",
-    "update_protect_user_notifications",
     "update_ptz_patrol",
     "update_ptz_preset",
     "update_qos_rule",
@@ -769,11 +775,11 @@
     "update_ssl_inspection_settings",
     "update_static_dns_record",
     "update_static_route",
+    "update_switch_port_overrides",
     "update_switch_stack",
     "update_system_log_settings",
     "update_traffic_matching_list",
     "update_traffic_route",
-    "update_traffic_rule",
     "update_user",
     "update_user_group",
     "update_viewer",
@@ -803,6 +809,16 @@
     {
       "query": "Help me record acceptance of a Protect service agreement",
       "expected": "accept_ironclad_terms",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to mark ONE critical system-log alert as read (acknowledge it). Unverified route",
+      "expected": "acknowledge_critical_alert",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me mark ONE critical system-log alert as read (acknowledge it). Unverified route",
+      "expected": "acknowledge_critical_alert",
       "kind": "operation"
     },
     {
@@ -1086,16 +1102,6 @@
       "kind": "operation"
     },
     {
-      "query": "I need to run the calibration routine of a UniFi door lock",
-      "expected": "calibrate_door_lock",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me run the calibration routine of a UniFi door lock",
-      "expected": "calibrate_door_lock",
-      "kind": "operation"
-    },
-    {
       "query": "I need to cancel a running Protect cloud archive task",
       "expected": "cancel_cloud_archive_task",
       "kind": "purpose"
@@ -1186,6 +1192,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to collect normalized incident evidence from the Network system log for one window",
+      "expected": "collect_network_incident_evidence",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me collect normalized incident evidence from the Network system log for one window",
+      "expected": "collect_network_incident_evidence",
+      "kind": "operation"
+    },
+    {
       "query": "I need to collect Protect device add/remove/modify changes by polling every device family for",
       "expected": "collect_protect_device_changes",
       "kind": "purpose"
@@ -1203,6 +1219,16 @@
     {
       "query": "Help me this task over a bounded polling window (live-feed stand-in)",
       "expected": "collect_protect_events",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to collect normalized incident evidence from Protect events for one window",
+      "expected": "collect_protect_incident_evidence",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me collect normalized incident evidence from Protect events for one window",
+      "expected": "collect_protect_incident_evidence",
       "kind": "operation"
     },
     {
@@ -1916,16 +1942,6 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a traffic matching rule (QoS, block, or route by application/IP group)",
-      "expected": "create_traffic_rule",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me create a traffic matching rule (QoS, block, or route by application/IP group)",
-      "expected": "create_traffic_rule",
-      "kind": "operation"
-    },
-    {
       "query": "I need to create a client user group via Classic REST POST rest/usergroup (the UI's route)",
       "expected": "create_user_group",
       "kind": "purpose"
@@ -2566,16 +2582,6 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete a traffic rule by ID",
-      "expected": "delete_traffic_rule",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me delete a traffic rule by ID",
-      "expected": "delete_traffic_rule",
-      "kind": "operation"
-    },
-    {
       "query": "I need to delete a client user group via Classic REST DELETE rest/usergroup/{_id}",
       "expected": "delete_user_group",
       "kind": "purpose"
@@ -3056,16 +3062,6 @@
       "kind": "operation"
     },
     {
-      "query": "I need to get the QR code a new Protect camera scans to join WiFi and adopt to this console",
-      "expected": "get_camera_adoption_qr",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me get the QR code a new Protect camera scans to join WiFi and adopt to this console",
-      "expected": "get_camera_adoption_qr",
-      "kind": "operation"
-    },
-    {
       "query": "I need to get a Protect camera's analytics over a time window",
       "expected": "get_camera_analytics",
       "kind": "purpose"
@@ -3186,6 +3182,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to get which applications each client uses, over a time window",
+      "expected": "get_client_dpi_usage",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get which applications each client uses, over a time window",
+      "expected": "get_client_dpi_usage",
+      "kind": "operation"
+    },
+    {
       "query": "I need to get a client insight view (v2 client/{mac}/view)",
       "expected": "get_client_insights",
       "kind": "purpose"
@@ -3213,6 +3219,16 @@
     {
       "query": "Help me get a client observability view (v2 observability/client/{mac}/...)",
       "expected": "get_client_observability",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to get one wireless client's Wi-Fi experience (the web app's per-client WiFiman view)",
+      "expected": "get_client_wifi_experience",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get one wireless client's Wi-Fi experience (the web app's per-client WiFiman view)",
+      "expected": "get_client_wifi_experience",
       "kind": "operation"
     },
     {
@@ -3386,6 +3402,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to get one door lock that Protect 7.x manages under /locks",
+      "expected": "get_door_lock",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get one door lock that Protect 7.x manages under /locks",
+      "expected": "get_door_lock",
+      "kind": "operation"
+    },
+    {
       "query": "I need to get a single Dynamic DNS configuration by ID",
       "expected": "get_dynamic_dns",
       "kind": "purpose"
@@ -3403,6 +3429,16 @@
     {
       "query": "Help me get the site's WAN, LAN or WLAN configuration enriched with usage details",
       "expected": "get_enriched_configuration",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to report whether live Network and Protect event streams are available, and listener health",
+      "expected": "get_event_stream_status",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me report whether live Network and Protect event streams are available, and listener health",
+      "expected": "get_event_stream_status",
       "kind": "operation"
     },
     {
@@ -3996,6 +4032,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to report whether a Protect console's Alarm Manager runs in local or global mode, and",
+      "expected": "get_protect_alarm_manager_mode",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me report whether a Protect console's Alarm Manager runs in local or global mode, and",
+      "expected": "get_protect_alarm_manager_mode",
+      "kind": "operation"
+    },
+    {
       "query": "I need to get Protect application metadata (GET /v1/meta/info via Fabric proxy). Read-only",
       "expected": "get_protect_application_info",
       "kind": "purpose"
@@ -4033,16 +4079,6 @@
     {
       "query": "Help me get the activity (audit) log of a Protect case",
       "expected": "get_protect_case_activity",
-      "kind": "operation"
-    },
-    {
-      "query": "I need to get the snapshot image of a Protect case asset",
-      "expected": "get_protect_case_asset_snapshot",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me get the snapshot image of a Protect case asset",
-      "expected": "get_protect_case_asset_snapshot",
       "kind": "operation"
     },
     {
@@ -4296,6 +4332,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to build a sanitized diagnostic bundle about this MCP server, for a bug report",
+      "expected": "get_server_diagnostic_bundle",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me build a sanitized diagnostic bundle about this MCP server, for a bug report",
+      "expected": "get_server_diagnostic_bundle",
+      "kind": "operation"
+    },
+    {
       "query": "I need to get a controller setting group by key",
       "expected": "get_setting",
       "kind": "purpose"
@@ -4343,6 +4389,16 @@
     {
       "query": "Help me get whether the Network application runs in degraded (safe) mode",
       "expected": "get_site_degradation_status",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to get which applications use the bandwidth, per site, over a time window",
+      "expected": "get_site_dpi_usage",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get which applications use the bandwidth, per site, over a time window",
+      "expected": "get_site_dpi_usage",
       "kind": "operation"
     },
     {
@@ -4443,6 +4499,16 @@
     {
       "query": "Help me get a device support file's status, or download it (Network v2 route)",
       "expected": "get_support_file",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to read a switch's per-port overrides (port_overrides) and port table, by port_idx",
+      "expected": "get_switch_port_overrides",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me read a switch's per-port overrides (port_overrides) and port table, by port_idx",
+      "expected": "get_switch_port_overrides",
       "kind": "operation"
     },
     {
@@ -5186,12 +5252,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list every UniFi door lock adopted by a Protect console",
+      "query": "I need to list the remote unlock requests made to a Protect 7.x door lock, newest first",
+      "expected": "list_door_lock_unlock_events",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list the remote unlock requests made to a Protect 7.x door lock, newest first",
+      "expected": "list_door_lock_unlock_events",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to list the door locks that Protect 7.x manages under /locks on a Protect console",
       "expected": "list_door_locks",
       "kind": "purpose"
     },
     {
-      "query": "Help me list every UniFi door lock adopted by a Protect console",
+      "query": "Help me list the door locks that Protect 7.x manages under /locks on a Protect console",
       "expected": "list_door_locks",
       "kind": "operation"
     },
@@ -6116,12 +6192,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list traffic matching rules (QoS, application, IP group matching)",
+      "query": "I need to list traffic matching rules (QoS, application, IP group matching). Legacy",
       "expected": "list_traffic_rules",
       "kind": "purpose"
     },
     {
-      "query": "Help me list traffic matching rules (QoS, application, IP group matching)",
+      "query": "Help me list traffic matching rules (QoS, application, IP group matching). Legacy",
       "expected": "list_traffic_rules",
       "kind": "operation"
     },
@@ -6646,6 +6722,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to read recent live events for one console; both products answer unsupported today",
+      "expected": "read_recent_events",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me read recent live events for one console; both products answer unsupported today",
+      "expected": "read_recent_events",
+      "kind": "operation"
+    },
+    {
       "query": "I need to re-adopt a Protect device whose adoption broke (it shows as disconnected)",
       "expected": "readopt_protect_device",
       "kind": "purpose"
@@ -6653,16 +6739,6 @@
     {
       "query": "Help me re-adopt a Protect device whose adoption broke (it shows as disconnected)",
       "expected": "readopt_protect_device",
-      "kind": "operation"
-    },
-    {
-      "query": "I need to reboot the Protect NVR once. All camera recording and live view are interrupted until it",
-      "expected": "reboot_nvr",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me reboot the Protect NVR once. All camera recording and live view are interrupted until it",
-      "expected": "reboot_nvr",
       "kind": "operation"
     },
     {
@@ -6976,12 +7052,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to restore the Protect database from its stored database dump",
+      "query": "I need to restore the Protect database from a staged foreign Postgres dump; this restarts Protect",
       "expected": "restore_protect_database",
       "kind": "purpose"
     },
     {
-      "query": "Help me restore the Protect database from its stored database dump",
+      "query": "Help me restore the Protect database from a staged foreign Postgres dump; this restarts Protect",
       "expected": "restore_protect_database",
       "kind": "operation"
     },
@@ -7266,22 +7342,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to set or trigger a UniFi door lock's auto-close (auto-relock) behaviour",
-      "expected": "set_door_lock_auto_close",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me set or trigger a UniFi door lock's auto-close (auto-relock) behaviour",
-      "expected": "set_door_lock_auto_close",
-      "kind": "operation"
-    },
-    {
-      "query": "I need to unlock (action=\"open\") or lock (action=\"close\") a UniFi door lock",
+      "query": "I need to request a remote unlock of a lock Protect 7.x manages under /locks (action=\"unlock\")",
       "expected": "set_door_lock_state",
       "kind": "purpose"
     },
     {
-      "query": "Help me unlock (action=\"open\") or lock (action=\"close\") a UniFi door lock",
+      "query": "Help me request a remote unlock of a lock Protect 7.x manages under /locks (action=\"unlock\")",
       "expected": "set_door_lock_state",
       "kind": "operation"
     },
@@ -7543,6 +7609,16 @@
     {
       "query": "Help me get the controller's suggested settings for a new network (Network v2 route)",
       "expected": "suggest_network_settings",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to suggest free ports for a service on the gateway, as the web app does for VPN servers",
+      "expected": "suggest_service_port",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me suggest free ports for a service on the gateway, as the web app does for VPN servers",
+      "expected": "suggest_service_port",
       "kind": "operation"
     },
     {
@@ -8286,16 +8362,6 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update a user's notification settings",
-      "expected": "update_protect_user_notifications",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me update a user's notification settings",
-      "expected": "update_protect_user_notifications",
-      "kind": "operation"
-    },
-    {
       "query": "I need to update a PTZ patrol by its patrol slot, verified by reading it back",
       "expected": "update_ptz_patrol",
       "kind": "purpose"
@@ -8476,6 +8542,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to change selected switch ports' port_overrides by port_idx; keep all else as read",
+      "expected": "update_switch_port_overrides",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me change selected switch ports' port_overrides by port_idx; keep all else as read",
+      "expected": "update_switch_port_overrides",
+      "kind": "operation"
+    },
+    {
       "query": "I need to update a switch stack, e.g. its unit order (Network v2 route)",
       "expected": "update_switch_stack",
       "kind": "purpose"
@@ -8513,16 +8589,6 @@
     {
       "query": "Help me update a traffic route by ID",
       "expected": "update_traffic_route",
-      "kind": "operation"
-    },
-    {
-      "query": "I need to update a traffic rule by ID",
-      "expected": "update_traffic_rule",
-      "kind": "purpose"
-    },
-    {
-      "query": "Help me update a traffic rule by ID",
-      "expected": "update_traffic_rule",
       "kind": "operation"
     },
     {

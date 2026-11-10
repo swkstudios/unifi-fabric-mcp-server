@@ -4,7 +4,7 @@ Every scale shape a floor plan can carry (the legacy ``scale`` / ``planScale`` /
 ``planScales``, each as a number or as an object with ``scale``; the documented ``scale``
 shape for the plan id; none) yields the same floor scale in
 ``get_unifi_placement_snapshot`` as in ``get_innerspace_summary``, because both read it
-with :func:`unifi_fabric.tools.innerspace._plan_scale`.
+with :func:`unifi_fabric.families.innerspace.innerspace._plan_scale`.
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from typing import Any
 
 import pytest
 
-from unifi_fabric.tools import innerspace, placement_snapshot
-from unifi_fabric.tools.placement_snapshot import build_snapshot
+from unifi_fabric.families.innerspace import innerspace, placement_snapshot
+from unifi_fabric.families.innerspace.placement_snapshot import build_snapshot
 
 _EMPTY: dict[str, Any] = {"data": []}
 

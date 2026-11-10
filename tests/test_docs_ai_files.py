@@ -6,6 +6,8 @@ the fact, so the docs cannot drift from the files they cite.
 
 from __future__ import annotations
 
+import ast
+import base64
 import json
 import re
 import tomllib
@@ -31,33 +33,143 @@ def _section(text: str, heading: str) -> str:
 
 # --- B1: forking identity matrix -------------------------------------------------------
 
-_ROW = re.compile(
-    r"^\| (?P<surface>[^|]+) \| `(?P<value>[^`]+)` \| `(?P<path>[^`:]+):(?P<line>\d+)` \|$"
-)
+_ROW = re.compile(r"^\| (?P<surface>[^|]+) \| `(?P<value>[^`]+)` \| `(?P<locator>[^`]+)` \|$")
+# A Source cell is ``path#locator`` (JSON Pointer, dotted TOML key, or the instruction/key a
+# Dockerfile or Ruby line starts with) or ``path::symbol`` (a Python function, class or
+# constant). Never a line number: those break on every routine edit.
+_LOCATOR = re.compile(r"^(?P<path>[^#:]+)(?P<sep>::|#)(?P<loc>.+)$")
 
 
-def _matrix() -> list[tuple[str, str, str, int]]:
+def _matrix() -> list[tuple[str, str, str]]:
     rows = []
     for line in _text("docs/FORKING.md").splitlines():
         m = _ROW.match(line)
         if m:
-            rows.append((m["surface"].strip(), m["value"], m["path"], int(m["line"])))
+            rows.append((m["surface"].strip(), m["value"], m["locator"]))
     return rows
 
 
-def test_forking_identity_matrix_cites_the_line_that_owns_each_value():
+def _strings(node: object) -> list[str]:
+    """Every string in a parsed JSON or TOML node: values, and the keys of mappings."""
+    if isinstance(node, str):
+        return [node]
+    if isinstance(node, dict):
+        return [s for k, v in node.items() for s in [k, *_strings(v)]]
+    if isinstance(node, list):
+        return [s for v in node for s in _strings(v)]
+    return []
+
+
+def _resolve_locator(root: Path, locator: str) -> str:
+    """The text a FORKING ``Source`` locator names under ``root``; ``LookupError`` if absent."""
+    m = _LOCATOR.match(locator)
+    if not m:
+        raise LookupError(f"{locator!r} is not path#locator or path::symbol")
+    path, sep, loc = m["path"], m["sep"], m["loc"]
+    text = (root / path).read_text(encoding="utf-8")
+    if sep == "::":
+        for node in ast.walk(ast.parse(text)):
+            named = isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and (
+                node.name == loc
+            )
+            if isinstance(node, ast.Assign):
+                named = any(isinstance(t, ast.Name) and t.id == loc for t in node.targets)
+            elif isinstance(node, ast.AnnAssign):
+                named = isinstance(node.target, ast.Name) and node.target.id == loc
+            if named:
+                return ast.get_source_segment(text, node) or ""
+        raise LookupError(f"{path}: no function, class or constant named {loc}")
+    if path.endswith(".json"):
+        node = json.loads(text)
+        for part in loc.lstrip("/").split("/"):
+            try:
+                node = node[int(part)] if isinstance(node, list) else node[part]
+            except (KeyError, IndexError, ValueError, TypeError) as exc:
+                raise LookupError(f"{path}: JSON Pointer {loc} does not resolve") from exc
+        return "\n".join(_strings(node))
+    if path.endswith(".toml"):
+        node = tomllib.loads(text)
+        for part in loc.split("."):
+            try:
+                node = node[part]
+            except (KeyError, TypeError) as exc:
+                raise LookupError(f"{path}: TOML key {loc} does not resolve") from exc
+        return "\n".join(_strings(node))
+    lines = [ln for ln in text.splitlines() if ln.strip().startswith(loc)]
+    if not lines:
+        raise LookupError(f"{path}: no line starts with {loc!r}")
+    return "\n".join(lines)
+
+
+def test_forking_identity_matrix_cites_the_place_that_owns_each_value():
     rows = _matrix()
     assert len(rows) >= 20, "the identity matrix lost rows"
-    for surface, value, path, number in rows:
-        lines = _text(path).splitlines()
-        assert number <= len(lines), (surface, path, number)
-        assert value in lines[number - 1], f"{surface}: {value!r} is not on {path}:{number}"
+    for surface, value, locator in rows:
+        try:
+            owned = _resolve_locator(ROOT, locator)
+        except LookupError as exc:
+            pytest.fail(f"{surface}: {exc}")
+        assert value in owned, f"{surface}: {value!r} is not at {locator}"
+
+
+def test_forking_identity_matrix_cites_no_line_numbers():
+    for surface, _value, locator in _matrix():
+        assert _LOCATOR.match(locator), f"{surface}: {locator!r} is not a locator"
+        assert not re.search(r":\d+$", locator), f"{surface}: {locator!r} cites a line number"
+    assert not re.search(r"`[\w./-]+\.\w+:\d+`", _text("docs/FORKING.md")), "line-number citation"
+
+
+def test_forking_locator_survives_code_moving_and_fails_when_the_value_leaves(tmp_path):
+    """A locator names a symbol or key, not a position: inserting lines above must not matter."""
+    (tmp_path / "gen.py").write_text(
+        "X = 1\n\ndef render(text):\n    return re.sub(r'(pkg==)\\d', text)\n", encoding="utf-8"
+    )
+    assert "pkg==" in _resolve_locator(tmp_path, "gen.py::render")
+    (tmp_path / "gen.py").write_text(
+        "# added\n" * 40 + "X = 1\n\ndef render(text):\n    return re.sub(r'(pkg==)\\d', text)\n",
+        encoding="utf-8",
+    )
+    assert "pkg==" in _resolve_locator(tmp_path, "gen.py::render")
+    with pytest.raises(LookupError):
+        _resolve_locator(tmp_path, "gen.py::renamed")
+    (tmp_path / "s.json").write_text('{"a": [{"id": "pkg"}]}', encoding="utf-8")
+    assert _resolve_locator(tmp_path, "s.json#/a/0/id") == "pkg"
+    with pytest.raises(LookupError):
+        _resolve_locator(tmp_path, "s.json#/a/1/id")
+
+
+def test_forking_rename_steps_cover_the_base64_cursor_badge():
+    """The leftover search cannot see the package name inside the Cursor badge payload."""
+    pattern = r"cursor\.com/en/install-mcp\?[^\"]*config=([A-Za-z0-9+/_=-]+)"
+    badges = re.findall(pattern, _text("README.md"))
+    assert badges, "README.md lost its Cursor install badge"
+    package = PYPROJECT["project"]["name"]
+    for payload in badges:
+        decoded = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)).decode()
+        assert package in decoded
+        assert package not in payload, "the name is readable without decoding; the note is stale"
+    steps = _section(_text("docs/FORKING.md"), "## Rename a fork")
+    assert "base64" in steps and "Cursor" in steps, "Rename a fork must tell a forker to decode it"
+
+
+def test_forking_identity_matrix_matches_release_identity():
+    identity = json.loads(_text("release-identity.json"))
+    owner, repo = identity["owner"], identity["repo"]
+    overrides = identity.get("overrides", {})
+    by_surface = {surface: value for surface, value, _locator in _matrix()}
+    registry = overrides.get("registry_name", f"io.github.{owner}/{repo}")
+    image = overrides.get("image", f"ghcr.io/{owner.lower()}/{repo.lower()}")
+    assert by_surface["Registry ID"] == registry
+    assert by_surface["Docker label (registry ownership)"] == registry
+    assert "ghcr.io/" + by_surface["Image name (registry OCI identifier)"] == image
+    assert by_surface["Registry package identifier (PyPI)"] == overrides.get("pypi", repo)
+    assert by_surface["Public URL (registry repository)"] == f"https://github.com/{owner}/{repo}"
 
 
 def test_forking_identity_matrix_matches_package_registry_and_image_identity():
-    # Re-points to the release-identity source (the single fork-editable public identity)
-    # when that source lands; until then the matrix is compared with the files directly.
-    by_surface = {surface: value for surface, value, _p, _n in _matrix()}
+    # The matrix is compared with the files directly and with release-identity.json, the
+    # single fork-editable public identity (owner and repo, plus any overrides).
+    by_surface = {surface: value for surface, value, _locator in _matrix()}
     project = PYPROJECT["project"]
     assert by_surface["Package name"] == project["name"]
     scripts = list(project["scripts"])
@@ -176,7 +288,7 @@ def test_generated_outputs_have_listed_generator_with_check_mode_and_ci_job():
     for generated in (
         "docs/TOOLS.md",
         "docs/site-stats.json",
-        "src/unifi_fabric/_api_source_table.py",
+        "src/unifi_fabric/generated_api_facts/_api_source_table.py",
         "tests/fixtures/tool_input_schemas_baseline.json",
         "tests/fixtures/discovery_queries.json",
     ):
@@ -308,7 +420,10 @@ def test_contributing_regeneration_guidance_never_touches_released_sections():
     section = _section(_text("CONTRIBUTING.md"), "## If you add or change tools")
     flat = " ".join(section.split())
     assert "Never commit a change to a released section" in flat
-    assert "git restore CHANGELOG.md" in flat
+    # The generator and the fold leave a dated section untouched (tests/test_readme_catalog_size.py
+    # and tests/test_changelog_fold.py), so the guidance no longer asks for a restore.
+    assert "leaves `CHANGELOG.md` unchanged and needs no restore step" in flat
+    assert "git restore" not in flat
     assert "refreshes the catalog sizes and tool counts in the README and in the docs" in flat
     assert "tool counts in the README and CHANGELOG" not in flat
     assert "Worked example: add a read tool" in section
@@ -330,7 +445,7 @@ def test_coverage_live_evidence_rendered_or_marked_historical():
         and date in text.split("\n\n")[1]
         or (build in historical[0] and date in historical[0])
     )
-    assert "build `cde04b5c1520`" in text and "2026-10-28" in text
+    assert f"build `{build}`" in text and date in text
 
 
 def test_hosted_discovery_and_base_url_guidance_current():

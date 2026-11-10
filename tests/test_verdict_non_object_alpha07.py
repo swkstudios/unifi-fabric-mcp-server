@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unifi_fabric.tools import network_vpn_dns as mod
+from unifi_fabric.families.vpn import network_vpn_dns as mod
 
 
 def test_with_verdict_wraps_a_non_object_body():

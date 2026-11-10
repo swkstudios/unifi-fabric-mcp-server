@@ -13,6 +13,9 @@ One registration-time pass keeps these agent-facing invariants on the advertised
 * Every tool names each required parameter in its description. A description that
   leaves one out gets the catalog's ``Required arguments:`` line, listing every required
   parameter in schema order.
+* Tool-surface notes (:func:`surface_notes`): the ``_proxy`` suffix, how dry-run is switched
+  on, and a one-line disambiguation for each overlapping filtering family are stated once
+  here instead of in hundreds of docstrings.
 * Final description prose is also the callable docstring prose, with its ``Args:``
   section preserved. Paragraphs about parameter identifiers start complete sentences.
 """
@@ -54,6 +57,71 @@ DELETION_RESULT = (
     "and response is the upstream body verbatim (decoded JSON, raw text, or null when the "
     "body is empty)."
 )
+
+
+#: Appended to every ``*_proxy`` tool: the suffix names the route, not a different feature.
+PROXY_NOTE = "_proxy suffix: calls the Network Integration API through the connector proxy."
+#: Appended as its own sentence to a description that mentions "dry-run policy": the setting
+#: that turns it on (``write_policy`` in src/unifi_fabric/config.py). ``UNIFI_WRITE_EXCEPTIONS``
+#: narrows it to one tool or family. It is never a call argument. It is a separate note, never
+#: edited into the tool's own result statement, so that statement stays the tool's own.
+DRY_RUN_SETTING = "Set UNIFI_WRITE_POLICY=dry-run."
+#: The advertised description limit (tests/test_alpha06_review_findings.py and others).
+MAX_DESCRIPTION = 2048
+PREVIEW_SHAPE_REPEAT = (
+    "The dry-run preview contains method, path, params (query parameters), and body."
+)
+_DRY_RUN_POLICY = re.compile(r"dry-run policy", re.IGNORECASE)
+#: One line per overlapping filtering family, keyed by the resource noun in the tool name.
+FAMILY_NOTES: dict[str, str] = {
+    "firewall_polic": (
+        "Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or "
+        "content filters."
+    ),
+    "acl_rule": (
+        "Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone "
+        "rules are firewall policies."
+    ),
+    "traffic_rule": (
+        "Filter family: QoS, application and IP-group traffic matching; not firewall "
+        "policies or content filters."
+    ),
+    "content_filter": (
+        "Filter family: category-based web-filtering profiles; not firewall policies or "
+        "traffic rules."
+    ),
+}
+_FAMILY_TOOL = re.compile(
+    r"(?:list|get|create|update|patch|delete|batch_delete)_"
+    r"(?P<key>firewall_polic|acl_rule|traffic_rule|content_filter)(?!_categor|y_order|ies_order)"
+)
+
+
+def surface_notes(name: str, description: str, *, read_only: bool = False) -> str:
+    """``description`` plus the shared tool-surface notes its tool ``name`` earns.
+
+    A read-only tool never gets the dry-run switch: the policy does not intercept it.
+    """
+    original = description
+    notes: list[str] = []
+    if (
+        not read_only
+        and _DRY_RUN_POLICY.search(description)
+        and "UNIFI_WRITE_POLICY=dry-run" not in description
+    ):
+        notes.append(DRY_RUN_SETTING)
+    if name.endswith("_proxy") and PROXY_NOTE not in description:
+        notes.append(PROXY_NOTE)
+    match = _FAMILY_TOOL.match(name)
+    if match and FAMILY_NOTES[match.group("key")] not in description:
+        notes.append(FAMILY_NOTES[match.group("key")])
+    if not notes and description == original:
+        return description
+    result = f"{description.rstrip()}\n\n{' '.join(notes)}" if notes else description
+    if len(result) > MAX_DESCRIPTION:
+        # Make room: this sentence only repeats the preview shape the Returns text gives.
+        result = result.replace(f"\n{PREVIEW_SHAPE_REPEAT}", "")
+    return result
 
 
 def _is_delete_family(name: str) -> bool:
@@ -98,7 +166,9 @@ def _names(name: str, text: str) -> bool:
 def install_compact_selector_descriptions(mcp: Any) -> int:
     """Finalize shared selector and description prose; return the change count."""
     changed = 0
-    for component in mcp._local_provider._components.values():
+    from .local_components import tool_components
+
+    for component in tool_components(mcp):
         parameters = getattr(component, "parameters", None)
         if not isinstance(parameters, dict):
             continue
@@ -131,6 +201,12 @@ def install_compact_selector_descriptions(mcp: Any) -> int:
             description = (
                 f"{description.rstrip()}\n\n{DELETION_RESULT}" if description else DELETION_RESULT
             )
+        annotations = getattr(component, "annotations", None)
+        description = surface_notes(
+            str(getattr(component, "name", "")),
+            description,
+            read_only=getattr(annotations, "read_only_hint", None) is True,
+        )
         if description != (getattr(component, "description", None) or ""):
             component.description = description
             changed += 1

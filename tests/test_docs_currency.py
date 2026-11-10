@@ -20,11 +20,15 @@ published; the release chain flips them at publication.
 from __future__ import annotations
 
 import asyncio
+import base64
 import functools
+import hashlib
+import importlib.util
 import inspect
 import json
 import re
 import tomllib
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -109,6 +113,28 @@ def _lines(path: Path):
     yield from enumerate(path.read_text().splitlines(), 1)
 
 
+@functools.cache
+def _decoder():
+    """The fixture gate's bounded URL / base64 / hex decoder (one implementation)."""
+    path = ROOT / ".github" / "scripts" / "check_fixtures_sanitization.py"
+    spec = importlib.util.spec_from_file_location("_docs_currency_decoder", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.decoded_views
+
+
+def _views(line: str):
+    """The line itself, then every text hidden under URL / base64 / hex layers of it.
+
+    A version regex only sees raw text, so a pin inside a percent-encoded or base64
+    deeplink payload (``%3D%3D0.7.0``, a Cursor ``config=`` blob) used to escape every
+    check here. Each yield is (label suffix, text)."""
+    yield "", line
+    for layers, text in _decoder()(line):
+        yield " (inside " + ">".join(layers) + " encoding)", text
+
+
 def _upgrade_guide(path: Path) -> bool:
     """A ``MIGRATING-*`` guide records version transitions; scripts/prepare_release.py
     never renders it, so its version strings are history, not install pins."""
@@ -130,28 +156,58 @@ def test_files_exist():
         assert path.is_file(), path
 
 
-def test_project_versions_in_docs_equal_pyproject():
-    """Any 0.x.y project version in prose or snippets is the current one."""
-    version_re = re.compile(r"(?<![\w.])0\.\d+\.\d+(?![\w.]*\d)")
+VERSION_RE = re.compile(r"(?<![\w.])0\.\d+\.\d+(?![\w.]*\d)")
+TAG_RE = re.compile(r"`:(\d+\.\d+\.\d+)`|==(\d+\.\d+\.\d+)")
+# "describes X.Y.Z source" names the source the document describes: always the current
+# version (scripts/prepare_release.py renders it as a version field), never the published pin.
+DESCRIBES_RE = re.compile(r"\bdescribes (0\.\d+\.\d+) source\b")
+
+
+def _version_findings(path: Path, numbered) -> list[str]:
+    """Stale 0.x.y project versions on ``numbered`` (lineno, line) pairs of ``path``,
+    in the raw line and in every encoded layer of it."""
     bad = []
-    for path in SNIPPET_FILES:
-        for no, line in _lines(path):
-            if (
-                _upgrade_guide(path)
-                or HISTORICAL.search(line)
-                or "clientInfo" in line
-                or (path.name == "Dockerfile" and "apt-get download" in line)
-            ):
-                continue
-            for m in version_re.finditer(line):
+    for no, line in numbered:
+        if (
+            _upgrade_guide(path)
+            or HISTORICAL.search(line)
+            or "clientInfo" in line
+            or (path.name == "Dockerfile" and "apt-get download" in line)
+        ):
+            continue
+        for where, view in _views(line):
+            described = {m.start(1) for m in DESCRIBES_RE.finditer(view)}
+            for m in VERSION_RE.finditer(view):
                 if m.group(0) != (
                     VERSION
                     if path == ROOT / "server.json"
-                    or '"version":' in line
-                    or "Tool counts at" in line
+                    or '"version":' in view
+                    or "Tool counts at" in view
+                    or m.start() in described
                     else PUBLISHED_VERSION
                 ):
-                    bad.append(f"{_rel(path)}:{no}: {m.group(0)} != {VERSION}")
+                    bad.append(f"{_rel(path)}:{no}: {m.group(0)} != {VERSION}{where}")
+    return bad
+
+
+def _tag_findings(path: Path, numbered) -> list[str]:
+    """Backticked ``:X.Y.Z`` tags and ``==X.Y.Z`` pins that are not the published
+    release, in the raw line and in every encoded layer of it."""
+    bad = []
+    for no, line in numbered:
+        if _upgrade_guide(path) or HISTORICAL.search(line):
+            continue
+        for where, view in _views(line):
+            for m in TAG_RE.finditer(view):
+                found = m.group(1) or m.group(2)
+                if found != PUBLISHED_VERSION:
+                    bad.append(f"{_rel(path)}:{no}: {found} != {VERSION}{where}")
+    return bad
+
+
+def test_project_versions_in_docs_equal_pyproject():
+    """Any 0.x.y project version in prose or snippets is the current one."""
+    bad = [f for path in SNIPPET_FILES for f in _version_findings(path, _lines(path))]
     assert not bad, "stale version strings:\n" + "\n".join(bad)
 
 
@@ -195,17 +251,50 @@ def test_image_references_use_published_path_and_current_version():
 
 def test_pinned_tag_mentions_equal_pyproject():
     """Backticked ``:X.Y.Z`` tag mentions and ``==X.Y.Z`` pins."""
-    tag_re = re.compile(r"`:(\d+\.\d+\.\d+)`|==(\d+\.\d+\.\d+)")
-    bad = []
-    for path in SNIPPET_FILES:
-        for no, line in _lines(path):
-            if _upgrade_guide(path) or HISTORICAL.search(line):
-                continue
-            for m in tag_re.finditer(line):
-                found = m.group(1) or m.group(2)
-                if found != PUBLISHED_VERSION:
-                    bad.append(f"{_rel(path)}:{no}: {found} != {VERSION}")
+    bad = [f for path in SNIPPET_FILES for f in _tag_findings(path, _lines(path))]
     assert not bad, "\n".join(bad)
+
+
+def _stale_version() -> str:
+    major, minor, patch = (int(x) for x in PUBLISHED_VERSION.split("."))
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def _encoded_install_line(version: str) -> str:
+    """A README-style line whose only pin sits inside two deeplink payloads: a
+    percent-encoded VS Code config and a base64 Cursor config (built at runtime)."""
+    config = json.dumps({"command": "uvx", "args": [f"{PACKAGE}=={version}"]})
+    b64 = base64.b64encode(config.encode()).decode()
+    return (
+        f"[VS Code](vscode:mcp/install?{urllib.parse.quote(config)}) "
+        f"[Cursor](cursor://anysphere.cursor-deeplink/mcp/install?config={b64})"
+    )
+
+
+@pytest.mark.parametrize("layer", ["url", "base64"])
+def test_a_stale_pin_inside_an_encoding_is_caught(layer):
+    """Negative control for the decode-aware scan: the raw line holds no visible pin,
+    yet the stale one inside each encoded payload is reported, naming the layer."""
+    line = _encoded_install_line(_stale_version())
+    assert not TAG_RE.search(line), "the planted pin must not be visible raw"
+    bad = _tag_findings(README, [(1, line)])
+    assert any(f"(inside {layer} encoding)" in f for f in bad), bad
+
+
+def test_the_current_pin_inside_an_encoding_passes():
+    line = _encoded_install_line(PUBLISHED_VERSION)
+    assert _tag_findings(README, [(1, line)]) == []
+    assert _version_findings(README, [(1, line)]) == []
+
+
+def test_encoded_benign_text_is_not_a_finding():
+    prose = "Install the server, then restart the client to load the tools."
+    hexed = prose.encode().hex()
+    b64 = base64.b64encode(prose.encode()).decode()
+    digest = hashlib.sha256(prose.encode()).hexdigest()
+    line = f"{hexed} {b64} sha256:{digest} {urllib.parse.quote(prose)}"
+    assert _tag_findings(README, [(1, line)]) == []
+    assert _version_findings(README, [(1, line)]) == []
 
 
 def test_homebrew_formula_url_names_current_release():
@@ -269,7 +358,7 @@ def shape_totals() -> tuple[int, int, int]:
     Bytes are the generated shapes as compact UTF-8 JSON, measured exactly as
     tests/test_catalog_size_budget.py holds them to their budget.
     """
-    from unifi_fabric._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
 
     size = sum(
         len(json.dumps(shape, separators=(",", ":"), ensure_ascii=False).encode())
@@ -558,47 +647,60 @@ def test_migration_guide_is_in_the_documentation_corpus():
     assert "# Migrating to 0.7.0" in guide.read_text()
 
 
-def _migrator():
-    import importlib.util
-    import sys
-
-    script = ROOT / "tools" / "migrate-0.7.1-env.py"
-    spec = importlib.util.spec_from_file_location("migrate_071_env", script)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules[spec.name] = module  # dataclasses resolve string annotations through sys.modules
-    spec.loader.exec_module(module)
-    return module
-
-
-def _mapping_table(text: str) -> list[tuple[str, ...]]:
-    """The rows of the first table under ``## Mapping``, code spans unwrapped."""
-    section = text.split("\n## Mapping\n", 1)[1].split("\n## ", 1)[0]
-    rows = [line for line in section.splitlines() if line.startswith("|")]
-    assert len(rows) > 2, "the Mapping section has no table"
-    return [
-        tuple(cell.strip().replace("`", "") for cell in row.strip().strip("|").split("|"))
-        for row in rows[2:]
-    ]
+#: The 0.7.1 settings migration kit. 0.7.2 removes it from the tree; the v0.7.1 tag keeps
+#: serving it, and the startup refusal for a retired setting links it there.
+_MIGRATION_KIT = (
+    "docs/MIGRATING-0.7.1.md",
+    "tools/migrate-0.7.1-env.py",
+    "tests/fixtures/upgrade-0.7.1",
+    "tests/test_upgrade_0_7_1.py",
+)
+_KIT_TAG = "https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/"
+_KIT_GUIDE_URL = _KIT_TAG + "docs/MIGRATING-0.7.1.md"
+_KIT_COMMAND = (
+    "uv run https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/v0.7.1/"
+    "tools/migrate-0.7.1-env.py <config file>"
+)
+_RELATIVE_KIT_LINK = re.compile(r"\]\((?!https?://)[^)]*MIGRATING-0\.7\.1\.md[^)]*\)")
 
 
-def test_upgrade_guide_table_equals_the_migrator_mapping():
-    """docs/MIGRATING-0.7.1.md and tools/migrate-0.7.1-env.py hold one mapping."""
-    guide = ROOT / "docs" / "MIGRATING-0.7.1.md"
-    assert guide in DOC_FILES
-    assert _mapping_table(guide.read_text()) == list(_migrator().MAPPING_ROWS)
+def test_071_migration_kit_is_not_in_the_tree():
+    """0.7.2 deletes the 0.7.1 migration kit; the v0.7.1 tag keeps the old links alive."""
+    assert [rel for rel in _MIGRATION_KIT if (ROOT / rel).exists()] == []
 
 
-def test_startup_refusal_points_at_the_guide_and_migrator_in_this_tree():
+def test_startup_refusal_points_at_the_071_kit_on_its_tag():
+    """A 0.7.0 setting still refuses startup with the guide and the migrator, on the tag."""
     from unifi_fabric import policy
 
-    migrator = _migrator()
-    assert policy.MIGRATION_URL == migrator.GUIDE
-    assert policy.MIGRATION_URL.endswith("/blob/v0.7.1/docs/MIGRATING-0.7.1.md")
-    assert (ROOT / "docs" / "MIGRATING-0.7.1.md").is_file()
-    assert migrator.SCRIPT_URL in policy.MIGRATION_COMMAND
-    assert (ROOT / migrator.SCRIPT_URL.split("/v0.7.1/", 1)[1]).is_file()
-    assert "MIGRATING-0.7.1.md" in (ROOT / "docs" / "MIGRATING-0.7.md").read_text()
+    assert policy.MIGRATION_URL == _KIT_GUIDE_URL
+    assert policy.MIGRATION_COMMAND == _KIT_COMMAND
+    retired = "UNIFI_" + "EXAMPLE_FROM_070"
+    with pytest.raises(policy.StartupRefusal) as info:
+        policy.check_retired_settings({retired: "1"}, ())
+    assert info.value.token == f"startup:retired:{retired}"
+    assert f"Migrate: {_KIT_GUIDE_URL} (one command: {_KIT_COMMAND})" in info.value.message
+
+
+def test_docs_link_the_071_migration_guide_on_its_tag():
+    """No document links the removed guide by a relative path; the upgrade notes use the tag."""
+    docs = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    relative = [
+        f"{path.relative_to(ROOT)}:{number}"
+        for path in docs
+        for number, line in enumerate(path.read_text().splitlines(), start=1)
+        if _RELATIVE_KIT_LINK.search(line)
+    ]
+    assert relative == []
+    for rel in ("README.md", "docs/CLIENT-SETUP.md", "docs/MIGRATING-0.7.md"):
+        assert f"]({_KIT_GUIDE_URL})" in (ROOT / rel).read_text(), rel
+
+
+def test_readme_links_the_072_migration_guide_for_a_071_upgrader():
+    """README gives a 0.7.1 upgrader a path to the 0.7.2 guide (note and table)."""
+    text = (ROOT / "README.md").read_text()
+    assert (ROOT / "docs" / "MIGRATING-0.7.2.md").is_file()
+    assert text.count("](docs/MIGRATING-0.7.2.md)") >= 2
 
 
 def test_release_count_phrases_are_generated_from_the_registry():

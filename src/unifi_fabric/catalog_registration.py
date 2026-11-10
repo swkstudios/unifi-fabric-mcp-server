@@ -44,9 +44,9 @@ def registration_specs(catalog: Catalog | None = None) -> list[ToolSpec]:
 
 def baseline_sources(names: Sequence[str]) -> dict[str, str]:
     """``name -> primary app/source`` from the baseline table (meta: server/local)."""
-    from ._api_source_table import TOOL_API_SOURCES
     from .api_sources import primary_pair
     from .catalog import DISCOVERY_META_TOOLS
+    from .generated_api_facts._api_source_table import TOOL_API_SOURCES
 
     out: dict[str, str] = {}
     for name in names:
@@ -132,7 +132,7 @@ def validate_registration(
     """
     from pathlib import Path
 
-    from .tools._shared import require_dependencies
+    from .shared_shapes._shared import require_dependencies
 
     recorded: dict[str, BoundHandler] = {}
 

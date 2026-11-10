@@ -13,7 +13,7 @@ from fastmcp.exceptions import ToolError
 from tests import test_cross_tool_invariants as cti
 from tests import tool_args
 from tests import upstream_harness as uh
-from unifi_fabric.tools._continuation import encode_continuation
+from unifi_fabric.shared_shapes._continuation import encode_continuation
 
 TOOLS = cti.TOOLS
 _call = cti._call

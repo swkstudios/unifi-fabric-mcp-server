@@ -149,12 +149,15 @@ in GitHub. The `changelog-check` CI job will pass without requiring a
 Add one Markdown file to `changelog.d/` with a unique, sortable filename ending in
 `.added.md`, `.changed.md`, `.removed.md`, `.fixed.md`, or `.security.md`, for example
 `changelog.d/site-default.fixed.md`. It contains one or more release-note bullets, each
-beginning with `- `, and no heading, release-version heading or HTML comment. See
-`changelog.d/README.md` for the full fragment format and `changelog.d/TEMPLATE.md` for the
-shape of a breaking entry.
+beginning with `- `, and no heading, release-version heading or HTML comment. A bullet is
+one sentence of at most 25 words that starts with a bold area label; an indented `area:` line
+names its group in the release notes, and the detail it drops goes to the docs, which the
+bullet links. See `changelog.d/README.md` for the full fragment format and
+`changelog.d/TEMPLATE.md` for the shape of a breaking entry.
 
 ```markdown
-- `some_tool` no longer returns a 500 when `site` is omitted.
+- **Sites:** `some_tool` no longer returns a 500 when `site` is omitted.
+  area: Network
 ```
 
 While a release is being prepared, its section (`## [X.Y.Z]`, undated
@@ -199,14 +202,14 @@ Full CI gate matrix:
 |-------|-----------------|
 | `lint` | `ruff check` (rules: E, F, I, W, B, S, ANN, UP) |
 | `typecheck` | `mypy` static type analysis |
-| `docs` | `gen_tools_doc.py --check`: `TOOLS.md` matches the runtime; `gen_catalog_figures.py --check`: README and CHANGELOG catalog sizes and tool counts match the runtime; `check_markdown.py`; the README catalog-size and discovery-accuracy tests |
+| `docs` | `regen_docs.py --check`: every generated doc region and figure (`TOOLS.md`, README and CHANGELOG catalog sizes and tool counts, the reference blocks) matches the runtime and code; `check_markdown.py`; the README catalog-size and discovery-accuracy tests |
 | `test` | `pytest` + 97% line-coverage minimum |
 | `test-locked` | The full suite again in an environment installed exactly from `requirements.lock` (`pip install --require-hashes`), with the same 97% coverage minimum |
 | `scrub-oracle` | The 210,000-case scrubber acceptance corpus (50 chunks, `-m slow -n 4`) and its aggregate coverage-floor step, both of which the full suite skips. Runs in parallel with `test`, whenever `test` runs and on an integration PR that changes the scrubber, the oracle or its generator |
 | `gitleaks` | No secrets committed (file scan + PR diff scan) |
 | `fixtures-sanitization` | No real MACs, IPs, or API keys in fixtures |
 | `version-consistency` | `scripts/check_server_json_version.py` — the `server.json` version and its OCI image identifier tag equal the `pyproject.toml` version (no leading `v`) |
-| `docker-build` | The production container image builds from the `Dockerfile` (no push) |
+| `docker-build` | The production container image builds from the `Dockerfile` (no push) and boots on both platforms: it passes only when its two parallel halves, `docker-build-amd64` (two-platform build, index check, linux/amd64 boot, TLS reverse proxy test) and `docker-build-arm64` (native linux/arm64 build and boot), both succeeded |
 | `changelog-check` | When `src/` changes: a `changelog.d` fragment or a `CHANGELOG.md` change, or the `skip-changelog` label set |
 | `lint-public-language` | The pull request title, body, commit messages and author emails use public language (runs on the public repository) |
 
@@ -252,6 +255,35 @@ unit tests.
 2. One error-path test verifying the tool surfaces errors clearly.
 3. A multi-key routing test if the tool calls `client.request()` or resolves hosts.
 
+## Editing the README
+
+Most of `README.md` is ordinary prose: edit it like any Markdown file. A few regions are
+written by scripts, and the rules follow from that:
+
+1. **Edit freely outside the generated blocks.** No script rewrites prose and no test pins its
+   wording, except the hook phrases listed in `docs/doc-facts.toml`: if you reword one of
+   those, change its entry there in the same commit.
+2. **Never edit inside a block.** A block is everything between a
+   `<!-- BEGIN GENERATED: name -->` line and the next `<!-- END GENERATED -->` line, and the
+   marker lines belong to it: do not edit, move or delete them. `BLOCKS` in
+   `scripts/doc_blocks.py` lists every block with the one generator that writes it. To
+   reword a generated sentence, change its renderer in that generator. A missing,
+   duplicated, unregistered or reordered block fails every generator.
+3. **Put catalog figures in a block, not in prose.** A hand-written "N tools" outside a
+   block must equal the registered tool count (`tests/test_docs_currency.py` checks it), so
+   write the sentence without the number, or move the figure into a block.
+4. **Leave the machine-read comments and pins alone.** Do not edit the
+   `<!-- install-case: ... -->` and `<!-- doc-provenance: ... -->` comments; a new fenced
+   example under Installation needs both, like its neighbours. The generator rewrites the
+   install versions (`==X.Y.Z`, image tags, the install badges), so don't hand-edit them.
+5. **Renaming a heading breaks its `#anchor` links,** including the contents line at the top;
+   `scripts/check_markdown.py` fails until you update them. Keep `## Installation` within
+   the first 90 lines.
+6. **Regenerate, then check.** Run `python3 scripts/regen_docs.py`: it runs every
+   documentation generator in order and fixes every generated figure, pin and block. Then
+   `python3 scripts/regen_docs.py --check` runs the same checks as the `docs` CI job and
+   prints a diff of anything stale.
+
 ## If you add or change tools
 
 If your PR adds, removes, or renames any `@mcp.tool()` function, regenerate the files
@@ -265,13 +297,14 @@ the three invariants and the table of every generator are in
 .venv/bin/python scripts/gen_reference_blocks.py
 ```
 
+`scripts/regen_docs.py` runs the same three in this order in one command.
 `gen_catalog_figures.py` refreshes the catalog sizes and tool counts in the README and in
 the docs listed in its header. It also targets the first numbered section of
 `CHANGELOG.md` while that section is undated. Never commit a change to a released section:
 a section whose heading carries a date has shipped, and its figures stay verbatim. The
 generator leaves a dated first section untouched and the changelog fold refuses to add
-fragments to one; as a check, run `git diff --stat CHANGELOG.md` after the generator, and if
-it shows a change while the first numbered heading is dated, run `git restore CHANGELOG.md`.
+fragments to one, so a run on a released tree leaves `CHANGELOG.md` unchanged and needs no
+restore step.
 Never edit a generated figure by hand. The `docs`
 CI job runs each generator with `--check` and fails if any is out of sync with the runtime.
 
@@ -284,10 +317,10 @@ This is the path a first contribution follows. The example adds a paged list rea
 list_example_widgets, to an existing module; use a real endpoint from the pinned
 specification instead.
 
-1. Read an existing paged tool such as `list_sites` in `src/unifi_fabric/tools/site_manager.py`
+1. Read an existing paged tool such as `list_sites` in `src/unifi_fabric/families/site_manager/site_manager.py`
    and copy its structure. A list tool takes optional `page_token` and `page_size`
    arguments, and a paged read calls `_pagination.collect_cursor` (or `_pagination.collect_offset`) from
-   `src/unifi_fabric/tools/_pagination.py` rather than looping itself:
+   `src/unifi_fabric/shared_shapes/_pagination.py` rather than looping itself:
 
    ```python
    @mcp.tool(annotations=READ_ONLY)  # from ..tool_annotations; the final hints are derived
@@ -312,7 +345,7 @@ specification instead.
 
    This is a sketch of the shape, not code to paste: take the exact imports, annotation
    constant and result handling from the sibling tool you copied.
-2. Add its row to `src/unifi_fabric/_api_source_table.py` by running
+2. Add its row to `src/unifi_fabric/generated_api_facts/_api_source_table.py` by running
    `.venv/bin/python -m tests.api_sources_gen --write`, then `ruff format` on that file.
 3. Write `tests/test_<module>.py` cases: a happy path with a mocked response, an error
    path, a case where `widget_kind` is omitted and the key is absent from the request, and

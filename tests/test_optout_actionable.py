@@ -16,10 +16,10 @@ from __future__ import annotations
 import pytest
 
 from unifi_fabric import switches
-from unifi_fabric.tools import connector
-from unifi_fabric.tools.carrier_fabric import DISABLED_MSG as CARRIER_MSG
-from unifi_fabric.tools.mobility import DISABLED_MSG as MOBILITY_MSG
-from unifi_fabric.tools.protect import MUTATIONS_DISABLED_REASON as PROTECT_MSG
+from unifi_fabric.families.carrier.carrier_fabric import DISABLED_MSG as CARRIER_MSG
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.mobility.mobility import DISABLED_MSG as MOBILITY_MSG
+from unifi_fabric.families.protect.protect import MUTATIONS_DISABLED_REASON as PROTECT_MSG
 
 
 def _assert_actionable(msg: str, var: str) -> None:

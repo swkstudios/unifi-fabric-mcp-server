@@ -23,11 +23,15 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests._tool_catalog import tools as catalog_tools
 from unifi_fabric import refusals, server
-from unifi_fabric._spec_limits_table import SPEC_LIMITS
 from unifi_fabric.client import PaginationAbortedError, UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools._number_window import collect_number_window
-from unifi_fabric.tools._pagination import collect_batch, collect_offset, validate_pagination
+from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
+from unifi_fabric.shared_shapes._number_window import collect_number_window
+from unifi_fabric.shared_shapes._pagination import (
+    collect_batch,
+    collect_offset,
+    validate_pagination,
+)
 
 
 def _client(get: Any) -> UniFiClient:
@@ -295,7 +299,7 @@ async def test_u2_unpaged_repeat_with_a_declared_larger_total_stays_incomplete()
 async def test_u2_system_log_window_over_an_unpaged_bare_array():
     from unittest.mock import AsyncMock
 
-    from unifi_fabric.tools import system_log
+    from unifi_fabric.families.statistics import system_log
 
     client = AsyncMock()
     client.paginate_max_pages = None

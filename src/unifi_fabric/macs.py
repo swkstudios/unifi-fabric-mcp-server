@@ -19,6 +19,18 @@ _MAC_RE = re.compile(
 )
 _SEPARATORS = re.compile(r"[:.-]")
 
+#: A separated MAC found INSIDE free text (the audit identifier pseudonymiser). The
+#: separator is one of ``:``, ``-`` or ``%3A`` and is the same throughout, or the dotted
+#: ``aabb.ccdd.eeff`` form; a neighbouring hex digit or ``:`` means a longer token (an IPv6
+#: address, a hash) and is left alone. Every repeat is a bounded fixed count with no
+#: nesting, so matching is linear in the input.
+MAC_IN_TEXT_RE = re.compile(
+    r"(?:(?<![0-9A-Fa-f:])|(?<=%3[Aa]))"
+    r"(?:[0-9A-Fa-f]{2}(?P<sep>:|-|%3[Aa])(?:[0-9A-Fa-f]{2}(?P=sep)){4}[0-9A-Fa-f]{2}"
+    r"|[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})"
+    r"(?![0-9A-Fa-f:])"
+)
+
 
 def is_mac(value: object) -> bool:
     """True when ``value`` is a MAC in an accepted form (no surrounding whitespace)."""

@@ -2,11 +2,15 @@
 
 OFF by default. The stream is configured by four settings:
 
-* ``UNIFI_AUDIT_SINK`` -- ``none`` | ``stderr`` | ``file``. Unset means ``file`` when
-  ``UNIFI_AUDIT_LOG`` names a path and ``none`` otherwise, so an existing
+* ``UNIFI_AUDIT_SINK`` -- ``none`` | ``stderr`` | ``file`` | ``remote``. Unset means
+  ``file`` when ``UNIFI_AUDIT_LOG`` names a path and ``none`` otherwise, so an existing
   ``UNIFI_AUDIT_LOG`` deployment keeps writing its file. ``file`` requires
   ``UNIFI_AUDIT_LOG``; ``none`` or ``stderr`` with a path set is a startup error.
-  The remote sink is not part of this build (its transport contract comes first).
+  ``remote`` ships JSON records to a log collector over HTTPS (TLS by default,
+  verified, optional mutual TLS): :mod:`unifi_fabric.audit_remote`. ``remote`` with
+  ``UNIFI_AUDIT_LOG`` set is additive: the local file is written first, synchronously,
+  with the file sink's own fault semantics, and the same line is then handed to the
+  remote buffer, so a collector outage or stall never loses a local record.
 * ``UNIFI_AUDIT_LEVEL`` -- ``off`` | ``normal`` (default) | ``debug``. ``off`` writes
   nothing except the two policy records (:meth:`AuditStream.policy_record`);
   ``normal`` writes metadata only; ``debug`` adds the scrubbed request body of a write
@@ -45,6 +49,11 @@ Design notes:
   unavailable: every tool response then carries the fixed notice
   :data:`AUDIT_UNAVAILABLE` until a later record is written again, and that first
   record after the fault is an ``audit.recovered`` record counting the records lost.
+* **Tamper evidence (opt-in).** ``UNIFI_AUDIT_CHAIN`` (off by default) adds a keyed hash
+  chain to the JSON file sink (:mod:`unifi_fabric.audit_chain`): ``chain``/``seq``/
+  ``prev``/``mac`` on every record, an ``audit.chain_start`` record first and an
+  ``audit.seal`` record after every policy line. Off, the stream is byte-identical to
+  0.7.1. It is tamper-evident, not tamper-proof.
 """
 
 from __future__ import annotations
@@ -65,11 +74,20 @@ from datetime import UTC, datetime
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, TextIO
 
+from .audit_chain import (
+    CHAIN_FIELDS,
+    CHAIN_START_EVENT,
+    SEAL_EVENT,
+    ChainState,
+    sealed_digest,
+)
 from .redaction import REDACTION_MASK, redact_credentials
 from .refusal_audit import note_refused_record
 from .secret_scrub import configured_secrets, scrub, scrub_json_strings
 
 if TYPE_CHECKING:
+    from .audit_identifiers import IdentifierHasher
+    from .audit_remote import RemoteSink
     from .config import Settings
 
 _logger = logging.getLogger(__name__)
@@ -77,7 +95,7 @@ _logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "1"
 
 #: Valid values of each setting (config.py keeps the same tuples for its validators).
-SINKS = ("none", "stderr", "file")
+SINKS = ("none", "stderr", "file", "remote")
 LEVELS = ("off", "normal", "debug")
 FORMATS = ("text", "json")
 FILE_MODES = {"0600": 0o600, "0640": 0o640}
@@ -97,6 +115,7 @@ OUTCOMES = (
     "no_response",
     "rate_limited",
     "classic_rc_error",
+    "upstream_error_body",
     "error",
     "dry_run",
     "refused",
@@ -109,7 +128,7 @@ _ENVELOPE = ("schema_version", "event", "timestamp_utc")
 EVENT_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     "startup": {
         "required": (*_ENVELOPE, "version", "sink", "level", "format", "calls"),
-        "optional": ("file_mode",),
+        "optional": ("file_mode", "remote_endpoint", "identifiers"),
     },
     "audit": {
         "required": (*_ENVELOPE, "method", "path", "outcome", "status"),
@@ -135,7 +154,20 @@ EVENT_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
         "required": (*_ENVELOPE, "lost_records", "fault"),
         "optional": (),
     },
+    # Written only with UNIFI_AUDIT_CHAIN on (the first record of every chain).
+    CHAIN_START_EVENT: {
+        "required": (*_ENVELOPE, "kid", "prev_chain", "prev_seq", "prev_mac", *CHAIN_FIELDS),
+        "optional": (),
+    },
+    # Written only with UNIFI_AUDIT_CHAIN on (right after every policy line).
+    SEAL_EVENT: {
+        "required": (*_ENVELOPE, "sealed_sha256", *CHAIN_FIELDS),
+        "optional": (),
+    },
 }
+#: Events written only when the chain is on; with it on, every record also carries
+#: :data:`CHAIN_FIELDS` (``chain``, ``seq``, ``prev``, ``mac``).
+CHAIN_EVENTS = (CHAIN_START_EVENT, SEAL_EVENT)
 #: The two policy records the audit stream carries byte-identical (shapes: policy.py).
 POLICY_EVENTS = ("policy.startup", "policy.refusal")
 EVENTS = (*EVENT_FIELDS, *POLICY_EVENTS)
@@ -289,6 +321,22 @@ class StderrSink:
             raise SinkWriteError(exc) from None
 
 
+def _ends_without_newline(path: str) -> bool:
+    """True when ``path`` is a regular, non-empty file whose last byte is not a newline.
+
+    Never follows a symlink and never opens a FIFO or device (it checks ``lstat`` first).
+    """
+    st = os.lstat(path)
+    if not stat.S_ISREG(st.st_mode) or st.st_size == 0:
+        return False
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+    try:
+        return os.pread(fd, 1, st.st_size - 1) != b"\n"
+    finally:
+        os.close(fd)
+
+
 def _identity(st: os.stat_result) -> tuple[int, int, int]:
     return (st.st_dev, st.st_ino, st.st_rdev if stat.S_ISCHR(st.st_mode) else 0)
 
@@ -322,6 +370,18 @@ class FileSink:
     name: str = "file"
     _partial: bool = field(default=False, repr=False, compare=False)
     _wide_warned: bool = field(default=False, repr=False, compare=False)
+    #: True when every byte of the last record (its newline aside) reached the file,
+    #: even if the write then failed (a ``close`` error, a lost newline). The hash chain
+    #: advances on this, never on the absence of an error.
+    last_complete: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        # A crash can leave the last record without its newline: the first record of this
+        # process then starts on its own line instead of continuing the cut one.
+        try:
+            self._partial = _ends_without_newline(self.path)
+        except OSError:
+            pass
 
     def _open(self) -> int:
         flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_CLOEXEC", 0)
@@ -381,6 +441,7 @@ class FileSink:
         prefix = "\n" if self._partial else ""
         data = (prefix + line + "\n").encode("utf-8", errors="backslashreplace")
         written = 0
+        self.last_complete = False
         try:
             fd = self._open()
             try:
@@ -394,8 +455,10 @@ class FileSink:
         except Exception as exc:  # noqa: BLE001 - every sink failure fails open
             if written:
                 self._partial = True
+            self.last_complete = written >= len(data) - 1
             raise SinkWriteError(exc) from None
         self._partial = False
+        self.last_complete = True
 
     def existing_mode(self) -> str | None:
         """The octal permission bits of what the path resolves to (startup record)."""
@@ -415,15 +478,23 @@ class AuditStream:
     """The typed stream over one sink. Thread-safe; every write is best-effort and no
     exception of the stream ever reaches the caller (fail open)."""
 
-    sink: Sink
+    sink: Sink | RemoteSink
+    #: The remote sink that ships every line after the primary ``sink`` (a file) has
+    #: written it (``UNIFI_AUDIT_SINK=remote`` with ``UNIFI_AUDIT_LOG``); else ``None``.
+    remote_copy: RemoteSink | None = field(default=None, repr=False, compare=False)
     fmt: str = "json"
     level: str = "normal"
     calls: bool = False
     #: Configured secrets each record is scrubbed of (never shown in repr).
     secrets: tuple[str, ...] = field(default=(), repr=False, compare=False)
+    #: ``UNIFI_AUDIT_HMAC_IDENTIFIERS``: client MACs and user ids become HMAC tokens.
+    identifiers: IdentifierHasher | None = field(default=None, repr=False, compare=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     _fault: str | None = field(default=None, repr=False, compare=False)
     _lost: int = field(default=0, repr=False, compare=False)
+    #: The hash chain (``UNIFI_AUDIT_CHAIN``); ``None`` (the default) leaves every byte
+    #: of the stream as 0.7.1 wrote it.
+    chain: ChainState | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.fmt not in FORMATS:
@@ -433,6 +504,10 @@ class AuditStream:
             )
         if self.level not in LEVELS:
             raise ValueError(f"UNIFI_AUDIT_LEVEL must be one of {', '.join(LEVELS)}")
+        if self.chain is not None and (self.fmt != "json" or not isinstance(self.sink, FileSink)):
+            raise ValueError(
+                "UNIFI_AUDIT_CHAIN requires UNIFI_AUDIT_LOG_FORMAT=json and the file sink"
+            )
 
     # -- state
     @property
@@ -442,8 +517,18 @@ class AuditStream:
 
     @property
     def unavailable(self) -> bool:
-        """True while the sink cannot be written (the per-response notice is due)."""
+        """True while the sink cannot be written (the per-response notice is due); for
+        the remote sink, while it is failing (a failed attempt or a drop, until the
+        next acknowledgment)."""
+        remote = self.remote
+        if remote is not None and remote.failing:
+            return True
         return self._fault is not None
+
+    @property
+    def remote(self) -> RemoteSink | None:
+        """The remote sink in use, as the only sink or as the remote copy of the file."""
+        return self.remote_copy if self.remote_copy is not None else _remote_sink(self.sink)
 
     @property
     def path(self) -> str | None:
@@ -454,7 +539,7 @@ class AuditStream:
         once per tool response), so the notice clears as soon as the sink works again
         even when no other record is due. Returns :attr:`unavailable` afterwards."""
         if self._fault is None:
-            return False
+            return self.unavailable
         with self._lock:
             if self._fault is not None:
                 self._write_locked(None, datetime.now(UTC).isoformat())
@@ -508,13 +593,26 @@ class AuditStream:
         stderr, so a stderr sink adds no second copy."""
         if isinstance(self.sink, NullSink | StderrSink):
             return
+        if self.chain is not None:
+            self._guard(self._write_chained, None, datetime.now(UTC).isoformat(), line)
+            return
         self._guard(self._write, line, datetime.now(UTC).isoformat())
+
+    def log_head(self, reason: str = "shutdown") -> None:
+        """Log the chain head at INFO (best effort; no-op without the chain)."""
+        if self.chain is None:
+            return
+        try:
+            with self._lock:
+                self.chain.log_head(reason)
+        except Exception:  # noqa: BLE001, S110 - an anchor line never breaks shutdown
+            pass
 
     # -- builders
     def _startup(self, version: str) -> None:
         rec: dict[str, Any] = {
             "version": version,
-            "sink": self.sink.name,
+            "sink": "remote" if self.remote_copy is not None else self.sink.name,
             "level": self.level,
             "format": self.fmt,
             "calls": self.calls,
@@ -522,6 +620,11 @@ class AuditStream:
         if isinstance(self.sink, FileSink):
             mode = self.sink.existing_mode()
             rec["file_mode"] = mode if mode is not None else f"{self.sink.mode:04o}"
+        remote = self.remote
+        if remote is not None:
+            rec["remote_endpoint"] = remote.endpoint
+        if self.identifiers is not None:
+            rec["identifiers"] = "hmac"
         self._emit("startup", rec)
 
     def _record(self, *, method, path, outcome, status, tool, reason, body) -> None:  # noqa: ANN001
@@ -597,6 +700,8 @@ class AuditStream:
     def _emit(self, event: str, fields: dict[str, Any], *, secrets: tuple[str, ...] = ()) -> None:
         if not self.enabled:
             return
+        if self.identifiers is not None and event != "startup":
+            fields = self.identifiers.record_fields(fields)
         secrets = secrets or self._secrets()
         ts = datetime.now(UTC).isoformat()
         if self.fmt == "json":
@@ -605,6 +710,10 @@ class AuditStream:
             # Scrub string values (recursively for body/arguments), never the serialized
             # line: a short secret that matches a digit of a number would break the JSON.
             rec = {k: _scrub_value(v, secrets) for k, v in rec.items()}
+            if self.chain is not None:
+                # The chain fields are added after scrubbing and are never scrubbed.
+                self._write_chained(rec, ts)
+                return
             line = canonical_json(rec)
         else:
             line = _text_line(event, ts, fields, secrets)
@@ -618,12 +727,17 @@ class AuditStream:
         """Write ``line`` (``None``: only the pending recovery record). After a fault the
         ``audit.recovered`` record goes first, stamped with the same time as the record
         that follows it; the loss count resets once it is written."""
+        if self.chain is not None:
+            # Chained, only a policy line (written byte-identical, then sealed) or the
+            # pending recovery record (``line`` None, from :meth:`probe`) arrives here.
+            self._chained_locked(None, ts, line)
+            return
         try:
             if self._fault is not None:
-                self.sink.write(self._recovered_line(ts))
+                self._sink_write(self._recovered_line(ts))
                 self._fault, self._lost = None, 0
             if line is not None:
-                self.sink.write(line)
+                self._sink_write(line)
         except SinkWriteError as exc:
             if self._fault is None:
                 _logger.warning(
@@ -634,6 +748,76 @@ class AuditStream:
             self._fault = self._fault or exc.errno_name
             if line is not None:
                 self._lost += 1
+
+    # -- the hash chain (UNIFI_AUDIT_CHAIN; JSON file sink only)
+    def _write_chained(
+        self, rec: dict[str, Any] | None, ts: str, policy_line: str | None = None
+    ) -> None:
+        with self._lock:
+            self._chained_locked(rec, ts, policy_line)
+
+    def _chained_locked(self, rec: dict[str, Any] | None, ts: str, policy_line: str | None) -> None:
+        """One chained write, inside one lock acquisition: ``audit.chain_start`` first
+        if the chain has not started, then the pending ``audit.recovered``, then ``rec``
+        (or a policy line, byte-identical, followed by its ``audit.seal``). Fails open
+        exactly like :meth:`_write_locked`."""
+        try:
+            if self.chain is not None and not self.chain.started:
+                self._put(self._envelope(CHAIN_START_EVENT, ts, self.chain.start_fields()))
+            if self._fault is not None:
+                fields = {"lost_records": self._lost, "fault": self._fault}
+                self._put(self._envelope("audit.recovered", ts, fields))
+                self._fault, self._lost = None, 0
+            if policy_line is not None:
+                self._sink_write(policy_line)
+                seal = {"sealed_sha256": sealed_digest(policy_line)}
+                self._put(self._envelope(SEAL_EVENT, ts, seal))
+            elif rec is not None:
+                self._put(rec)
+        except SinkWriteError as exc:
+            if self._fault is None:
+                _logger.warning(
+                    "audit sink %s unavailable (%s); records are dropped until it recovers",
+                    self.sink.name,
+                    exc.errno_name,
+                )
+            self._fault = self._fault or exc.errno_name
+            if rec is not None or policy_line is not None:
+                self._lost += 1
+
+    @staticmethod
+    def _envelope(event: str, ts: str, fields: dict[str, Any]) -> dict[str, Any]:
+        return {"schema_version": SCHEMA_VERSION, "event": event, "timestamp_utc": ts, **fields}
+
+    def _put(self, rec: dict[str, Any]) -> None:
+        """Write ``rec`` as the next chained record; the chain advances only when the
+        whole line reached the file (:attr:`FileSink.last_complete`)."""
+        chain, sink = self.chain, self.sink
+        if chain is None or not isinstance(sink, FileSink):
+            raise RuntimeError("the audit chain needs the file sink")
+        line, mac = chain.seal(rec, canonical_json)
+        try:
+            self._sink_write(line)
+        except SinkWriteError:
+            if sink.last_complete:
+                chain.advance(mac)
+            raise
+        chain.advance(mac)
+
+    def _sink_write(self, line: str) -> None:
+        """Write ``line`` to the primary sink, then hand the same line to the
+        remote copy. The primary write comes first and keeps its fault semantics (it raises
+        :class:`SinkWriteError`); the remote copy gets the line even when that write failed (a
+        second copy never depends on the first) and never raises or blocks. Every write
+        of the stream, a hash chain's included, goes through here."""
+        try:
+            self.sink.write(line)
+        finally:
+            if self.remote_copy is not None:
+                try:
+                    self.remote_copy.write(line)
+                except Exception:  # noqa: BLE001, S110 - the remote copy fails open
+                    pass
 
     def _recovered_line(self, ts: str) -> str:
         fields = {"lost_records": self._lost, "fault": self._fault}
@@ -770,6 +954,7 @@ def resolve_sink_name(settings: Settings) -> str:
 
 def build_audit_stream(settings: Settings) -> AuditStream | None:
     """The configured stream, or ``None`` when no sink is configured (the default)."""
+    _warn_unused_chain_key(settings)
     sink_name = resolve_sink_name(settings)
     if sink_name == "none":
         return None
@@ -777,14 +962,93 @@ def build_audit_stream(settings: Settings) -> AuditStream | None:
     level = (getattr(settings, "audit_level", "normal") or "normal").strip().lower()
     calls = bool(getattr(settings, "audit_calls", False))
     secrets = configured_secrets(settings)
-    sink: Sink
+    sink: Sink | RemoteSink
+    remote_copy: RemoteSink | None = None
+    path = (settings.audit_log or "").strip()
     if sink_name == "stderr":
         sink = StderrSink()
+    elif sink_name == "remote":
+        from .audit_remote import RemoteConfig, RemoteSink
+
+        remote = RemoteSink(RemoteConfig.from_settings(settings))
+        if path:  # additive: the local file first, the collector copy after it
+            mode = FILE_MODES[(getattr(settings, "audit_log_mode", "0600") or "0600").strip()]
+            sink, remote_copy = FileSink(path=path, mode=mode), remote
+        else:
+            sink = remote
     else:
         mode = FILE_MODES[(getattr(settings, "audit_log_mode", "0600") or "0600").strip()]
         sink = FileSink(path=settings.audit_log.strip(), mode=mode)
-    return AuditStream(sink=sink, fmt=fmt, level=level, calls=calls, secrets=secrets)
+    chain = _build_chain(settings, sink)
+    return AuditStream(
+        sink=sink,
+        remote_copy=remote_copy,
+        fmt=fmt,
+        level=level,
+        calls=calls,
+        secrets=secrets,
+        chain=chain,
+    )
+
+
+def _build_chain(settings: Settings, sink: Sink | RemoteSink) -> ChainState | None:
+    """The hash chain when ``UNIFI_AUDIT_CHAIN`` is on (Settings has already refused a
+    text format, a non-file sink, a missing key and a key equal to
+    ``UNIFI_AUDIT_HMAC_KEY``), else ``None``."""
+    if not getattr(settings, "audit_chain", False):
+        return None
+    key = settings.audit_chain_key_bytes()
+    if key is None or not isinstance(sink, FileSink):  # pragma: no cover - Settings refuses
+        raise ValueError("UNIFI_AUDIT_CHAIN requires UNIFI_AUDIT_CHAIN_KEY and the file sink")
+    level = logging.getLevelName((getattr(settings, "log_level", "INFO") or "INFO").upper())
+    if isinstance(level, int) and level > logging.INFO:
+        # Logged at the configured level when that is above WARNING, so it is never hidden.
+        _logger.log(
+            max(logging.WARNING, level),
+            "warning: UNIFI_AUDIT_CHAIN is on but UNIFI_LOG_LEVEL is above INFO, so the "
+            "INFO audit chain head lines (the anchors) are not logged",
+        )
+    return ChainState.from_key(key, sink.path)
+
+
+def _warn_unused_chain_key(settings: Settings) -> None:
+    if getattr(settings, "audit_chain_key", None) is not None and not getattr(
+        settings, "audit_chain", False
+    ):
+        _logger.warning(
+            "UNIFI_AUDIT_CHAIN_KEY is set but UNIFI_AUDIT_CHAIN is off; it has no effect"
+        )
 
 
 #: Kept name for 0.7.0 callers.
 build_audit_sink = build_audit_stream
+
+
+def configure_audit_stream(settings: Settings) -> AuditStream | None:
+    """:func:`build_audit_stream` plus the opt-in HMAC identifiers
+    (``UNIFI_AUDIT_HMAC_IDENTIFIERS`` with ``UNIFI_AUDIT_HMAC_KEY``). The server builds
+    its stream here."""
+    stream = build_audit_stream(settings)
+    if stream is not None and getattr(settings, "audit_hmac_identifiers", False):
+        key = settings.audit_hmac_key_bytes()
+        if key is None:  # pragma: no cover - Settings refuses the flag without the key
+            raise ValueError("UNIFI_AUDIT_HMAC_IDENTIFIERS=true requires UNIFI_AUDIT_HMAC_KEY")
+        from .audit_identifiers import IdentifierHasher
+
+        stream.identifiers = IdentifierHasher(key)
+    return stream
+
+
+def close_audit_stream(stream: AuditStream | None) -> None:
+    """Stop a remote sink's delivery worker (no-op for the other sinks)."""
+    remote = stream.remote if stream is not None else None
+    if remote is not None:
+        remote.close()
+
+
+def _remote_sink(sink: object) -> RemoteSink | None:
+    """``sink`` when it is the remote sink (imported on first use: the stream needs
+    the remote transport only when it is configured)."""
+    from .audit_remote import RemoteSink
+
+    return sink if isinstance(sink, RemoteSink) else None

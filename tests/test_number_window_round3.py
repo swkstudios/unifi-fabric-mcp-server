@@ -23,11 +23,11 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from unifi_fabric.tools import network_controller_insights as nci
-from unifi_fabric.tools import network_vpn_dns as vd
-from unifi_fabric.tools import system_log
-from unifi_fabric.tools._number_window import collect_number_window
-from unifi_fabric.tools._pagination import collect_batch
+from unifi_fabric.families.network import network_controller_insights as nci
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns as vd
+from unifi_fabric.shared_shapes._number_window import collect_number_window
+from unifi_fabric.shared_shapes._pagination import collect_batch
 
 settings.register_profile(
     "number-window-round3", max_examples=400, derandomize=True, database=None, deadline=None
@@ -68,7 +68,9 @@ def _console(
 
 
 def _client(fetch: Callable[[dict[str, Any]], Any]) -> SimpleNamespace:
-    async def post(_path: str, *, key: Any = None, json: dict[str, Any]) -> Any:
+    async def post(
+        _path: str, *, key: Any = None, json: dict[str, Any], always_write: bool = False
+    ) -> Any:
         return await fetch(json)
 
     return SimpleNamespace(post=post, paginate_max_pages=None)

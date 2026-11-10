@@ -440,8 +440,7 @@ def test_adjacent_comments_match_the_regex_semantics_on_random_input():
 def test_adjacent_comments_is_linear_on_pathological_input(line, tail):
     import markdown_blocks
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from cpu_scaling import SCALE, python_line_events
+    from tests.cpu_scaling import SCALE, python_line_events
 
     def run(count: int):
         text = line * count + tail + "```bash\nx\n```\n"

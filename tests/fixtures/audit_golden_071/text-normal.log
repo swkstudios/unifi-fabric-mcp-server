@@ -1,0 +1,11 @@
+2026-11-07T12:00:00.123456+00:00 event=startup version=0.0.0-golden sink=file level=normal format=text calls=true file_mode=0600
+{"digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000","effective_policy":{"write_policy":"allow"},"event":"policy.startup","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.000001+00:00"}
+2026-11-07T12:00:00.123456+00:00 method=POST path=/proxy/network/api/s/default/*** outcome=refused status=- tool=golden_tool reason="lone\ud800 c1\u0085 del\u007f ls\u2028 ps\u2029 café 中 ***" duration_ms=0.0
+2026-11-07T12:00:00.123456+00:00 event=call tool=golden_tool outcome=ok duration_ms=0.0
+2026-11-07T12:00:00.123456+00:00 event=error tool=golden_tool error_type=ValueError duration_ms=0.0
+{"code":"invalid_policy_header","event":"policy.refusal","request_id":"0123456789abcdef0123456789abcdef","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.000002+00:00","tool_id":null,"upstream_calls":0}
+2026-11-07T12:00:00.123456+00:00 event=audit.recovered lost_records=2 fault=ENOSPC
+2026-11-07T12:00:00.123456+00:00 method=DELETE path=/after-fault outcome=http_404 status=404
+2026-11-07
+2026-11-07T12:00:00.123456+00:00 event=audit.recovered lost_records=1 fault=EIO
+2026-11-07T12:00:00.123456+00:00 method=POST path=/after-cut outcome=dry_run status=-

@@ -67,7 +67,7 @@ async def test_adv_adopt_relay_error_follows_explicit_redaction_choice(redact, c
 
 
 async def test_device_config_preserves_single_write_notice_and_send_tag():
-    from unifi_fabric.tools._device_config import update_device_config
+    from unifi_fabric.families.devices._device_config import update_device_config
 
     client = UniFiClient(Settings(api_key="synthetic-closure-api-key"))
     error = UniFiConnectionError(
@@ -98,7 +98,7 @@ async def test_device_config_preserves_single_write_notice_and_send_tag():
 
 @pytest.mark.parametrize("changed", [False, True])
 async def test_device_config_read_after_failure_has_no_write_notice(changed):
-    from unifi_fabric.tools._device_config import update_device_config
+    from unifi_fabric.families.devices._device_config import update_device_config
 
     client = UniFiClient(Settings(api_key="synthetic-closure-api-key"))
     client.put = AsyncMock(return_value={"meta": {"rc": "ok"}, "data": []})

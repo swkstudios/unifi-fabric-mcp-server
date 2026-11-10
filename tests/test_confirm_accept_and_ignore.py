@@ -21,7 +21,9 @@ from tests import test_cross_tool_invariants as cti
 from tests import tool_args, upstream_harness
 from tests._tool_classes import tool_batches
 from unifi_fabric import server
-from unifi_fabric.tools import clients, device_mgmt, matter
+from unifi_fabric.families.clients import clients
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.network import matter
 
 _VERBS = ("get", "post", "put", "patch", "delete", "request")
 

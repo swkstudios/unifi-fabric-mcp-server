@@ -1,4 +1,4 @@
-"""NAT / QoS / content-filter / traffic tools (GS3 lane NC): routes, validation, drains,
+"""NAT / QoS / content-filter / traffic tools: routes, validation, drains,
 verification, dry-run, binary export, registration and multi-key routing.
 
 Hermetic: synthetic upstream bodies only; no controller is contacted.
@@ -16,7 +16,7 @@ from fastmcp import FastMCP
 
 from tests import upstream_harness as uh
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import network_nat_qos_traffic as nc
 
 HOST = "console-a"
 SITE = "Default"

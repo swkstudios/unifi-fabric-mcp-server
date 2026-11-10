@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from unifi_fabric.tools import network
-from unifi_fabric.tools._payload import integration_update_body
+from unifi_fabric.families.network import network
+from unifi_fabric.shared_shapes._payload import integration_update_body
 
 SPEC = json.loads((Path(__file__).parent / "fixtures/openapi/network-11.0.97.json").read_text())
 

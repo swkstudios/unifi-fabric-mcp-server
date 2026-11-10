@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import innerspace
-from unifi_fabric.tools._history_common import translate_host_not_found
+from unifi_fabric.families.innerspace import innerspace
+from unifi_fabric.shared_shapes._history_common import translate_host_not_found
 
 CASES = [
     (innerspace._fetch_project_document, {"mode": "3D"}, "get"),
@@ -68,7 +68,7 @@ async def test_legacy_nonfallback_error_preserved_with_context_as_note():
 async def test_device_cache_fallback_uses_status_and_preserves_other_errors(
     monkeypatch, status, reason
 ):
-    from unifi_fabric.tools import device_mgmt
+    from unifi_fabric.families.devices import device_mgmt
 
     error = UniFiConnectionError(f"HTTP {status} from GET /device: {reason}")
     monkeypatch.setattr(
@@ -91,7 +91,7 @@ async def test_device_cache_fallback_uses_status_and_preserves_other_errors(
 @pytest.mark.parametrize("status", [400, 401, 403, 409, 500, 502, 503])
 @pytest.mark.parametrize("reason", ["body mentions HTTP 404 from GET /stale", "host not found"])
 async def test_classic_client_lookup_fallback_uses_status(monkeypatch, status, reason):
-    from unifi_fabric.tools import clients
+    from unifi_fabric.families.clients import clients
 
     error = UniFiConnectionError(f"HTTP {status} from GET /client: {reason}")
     monkeypatch.setattr(clients, "_client_mac", AsyncMock(side_effect=error))

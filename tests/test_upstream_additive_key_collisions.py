@@ -22,6 +22,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from tests import test_cross_tool_invariants as cti
+from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_classes import class_axis
 
@@ -126,9 +127,18 @@ def _upstream(cls: type[uh.FakeUpstream], scenario: str) -> uh.FakeUpstream:
     return cls(**kw)
 
 
+#: Calls that need a specific argument: get_system_log on `all` (its generated default is
+#: device-alert, which the write-safety properties need) is the drain that marks itself incomplete.
+CALL_ARGS: dict[tuple[str, str], dict[str, Any]] = {
+    ("get_system_log", "normal"): {"log_class": "all"},
+}
+
+
 async def _payload(monkeypatch, name: str, up: uh.FakeUpstream, scenario: str) -> Any:
     keys = cti._KEYS if scenario == "two-keys" else None
-    return uh.result_payload(await cti._call(monkeypatch, name, up, keys=keys))
+    extra = CALL_ARGS.get((name, scenario))
+    args = {**tool_args.generated_args(cti.TOOLS[name]), **extra} if extra else None
+    return uh.result_payload(await cti._call(monkeypatch, name, up, keys=keys, args=args))
 
 
 def _pairs(scenario: str, *tools: str) -> set[tuple[str, str]]:
@@ -214,7 +224,6 @@ SITES = [
     ("update_protect_user", "normal", "_before", (), True),
     ("update_protect_user_group", "normal", "_after", (), True),
     ("update_protect_device_tag", "normal", "_readAfterError", (), True),
-    ("update_protect_user_notifications", "normal", "_verified", (), True),
     ("set_protect_notifications_muted", "normal", "_warnings", (), True),
     # protect_automation_backup.update_protect_automation
     ("update_protect_automation", "normal", "_verified", (), True),

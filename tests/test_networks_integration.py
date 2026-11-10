@@ -24,14 +24,14 @@ import pytest_asyncio
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.network import (
+from unifi_fabric.families.network.network import (
     create_network,
     delete_network,
     get_network,
     list_networks,
     update_network,
 )
+from unifi_fabric.registry import Registry
 
 # These tests are gated on UNIFI_API_KEY so they are always skipped in CI where the
 # env var is absent.  pytest --collect-only still succeeds because skipif is evaluated

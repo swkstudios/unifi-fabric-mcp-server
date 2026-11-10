@@ -6,7 +6,7 @@ import pytest
 
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import carrier_fabric
+from unifi_fabric.families.carrier import carrier_fabric
 
 
 @pytest.mark.parametrize("failure", ["alpha", "both", "none"])

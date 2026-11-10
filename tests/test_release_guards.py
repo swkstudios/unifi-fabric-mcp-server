@@ -69,6 +69,8 @@ def _has_enum(schema: object) -> bool:
         return False
     if "enum" in schema or "const" in schema:
         return True
+    if _has_enum(schema.get("items")):
+        return True  # an array whose items are an enum constrains every value
     return any(_has_enum(s) for key in ("anyOf", "oneOf", "allOf") for s in schema.get(key, []))
 
 

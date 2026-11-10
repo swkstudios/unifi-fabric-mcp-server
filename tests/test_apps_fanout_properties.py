@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 from unifi_fabric.client import DrainedItems
-from unifi_fabric.tools import aggregation, carrier_fabric, mobility, site_manager
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.site_manager import aggregation, site_manager
 
 #: The repository root: every file this module reads is anchored here, never the cwd.
 ROOT = Path(__file__).resolve().parents[1]

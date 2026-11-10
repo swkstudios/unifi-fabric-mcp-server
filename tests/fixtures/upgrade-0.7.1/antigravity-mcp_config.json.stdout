@@ -1,7 +1,0 @@
-== antigravity-mcp_config.json (json)
-mcpServers.unifi-fabric.args:
-  - UNIFI_READ_ONLY
-  - UNIFI_ENABLE_CARRIER_FABRIC_WRITE
-  + UNIFI_WRITE_POLICY=deny
-  + UNIFI_WRITE_EXCEPTIONS=family:carrier=deny
-Dry run: nothing written. Run again with --write to save (keeps a .bak copy).

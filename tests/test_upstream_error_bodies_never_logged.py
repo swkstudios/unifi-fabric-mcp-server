@@ -89,7 +89,7 @@ async def test_upstream_error_body_never_logged(monkeypatch, captured_logs, name
 async def test_fleet_console_names_failure_logs_no_body(monkeypatch, captured_logs):
     """aggregation: the console-name lookup (GET /v1/hosts) failing is logged as a
     status and reason code; the body is never in the log line."""
-    from unifi_fabric.tools import aggregation
+    from unifi_fabric.families.site_manager import aggregation
 
     async def failing_hosts(*args: Any, **kwargs: Any) -> Any:
         raise _http_500("/v1/hosts")
@@ -110,7 +110,7 @@ async def test_fleet_site_list_failure_logs_no_body_and_reports_it(monkeypatch, 
     """aggregation: a console's site list failing is logged without the body; the
     complete error stays in the tool result (``_skipped[].reason``)."""
     from unifi_fabric import server
-    from unifi_fabric.tools import aggregation
+    from unifi_fabric.families.site_manager import aggregation
 
     async def failing_sites(*args: Any, **kwargs: Any) -> Any:
         raise _http_500("/proxy/network/sites")
@@ -157,7 +157,7 @@ async def test_search_scope_failure_logs_no_body_and_reports_it(monkeypatch, cap
 async def test_search_site_skip_logs_no_body_and_reports_it(monkeypatch, captured_logs):
     """site_manager.search_across_sites: a site skipped because its console site could
     not be resolved is logged with a reason code; the complete error reaches the caller."""
-    from unifi_fabric.tools import site_manager
+    from unifi_fabric.families.site_manager import site_manager
 
     async def failing(*args: Any, **kwargs: Any) -> Any:
         raise _http_500("/proxy/network/sites")

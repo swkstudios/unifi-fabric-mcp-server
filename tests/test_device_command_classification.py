@@ -81,7 +81,7 @@ def test_registered_metadata_reads_and_physical_writes():
     [
         (
             "mac must be a device MAC, for example aa:bb:cc:dd:ee:ff",
-            "tools/device_commands.py:advanced_adopt_device",
+            "families/devices/device_commands.py:advanced_adopt_device",
             refusals.SELECTOR_SYNTAX,
         ),
         (
@@ -96,12 +96,12 @@ def test_registered_metadata_reads_and_physical_writes():
         ),
         (
             "Scheduled-task lookup is incomplete; cannot resolve an id safely.",
-            "tools/scheduled_tasks.py:_resolve",
+            "families/devices/scheduled_tasks.py:_resolve",
             refusals.UPSTREAM_JUDGED,
         ),
         (
             '{"meta": {"rc": "error", "msg": "no permission"}}',
-            "tools/_classic_objects.py:checked_classic_response",
+            "shared_shapes/_classic_objects.py:checked_classic_response",
             refusals.UPSTREAM_JUDGED,
         ),
     ],

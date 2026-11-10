@@ -29,8 +29,8 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric import read_only, server
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.statistics import system_log
 from unifi_fabric.redaction import REDACTION_MASK, is_credential_field
-from unifi_fabric.tools import system_log
 
 NET_B_TOOLS = (
     "create_client_reservation",
@@ -313,7 +313,10 @@ SYSTEM_LOG_TOOLS = ("get_system_log", "list_network_events", "list_ips_events")
 @pytest.mark.parametrize("log_class", system_log.KNOWN_CLASSES)
 @pytest.mark.parametrize("suffix", ["", "/", "?pageNumber=0"])
 def test_documented_system_log_posts_are_writes(log_class, suffix):
-    assert read_only.is_write_request("POST", _SYSLOG + log_class + suffix) is True
+    # `all` is the one read-allowlisted route (its query string is not part of the route): the
+    # native readers keep it a write with always_write, every other class is a write by route
+    is_read = log_class == "all" and suffix in ("", "?pageNumber=0")
+    assert read_only.is_write_request("POST", _SYSLOG + log_class + suffix) is not is_read
 
 
 @pytest.mark.parametrize(
@@ -381,6 +384,10 @@ async def test_system_log_tools_refused_before_any_request(monkeypatch, name, ex
 )
 async def test_system_log_dry_run_returns_first_post_preview(monkeypatch, name, extra, log_class):
     up = uh.FakeUpstream()
+    # the class is passed explicitly: the generated defaults (tool_args) use device-alert, so
+    # without it the `all` cases would never exercise the read-allowlisted route
+    chosen = {"get_system_log": "log_class", "list_network_events": "view"}.get(name)
+    extra = {**extra, **({chosen: log_class} if chosen else {})}
     args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
     res = await cti._call(monkeypatch, name, up, args=args, env={"UNIFI_WRITE_POLICY": "dry-run"})
     payload = uh.result_payload(res)

@@ -24,7 +24,7 @@ class UnifiFabricMcpServer < Formula
 
   desc "MCP server for the UniFi Fabric API (Network, Protect, Site Manager, more)"
   homepage "https://github.com/swkstudios/unifi-fabric-mcp-server"
-  url "https://github.com/swkstudios/unifi-fabric-mcp-server/archive/refs/tags/v0.7.1.tar.gz"
+  url "https://github.com/swkstudios/unifi-fabric-mcp-server/archive/refs/tags/v0.7.2.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "MIT"
 

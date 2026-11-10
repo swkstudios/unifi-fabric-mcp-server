@@ -22,8 +22,8 @@ from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import refusals, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import protect_recognition_search as tools
-from unifi_fabric.tools.protect import PROTECT_PRIVATE_BASE
+from unifi_fabric.families.protect import protect_recognition_search as tools
+from unifi_fabric.families.protect.protect import PROTECT_PRIVATE_BASE
 
 FIXTURES = Path(__file__).parent / "fixtures" / "protect_recognition_search"
 PREFIX = "/v1/connector/consoles/host-1/proxy/protect/api"
@@ -913,6 +913,27 @@ def test_nl1_tools_are_registered_writes_in_the_protect_family():
 
 
 @pytest.mark.asyncio
+async def test_search_detections_search_host_404_names_the_cause_and_the_alternative():
+    """Protect answers 404 ``Entity 'searchHost' not found`` when the console has no search
+    host for natural-language detection search; the upstream text stays verbatim."""
+    from unifi_fabric.client import UniFiConnectionError
+
+    upstream = "HTTP 404 from GET /proxy/protect/api/detection-nls: Entity 'searchHost' not found"
+    client = AsyncMock()
+    error = UniFiConnectionError(upstream, status=404)
+    client.get.side_effect = error
+    with pytest.raises(UniFiConnectionError) as caught:
+        await tools._search_detections(client, Registry(), "host-1", "person")
+    assert caught.value is error
+    message = str(caught.value)
+    assert message.startswith(upstream + " -- Hint: ")
+    hint = message.split(" -- Hint: ", 1)[1]
+    assert "no search host for natural-language detection search" in hint
+    assert "list_recognition_detections" in hint
+    assert "Check detection search service" not in hint
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "function,args,status,message,hint",
     [
@@ -928,7 +949,7 @@ def test_nl1_tools_are_registered_writes_in_the_protect_family():
             ("person",),
             404,
             "Entity searchHost not found",
-            "search service",
+            "no search host",
         ),
     ],
 )

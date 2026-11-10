@@ -163,36 +163,50 @@ def test_token_runs_retain_every_decoded_unit(units, size):
     assert bool(packed) == bool(units)
 
 
-def one_megabyte_backslash_peak():
-    """Same pathological body through all four entry points, each with a cold memo."""
+#: The four entry points of the one-megabyte backslash body and the result each must give.
+#: Each runs in its own untraced child and test item. The four already ran one after
+#: another, each with a cold memo and its own tracemalloc window, so no measurement read
+#: another's state; a fresh interpreter per entry point can only add first-call
+#: allocations to a window, never remove them.
+BACKSLASH_ENTRY_POINTS = {
+    "scrub-text": "***",
+    "scrub_bytes-bytes": "***",
+    "contains_secret-text": True,
+    "contains_secret-bytes": True,
+}
+
+
+def one_megabyte_backslash_peak(entry_point):
+    """The pathological body through one entry point with a cold memo: result and peak."""
     text = "\\" * 1_000_000
     raw = text.encode("ascii")
     secrets = ("Key0123456789012345", "OtherConfiguredSecret6789")
-    results = []
-    peaks = []
-    for operation, data in (
-        (secret_scrub.scrub, text),
-        (secret_scrub.scrub_bytes, raw),
-        (secret_scrub.contains_secret, text),
-        (secret_scrub.contains_secret, raw),
-    ):
-        secret_scrub._memo_clear()
-        tracemalloc.start()
-        try:
-            result = operation(data, secrets)
-            results.append(result.decode("ascii") if isinstance(result, bytes) else result)
-            peaks.append(tracemalloc.get_traced_memory()[1])
-        finally:
-            tracemalloc.stop()
+    operation, data = {
+        "scrub-text": (secret_scrub.scrub, text),
+        "scrub_bytes-bytes": (secret_scrub.scrub_bytes, raw),
+        "contains_secret-text": (secret_scrub.contains_secret, text),
+        "contains_secret-bytes": (secret_scrub.contains_secret, raw),
+    }[entry_point]
     secret_scrub._memo_clear()
-    return results, peaks
+    tracemalloc.start()
+    try:
+        result = operation(data, secrets)
+        result = result.decode("ascii") if isinstance(result, bytes) else result
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    secret_scrub._memo_clear()
+    return result, peak
 
 
-def test_one_megabyte_backslash_body_has_bounded_allocation():
-    results, peaks = untraced.run("tests.test_secret_scrub_memory:one_megabyte_backslash_peak")
+@pytest.mark.parametrize("entry_point", list(BACKSLASH_ENTRY_POINTS))
+def test_one_megabyte_backslash_body_has_bounded_allocation(entry_point):
+    result, peak = untraced.run(
+        "tests.test_secret_scrub_memory:one_megabyte_backslash_peak", entry_point
+    )
     # Nine distinct layers exceed D=8, so G5 withholds the entire escape component.
-    assert results == ["***", "***", True, True]
+    assert result == BACKSLASH_ENTRY_POINTS[entry_point]
     # Measured at 15.47 MB across the four entry points on CPython 3.12 (including
     # decoded text, exact source maps and byte-to-text conversion). 20 MB leaves
     # allocator headroom while rejecting the previous 25.20 MB representation.
-    assert max(peaks) < 20 * 1_000_000, peaks
+    assert peak < 20 * 1_000_000, peak

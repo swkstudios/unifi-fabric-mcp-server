@@ -210,7 +210,7 @@ def guard_area_write(
     switch = switches.opted_out_area_for_route(decoded_path(path))
     if switch is None:
         return
-    from .tools.connector import area_write_refusal  # the area's own refusal text
+    from .families.connector.connector import area_write_refusal  # the area's own refusal text
 
     raise AreaOptOutError(switch.env, area_write_refusal(switch.family) or switch.env)
 
