@@ -667,7 +667,6 @@ def test_tool_descriptions_state_error_masking_is_opt_in():
     [
         ("commission_matter_node", "setup code"),
         ("create_ssl_inspection_certificate", "Private key and passphrase"),
-        ("get_camera_adoption_qr", "wifi_password"),
     ],
 )
 def test_route_secret_tools_describe_log_and_error_handling(tool, secret):

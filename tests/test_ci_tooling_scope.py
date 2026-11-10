@@ -45,7 +45,7 @@ def test_shapes_budgets_cover_the_measured_sizes():
         PER_SHAPE_BUDGET_BYTES,
         SHAPE_AVERAGE_BUDGET_BYTES,
     )
-    from unifi_fabric._tool_shapes_table import TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import TOOL_SHAPES
 
     sizes = [
         len(json.dumps(s, separators=(",", ":"), ensure_ascii=False).encode())

@@ -21,6 +21,7 @@ __all__ = [
     "get_isp_metrics",
     "get_sdwan_config",
     "get_sdwan_config_status",
+    "get_server_diagnostic_bundle",
     "get_site_health_summary",
     "get_site_inventory",
     "list_all_clients",
@@ -88,6 +89,15 @@ async def get_sdwan_config_status(
 ) -> Any:
     """Adapter of ``get_sdwan_config_status``."""
     return await registered_wrapper("get_sdwan_config_status")(**validated_arguments)
+
+
+async def get_server_diagnostic_bundle(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_server_diagnostic_bundle``."""
+    return await registered_wrapper("get_server_diagnostic_bundle")(**validated_arguments)
 
 
 async def get_site_health_summary(

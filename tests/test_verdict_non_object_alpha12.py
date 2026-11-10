@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unifi_fabric.tools import network_proav_sandbox as mod
+from unifi_fabric.families.network import network_proav_sandbox as mod
 
 
 class _Client:

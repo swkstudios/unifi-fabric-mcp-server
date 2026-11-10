@@ -25,14 +25,14 @@ from httpx import Response
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools import protect
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.protect.protect import (
     PROTECT_PRIVATE_BASE,
     PROTECT_PROXY_BASE,
     collect_protect_device_changes,
     collect_protect_events,
 )
+from unifi_fabric.registry import Registry
 
 BASE_URL = "https://api.ui.com"
 HOST_ID = "host-001"

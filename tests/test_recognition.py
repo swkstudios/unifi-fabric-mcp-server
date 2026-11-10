@@ -22,7 +22,7 @@ from unifi_fabric.client import (
     UniFiConnectionError,
 )
 from unifi_fabric.config import Settings
-from unifi_fabric.tools.recognition import (
+from unifi_fabric.families.protect.recognition import (
     RECOGNITION_PRIVATE_BASE,
     get_recognition_group_counts,
     get_recognition_group_image,

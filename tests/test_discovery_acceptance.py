@@ -19,6 +19,7 @@ import subprocess
 import sys
 import textwrap
 import time
+import types
 from collections import Counter
 from functools import cache
 from typing import Any
@@ -31,7 +32,7 @@ from pydantic import ValidationError
 from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import LazyCatalog, lazy_parametrize
-from unifi_fabric import _read_only_audit, server, switches
+from unifi_fabric import _read_only_audit, diagnostic_bundle, server, switches
 from unifi_fabric._read_only_audit import derive_write_tools, is_destructive, write_verbs_for
 from unifi_fabric.config import Settings
 from unifi_fabric.discovery import META_TOOLS, apply_tool_mode
@@ -42,8 +43,8 @@ from unifi_fabric.families import (
     apply_tool_family_filter,
     build_family_index,
 )
+from unifi_fabric.families.protect import protect
 from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import protect
 
 FIVE = ("search_tools", "describe_tool", "call_read_tool", "call_write_tool", "list_tool_families")
 GATEWAY_PREFIX = "gateway-prefix-"
@@ -167,12 +168,18 @@ async def test_b1_discovery_lists_exactly_the_five_meta_tools() -> None:
     assert annotations["call_write_tool"].destructive_hint is True
 
 
+def test_b1_instructions_name_every_meta_tool() -> None:
+    assert all(name in (DISCOVERY.instructions or "") for name in FIVE)
+
+
 # --------------------------------------------------------------------------- bullet 2
 async def test_b2_empty_query_null_limit_returns_the_full_mode_catalog() -> None:
     async with Client(FULL) as client:
         full = {tool.name for tool in await client.list_tools()}
     async with Client(DISCOVERY) as client:
-        rows = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+        rows = (
+            await client.call_tool("search_tools", {"query": "", "limit": None})
+        ).structured_content["result"]
     assert len(rows) == len(full) == len(TOOLS)
     assert {row["name"] for row in rows} == full
 
@@ -180,16 +187,25 @@ async def test_b2_empty_query_null_limit_returns_the_full_mode_catalog() -> None
 async def test_b2_omitted_limit_is_ten_and_every_positive_limit_is_honoured() -> None:
     count = len(TOOLS)
     async with Client(DISCOVERY) as client:
-        assert len((await client.call_tool("search_tools", {"query": ""})).data) == 10
+        assert (
+            len(
+                (await client.call_tool("search_tools", {"query": ""})).structured_content["result"]
+            )
+            == 10
+        )
         for limit in (1, 2, 7, 10, 11, 50, 333, count - 1, count, count + 1, 10**6):
-            rows = (await client.call_tool("search_tools", {"query": "", "limit": limit})).data
+            rows = (
+                await client.call_tool("search_tools", {"query": "", "limit": limit})
+            ).structured_content["result"]
             assert len(rows) == min(limit, count), limit
-        every = (await client.call_tool("search_tools", {"query": "camera", "limit": None})).data
+        every = (
+            await client.call_tool("search_tools", {"query": "camera", "limit": None})
+        ).structured_content["result"]
         assert len(every) > 10
         for limit in (1, 3, 10, len(every)):
             rows = (
                 await client.call_tool("search_tools", {"query": "camera", "limit": limit})
-            ).data
+            ).structured_content["result"]
             assert [r["name"] for r in rows] == [r["name"] for r in every[:limit]]
 
 
@@ -203,7 +219,7 @@ async def test_b3_describe_returns_the_bare_full_mode_schema_with_derived_hints(
     bad: list[str] = []
     async with Client(DISCOVERY) as client:
         for name in sorted(TOOLS):
-            schema = (await client.call_tool("describe_tool", {"name": name})).data
+            schema = (await client.call_tool("describe_tool", {"name": name})).structured_content
             if schema != full[name]:
                 bad.append(f"{name}: differs from its full-mode tools/list entry")
                 continue
@@ -281,8 +297,32 @@ async def test_b4_dispatch_redaction_matches_direct_calls(
     assert "example" in visible
 
 
+def _freeze_evidence_clock(monkeypatch, name: str) -> None:
+    """The incident-evidence documents carry the collection time (``collected_at``, to the
+    millisecond): a direct and a wrapped call differ without a fixed clock."""
+    if name not in {"collect_network_incident_evidence", "collect_protect_incident_evidence"}:
+        return
+    import datetime as dt
+
+    from unifi_fabric.shared_shapes import _incident_document as incident
+
+    class _Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> Any:
+            return dt.datetime(2026, 1, 1, tzinfo=tz or dt.UTC)
+
+    monkeypatch.setattr(incident, "datetime", _Frozen)
+
+
 def _reset_collector_pacing(monkeypatch, name: str) -> None:
-    """Suppress pacing for direct and wrapped calls; tool arguments define the poll count."""
+    """Suppress pacing for direct and wrapped calls; tool arguments define the poll count.
+
+    The diagnostic bundle stamps a wall-clock time and a per-probe duration, so the two
+    calls only compare byte-for-byte once the clock is fixed."""
+    if name == "get_server_diagnostic_bundle":
+        monkeypatch.setattr(diagnostic_bundle, "_now", lambda: "2026-01-01T00:00:00Z")
+        monkeypatch.setattr(diagnostic_bundle, "time", types.SimpleNamespace(monotonic=lambda: 0.0))
+        return
     if name not in {"collect_protect_events", "collect_protect_device_changes"}:
         return
 
@@ -299,6 +339,7 @@ async def test_b5_read_wrapper_envelope_is_byte_identical_to_a_direct_call(
     monkeypatch, name: str
 ) -> None:
     _env(monkeypatch, name)
+    _freeze_evidence_clock(monkeypatch, name)
     arguments = tool_args.generated_args(TOOLS[name])
     uh.install(monkeypatch, uh.FakeUpstream())
     _reset_collector_pacing(monkeypatch, name)
@@ -491,7 +532,7 @@ def test_roster_every_registered_tool_and_module_has_a_family() -> None:
 
 async def test_roster_list_tool_families_returns_every_family_and_count() -> None:
     async with Client(DISCOVERY) as client:
-        rows = (await client.call_tool("list_tool_families", {})).data
+        rows = (await client.call_tool("list_tool_families", {})).structured_content["result"]
     expected = Counter(FAMILY[name] for name in TOOLS)
     assert {row["family"]: row["tools"] for row in rows} == dict(expected)
     assert [row["family"] for row in rows] == sorted(ALL_FAMILIES)
@@ -511,9 +552,11 @@ async def test_roster_tool_families_removes_and_keeps_each_family(family: str) -
     restore = await apply_tool_mode(only, "discovery")
     try:
         async with Client(only) as client:
-            rows = (await client.call_tool("list_tool_families", {})).data
+            rows = (await client.call_tool("list_tool_families", {})).structured_content["result"]
             assert rows == [{"family": family, "tools": len(kept)}]
-            listed = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+            listed = (
+                await client.call_tool("search_tools", {"query": "", "limit": None})
+            ).structured_content["result"]
             assert {row["name"] for row in listed} == kept
     finally:
         restore()

@@ -20,9 +20,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import _keys, aggregation, site_manager
-from unifi_fabric.tools._keys import tag_items, with_context
+from unifi_fabric.shared_shapes import _keys
+from unifi_fabric.shared_shapes._keys import tag_items, with_context
 
 H = "AA:1"
 H2 = "CC:3"

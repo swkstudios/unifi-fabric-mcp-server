@@ -52,7 +52,7 @@ async def measure_accuracy():
         async with Client(app) as client:
             for row in fixture["queries"]:
                 result = await client.call_tool("search_tools", {"query": row["query"], "limit": 5})
-                names = [item["name"] for item in result.data]
+                names = [item["name"] for item in result.structured_content["result"]]
                 if row["expected"] in names:
                     hits += 1
                 else:
@@ -146,6 +146,7 @@ async def test_integration_device_tags_purpose_is_discoverable_in_discovery_mode
                     "limit": 5,
                 },
             )
-            assert "list_integration_device_tags" in [row["name"] for row in result.data]
+            rows = result.structured_content["result"]
+            assert "list_integration_device_tags" in [row["name"] for row in rows]
     finally:
         cleanup()

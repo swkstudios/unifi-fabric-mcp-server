@@ -71,6 +71,32 @@ def test_proxy_drops_forwarded_header_values_with_cr_or_lf(monkeypatch):
     assert all("\r" not in v and "\n" not in v for _, v in sent)
 
 
+def test_proxy_drops_header_names_with_cr_or_lf(monkeypatch):
+    driver = _driver()
+
+    class _NameResponse(_Response):
+        def getheaders(self):
+            return [("X-Bad\r\nSet-Cookie", "v"), ("X-Ok", "fine")]
+
+    class _NameConn(_Conn):
+        def getresponse(self):
+            return _NameResponse()
+
+    monkeypatch.setattr(driver.http.client, "HTTPConnection", _NameConn)
+    handler = driver.Handler.__new__(driver.Handler)
+    handler.rfile = io.BytesIO(b"{}")
+    handler.wfile = io.BytesIO()
+    handler.path = "/mcp"
+    handler.headers = {"Content-Length": "2", "Host": driver.HOST}
+    sent: list[tuple[str, str]] = []
+    handler.send_response = lambda status: None
+    handler.send_header = lambda key, value: sent.append((key, value))
+    handler.end_headers = lambda: None
+    handler.do_POST()
+    assert ("X-Ok", "fine") in sent
+    assert all("\r" not in k and "\n" not in k for k, _ in sent)
+
+
 def test_tls_proxy_requires_tls_1_2_or_newer(monkeypatch):
     driver = _driver()
     contexts: list[_Context] = []

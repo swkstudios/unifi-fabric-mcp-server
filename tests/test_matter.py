@@ -14,9 +14,9 @@ from pydantic import SecretStr
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.network import matter
 from unifi_fabric.redaction import REDACTION_MASK
 from unifi_fabric.secret_scrub import configured_secrets, secret_scope
-from unifi_fabric.tools import matter
 
 HOST = "console"
 SITE = "default"
@@ -278,7 +278,7 @@ def test_network_write_opt_out_defaults_on(monkeypatch):
 @pytest.mark.parametrize("area", ["protect", "mobility", "carrier"])
 def test_network_opt_out_does_not_cover_other_area_switches(monkeypatch, area):
     from unifi_fabric import switches
-    from unifi_fabric.tools.connector import area_write_refusal
+    from unifi_fabric.families.connector.connector import area_write_refusal
 
     monkeypatch.setenv("UNIFI_WRITE_EXCEPTIONS", "family:network=deny")
     assert area_write_refusal("network") is not None

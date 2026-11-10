@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.innerspace import (
+from unifi_fabric.families.innerspace.innerspace import (
     INNERSPACE_INTEGRATION_BASE,
     INNERSPACE_PROXY_BASE,
     get_innerspace_asset,

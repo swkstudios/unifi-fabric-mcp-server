@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric import refusals
-from unifi_fabric.tools import system_log
+from unifi_fabric.families.statistics import system_log
 
 
 @pytest.fixture()
@@ -63,7 +63,9 @@ async def test_critical_explicit_page_and_size_return_the_logical_window(client,
     # The upstream ignores pageSize and answers 4 records per page as a bare array.
     records = [{"id": number} for number in range(12)]
 
-    async def post(_path: str, *, key: Any = None, json: dict[str, Any]) -> Any:
+    async def post(
+        _path: str, *, key: Any = None, json: dict[str, Any], always_write: bool = False
+    ) -> Any:
         number = json["pageNumber"]
         return records[number * 4 : number * 4 + 4]
 

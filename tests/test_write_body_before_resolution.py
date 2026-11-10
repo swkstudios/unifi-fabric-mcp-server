@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.families.network import firewall_proxy, network, network_services_proxy
 from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import firewall_proxy, network, network_services_proxy
 
 UPDATES = (
     network.update_network,

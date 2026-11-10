@@ -226,3 +226,11 @@ def test_tracked_tree_names_no_retired_setting() -> None:
     """The real tree: no retired name outside the changelog (lands after the runtime cut)."""
     assert lint.retired_names(ROOT), "the changelog migration table is missing"
     assert lint.find_occurrences(ROOT, lint.retired_names(ROOT)) == {}
+
+
+def test_no_exclusion_names_the_removed_071_migration_kit() -> None:
+    """0.7.2 deleted the 0.7.1 migration kit, so the lint exempts none of its paths."""
+    kit = ("MIGRATING-0.7.1", "migrate-0.7.1", "upgrade-0.7.1")
+    assert [spec for spec in lint.EXCLUDED_PATHSPECS if any(k in spec for k in kit)] == []
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert [k for k in kit if k in text] == []

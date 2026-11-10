@@ -4,13 +4,13 @@ This folder is an OpenAI Codex plugin. It runs the open-source UniFi Fabric MCP 
 
 ## What it runs
 
-`uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
+`uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
 
 ## Where the key comes from
 
 The plugin stores no key. It forwards `UNIFI_API_KEY` (and the optional `UNIFI_WRITE_POLICY` and `UNIFI_TOOL_MODE`) from the environment of the process that starts Codex, using Codex's `env_vars` setting. Export the key in the shell before you start `codex`:
 
-<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:31c16dde602ca31485c7ba412b8dec90546f70a8d631a2a57a1d199730c9f0e1 support=0.7.1 citation=file:plugins/codex/.mcp.json@sha256:31c16dde602ca31485c7ba412b8dec90546f70a8d631a2a57a1d199730c9f0e1 -->
+<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe support=0.7.2 citation=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe -->
 <!-- install-case: codex-readme-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
@@ -25,7 +25,7 @@ Some tools depend on console-internal paths that Ubiquiti can restrict without n
 
 ## Install
 
-<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:31c16dde602ca31485c7ba412b8dec90546f70a8d631a2a57a1d199730c9f0e1 support=0.7.1 citation=file:plugins/codex/.mcp.json@sha256:31c16dde602ca31485c7ba412b8dec90546f70a8d631a2a57a1d199730c9f0e1 -->
+<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe support=0.7.2 citation=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe -->
 <!-- install-case: codex-readme-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 codex plugin marketplace add swkstudios/unifi-fabric-mcp-server
@@ -36,7 +36,7 @@ Or, from a checkout of this repository: `codex plugin marketplace add ./unifi-fa
 
 ## If something is wrong
 
-- **No key in the environment:** the server exits at startup with `UNIFI_API_KEY is not set — get a key at https://unifi.ui.com (Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS; see README#1-join-your-fabric-and-create-an-api-key`, and Codex shows no unifi-fabric tools. Export the key and restart Codex.
+- **No key in the environment:** the server exits at startup with `UNIFI_API_KEY is not set — get a key at https://unifi.ui.com (Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS (or read it from a file or helper with UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND); see README#1-join-your-fabric-and-create-an-api-key`, and Codex shows no unifi-fabric tools. Export the key and restart Codex.
 - **Wrong key:** tools return the upstream error, for example `HTTP 401 from GET /v1/hosts: {"code":"unauthorized",...}`. Create a new key at [unifi.ui.com](https://unifi.ui.com) under API Keys.
 
 Example prompts: "List my UniFi sites and the devices in each one.", "Which UniFi devices are offline or need a firmware update?", "Show the firewall policies on my main site."

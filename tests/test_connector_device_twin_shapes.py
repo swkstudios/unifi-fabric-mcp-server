@@ -12,7 +12,7 @@ from tests.test_core_data_path_regressions import (
     _relay_registry,
     _Resp,
 )
-from unifi_fabric.tools import connector
+from unifi_fabric.families.connector import connector
 
 
 @pytest.mark.parametrize("method", sorted(connector._REMAPPED_TWIN_METHODS))

@@ -28,8 +28,8 @@ from unifi_fabric import refusals, route_secrets, server
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import ClassicApiError, RateLimitError, UniFiClient, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.network import network_device_operations as ndo
 from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import network_device_operations as ndo
 
 HOST = "console-n03"
 SITE = "Default"
@@ -837,15 +837,12 @@ async def test_legacy_reset_preserves_object_body(selector):
 
 
 async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypatch):
+    from unifi_fabric.families.clients import client_records
+    from unifi_fabric.families.network import network_proav_sandbox, network_switching_power
+    from unifi_fabric.families.statistics import system_log
     from unifi_fabric.read_only_tools import (
         apply_area_opt_out_tool_filter,
         apply_read_only_tool_filter,
-    )
-    from unifi_fabric.tools import (
-        client_records,
-        network_proav_sandbox,
-        network_switching_power,
-        system_log,
     )
 
     names = {
@@ -893,7 +890,9 @@ async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypat
 async def test_read_post_description_explains_area_opt_out(module_name, tool_name):
     from importlib import import_module
 
-    module = import_module(f"unifi_fabric.tools.{module_name}")
+    from tests._tool_classes import tool_module_name
+
+    module = import_module(tool_module_name(module_name))
     app = FastMCP("read-post-guidance")
     module.register(app, lambda: (None, None))
     tool = await app.get_tool(tool_name)
@@ -912,7 +911,9 @@ async def test_read_post_description_explains_area_opt_out(module_name, tool_nam
 async def test_mixed_action_description_explains_whole_tool_filter(module_name, tool_name):
     from importlib import import_module
 
-    module = import_module(f"unifi_fabric.tools.{module_name}")
+    from tests._tool_classes import tool_module_name
+
+    module = import_module(tool_module_name(module_name))
     app = FastMCP("mixed-action-guidance")
     module.register(app, lambda: (None, None))
     tool = await app.get_tool(tool_name)

@@ -24,9 +24,13 @@ def object_branch(schema: dict[str, Any]) -> dict[str, Any]:
 def test_every_spec_backed_body_has_generated_properties() -> None:
     table, inventory = gen.derive()
     # 40 spec-backed bodies: the 39 of 505843cf plus update_predefined_firewall_policy
-    # (7ac16050). The inventory is every object parameter of the registered catalog.
+    # (7ac16050). The inventory is every object parameter of the registered catalog:
+    # 231 since 0.7.2, down from 236 by the five object parameters of removed tools
+    # (calibrate_door_lock.options, set_door_lock_auto_close.options,
+    # create_traffic_rule.payload, update_traffic_rule.payload and
+    # update_protect_user_notifications.changes).
     assert len(table) == 40
-    assert len(inventory) == 236
+    assert len(inventory) == 231
     tools = sc._tools()
     for name, args in table.items():
         for arg, shape in args.items():
@@ -37,7 +41,7 @@ def test_every_spec_backed_body_has_generated_properties() -> None:
 
 def test_free_form_params_are_explicit_and_remain_unshaped() -> None:
     _, inventory = gen.derive()
-    assert len(inventory) == 236
+    assert len(inventory) == 231  # see test_every_spec_backed_body_has_generated_properties
     assert any(source["classification"] == "free-form" for source in inventory.values())
     # Typed selectors coexist with retained native bodies in the merged caller contract.
     for key in (
@@ -125,7 +129,7 @@ def test_shapes_are_bounded_and_deeper_fields_are_outlined() -> None:
 
 
 def test_shape_provenance_names_spec_route_and_pointer() -> None:
-    from unifi_fabric._tool_shapes_table import SHAPE_SOURCES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES
 
     shaped = {k: v for k, v in SHAPE_SOURCES.items() if v["classification"] == "shaped"}
     assert len(shaped) == 40  # one per spec-backed body (test above)
@@ -141,7 +145,7 @@ def test_shape_provenance_names_spec_route_and_pointer() -> None:
 
 
 def test_generator_output_is_current() -> None:
-    from unifi_fabric._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES, TOOL_SHAPES
 
     table, inventory = gen.derive()
     assert TOOL_SHAPES == table
@@ -182,7 +186,7 @@ def test_every_previously_accepted_body_still_passes_input_validator() -> None:
 
 
 def test_published_discriminator_subtypes_are_visible() -> None:
-    from unifi_fabric._tool_shapes_table import TOOL_SHAPES
+    from unifi_fabric.generated_api_facts._tool_shapes_table import TOOL_SHAPES
 
     props = TOOL_SHAPES["create_network"]["network_config"]["properties"]
     assert "ipv4Configuration" in props
@@ -335,7 +339,7 @@ def _assert_radio_validation_contract(tool: Any) -> None:
     from pydantic import TypeAdapter
 
     from tests.test_tool_schema_contract import _strip_descriptions
-    from unifi_fabric.tools.device_radios import RadioChanges
+    from unifi_fabric.families.devices.device_radios import RadioChanges
 
     current = json.loads(json.dumps(tool.parameters["properties"]["radios"]))
     expected = TypeAdapter(dict[Literal["ng", "na", "6e"], RadioChanges]).json_schema()
@@ -352,7 +356,7 @@ def _assert_radio_validation_contract(tool: Any) -> None:
 def test_recorded_radio_shape_has_provenance_and_preserves_typed_contract() -> None:
     import hashlib
 
-    from unifi_fabric.tools.device_radios import RadioChanges
+    from unifi_fabric.families.devices.device_radios import RadioChanges
 
     table, inventory = gen.derive()
     typed = {

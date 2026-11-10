@@ -34,10 +34,12 @@ TOOL_ROW = re.compile(
     r"(?P<args>[^|]*)\|(?P<shape>.*?`readOnlyHint: (?P<hint>true|false)`)",
     re.MULTILINE,
 )
-# Sources are cited by function name (`tools/network.py::get_network`), never by line
+# Sources are cited by function name (`families/network/network.py::get_network`), never by line
 # number: line numbers go stale with every edit above the definition.
-CITATION = re.compile(r"`(?P<path>(?:tools/)?[a-z_]+\.py)::(?P<func>[a-z_][a-z0-9_]*)`")
-LINE_CITATION = re.compile(r"`(?:tools/)?[a-z_]+\.py:\d+`")
+CITATION = re.compile(
+    r"`(?P<path>(?:(?:families/[a-z_]+|shared_shapes)/)?[a-z_]+\.py)::(?P<func>[a-z_][a-z0-9_]*)`"
+)
+LINE_CITATION = re.compile(r"`(?:(?:families/[a-z_]+|shared_shapes)/)?[a-z_]+\.py:\d+`")
 # Server settings belong to the operator, not the agent following a skill.
 SERVER_SETTING = re.compile(r"\bUNIFI_[A-Z_]+\b")
 

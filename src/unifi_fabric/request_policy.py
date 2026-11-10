@@ -147,8 +147,9 @@ def local_tools(server: Any) -> dict[str, Any]:
 
     Reading the provider (not ``list_tools``) never re-enters a tools/list middleware.
     """
-    components = server._local_provider._components  # noqa: SLF001
-    return {c.name: c for c in components.values() if hasattr(c, "parameters")}
+    from .local_components import tool_components
+
+    return {c.name: c for c in tool_components(server) if hasattr(c, "parameters")}
 
 
 # --------------------------------------------------------------------------- evaluation
@@ -328,6 +329,29 @@ class RequestPolicyMiddleware(Middleware):
             for tool in tools
             if (facts := catalog.tools.get(tool.name)) is None or sp.is_exposed(policy, facts)
         ]
+
+    def write_refusal(self, name: str, arguments: Mapping[str, Any]) -> tuple[str, str] | None:
+        """The ``(code, message)`` this request's policy refuses write tool ``name`` with.
+
+        For a dispatcher that names a write without running the middleware chain; ``None``
+        when the effective policy lets the write through (or the header is malformed, which
+        the chain reports when the write is called).
+        """
+        request = hc.current_request_context()
+        try:
+            policy = (
+                request.effective_policy if request is not None else self.evaluator.evaluate()[0]
+            )
+        except sp.PolicyHeaderError:
+            return None
+        code, message, _mode = decide(
+            name=name,
+            arguments=arguments,
+            policy=policy,
+            catalog=self.evaluator.catalog(),
+            is_write=lambda *_: True,
+        )
+        return None if code is None else (code, message)
 
     async def on_call_tool(self, context: MiddlewareContext, call_next: CallNext) -> Any:
         name = context.message.name

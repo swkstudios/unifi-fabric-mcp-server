@@ -380,8 +380,13 @@ def _marked_functions() -> set[str]:
 
 
 def test_post_read_is_the_only_marked_read_post_sender():
-    assert _marked_functions() == {"unifi_fabric.read_post_routes.post_read"}
-    # and in source: the decorator is applied exactly once, to post_read
+    # post_read, and the incident-evidence status tap, which refuses (before any request) a
+    # POST that is not on the allowlist, so it too sends nothing but listed read-POSTs.
+    assert _marked_functions() == {
+        "unifi_fabric.read_post_routes.post_read",
+        "unifi_fabric.shared_shapes._incident_document.PostStatusTap",
+    }
+    # and in source: the decorator on a function is applied exactly once, to post_read
     src = Path(unifi_fabric.__file__).resolve().parent
     decorated: list[str] = []
     for file in sorted(src.rglob("*.py")):

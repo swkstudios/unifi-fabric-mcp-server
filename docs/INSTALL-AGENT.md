@@ -30,11 +30,11 @@ Requires Python 3.12+ and uv. Replace the placeholder with your own key for real
 The smoke job substitutes a synthetic key and repins the package to its local wheel.
 
 <!-- install-case: install-agent-uvx mode=uvx -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=install-agent-uvx -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=install-agent-uvx -->
 <!-- docs-fact: run -->
 ```bash
 export UNIFI_API_KEY="your-api-key-here"
-uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp
+uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
 ```
 
 ## Desktop configuration
@@ -43,13 +43,13 @@ Set the absolute uvx path as described in the linked README, then restart the cl
 The smoke job parses this JSON and launches its declared command over stdio.
 
 <!-- install-case: install-agent-desktop mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:28801c0956bd864ce308d568a20859b4ec881331cc627b23ffef6d1b80fc9458 support=0.7.1 case=install-agent-desktop -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=install-agent-desktop -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "/absolute/path/to/uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.1", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }

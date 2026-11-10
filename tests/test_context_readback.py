@@ -12,10 +12,14 @@ import pytest
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.innerspace import placement_snapshot
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.families.vpn import vpn
 from unifi_fabric.registry import Registry
 from unifi_fabric.resolution_state import with_resolution_state
-from unifi_fabric.tools import carrier_fabric, mobility, placement_snapshot, site_manager, vpn
-from unifi_fabric.tools._keys import context_value, with_context
+from unifi_fabric.shared_shapes._keys import context_value, with_context
 
 UPSTREAM = "UPSTREAM-SENTINEL"
 SITE_UUID = "00000000-0000-4000-8000-000000000001"

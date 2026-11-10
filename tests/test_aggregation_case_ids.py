@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from unifi_fabric.tools.aggregation import (
+from unifi_fabric.families.site_manager.aggregation import (
     _consoles,
     _device_host,
     _fleet_summary,
@@ -54,14 +54,16 @@ async def test_clients_queue_canonical_pairs(multikey_client, multikey_registry)
         ]
 
     multikey_client.get = AsyncMock(return_value={"data": [], "totalCount": 0})
-    with patch("unifi_fabric.tools.aggregation._get_all_host_site_pairs", side_effect=pairs):
+    with patch(
+        "unifi_fabric.families.site_manager.aggregation._get_all_host_site_pairs", side_effect=pairs
+    ):
         await _list_all_clients_fleet(multikey_client, multikey_registry)
     assert multikey_client.get.await_count == 1
     assert multikey_client.get.call_args.kwargs["key"].label == "alpha"
 
 
 async def test_host_pairs_case_ids(multikey_registry):
-    from unifi_fabric.tools.aggregation import _get_all_host_site_pairs
+    from unifi_fabric.families.site_manager.aggregation import _get_all_host_site_pairs
 
     multikey_registry.get_ea_sites = AsyncMock(
         return_value=[{"hostId": "ABCDEF"}, {"hostId": "abcdef"}]
@@ -77,7 +79,7 @@ async def test_host_pairs_case_ids(multikey_registry):
 
 
 async def test_search_sites_canonical_claim(multikey_client, multikey_registry):
-    from unifi_fabric.tools.site_manager import search_across_sites
+    from unifi_fabric.families.site_manager.site_manager import search_across_sites
 
     multikey_registry.get_ea_sites = AsyncMock(
         side_effect=[
@@ -87,7 +89,7 @@ async def test_search_sites_canonical_claim(multikey_client, multikey_registry):
     )
     multikey_client.get = AsyncMock(return_value={"data": [{"name": "match"}], "totalCount": 1})
     with patch(
-        "unifi_fabric.tools.site_manager._proxy_site_for_ea",
+        "unifi_fabric.families.site_manager.site_manager._proxy_site_for_ea",
         new=AsyncMock(
             side_effect=[
                 {"id": "ABCDEFAB-0000-4000-8000-000000000001"},

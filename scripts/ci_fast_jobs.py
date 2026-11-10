@@ -56,14 +56,23 @@ CI_ONLY: dict[str, dict[str, str]] = {
         "classify": "requires GitHub event SHA contexts",
         "test-selected": "selected test path comes from the CI classifier",
         "ci-required": "aggregates GitHub Actions needs results",
-        "test": "full suite with the coverage gate",
-        "test-locked": "full suite in the exact locked environment",
-        "scrub-oracle": "210,000-case scrubber acceptance corpus and its coverage floor",
+        "test-prep": "fixes the shard count and computes the test selection for the shards",
+        "test-shard": "one shard of the full suite (a matrix)",
+        "test": "proves the shards and applies the coverage gate to their combined data",
+        "test-locked-prep": "fixes the shard count and computes the locked suite's selection",
+        "test-locked-shard": "one shard of the full suite in the exact locked environment",
+        "test-locked": "proves the locked shards and their one environment identity",
+        "scrub-oracle-prep": "fixes the scrub oracle's shard count",
+        "scrub-oracle-shard": "one shard of the 210,000-case scrubber corpus (a matrix)",
+        "scrub-oracle": "proves the scrub oracle's shards and gates the corpus coverage floor",
         "gitleaks": "pinned secret-scanner binary over the full history",
-        "docker-build": "container image build",
+        "docker-build": "requires both container image halves (GitHub Actions needs results)",
         "docker-build-arm64": "native arm64 container image build on a hosted arm64 runner",
+        "docker-build-amd64": "two-platform container image build and amd64 boot",
         "divergence-gate": "compares remote branch lineage with a repository token",
         "notify-matrix": "failure notification",
+        "ci-red-issue": "opens or updates a GitHub issue for a failed train, release or "
+        "protected-branch run",
         "lint-public-language": "public repository text scan",
     },
     "changelog-size.yml": {},
@@ -95,6 +104,10 @@ CI_ONLY: dict[str, dict[str, str]] = {
     "public-artifact-dry-run.yml": {
         "public-artifact-dry-run": "installs a secret scanner with root rights and resolves "
         "issue references with the repository token",
+        "public-tests": "calls the reusable public-test-shards.yml: the release's tree, anchor, "
+        "20 shards and proof aggregate (22 CI jobs)",
+        "public-retransform-check": "re-transforms the public tree in a second job and requires "
+        "the digest the shards tested, with the repository token",
     },
 }
 
@@ -109,12 +122,69 @@ CI_ONLY_STEPS: dict[tuple[str, str, str], str] = {
     ),
 }
 
-#: Test files that run on every pre-push, whatever the change. Each checks a committed
-#: artifact against inputs spread over the tree (a stored source fingerprint, a strip
-#: list), so a stale artifact can sit on the base branch and no test runs locally at
-#: all. Without this, the first full-suite run fails instead of the pre-push of the
-#: commit that made the artifact stale.
-PREPUSH_GUARDS: tuple[str, ...] = ()
+#: The documentation-reading tests ci.yml's docs-contract job runs on every change (a docs
+#: edit has broken each of these, or a test like it, outside the doc's own tests).
+#: ``python scripts/ci_fast_jobs.py --docs-contract`` prints the ones this tree carries.
+DOCS_CONTRACT: tuple[str, ...] = (
+    "tests/test_front_page_docs.py",
+    "tests/test_docs_references.py",
+    "tests/test_docs_claim_ledger.py",
+    "tests/test_docs_currency.py",
+    "tests/test_docs_ai_files.py",
+    "tests/test_docs_usage_claims.py",
+    "tests/test_docs_impact.py",
+    "tests/test_pypi_readme.py",
+    "tests/test_release_sanitizer_docs.py",
+    "tests/test_dependency_versions_docs.py",
+    "tests/test_page_cap_exemption_docs.py",
+    "tests/test_official_only_recipe.py",
+    "tests/test_readme_filter_tools.py",
+    "tests/test_release_state_contract.py",
+)
+
+
+def docs_contract(root: Path = ROOT) -> list[str]:
+    """The DOCS_CONTRACT tests this tree carries."""
+    return [name for name in DOCS_CONTRACT if (root / name).is_file()]
+
+
+#: Test files that run on every pre-push, whatever the change. The first group checks a
+#: committed artifact against inputs spread over the tree (a stored source fingerprint, a
+#: strip list, the FORKING identity matrix against its source files), so a stale artifact
+#: can sit on the base branch and no test runs locally at all. Without this, the first
+#: full-suite run fails instead of the pre-push of the commit that made the artifact stale.
+#: The second group is ``DOCS_CONTRACT``, the one list of
+#: documentation and version-pin tests (README, docs, changelog, pins): a docs or version
+#: change can fail them while every fast job passes, so pre-push runs the list the
+#: docs-contract job runs and keeps no copy. The public tree's transform drops the entries
+#: whose files it strips.
+#:
+#: The second group is the cross-cutting contract cluster: catalog-wide ledgers, inventories
+#: and generated-figure checks that a change to one tool or document can break for the whole
+#: catalog. Selected from a release candidate's full-suite failures (92 failures from nine
+#: shared causes): one or more existing files per cause, so the pre-push of the commit
+#: that breaks a contract fails instead of the release pull request's full run. The public
+#: tree's transform drops the entries whose files it strips.
+PREPUSH_GUARDS: tuple[str, ...] = (
+    *DOCS_CONTRACT,
+    # write-acceptance inventory: every registered write tool is classified
+    # read and discovery contracts across the catalog
+    "tests/test_blank_filters_and_hints.py",
+    "tests/test_invariants_envelopes_and_previews.py",
+    # release documentation, settings table and generated counts
+    "tests/test_core_strict_readers_and_name_tiers.py",
+    "tests/test_changelog_input_schemas.py",
+    # (tests/test_doc_counts_generated.py comes in through DOCS_CONTRACT)
+    # private-route request contracts
+    "tests/test_site_config.py",
+    "tests/test_spec_conformance.py",
+    # tool evidence ledgers (read-POST, request shape, route manifest)
+    "tests/test_route_manifest.py",
+    # release guards
+    # body shapes
+    "tests/test_tool_body_shapes.py",
+    # workflow names handed to gh name a workflow file
+)
 GUARD_PYTEST = ("-m", "pytest", "-q", "-n", "4", "--max-worker-restart=0")
 
 #: Events that start a workflow for a pull request.
@@ -123,6 +193,10 @@ PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target"})
 #: ``--full``: the ci.yml job whose full-suite step runs locally.
 FULL_SUITE_JOB = "test"
 FULL_SUITE_STEP = "Run full suite with coverage"
+#: The shard job whose FULL_SUITE_STEP runs one slice of the suite in CI. ``--full`` runs
+#: its command without the shard options (the whole suite, with the coverage gate), as a
+#: step of FULL_SUITE_JOB.
+FULL_SUITE_SHARD_JOB = "test-shard"
 #: Variables never passed to the ``--full`` suite: the server's credential namespaces
 #: (``UNIFI_*`` holds the console API keys and live-test targets, ``MCP_*`` the bearer
 #: token and TLS key password) and any credential-shaped name.
@@ -501,9 +575,9 @@ def fast_jobs(workflow: dict[str, Any], name: str = "ci.yml", full: bool = False
         if name in chain:
             raise WorkflowError(f"job dependency cycle through {name}")
         for need in _needs(jobs[name]):
-            # --full executes the coverage suite locally while its GitHub-only classifier
-            # remains CI-only.
-            if full and name == FULL_SUITE_JOB and need == "classify":
+            # --full executes the coverage suite locally while the CI-only jobs it needs
+            # (the classifier, the shard plan and the shards) stay in CI.
+            if full and name == FULL_SUITE_JOB:
                 continue
             if need in ci_only:
                 raise WorkflowError(f"fast job {name} needs CI-only job {need}")
@@ -557,16 +631,40 @@ def step_label(step: dict[str, Any]) -> str:
 
 def full_suite_step(workflow: dict[str, Any]) -> dict[str, Any]:
     """The one step of FULL_SUITE_JOB named FULL_SUITE_STEP. The job's
-    other test step (the pull-request subset) is not part of ``--full``."""
+    other test step (the pull-request subset) is not part of ``--full``.
+
+    When the suite is sharded, FULL_SUITE_JOB is the aggregate and the step is the one
+    FULL_SUITE_STEP of FULL_SUITE_SHARD_JOB: ``bash scripts/run_full_suite.sh PYTHON
+    --workers N --shard ...``. Its command up to ``--shard`` (the whole suite with the
+    coverage gate) is added to FULL_SUITE_JOB's steps and returned."""
     job = workflow["jobs"].get(FULL_SUITE_JOB)
     if job is None:
         raise WorkflowError(f"ci.yml has no {FULL_SUITE_JOB} job")
     steps = [s for s in job.get("steps", []) if "run" in s and s.get("name") == FULL_SUITE_STEP]
-    if len(steps) != 1:
+    shard_job = workflow["jobs"].get(FULL_SUITE_SHARD_JOB)
+    if steps or shard_job is None:
+        if len(steps) != 1:
+            raise WorkflowError(
+                f"ci.yml job {FULL_SUITE_JOB} has {len(steps)} full-suite steps, not one"
+            )
+        return steps[0]
+    shard_steps = [
+        s for s in shard_job.get("steps", []) if "run" in s and s.get("name") == FULL_SUITE_STEP
+    ]
+    if len(shard_steps) != 1:
         raise WorkflowError(
-            f"ci.yml job {FULL_SUITE_JOB} has {len(steps)} full-suite steps, not one"
+            f"ci.yml job {FULL_SUITE_SHARD_JOB} has {len(shard_steps)} full-suite steps, not one"
         )
-    return steps[0]
+    run = str(shard_steps[0]["run"]).strip()
+    whole, sep, shard = run.partition(" --shard ")
+    if "\n" in run or not sep or not whole.startswith("bash scripts/run_full_suite.sh "):
+        raise WorkflowError(
+            f"ci.yml job {FULL_SUITE_SHARD_JOB}'s full-suite step is not one "
+            "scripts/run_full_suite.sh call with --shard"
+        )
+    step = {"name": FULL_SUITE_STEP, "run": whole}
+    job.setdefault("steps", []).append(step)
+    return step
 
 
 def full_suite_workers(script: str, override: str | None) -> tuple[str, str]:
@@ -578,7 +676,10 @@ def full_suite_workers(script: str, override: str | None) -> tuple[str, str]:
     if len(found) != 1:
         raise WorkflowError(f"the full-suite step names {len(found)} worker counts, not one")
     workers = found[0][1] if override is None else override
-    if not re.fullmatch(r"[1-9][0-9]*", workers):
+    # The workflow may say "auto" (run_full_suite.sh resolves the job's CPU share); an
+    # override is always an explicit count.
+    allowed = r"[1-9][0-9]*" if override is not None else r"[1-9][0-9]*|auto"
+    if not re.fullmatch(allowed, workers):
         raise WorkflowError(f"worker count {workers!r} is not a positive integer")
     return _WORKERS.sub(lambda match: f"{match.group(1)} {workers}", script), workers
 
@@ -924,6 +1025,9 @@ def _run_workflow(
 
 
 def main(argv: list[str] | None = None) -> int:
+    if (sys.argv[1:] if argv is None else argv) == ["--docs-contract"]:
+        print("\n".join(docs_contract()))
+        return 0
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", required=True, help="base branch commit (the PR base)")
     parser.add_argument("--base-ref", required=True, help="base branch name")

@@ -73,7 +73,7 @@ class TestRelayWritesUnderDryRun:
 
     async def test_connector_write_marks_the_request_as_a_write(self):
         from tests.test_connector import FakeResp
-        from unifi_fabric.tools.connector import connector_write
+        from unifi_fabric.families.connector.connector import connector_write
 
         client = AsyncMock()
         client.request = AsyncMock(return_value=FakeResp(200, {"ok": True}))

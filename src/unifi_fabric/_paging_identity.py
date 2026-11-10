@@ -10,9 +10,15 @@ from typing import Any
 
 
 def record_identity(record: Any) -> tuple[str, str | int] | None:
-    """Read the first usable upstream identity without changing the record."""
+    """Read the first usable upstream identity without changing the record.
+
+    Only ``id``, ``_id`` and ``uuid`` name one record. A ``mac`` names the device a record
+    is about: every event, log, session or history row of one device carries the same one,
+    so it is never an identity. A row with none of the three is unidentified and a repeat
+    is judged on the whole body.
+    """
     if isinstance(record, dict):
-        for key in ("id", "_id", "uuid", "mac"):
+        for key in ("id", "_id", "uuid"):
             value = record.get(key)
             if (isinstance(value, str) and value) or (
                 isinstance(value, int) and not isinstance(value, bool)
@@ -244,7 +250,7 @@ def page_stop(
         return PageStop(
             f"page {page} {where} returned {len(rows)} rows for a sent {control} "
             f"of {sent}, after page 1 also exceeded its sent {control}; "
-            "these records carry no id, _id, uuid or mac field, so a server that ignores "
+            "these records carry no id, _id or uuid field, so a server that ignores "
             "offset cannot be told apart from new records; "
             f"returned page 1 ({kept} records) only"
         )

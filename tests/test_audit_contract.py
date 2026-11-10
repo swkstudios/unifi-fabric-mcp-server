@@ -237,7 +237,6 @@ def test_sink_resolution_and_conflicts(tmp_path):
 @pytest.mark.parametrize(
     ("env", "value"),
     [
-        ("UNIFI_AUDIT_SINK", "remote"),
         ("UNIFI_AUDIT_SINK", "syslog"),
         ("UNIFI_AUDIT_LEVEL", "trace"),
         ("UNIFI_AUDIT_LOG_MODE", "0644"),

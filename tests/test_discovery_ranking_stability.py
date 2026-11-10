@@ -34,7 +34,9 @@ async def _search_order(catalog_order: tuple[str, ...]) -> list[str]:
     restore = await apply_tool_mode(app, "discovery")
     try:
         async with Client(app) as client:
-            rows = (await client.call_tool("search_tools", {"query": "synthetic"})).data
+            rows = (
+                await client.call_tool("search_tools", {"query": "synthetic"})
+            ).structured_content["result"]
         return [row["name"] for row in rows]
     finally:
         restore()
@@ -62,7 +64,9 @@ async def test_request_framing_does_not_introduce_unrelated_help_tools(prefix: s
     try:
         async with Client(app) as client:
             for query in ("synthetic", f"{prefix} synthetic"):
-                rows = (await client.call_tool("search_tools", {"query": query})).data
+                rows = (
+                    await client.call_tool("search_tools", {"query": query})
+                ).structured_content["result"]
                 assert [row["name"] for row in rows] == ["alpha_status"]
     finally:
         restore()

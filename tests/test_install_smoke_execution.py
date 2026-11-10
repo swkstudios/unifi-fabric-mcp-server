@@ -477,7 +477,7 @@ def test_linux_install_workflow_uses_plain_runner_and_defers_docker():
 
 def test_pull_request_docker_job_is_guarded_and_public_transform_uses_public_runner():
     workflow = yaml.safe_load((smoke.ROOT / ".github/workflows/ci.yml").read_text())
-    job = workflow["jobs"]["docker-build"]
+    job = workflow["jobs"]["docker-build-amd64"]
     runner = job["runs-on"]
     # The exact private runner label is pinned in the private-only workflow-forms test.
     if "self-hosted" in runner:

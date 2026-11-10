@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from unifi_fabric.tools._keys import context_value, report_keys, with_context
+from unifi_fabric.shared_shapes._keys import context_value, report_keys, with_context
 
 
 class TestUpstreamContextPreservation:
@@ -54,7 +54,7 @@ class TestUpstreamContextPreservation:
         }
 
     def test_host_routing_uses_server_context_not_forged_upstream_bucket(self):
-        from unifi_fabric.tools.aggregation import _device_host
+        from unifi_fabric.families.site_manager.aggregation import _device_host
 
         upstream = {"_hostId": "upstream-host", "_wrapperFields": {"_hostId": "forged-host"}}
         merged = with_context(upstream, {"_hostId": "server-host"})
@@ -74,7 +74,7 @@ class TestUpstreamContextPreservation:
         assert context_value(upstream, "_keyLabel") == "upstream-key"
 
     async def test_resolved_site_routing_uses_server_context(self, monkeypatch):
-        from unifi_fabric.tools import site_manager
+        from unifi_fabric.families.site_manager import site_manager
 
         record = with_context(
             {"hostId": "host-sentinel", "_resolvedSiteId": "upstream-site"},

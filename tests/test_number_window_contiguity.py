@@ -20,9 +20,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights as nci
-from unifi_fabric.tools import network_vpn_dns as vd
-from unifi_fabric.tools import system_log
+from unifi_fabric.families.network import network_controller_insights as nci
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns as vd
 
 #: (name, console page size for a request of pageSize s). "clamp-c" honours a size up to c;
 #: "honour" serves exactly the size asked for; "ignore-e" serves e records per page always.
@@ -38,7 +38,9 @@ SIZES = (1, 4, 5, 7)
 
 
 def _client(total: int, console: Callable[[int], int]) -> AsyncMock:
-    async def post(_path: str, *, key: Any = None, json: dict[str, Any]) -> Any:
+    async def post(
+        _path: str, *, key: Any = None, json: dict[str, Any], always_write: bool = False
+    ) -> Any:
         number, size = json["pageNumber"], json["pageSize"]
         e = console(size)
         rows = [{"id": index} for index in range(number * e, min(number * e + e, total))]

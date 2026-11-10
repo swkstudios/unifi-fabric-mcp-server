@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
-from unifi_fabric.tools import system_log
+from unifi_fabric.families.statistics import system_log
 
 HOST_ID = "host-001"
 V2 = f"/v1/connector/consoles/{HOST_ID}/proxy/network/v2/api/site/default"
@@ -259,7 +259,9 @@ async def test_explicit_page_and_size_return_the_logical_window(client, registry
     pages = {number: _page(number, 8) for number in range(8)}
     pages[2]["future"] = {"verbatim": True}
 
-    async def post(_path: str, *, key: Any = None, json: dict[str, Any]) -> Any:
+    async def post(
+        _path: str, *, key: Any = None, json: dict[str, Any], always_write: bool = False
+    ) -> Any:
         return pages[json["pageNumber"]]
 
     client.post.side_effect = post

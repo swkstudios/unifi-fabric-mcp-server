@@ -18,8 +18,8 @@ from fastmcp.exceptions import ToolError
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient, UniFiConnectionError, UniFiHTTPError
 from unifi_fabric.config import Settings
+from unifi_fabric.families.innerspace import innerspace
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import innerspace
 
 H = "host-is-001"
 IS = f"https://api.ui.com/v1/connector/consoles/{H}/proxy/innerspace"

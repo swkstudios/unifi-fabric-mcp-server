@@ -63,7 +63,10 @@ def test_one_page_limit_text_scopes_gathered_and_names_the_clamp(name, text):
     # The gathered clause applies only without offset; nothing after it claims gathering.
     assert gathered.startswith("Without offset,"), (name, text)
     assert "gathered" not in with_offset, (name, text)
-    maximum = "1000" if name == "list_hotspot_vouchers" else "200"
+    # The route maximum: hotspot vouchers 1000, Protect 7.x door-lock unlock events 100.
+    maximum = {"list_hotspot_vouchers": "1000", "list_door_lock_unlock_events": "100"}.get(
+        name, "200"
+    )
     if name == "list_protect_events":
         assert "No size clamp is measured on this feed." in with_offset, text
     else:

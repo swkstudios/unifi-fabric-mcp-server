@@ -14,8 +14,10 @@ from tests import test_cross_tool_invariants as cti
 from tests import upstream_harness as uh
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import aggregation, carrier_fabric, mobility, site_manager
 
 BASE = "https://api.ui.com"
 _UUID = "3fa85f64-5717-4562-b3fc-2c963f66afa6"

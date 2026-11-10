@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from unifi_fabric.families import _module_rel
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/openapi"
 NETWORK = json.loads((FIXTURES / "network-11.0.97.json").read_text())
@@ -43,7 +45,7 @@ def wrapper_docs():
         ):
             calls.add((value.func.value.id, value.func.attr))
     for module, function in sorted(calls):
-        module_tree = ast.parse((ROOT / f"src/unifi_fabric/tools/{module}.py").read_text())
+        module_tree = ast.parse((ROOT / "src/unifi_fabric" / _module_rel(module)).read_text())
         for node in module_tree.body:
             if isinstance(node, ast.FunctionDef) and node.name == function:
                 for sub in node.body:
@@ -54,7 +56,7 @@ def wrapper_docs():
 
 def test_network_prose_matches_schema():
     server = wrapper_docs()
-    module = docs("src/unifi_fabric/tools/network.py")
+    module = docs("src/unifi_fabric/families/network/network.py")
     schemas = NETWORK["components"]["schemas"]
     assert "autoScaleEnabled" in schemas["Gateway Managed IPv4 Configuration"]["required"]
     assert "required autoScaleEnabled" in server["create_network"]
@@ -96,7 +98,7 @@ def test_sdwan_prose_matches_published_contract():
     assert "nextToken" not in schema["properties"]
     for doc in (
         wrapper_docs()["list_sdwan_configs"],
-        docs("src/unifi_fabric/tools/site_manager.py")["list_sdwan_configs"],
+        docs("src/unifi_fabric/families/site_manager/site_manager.py")["list_sdwan_configs"],
     ):
         assert "declares no pagination parameters or nextToken" in doc
         assert "if the service returns one" in doc

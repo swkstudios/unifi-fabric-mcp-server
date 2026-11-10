@@ -41,7 +41,7 @@ from unifi_fabric.registration import (
     ToolSpec,
     validate_catalog,
 )
-from unifi_fabric.tools._shared import require_dependencies
+from unifi_fabric.shared_shapes._shared import require_dependencies
 
 FAMILIES = frozenset(
     {
@@ -835,7 +835,7 @@ def test_require_dependencies_raises_the_existing_error_when_uninitialized(
 
 def test_server_reexports_the_shared_helpers() -> None:
     from unifi_fabric import server
-    from unifi_fabric.tools import _shared
+    from unifi_fabric.shared_shapes import _shared
 
     for name in ("_image_result", "_nullable_default", "_validate_optional_site"):
         assert getattr(server, name) is getattr(_shared, name)

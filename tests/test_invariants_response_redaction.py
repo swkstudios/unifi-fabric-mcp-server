@@ -98,7 +98,9 @@ def _oracle_masks(key: str, item: Any) -> bool:
 
 @functools.cache
 def _lz_CATALOG():
-    return sorted(set(cti.READ_TOOLS) | cti.RAW_RELAY)
+    # A derived write (the Network evidence collector reads through a write-classified POST)
+    # keeps the redaction contract: it is exercised here like a read.
+    return sorted(set(cti.READ_TOOLS) | cti.RAW_RELAY | (set(cti.DERIVED) & set(cti.WRITE_TOOLS)))
 
 
 def _inject(node: Any) -> Any:

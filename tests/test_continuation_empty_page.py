@@ -6,8 +6,11 @@ import pytest
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.protect.recognition import (
+    list_recognition_detections,
+    list_recognition_groups,
+)
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools.recognition import list_recognition_detections, list_recognition_groups
 
 
 @pytest.mark.parametrize("field", ["groups", "detections"])

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from tests._protect_writes import assert_write, resp
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.protect.protect import (
     PROTECT_PROXY_BASE,
     get_arm_profile,
     update_arm_profile,

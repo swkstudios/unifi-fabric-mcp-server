@@ -19,9 +19,9 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_classes import class_axis, tool_batches
 from tests.test_cross_tool_invariants import TOOLS, _call
-from unifi_fabric.tools import _classic_objects as classic
-from unifi_fabric.tools import vpn
-from unifi_fabric.tools._classic_objects import listed_record_id
+from unifi_fabric.families.vpn import vpn
+from unifi_fabric.shared_shapes import _classic_objects as classic
+from unifi_fabric.shared_shapes._classic_objects import listed_record_id
 
 # These tools resolve their ``server_id`` through the Classic remote-user-vpn
 # networkconf collection, although their public names do not contain vpn_server.
@@ -153,7 +153,7 @@ def test_discovery_resolves_import_aliases_without_cross_module_name_collisions(
     def load(name: str, source: str):
         path = tmp_path / f"{name}.py"
         path.write_text(source)
-        spec = importlib.util.spec_from_file_location(f"unifi_fabric.tools.{name}", path)
+        spec = importlib.util.spec_from_file_location(f"unifi_fabric.families.{name}", path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -161,7 +161,7 @@ def test_discovery_resolves_import_aliases_without_cross_module_name_collisions(
 
     imported = load(
         "imported_resolver",
-        "from unifi_fabric.tools._classic_objects import listed_record_id as imported_alias\n"
+        "from unifi_fabric.shared_shapes._classic_objects import listed_record_id as imported_alias\n"
         "def _resolve(record):\n    return imported_alias(record, 'id')\n"
         "resolver_alias = _resolve\n"
         "def catalog_tool(record):\n    return resolver_alias(record)\n",
@@ -177,7 +177,7 @@ def test_discovery_resolves_import_aliases_without_cross_module_name_collisions(
     assert not _reaches_resolver(unrelated.catalog_tool, {imported._resolve})
     advisory = load(
         "advisory_resolver",
-        "import unifi_fabric.tools._classic_objects as classic\n"
+        "import unifi_fabric.shared_shapes._classic_objects as classic\n"
         "def catalog_tool(record):\n"
         "    return classic.listed_record_id(record, 'id')\n",
     )
@@ -242,7 +242,6 @@ def test_catalog_discovery_covers_all_classic_resolver_families():
         "update_hotspot_operator",
         "delete_hotspot_operator",
         "update_port_profile",
-        "update_traffic_rule",
         "update_vpn_server",
         "delete_vpn_server",
         "update_device_tag",

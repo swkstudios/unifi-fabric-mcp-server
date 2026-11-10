@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unifi_fabric.tools import network_clients_guests as mod
+from unifi_fabric.families.network import network_clients_guests as mod
 
 
 def test_classic_update_result_wraps_a_non_object_body():

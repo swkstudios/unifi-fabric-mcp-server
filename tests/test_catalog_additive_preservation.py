@@ -2,10 +2,16 @@
 
 import pytest
 
-from unifi_fabric.tools import network_services_proxy, protect, site_manager
-from unifi_fabric.tools._history_common import with_warnings
-from unifi_fabric.tools._pagination import mark_incomplete, verbatim_list_result, with_envelope
-from unifi_fabric.tools._results import with_read_after_error
+from unifi_fabric.families.network import network_services_proxy
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.shared_shapes._history_common import with_warnings
+from unifi_fabric.shared_shapes._pagination import (
+    mark_incomplete,
+    verbatim_list_result,
+    with_envelope,
+)
+from unifi_fabric.shared_shapes._results import with_read_after_error
 
 
 class TestReadAfterCollision:

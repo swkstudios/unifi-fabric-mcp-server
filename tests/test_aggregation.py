@@ -9,8 +9,7 @@ from fastmcp import FastMCP
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.registry import Registry
-from unifi_fabric.tools.aggregation import (
+from unifi_fabric.families.site_manager.aggregation import (
     _fleet_summary,
     _get_all_host_site_pairs,
     _list_all_clients_fleet,
@@ -20,6 +19,7 @@ from unifi_fabric.tools.aggregation import (
     _unwrap_ea_devices,
     register,
 )
+from unifi_fabric.registry import Registry
 
 
 @pytest.fixture

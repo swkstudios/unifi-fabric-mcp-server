@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unifi_fabric.tools import network_switching_power as mod
+from unifi_fabric.families.network import network_switching_power as mod
 
 
 class _Client:

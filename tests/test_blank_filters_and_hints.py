@@ -8,9 +8,12 @@
   ``attrs`` and ``sites`` (an empty list in the body), ``host_ids`` (no parameter).
 * Every epoch-seconds argument of every tool takes a negative or millisecond-magnitude
   value: it is sent (converted to milliseconds where the endpoint needs them) and the
-  existing history tools add a ``_warnings`` entry; speedtest passes the upstream
-  result through unchanged. Derived from the tool schemas: a new epoch argument is
-  covered on registration.
+  existing history tools add a ``_warnings`` entry, and a tool-built document (the
+  incident-evidence collectors) carries it in its declared ``_warnings`` field; speedtest
+  passes the upstream result through unchanged. A window whose end is not after its start
+  is a separate registered refusal, so the sweep keeps the window ordered (the other bound
+  is set one hour away). Derived from the tool schemas: a new epoch argument is covered on
+  registration.
 * ``smart_detect_types`` without ``types`` is sent, with a ``_warnings`` entry.
 * An empty ``sites`` ISP query is sent as given; an upstream error gets a hint appended
   and keeps the upstream text.
@@ -32,7 +35,7 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests._tool_classes import class_axis
-from unifi_fabric.tools._history_common import MILLISECONDS_HINT_AT, with_warnings
+from unifi_fabric.shared_shapes._history_common import MILLISECONDS_HINT_AT, with_warnings
 
 TOOLS = cti.TOOLS
 _call = cti._call
@@ -237,7 +240,15 @@ async def test_epoch_value_is_sent_with_a_warning(monkeypatch, name, arg, value)
         replay_recordings=False,
         classic_rc_body=body if name == "list_speedtest_results" else None,
     )
-    got = _payload(await _call(monkeypatch, name, up, args=_args(name, **{arg: value})))
+    over = {arg: value}
+    if arg in ("start", "end") and {"start", "end"} <= {
+        a for n, a in _lz_EPOCH_ARGS() if n == name
+    }:
+        # an inverted window names nothing and is refused (its own rule): keep it ordered
+        over["end" if arg == "start" else "start"] = (
+            value + 3600 if arg == "start" else value - 3600
+        )
+    got = _payload(await _call(monkeypatch, name, up, args=_args(name, **over)))
     assert any(not s.resolution for s in up.served), f"{name}: nothing sent"
     sent = [str(value), str(value * 1000)]
     on_wire = [

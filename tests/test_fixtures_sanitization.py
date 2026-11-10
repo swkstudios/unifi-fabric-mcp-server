@@ -1295,10 +1295,10 @@ def test_live_object_id_scope_covers_published_paths(tmp_path: Path) -> None:
     value = _object_id(2026)
     published = [
         "tests/test_module.py",
-        "tests/fixtures/upgrade-0.7.1/unifi.env",
-        "tests/fixtures/upgrade-0.7.1/result.stdout",
+        "tests/fixtures/example-upgrade/unifi.env",
+        "tests/fixtures/example-upgrade/result.stdout",
         "skills/example/SKILL.md",
-        "tools/migrate-0.7.1-env.py",
+        "tools/example-migrator.py",
         "plugins/example/.claude-plugin/plugin.json",
         "plugins/codex/.mcp.json",
         "changelog.d/example.md",
@@ -1351,3 +1351,124 @@ def test_public_tree_carries_no_live_plausible_object_id() -> None:
             gate.scan_object_ids(rel, path.read_text(encoding="utf-8", errors="replace"))
         )
     assert findings == []
+
+
+# ---------------------------------------------------------- decode-aware literal scan
+# Synthetic markers only, every one built at runtime: no secret-shaped literal ships here.
+_SYNTH_PEM = "-----" + "BEGIN " + "SYNTHETIC TEST " + "PRIVATE KEY" + "-----"
+_SYNTH_BEARER = "Bearer " + "SYNTHMARKER" + "x" * 24
+_SYNTH_NAME = "synthetic" + "-estate-" + "marker"
+
+
+def _encode(text: str, layers: list[str]) -> str:
+    """``text`` under ``layers``, innermost first (each layer wraps the previous)."""
+    import base64
+    import urllib.parse
+
+    for layer in layers:
+        if layer == "base64":
+            text = base64.b64encode(text.encode()).decode()
+        elif layer == "urlsafe":
+            text = base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
+        elif layer == "hex":
+            text = text.encode().hex()
+        elif layer == "url":
+            text = urllib.parse.quote(text, safe="")
+        else:
+            raise AssertionError(layer)
+    return text
+
+
+_LAYER_CHAINS = [
+    ["base64"],
+    ["urlsafe"],
+    ["hex"],
+    ["url"],
+    ["url", "base64"],
+    ["url", "base64", "hex"],
+]
+
+
+def _secret_cases():
+    for secret in (_SYNTH_PEM, _SYNTH_BEARER):
+        for layers in _LAYER_CHAINS:
+            line = f'"payload": "{_encode(secret, layers)}",'
+            # A layer that leaves the secret readable is not a hidden case (percent-
+            # encoding keeps "-----BEGIN" as is): the raw check already covers it.
+            if not any(p.search(line) for _, p in gate.DENYLIST):
+                yield pytest.param(secret, layers, id=f"{secret.split()[0][:9]}-{'+'.join(layers)}")
+
+
+@pytest.mark.parametrize(("secret", "layers"), list(_secret_cases()))
+def test_encoded_synthetic_secret_is_caught(secret, layers):
+    line = f'"payload": "{_encode(secret, layers)}",'
+    findings = gate.scan_text("tests/fixtures/example.json", line)
+    # The label lists the layers outermost first.
+    chain = ">".join(reversed(layers)).replace("urlsafe", "base64")
+    assert any(
+        f.startswith("tests/fixtures/example.json:1: ") and f.endswith(f" inside {chain} encoding")
+        for f in findings
+    ), findings
+    # file:line:category only: neither the secret nor its encoded form is echoed.
+    joined = "\n".join(findings)
+    assert "SYNTH" not in joined and secret not in joined and line not in joined
+
+
+def test_every_layer_chain_is_exercised():
+    covered = {"+".join(layers) for _, layers in (c.values for c in _secret_cases())}
+    assert covered == {"+".join(layers) for layers in _LAYER_CHAINS}
+
+
+def test_encoded_estate_name_is_caught_in_fixture_scope(monkeypatch):
+    monkeypatch.setattr(gate, "FORBIDDEN_NAMES", [re.compile(_SYNTH_NAME, re.I)])
+    line = f'"note": "{_encode("host " + _SYNTH_NAME + " uplink", ["base64"])}",'
+    findings = gate.scan_text("tests/fixtures/example.json", line)
+    assert any("forbidden-names.txt inside base64 encoding" in f for f in findings), findings
+    # Example configs may name private services: names stay fixture/evidence scoped.
+    assert gate.scan_text("config/example.json", line) == []
+
+
+def test_raw_hit_is_not_repeated_for_an_encoded_view(monkeypatch):
+    monkeypatch.setattr(gate, "FORBIDDEN_NAMES", [re.compile(_SYNTH_NAME, re.I)])
+    # A percent escape elsewhere on the line makes the whole line a URL view that still
+    # holds the raw name: the raw check already reports it, the decoded pass must not.
+    line = f'"note": "{_SYNTH_NAME}", "q": "a%20b"'
+    findings = gate.scan_text("tests/fixtures/example.json", line)
+    assert len(findings) == 1 and "encoding" not in findings[0], findings
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # Prose under each layer decodes to printable text with no secret shape.
+        '"d": "' + _encode("Restart the client after the install completes.", ["base64"]) + '"',
+        '"d": "' + _encode("Restart the client after the install completes.", ["hex"]) + '"',
+        '"q": "' + _encode("name=Living room&page=2", ["url"]) + '"',
+        # Opaque tokens: digests and ObjectIds decode to non-printable bytes.
+        '"sha256": "' + "9f" * 32 + '"',
+        '"sha1": "' + "ab" * 20 + '"',
+        '"_id": "' + "0" * 23 + "1" + '"',
+        '"blob": "' + "+/" * 20 + "AAAA" + '"',
+        # Short tokens are below MIN_ENCODED_TOKEN and are never decoded.
+        '"k": "' + _encode("Bearer x", ["base64"]) + '"',
+    ],
+)
+def test_benign_encoded_text_is_not_flagged(line):
+    assert gate.scan_text("tests/fixtures/example.json", line) == [], line
+
+
+def test_decode_depth_bound_is_honoured():
+    deep = _encode(_SYNTH_PEM, ["base64"] * (gate.MAX_DECODE_DEPTH + 1))
+    at_bound = _encode(_SYNTH_PEM, ["base64"] * gate.MAX_DECODE_DEPTH)
+    assert gate.decoded_hits(at_bound), "a secret exactly MAX_DECODE_DEPTH layers deep is caught"
+    assert gate.decoded_hits(deep) == [], "one layer past the bound is not decoded"
+    assert all(len(layers) <= 1 for layers, _ in gate.decoded_views(at_bound, depth=1))
+    assert not any(_SYNTH_PEM in text for _, text in gate.decoded_views(at_bound, depth=2))
+    assert gate.decoded_views(at_bound, depth=0) == []
+
+
+def test_decoded_views_are_capped_per_line():
+    tokens = " ".join(
+        _encode(f"plain printable token number {i:04d}", ["base64"]) for i in range(200)
+    )
+    assert len(gate.decoded_views(tokens)) == gate.MAX_DECODED_VIEWS

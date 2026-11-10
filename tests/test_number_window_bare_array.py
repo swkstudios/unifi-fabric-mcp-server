@@ -15,13 +15,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights, network_vpn_dns, system_log
+from unifi_fabric.families.network import network_controller_insights
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns
 
 TOOLS = ["system_log", "overview", "teleport"]
 
 
 def _client(rows: list[Any], calls: list[dict[str, Any]], cap: int | None = None) -> Any:
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         calls.append({k: v for k, v in json.items() if k in ("pageNumber", "pageSize")})
         return list(rows)
 

@@ -7,7 +7,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError, UniFiHTTPError
-from unifi_fabric.tools import network_dpi_policy as lane
+from unifi_fabric.families.network import network_dpi_policy as lane
 
 
 def bound_context(get):

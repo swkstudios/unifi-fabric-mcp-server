@@ -10,8 +10,12 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from unifi_fabric.tools import _results, carrier_fabric, mobility, network_services_proxy, protect
-from unifi_fabric.tools._results import requested_leaves_match
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network import network_services_proxy
+from unifi_fabric.families.protect import protect
+from unifi_fabric.shared_shapes import _results
+from unifi_fabric.shared_shapes._results import requested_leaves_match
 
 
 def _protect_callers():

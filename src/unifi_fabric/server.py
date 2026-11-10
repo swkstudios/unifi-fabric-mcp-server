@@ -32,7 +32,7 @@ from fastmcp.server.auth import AuthProvider
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
 
-from . import policy, request_policy, route_secrets, switches
+from . import policy, protect_resources, request_policy, route_secrets, stream_buffers, switches
 from .api_sources import install_api_sources
 from .argument_errors import ArgumentErrorMiddleware
 from .argument_values import ArgumentValueMiddleware
@@ -42,8 +42,58 @@ from .client import UniFiClient, UniFiHTTPError
 from .config import MCPTransportSettings, Settings, known_setting_names
 from .confirm_compat import ConfirmIgnoredMiddleware
 from .contracts import EffectivePolicy
+from .discovery import _BROKER_CALL as _code_mode_broker
 from .discovery import apply_tool_mode
 from .entrypoint import _version
+from .families.carrier import carrier_fabric
+from .families.clients import client_records, clients
+from .families.connector import connector
+from .families.devices import (
+    device_commands,
+    device_mgmt,
+    device_radios,
+    scheduled_tasks,
+    switch_port_overrides,
+)
+from .families.hotspot import hotspot
+from .families.innerspace import innerspace, innerspace_internal, placement_snapshot
+from .families.mobility import mobility
+from .families.network import (
+    firewall_proxy,
+    matter,
+    network,
+    network_clients_guests,
+    network_controller_admin,
+    network_controller_insights,
+    network_device_operations,
+    network_dpi_policy,
+    network_mobile_wan,
+    network_nat_qos_traffic,
+    network_proav_sandbox,
+    network_routing_topology,
+    network_security_diagnostics,
+    network_services_proxy,
+    network_switching_power,
+    network_wifi_radio,
+    site_admin,
+    site_config,
+)
+from .families.protect import (
+    protect,
+    protect_automation_backup,
+    protect_camera_recording,
+    protect_device_lifecycle,
+    protect_door_locks,
+    protect_events_cases,
+    protect_private,
+    protect_ptz_doorbell,
+    protect_recognition_search,
+    protect_users_assets,
+    recognition,
+)
+from .families.site_manager import aggregation, site_manager
+from .families.statistics import event_streams, statistics, system_log
+from .families.vpn import network_vpn_dns, radius_profiles, vpn, vpn_clients
 from .header_credentials import (
     HEADER_MODE,
     CredentialLeaseMiddleware,
@@ -79,65 +129,15 @@ from .secret_scrub import (
     set_secret_provider,
 )
 from .selector_args import SelectorArgumentMiddleware
-from .spec_limits import SpecLimitMiddleware
-from .tool_shapes import install_tool_shapes
-from .tool_titles import install_tool_titles
-from .tools import (
-    aggregation,
-    carrier_fabric,
-    client_records,
-    clients,
-    connector,
-    device_commands,
-    device_mgmt,
-    device_radios,
-    firewall_proxy,
-    hotspot,
-    innerspace,
-    innerspace_internal,
-    matter,
-    mobility,
-    network,
-    network_clients_guests,
-    network_controller_admin,
-    network_controller_insights,
-    network_device_operations,
-    network_dpi_policy,
-    network_mobile_wan,
-    network_nat_qos_traffic,
-    network_proav_sandbox,
-    network_routing_topology,
-    network_security_diagnostics,
-    network_services_proxy,
-    network_switching_power,
-    network_vpn_dns,
-    network_wifi_radio,
-    placement_snapshot,
-    protect,
-    protect_automation_backup,
-    protect_camera_recording,
-    protect_device_lifecycle,
-    protect_events_cases,
-    protect_private,
-    protect_ptz_doorbell,
-    protect_recognition_search,
-    protect_users_assets,
-    radius_profiles,
-    recognition,
-    scheduled_tasks,
-    site_admin,
-    site_config,
-    site_manager,
-    statistics,
-    system_log,
-    vpn,
-    vpn_clients,
-)
-from .tools._shared import (  # noqa: F401  (re-exported for server-level callers)
+from .shared_shapes._shared import (  # noqa: F401  (re-exported for server-level callers)
     _image_result,
     _nullable_default,
     _validate_optional_site,
 )
+from .spec_limits import SpecLimitMiddleware
+from .tool_shapes import install_tool_shapes
+from .tool_titles import install_tool_titles
+from .tracing import configure_trace_export, register_component_names, shutdown_trace_export
 from .transport_security import (
     HTTP_TRANSPORTS,
     ConstantTimeTokenVerifier,
@@ -184,7 +184,8 @@ async def startup_policy(app: FastMCP) -> EffectivePolicy:
     audit level."""
     try:
         policy.check_retired_settings(os.environ, known_setting_names())
-        names = policy.Catalog.for_names(tool.name for tool in await app.list_tools())
+        listed = await app.list_tools(run_middleware=False)
+        names = policy.Catalog.for_names(tool.name for tool in listed)
         effective = policy.operator_policy(os.environ, names)
     except policy.StartupRefusal as exc:
         print(exc.stderr_text(), end="", file=sys.stderr, flush=True)
@@ -261,6 +262,12 @@ async def lifespan(app: FastMCP) -> AsyncIterator[None]:
         )
         # Discovery adds its own annotated dispatcher; hide that write as well.
         hidden_writes.update(await apply_read_only_tool_filter(app, switches.is_read_only()))
+        # Trace export names only these tools and prompts; a name a caller invents is
+        # never exported.
+        register_component_names(
+            set(registered) | {tool.name for tool in await app.list_tools(run_middleware=False)},
+            {prompt.name for prompt in await app.list_prompts(run_middleware=False)},
+        )
         yield
     finally:
         if restore_tool_mode is not None:
@@ -271,7 +278,12 @@ async def lifespan(app: FastMCP) -> AsyncIterator[None]:
                 app.add_tool(registered[name])
         policy.clear_exposure()
         close_error: BaseException | None = None
+        if _client.audit_stream is not None:
+            # The chain head at clean shutdown narrows the unanchored tail (best effort).
+            _client.audit_stream.log_head("shutdown")
         try:
+            # Event-stream listeners (none exist while no product stream is supported).
+            await stream_buffers.MANAGER.close_all()
             await _client.close()
         except BaseException as exc:
             close_error = exc
@@ -566,6 +578,9 @@ def _configure_transport() -> MCPTransportSettings:
     mcp._mcp_server.cache_hints = {  # noqa: SLF001 - SDK cache configuration
         str(method): hint for method, hint in (hints or {}).items()
     }
+    # A resource read is per caller and time-sensitive (Protect events and snapshots):
+    # never reused and never shared, whatever UNIFI_MCP_CACHE_TTL says for the lists.
+    mcp._mcp_server.cache_hints.update(protect_resources.resource_read_cache_hint())  # noqa: SLF001
     _mcp_transport = transport
     _cache_ttl = cache_ttl
     return transport
@@ -634,6 +649,7 @@ device_mgmt.register(mcp, _require)
 device_commands.register(mcp, _require)
 scheduled_tasks.register(mcp, _require)
 device_radios.register(mcp, _require)
+switch_port_overrides.register(mcp, _require)
 network_wifi_radio.register(mcp, _require)
 network_nat_qos_traffic.register(mcp, _require)
 clients.register(mcp, _require)
@@ -808,9 +824,6 @@ create_port_forward = _network_services_proxy_tools_2["create_port_forward"]
 update_port_forward = _network_services_proxy_tools_2["update_port_forward"]
 delete_port_forward = _network_services_proxy_tools_2["delete_port_forward"]
 list_traffic_rules = _network_services_proxy_tools_2["list_traffic_rules"]
-create_traffic_rule = _network_services_proxy_tools_2["create_traffic_rule"]
-update_traffic_rule = _network_services_proxy_tools_2["update_traffic_rule"]
-delete_traffic_rule = _network_services_proxy_tools_2["delete_traffic_rule"]
 
 
 vpn.register(mcp, _require)
@@ -830,10 +843,12 @@ network_proav_sandbox.register(mcp, _require)
 protect_ptz_doorbell.register(mcp, _require)
 protect_recognition_search.register(mcp, _require)
 protect_device_lifecycle.register(mcp, _require)
+protect_door_locks.register(mcp, _require)
 network_mobile_wan.register(mcp, _require)
 network_device_operations.register(mcp, _require)
 client_records.register(mcp, _require)
 system_log.register(mcp, _require)
+event_streams.register(mcp, _require)
 vpn_clients.register(mcp, _require)
 site_admin.register(mcp, _require)
 
@@ -936,7 +951,7 @@ resume_carrier_subscriber = _carrier_fabric_tools["resume_carrier_subscriber"]
 # add the entry, or set UNIFI_WRITE_POLICY=deny, for a read-only deployment).
 # The confirm argument is accepted for
 # compatibility and no longer required. See
-# tools/connector.py for the full guard model (Registry-only
+# families/connector/connector.py for the full guard model (Registry-only
 # identity, namespace allowlist, positive-charset path validation, read-before/
 # write/read-after, scope guard, verbatim bodies, structured audit).
 
@@ -1185,6 +1200,16 @@ mcp.add_middleware(ExposureMiddleware())
 # the request dry-run before every tool guard, argument check and upstream call.
 _request_policy = request_policy.install(mcp)
 mcp.add_middleware(request_policy.RequestPolicyMiddleware(_request_policy))
+
+# Protect MCP resources (resources/list, resources/templates/list, resources/read). Each
+# read re-enters its backing read tool through call_tool, so every tool control above and
+# below applies to it; the listing hides a resource whose backing tool is not exposed.
+# In Code Mode a resource read goes through the read broker, as a script read does.
+protect_resources.register(
+    mcp,
+    evaluator=_request_policy,
+    broker=lambda: _code_mode_broker.set(True),
+)
 mcp.add_middleware(connector.RelayBodyPresenceMiddleware())
 
 
@@ -1327,6 +1352,19 @@ def _print_startup_warnings(transport: MCPTransportSettings) -> None:
         print(f"unifi-fabric-mcp: {line}", file=sys.stderr)
 
 
+def ignored_key_settings(settings: Settings) -> list[str]:
+    """The key settings configured (names only) that ``UNIFI_KEY_MODE=header`` ignores."""
+    names = [
+        name
+        for name, present in (
+            ("UNIFI_API_KEY", bool(settings.api_key)),
+            ("UNIFI_API_KEYS", bool(settings.api_keys)),
+        )
+        if present
+    ]
+    return names + settings.configured_key_providers()
+
+
 def main() -> None:
     """Entry point for the MCP server."""
     import fastmcp
@@ -1355,15 +1393,18 @@ def main() -> None:
         raise SystemExit(1) from None
     set_process_key_mode(key_mode)
     if key_mode == HEADER_MODE:
-        if key_configs:
+        ignored = ignored_key_settings(get_settings())
+        if ignored:
             logging.getLogger(__name__).warning(
-                "UNIFI_KEY_MODE=header: the configured UNIFI_API_KEY/UNIFI_API_KEYS are "
-                "ignored; every tool call uses only its X-UniFi-Api-Key header"
+                "UNIFI_KEY_MODE=header: the configured %s are ignored (no key file is read "
+                "and no helper is run); every tool call uses only its X-UniFi-Api-Key header",
+                "/".join(ignored),
             )
     elif not key_configs:
         print(
             "UNIFI_API_KEY is not set — get a key at https://unifi.ui.com "
-            "(Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS; "
+            "(Site Manager > API Keys) and set UNIFI_API_KEY or UNIFI_API_KEYS (or read it "
+            "from a file or helper with UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND); "
             "see README#1-join-your-fabric-and-create-an-api-key",
             file=sys.stderr,
         )
@@ -1371,6 +1412,11 @@ def main() -> None:
     try:
         _reconcile_stateless_http()
         _print_startup_warnings(transport)
+        # Optional OTLP trace export: process environment only, installed once, after
+        # every startup check passed; silent and import-free when no endpoint is set.
+        trace_export = configure_trace_export()
+        if trace_export.message:
+            print(f"unifi-fabric-mcp: {trace_export.message}", file=sys.stderr)
         # Every HTTP transport uses bounded server-owned access logging.
         # stdio takes no uvicorn_config keyword.
         if fastmcp.settings.transport in HTTP_TRANSPORTS:
@@ -1381,6 +1427,9 @@ def main() -> None:
         # Library/transport startup validation uses the same safe renderer too.
         print(_configuration_error_line(exc), file=sys.stderr)
         raise SystemExit(1) from None
+    finally:
+        # Flush pending spans and stop the exporter (no-op when export is off).
+        shutdown_trace_export()
 
 
 if __name__ == "__main__":

@@ -909,7 +909,9 @@ async def test_codemode_search_and_describe_cover_reads_only():
     restore = await apply_tool_mode(app, "codemode", audit_hmac_key=TEST_AUDIT_HMAC_KEY)
     try:
         async with Client(app) as client:
-            found = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+            found = (
+                await client.call_tool("search_tools", {"query": "", "limit": None})
+            ).structured_content["result"]
             assert [row["name"] for row in found] == ["list_things"]
             with pytest.raises(ToolError, match="write_denied"):
                 await client.call_tool("describe_tool", {"name": "delete_thing"})
@@ -943,7 +945,9 @@ async def test_codemode_describe_inlines_refs_like_tools_list():
     restore = await apply_tool_mode(app, "codemode", audit_hmac_key=TEST_AUDIT_HMAC_KEY)
     try:
         async with Client(app) as client:
-            described = (await client.call_tool("describe_tool", {"name": "list_filtered"})).data
+            described = (
+                await client.call_tool("describe_tool", {"name": "list_filtered"})
+            ).structured_content
     finally:
         restore()
     assert described == listed_entry

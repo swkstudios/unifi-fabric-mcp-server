@@ -20,9 +20,9 @@ import pytest
 
 from tests import test_cross_tool_invariants as cti
 from unifi_fabric.client import DRY_RUN_MESSAGE
-from unifi_fabric.tools._results import dry_run_or_verbatim
-from unifi_fabric.tools.device_mgmt import _delete_device_tag, _update_device_tag
-from unifi_fabric.tools.network_services_proxy import update_setting
+from unifi_fabric.families.devices.device_mgmt import _delete_device_tag, _update_device_tag
+from unifi_fabric.families.network.network_services_proxy import update_setting
+from unifi_fabric.shared_shapes._results import dry_run_or_verbatim
 
 TOOLS = cti.TOOLS
 HOST_ID = "host-001"

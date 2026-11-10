@@ -2,7 +2,7 @@ name: Dependency refresh
 
 # The seven managed pin files are generated from dependencies/manifest.toml by
 # scripts/refresh_dependencies.py. refresh-check and pip-audit run for every pull request,
-# push, merge-queue entry and weekly schedule, with no path filter, so the selector can never skip them;
+# push and weekly schedule (the same branches as ci.yml), with no path filter, so the selector can never skip them;
 # refresh-check keeps hand edits and partial lock bumps out. Branch protection does not list it
 # as a required check, so GitHub does not block a merge on it: a red refresh-check must still
 # stop the merge.

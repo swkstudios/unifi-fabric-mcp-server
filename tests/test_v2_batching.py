@@ -9,7 +9,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights, network_vpn_dns, system_log
+from unifi_fabric.families.network import network_controller_insights
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns
 
 
 @pytest.mark.parametrize("tool", ["overview", "teleport", "system_log"])
@@ -21,7 +23,7 @@ async def test_v2_requested_total_is_gathered_in_effective_size_batches(tool, re
     records = [{"id": str(i)} for i in range(available)]
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         body = dict(json)
         requests.append(body)
         size = min(body.get("pageSize", maximum), maximum)
@@ -97,7 +99,7 @@ async def test_v2_page_size_alone_next_page_resumes_with_the_same_page_size(tool
     records = [{"id": str(i)} for i in range(available)]
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         body = dict(json)
         requests.append(body)
         width = min(body.get("pageSize", maximum), maximum)
@@ -158,7 +160,7 @@ async def test_overview_without_total_reads_back_clamped_size_before_short_page_
     records = [{"id": str(i)} for i in range(450)]
     requests: list[dict[str, Any]] = []
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         requests.append(dict(json))
         size = min(json.get("pageSize", 200), 200)
         number = json["pageNumber"]

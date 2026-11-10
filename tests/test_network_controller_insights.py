@@ -29,9 +29,9 @@ from unifi_fabric import route_secrets, server
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import ClassicApiError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.network import network_controller_insights as nci
 from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import network_controller_insights as nci
-from unifi_fabric.tools._classic_cmd import ClassicCommandError
+from unifi_fabric.shared_shapes._classic_cmd import ClassicCommandError
 
 HOST = "console-n02"
 SITE = "Default"
@@ -68,8 +68,15 @@ READ_TOOLS = {
     "get_observability_people",
     "list_ulp_user_groups",
     "list_network_anomalies",
+    "get_site_dpi_usage",
+    "get_client_dpi_usage",
+    "get_client_wifi_experience",
+    "suggest_service_port",
 }
+DPI_TOOLS = {"get_site_dpi_usage", "get_client_dpi_usage"}
 WRITE_TOOLS = {"get_sites_overview", "set_ups_pairing"}
+#: Tools with no recorded live fixture yet (the Stage L read sweep records them).
+SIMULATED_TOOLS = DPI_TOOLS | {"get_client_wifi_experience", "suggest_service_port"}
 
 
 def registry(key: APIKeyConfig | None = None) -> AsyncMock:
@@ -339,7 +346,7 @@ async def test_stats_upstream_query_error_reason_kept_in_full():
         ({"start": "1760140800"}, ValueError),
         ({"end": True}, ValueError),
         ({"no_gaps": "true"}, ValidationError),
-        ({"view": "series"}, ValidationError),
+        ({"view": "history"}, ValidationError),
     ],
 )
 async def test_stats_bad_input_fails_before_any_request(kwargs, exc):
@@ -745,6 +752,10 @@ CALLS: dict[str, tuple[Any, tuple[Any, ...], dict[str, Any]]] = {
     "get_observability_people": (nci.get_observability_people, (SITE,), {}),
     "list_ulp_user_groups": (nci.list_ulp_user_groups, (SITE,), {}),
     "list_network_anomalies": (nci.list_network_anomalies, (SITE,), {}),
+    "get_site_dpi_usage": (nci.get_site_dpi_usage, (1760140800, 1760227200), {}),
+    "get_client_dpi_usage": (nci.get_client_dpi_usage, (1760140800, 1760227200), {}),
+    "get_client_wifi_experience": (nci.get_client_wifi_experience, (SITE, "192.0.2.50"), {}),
+    "suggest_service_port": (nci.suggest_service_port, (SITE,), {"service": "openvpn"}),
 }
 
 
@@ -891,9 +902,9 @@ def _registered() -> dict[str, Any]:
     return {t.name: t for t in tools}
 
 
-def test_register_adds_exactly_the_twenty_three_tools():
+def test_register_adds_exactly_the_twenty_seven_tools():
     assert set(_registered()) == READ_TOOLS | WRITE_TOOLS
-    assert len(READ_TOOLS | WRITE_TOOLS) == 23
+    assert len(READ_TOOLS | WRITE_TOOLS) == 27
 
 
 def test_every_n02_tool_appears_in_the_real_server_catalog():
@@ -939,18 +950,19 @@ def test_write_tools_accept_and_ignore_confirm():
         assert "confirm" not in tools[name].parameters["properties"], name
 
 
-def test_the_only_raise_site_is_the_classic_rc_check():
+def test_the_raise_sites_are_the_classic_rc_check_and_the_client_ip_selector():
     """Every pre-upstream refusal here comes from an already-registered helper (selector
     and path-segment checks, integer epoch seconds, read-only mode, pydantic choice
     validation). The raises are the affirmative Classic meta.rc rule on Classic reads
     (upstream-judged), handed to the refusal registry as
-    tools/network_controller_insights.py:_classic_get, ."""
+    families/network/network_controller_insights.py:_classic_get, ."""
     tree = ast.parse(Path(nci.__file__).read_text())
     sites = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sites += [node.name for n in ast.walk(node) if isinstance(n, ast.Raise)]
-    assert sites == ["_classic_get"]
+    # _client_ip is the registered selector-syntax refusal for the client IP.
+    assert set(sites) == {"_classic_get", "_client_ip"}
 
 
 def test_route_choices_record_source_route_and_reason_for_every_tool():
@@ -995,7 +1007,9 @@ def _fixture_files() -> list[Path]:
 
 def test_recorded_fixtures_exist_for_every_live_read_tool():
     recorded = {json.loads(p.read_text())["recorded_by_tool"] for p in _fixture_files()}
-    assert READ_TOOLS <= recorded, sorted(READ_TOOLS - recorded)
+    assert READ_TOOLS - SIMULATED_TOOLS <= recorded, sorted(READ_TOOLS - SIMULATED_TOOLS - recorded)
+    # A simulated-only tool has no invented fixture; the Stage L sweep records one.
+    assert not SIMULATED_TOOLS & recorded
 
 
 def _replay_route(rec: dict[str, Any]) -> str:
@@ -1246,7 +1260,7 @@ async def test_review_pairing_success_echo_and_preview_respect_explicit_opt_in(r
 
 @pytest.mark.parametrize("redact", [False, True])
 async def test_review_real_connector_ups_error_body_respects_redaction_policy(redact):
-    from unifi_fabric.tools.connector import connector_write
+    from unifi_fabric.families.connector.connector import connector_write
 
     secret = "synthetic-N02-real-relay-password"
     up = cold_upstream(
@@ -1361,9 +1375,9 @@ async def test_review_tool_scope_resolution_error_respects_redaction_policy(reda
     from fastmcp import Client
     from fastmcp.exceptions import ToolError
 
+    from unifi_fabric.families.connector.connector import connector_write
     from unifi_fabric.secret_scrub import configured_secrets
     from unifi_fabric.server import SecretScrubMiddleware
-    from unifi_fabric.tools.connector import connector_write
 
     secret = "synthetic-N02-before-pairing-password"
     up = cold_upstream(
@@ -1405,3 +1419,310 @@ async def test_review_tool_scope_resolution_error_respects_redaction_policy(reda
         assert secret not in configured_secrets(c._settings)
     finally:
         await c.close()
+
+
+# ------------------------------------------------------- stats series (stats/series view)
+
+SERIES_ARGS = {
+    "schema": "wanBySite",
+    "bucket": "OF_1_HOUR",
+    "start": 1760140800,
+    "end": 1760227200,
+    "filter": "siteId.eq('11111111-1111-4111-8111-111111111111')",
+}
+
+
+async def test_series_view_reads_stats_series_with_the_window_in_ms_and_returns_it_verbatim():
+    body = [{"siteId": "s", "series": [{"timestamp": 1, "rxBytes": 7}], "future": [1]}]
+    up = Upstream({("GET", f"{V2}/stats/series"): body})
+    assert await run(up, nci.get_controller_stats, "series", **SERIES_ARGS) == body
+    assert len(up.seen) == 1
+    assert query(up.seen[0]) == {
+        "schema": "wanBySite",
+        "bucket": "OF_1_HOUR",
+        "start": "1760140800000",
+        "end": "1760227200000",
+        "filter": "siteId.eq('11111111-1111-4111-8111-111111111111')",
+    }
+
+
+async def test_series_view_is_not_the_recent_series_route():
+    up = Upstream({("GET", f"{V2}/stats/series"): [], ("GET", f"{V2}/stats/recent/series"): []})
+    await run(up, nci.get_controller_stats, "series", **SERIES_ARGS)
+    await run(up, nci.get_controller_stats, "recent_series", schema="x", period="DAY")
+    assert [r.url.path for r in up.seen] == [f"{V2}/stats/series", f"{V2}/stats/recent/series"]
+
+
+async def test_series_view_keeps_the_console_error_and_adds_a_hint_for_a_missing_argument():
+    reason = {"errorCode": 400, "message": "bucket is required"}
+    up = Upstream({("GET", f"{V2}/stats/series"): httpx.Response(400, json=reason)})
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, nci.get_controller_stats, "series", schema="wanBySite")
+    text = str(exc.value)
+    assert "bucket is required" in text and "series needs schema, bucket, start and end" in text
+    assert query(up.seen[0]) == {"schema": "wanBySite"}
+
+
+async def test_series_view_complete_call_gets_no_hint():
+    up = Upstream({("GET", f"{V2}/stats/series"): httpx.Response(400, json={"message": "nope"})})
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, nci.get_controller_stats, "series", **SERIES_ARGS)
+    assert "Hint" not in str(exc.value)
+
+
+async def test_series_view_warns_about_millisecond_looking_bounds():
+    up = Upstream({("GET", f"{V2}/stats/series"): {"series": []}})
+    args = {**SERIES_ARGS, "start": 1760140800000, "end": 1760227200000}
+    result = await run(up, nci.get_controller_stats, "series", **args)
+    assert result["series"] == [] and result["_warnings"]
+
+
+@pytest.mark.parametrize("bad", ["1760140800", True, 1.5])
+async def test_series_view_bad_epoch_fails_before_any_request(bad):
+    up = Upstream({})
+    with pytest.raises(ValueError):
+        await run(up, nci.get_controller_stats, "series", **{**SERIES_ARGS, "start": bad})
+    assert up.seen == []
+
+
+# ----------------------------------------------------------------------- DPI usage tools
+
+DPI_WINDOW = {"start": 1760140800, "end": 1760227200}
+DPI_ROWS = [
+    {
+        "siteId": "s",
+        "series": [
+            {
+                "timestamp": 1,
+                "rxOtherBytes": 1,
+                "byApplication": [
+                    {
+                        "applicationId": 7,
+                        "categoryId": 3,
+                        "rxBytes": 5,
+                        "txBytes": 6,
+                        "activityS": 9,
+                    }
+                ],
+                "future": [1],
+            }
+        ],
+    }
+]
+
+
+@pytest.mark.parametrize(
+    "fn,schema",
+    [
+        (nci.get_site_dpi_usage, "applicationTrafficBySite"),
+        (nci.get_client_dpi_usage, "applicationTrafficBySiteByClient"),
+    ],
+    ids=["site", "client"],
+)
+async def test_dpi_usage_reads_stats_series_with_its_schema_and_returns_verbatim(fn, schema):
+    up = Upstream({("GET", f"{V2}/stats/series"): DPI_ROWS})
+    assert await run(up, fn, **DPI_WINDOW, bucket="OF_1_HOUR") == DPI_ROWS
+    assert [r.method for r in up.seen] == ["GET"]
+    assert query(up.seen[0]) == {
+        "schema": schema,
+        "bucket": "OF_1_HOUR",
+        "start": "1760140800000",
+        "end": "1760227200000",
+    }
+
+
+@pytest.mark.parametrize("fn", [nci.get_site_dpi_usage, nci.get_client_dpi_usage])
+async def test_dpi_usage_sends_bucket_and_filter_only_when_given(fn):
+    up = Upstream({("GET", f"{V2}/stats/series"): DPI_ROWS})
+    await run(up, fn, **DPI_WINDOW)
+    await run(up, fn, **DPI_WINDOW, filter="siteId.eq('x')")
+    assert set(query(up.seen[0])) == {"schema", "start", "end"}
+    assert query(up.seen[1])["filter"] == "siteId.eq('x')" and "bucket" not in query(up.seen[1])
+
+
+@pytest.mark.parametrize("fn", [nci.get_site_dpi_usage, nci.get_client_dpi_usage])
+async def test_dpi_usage_keeps_the_console_error_in_full(fn):
+    reason = {"errorCode": 400, "code": "api.err.InvalidStatQuery", "message": "bad bucket"}
+    up = Upstream({("GET", f"{V2}/stats/series"): httpx.Response(400, json=reason)})
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, fn, **DPI_WINDOW, bucket="nope")
+    assert "InvalidStatQuery" in str(exc.value) and "bad bucket" in str(exc.value)
+
+
+@pytest.mark.parametrize("fn", [nci.get_site_dpi_usage, nci.get_client_dpi_usage])
+@pytest.mark.parametrize("bad", ["1760140800", True, 1.5, None])
+async def test_dpi_usage_bad_window_fails_before_any_request(fn, bad):
+    up = Upstream({})
+    with pytest.raises(ValueError):
+        await run(up, fn, start=bad, end=1760227200)
+    assert up.seen == []
+
+
+@pytest.mark.parametrize("fn", [nci.get_site_dpi_usage, nci.get_client_dpi_usage])
+async def test_dpi_usage_warns_about_millisecond_looking_bounds(fn):
+    up = Upstream({("GET", f"{V2}/stats/series"): {"series": []}})
+    result = await run(up, fn, start=1760140800000, end=1760227200000)
+    assert result["_warnings"]
+
+
+def test_dpi_tools_are_plain_reads_with_a_required_window_and_no_post_route():
+    tools = _registered()
+    for name in DPI_TOOLS:
+        hints = tools[name].annotations
+        assert hints.read_only_hint is True and hints.destructive_hint is False, name
+        assert set(tools[name].parameters["required"]) == {"host", "start", "end"}
+    from unifi_fabric.read_post_routes import READ_POST_ROUTES
+
+    assert not DPI_TOOLS & {t for route in READ_POST_ROUTES for t in route.tools}
+
+
+# --------------------------------------------------------------- Wi-Fi experience (wifiman)
+
+
+@pytest.mark.parametrize("ip", ["192.0.2.50", "2001:db8::1", "::1"])
+async def test_client_wifi_experience_reads_the_per_client_route_verbatim(ip):
+    body = {"band": "5g", "future": {"x": [1]}, "radio_protocol": "ax"}
+    route = f"{V2S}/wifiman/{ip}"
+    up = Upstream({("GET", route): body})
+    assert await run(up, nci.get_client_wifi_experience, SITE, ip) == body
+    assert [r.url.path for r in up.seen] == [route] and not up.seen[0].url.query
+
+
+async def test_client_wifi_experience_is_not_the_wifiman_settings_route():
+    up = Upstream({("GET", f"{V2S}/wifiman/192.0.2.50"): {}})
+    await run(up, nci.get_client_wifi_experience, SITE, "192.0.2.50")
+    assert up.seen[0].url.path.endswith("/wifiman/192.0.2.50")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        " 192.0.2.50",
+        "192.0.2.50\n",
+        "192.0.2.256",
+        "host.local",
+        "192.0.2.50/24",
+        "fe80::1%eth0",
+        "192.0.2.50:80",
+        "../x",
+        "192.0.2",
+        None,
+        5,
+    ],
+)
+async def test_client_wifi_experience_bad_ip_fails_before_any_request(bad):
+    up = Upstream({})
+    reg = registry()
+    c = client(up)
+    try:
+        with pytest.raises(ValueError, match="'client_ip'") as exc:
+            await nci.get_client_wifi_experience(c, reg, HOST, SITE, bad)
+    finally:
+        await c.close()
+    assert "Nothing was sent" in str(exc.value)
+    assert up.seen == [] and not reg.method_calls
+
+
+async def test_client_wifi_experience_upstream_error_keeps_the_full_reason():
+    reason = {"errorCode": 404, "message": "client not found for ip 192.0.2.50"}
+    up = Upstream({("GET", f"{V2S}/wifiman/192.0.2.50"): httpx.Response(404, json=reason)})
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, nci.get_client_wifi_experience, SITE, "192.0.2.50")
+    assert "client not found for ip 192.0.2.50" in str(exc.value) and exc.value.status == 404
+
+
+# ------------------------------------------------------------------------ port suggestion
+
+
+async def test_suggest_service_port_sends_the_service_query_and_returns_verbatim():
+    body = {"port": 1194, "future": [1]}
+    up = Upstream({("GET", f"{V2S}/network/port-suggest"): body})
+    assert await run(up, nci.suggest_service_port, SITE, "openvpn") == body
+    assert query(up.seen[0]) == {"service": "openvpn"}
+
+
+async def test_suggest_service_port_omits_the_query_when_no_service_is_given():
+    up = Upstream({("GET", f"{V2S}/network/port-suggest"): {"port": 1}})
+    await run(up, nci.suggest_service_port, SITE)
+    assert query(up.seen[0]) == {}
+
+
+async def test_suggest_service_port_is_not_the_suggest_network_settings_route():
+    up = Upstream(
+        {("GET", f"{V2S}/network/port-suggest"): {}, ("GET", f"{V2S}/network/suggest"): {}}
+    )
+    await run(up, nci.suggest_service_port, SITE, "openvpn")
+    assert up.seen[0].url.path.endswith("/network/port-suggest")
+
+
+async def test_suggest_service_port_error_without_service_keeps_the_reason_and_hints():
+    up = Upstream(
+        {("GET", f"{V2S}/network/port-suggest"): httpx.Response(400, json={"message": "service?"})}
+    )
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, nci.suggest_service_port, SITE)
+    assert "service?" in str(exc.value) and "pass service" in str(exc.value)
+
+
+async def test_suggest_service_port_error_with_service_gets_no_hint():
+    up = Upstream(
+        {("GET", f"{V2S}/network/port-suggest"): httpx.Response(400, json={"message": "bad"})}
+    )
+    with pytest.raises(UniFiConnectionError) as exc:
+        await run(up, nci.suggest_service_port, SITE, "openvpn")
+    assert "Hint" not in str(exc.value)
+
+
+async def test_suggest_service_port_sends_protocol_only_when_given():
+    up = Upstream({("GET", f"{V2S}/network/port-suggest"): {"available_ports": [51820]}})
+    result = await run(up, nci.suggest_service_port, SITE, "wireguard", "udp")
+    assert result == {"available_ports": [51820]}
+    assert query(up.seen[0]) == {"service": "wireguard", "protocol": "udp"}
+
+
+# ------------------------------------------------------------ registered schema contract
+
+
+@pytest.mark.parametrize(
+    "name,required",
+    [
+        ("get_site_dpi_usage", {"host", "start", "end"}),
+        ("get_client_dpi_usage", {"host", "start", "end"}),
+        ("get_client_wifi_experience", {"host", "site", "client_ip"}),
+        ("suggest_service_port", {"host", "site"}),
+    ],
+)
+def test_new_tools_describe_every_property_and_require_only_what_the_route_needs(name, required):
+    tool = _registered()[name]
+    assert set(tool.parameters.get("required", [])) == required
+    for prop, schema in tool.parameters["properties"].items():
+        assert schema.get("description"), f"{name}.{prop}"
+    assert tool.annotations.open_world_hint is True
+
+
+async def test_client_wifi_experience_pins_the_exact_path_without_a_trailing_slash():
+    """The Network route table and the live 200 have no trailing slash (Spring 6 does not match
+    one by default, so a slash could answer 404 and read as ClientNotFound)."""
+    up = Upstream({("GET", f"{V2S}/wifiman/192.0.2.50"): {"wifi_experience": 90}})
+    await run(up, nci.get_client_wifi_experience, SITE, "192.0.2.50")
+    assert [r.url.path for r in up.seen] == [f"{V2S}/wifiman/192.0.2.50"]
+    assert not up.seen[0].url.path.endswith("/")
+    assert up.seen[0].url.raw_path.decode() == f"{V2S}/wifiman/192.0.2.50"
+
+
+def test_simulated_only_tools_are_disclosed_in_coverage_and_their_descriptions():
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "docs" / "COVERAGE.md").read_text()
+    for name in sorted(SIMULATED_TOOLS):
+        paragraphs = [p for p in text.split("\n\n") if f"`{name}`" in p]
+        assert paragraphs, f"docs/COVERAGE.md does not mention {name}"
+        assert all("simulated" in p.lower() for p in paragraphs), name
+    descriptions = {t.name: " ".join((t.description or "").split()) for t in _listed_tools()}
+    for name in sorted(SIMULATED_TOOLS):
+        assert "Simulated only: no recorded live console answer yet." in descriptions[name], name
+
+
+def _listed_tools():
+    return asyncio.run(server.mcp.list_tools())

@@ -28,6 +28,7 @@ import json
 import os
 import subprocess
 import sys
+import weakref
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -42,9 +43,11 @@ from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.registry import Registry
 
 pytest_plugins = [
+    "tests._global_state_guard",
     "tests._worker_diagnostics",
     "tests._report_retention",
     "tests._server_import_isolation",
+    "tests._sharding",
 ]
 
 # Tests that run repository scripts which call ``ruff format`` call the tools installed
@@ -128,6 +131,39 @@ def _hermetic_credentials_env(request, monkeypatch):
     for var in list(os.environ):
         if var.startswith(("UNIFI_", "MCP_", "FASTMCP_")):
             monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_credential_providers():
+    """Forget keys resolved from a key file or helper command: they are per process
+    (resolved once at startup), so every test starts with none."""
+    from unifi_fabric import credential_providers
+
+    credential_providers.reset()
+    yield
+    credential_providers.reset()
+
+
+@pytest.fixture(autouse=True)
+def _forget_test_settings_holders():
+    """Stop scrubbing log records of the keys of clients a test created, once it ends.
+
+    Every ``UniFiClient`` registers itself in the process-wide
+    ``secret_scrub._live_settings_holders`` WeakSet, and log free text is scrubbed of the
+    keys of every client still alive there (``scrub_log_text`` masks a secret embedded in
+    a larger word, by design). A client a test leaves behind as cyclic garbage stays
+    registered until the garbage collector happens to run, so the one-letter key of a
+    ``Settings(api_key="k")`` client masked the ``k`` of ``key`` in a later test's log
+    message on one xdist worker and not on another. Holders registered before the test
+    starts (session- or module-scoped clients) are kept.
+    """
+    from unifi_fabric import secret_scrub
+
+    before = weakref.WeakSet(secret_scrub._live_settings_holders)
+    yield
+    for holder in list(secret_scrub._live_settings_holders):
+        if holder not in before:
+            secret_scrub._live_settings_holders.discard(holder)
 
 
 @pytest.fixture(autouse=True)

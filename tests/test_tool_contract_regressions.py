@@ -7,17 +7,20 @@ import httpx
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import _classic_objects as classic
-from unifi_fabric.tools import network_device_operations as devices
-from unifi_fabric.tools import network_nat_qos_traffic as nat
-from unifi_fabric.tools import network_routing_topology as routing
-from unifi_fabric.tools import network_security_diagnostics as security
-from unifi_fabric.tools import network_switching_power as switching
-from unifi_fabric.tools import network_vpn_dns as vpn
-from unifi_fabric.tools import protect, site_admin, site_manager, system_log
-from unifi_fabric.tools import protect_camera_recording as recording
-from unifi_fabric.tools import protect_private as private
-from unifi_fabric.tools import protect_users_assets as assets
+from unifi_fabric.families.network import network_device_operations as devices
+from unifi_fabric.families.network import network_nat_qos_traffic as nat
+from unifi_fabric.families.network import network_routing_topology as routing
+from unifi_fabric.families.network import network_security_diagnostics as security
+from unifi_fabric.families.network import network_switching_power as switching
+from unifi_fabric.families.network import site_admin
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.protect import protect_camera_recording as recording
+from unifi_fabric.families.protect import protect_private as private
+from unifi_fabric.families.protect import protect_users_assets as assets
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns as vpn
+from unifi_fabric.shared_shapes import _classic_objects as classic
 
 ID = "000000000000000000000001"
 

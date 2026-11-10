@@ -42,9 +42,12 @@ class Handler(BaseHTTPRequestHandler):
         response = conn.getresponse()
         self.send_response(response.status)
         for key, value in response.getheaders():
-            # CR/LF in upstream values could split the forwarded response.
-            if "\r" in value or "\n" in value:
+            # CR/LF in an upstream name or value could split the forwarded response:
+            # skip such a header outright, and strip the characters as well.
+            if any(c in text for text in (key, value) for c in "\r\n"):
                 continue
+            key = key.replace("\r", "").replace("\n", "")
+            value = value.replace("\r", "").replace("\n", "")
             if key.lower() not in {"connection", "transfer-encoding", "content-length"}:
                 self.send_header(key, value)
         data = response.read()

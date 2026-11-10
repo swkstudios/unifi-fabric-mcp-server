@@ -4,11 +4,11 @@ This folder holds the manifest for a Claude Desktop extension bundle (`.mcpb`). 
 
 ## What it runs
 
-`uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` over stdio, so [uv](https://docs.astral.sh/uv/) must be installed. The bundle contains the manifest and this README; uv downloads the pinned release from PyPI on first start.
+`uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` over stdio, so [uv](https://docs.astral.sh/uv/) must be installed. The bundle contains the manifest and this README; uv downloads the pinned release from PyPI on first start.
 
 ## Build and install
 
-<!-- doc-provenance: source=file:plugins/claude-desktop/manifest.json@sha256:3a0ee0e2b12aba88dd527255ad7304a5f3dc4b7e96233b01dc02f9952a2c40fd support=0.7.1 citation=file:plugins/claude-desktop/manifest.json@sha256:3a0ee0e2b12aba88dd527255ad7304a5f3dc4b7e96233b01dc02f9952a2c40fd -->
+<!-- doc-provenance: source=file:plugins/claude-desktop/manifest.json@sha256:77dafd00e15b4fb34b5095ec8b1e6cc7e102adf5586e39463eba68cb09845e89 support=0.7.2 citation=file:plugins/claude-desktop/manifest.json@sha256:77dafd00e15b4fb34b5095ec8b1e6cc7e102adf5586e39463eba68cb09845e89 -->
 <!-- install-case: claude-desktop-readme-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 npx -y @anthropic-ai/mcpb@2.1.2 pack plugins/claude-desktop unifi-fabric.mcpb

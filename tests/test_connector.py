@@ -32,14 +32,14 @@ from httpx import Response
 from unifi_fabric import policy, switches
 from unifi_fabric.client import DRY_RUN_MESSAGE, RateLimitError, UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import connector
-from unifi_fabric.tools import innerspace as _innerspace_module
-from unifi_fabric.tools.connector import (
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.connector.connector import (
     _check_final_charset,
     _validate_relay_path,
     connector_get,
     connector_write,
 )
+from unifi_fabric.families.innerspace import innerspace as _innerspace_module
 
 HOST_ID = "aabbccddeeff0000:12345"
 SITE_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -639,7 +639,7 @@ class TestWriteFlow:
             FakeResp(200, {"meta": {"rc": "ok"}}),
             FakeResp(200, {"data": []}),
         ]
-        with caplog.at_level(logging.INFO, logger="unifi_fabric.tools.connector"):
+        with caplog.at_level(logging.INFO, logger="unifi_fabric.families.connector.connector"):
             await connector_write(
                 client,
                 registry,
@@ -880,7 +880,7 @@ class TestWriteErrorPath:
     async def test_write_connection_error_reraised_and_audited(self, client, registry, caplog):
         # A network-level failure on the WRITE itself is surfaced (not swallowed) and audited.
         client.request.side_effect = UniFiConnectionError("upstream down")
-        with caplog.at_level(logging.INFO, logger="unifi_fabric.tools.connector"):
+        with caplog.at_level(logging.INFO, logger="unifi_fabric.families.connector.connector"):
             with pytest.raises(UniFiConnectionError, match="Connector POST relay failed"):
                 await connector_write(
                     client,
@@ -929,7 +929,7 @@ def test_connector_write_enabled_by_default_when_env_unset(monkeypatch):
 
 
 def test_innerspace_read_module_is_read_only_and_its_write_tools_are_writes():
-    # tools/innerspace.py (the published InnerSpace API) registers only read tools
+    # families/innerspace/innerspace.py (the published InnerSpace API) registers only read tools
     # (get_*/list_*): no create/update/delete/patch/post/put/write/mutate entry point.
     own = [
         n
@@ -941,16 +941,19 @@ def test_innerspace_read_module_is_read_only_and_its_write_tools_are_writes():
     assert read_tools, "expected InnerSpace read tools to be present"
     forbidden = ("create", "update", "delete", "patch", "post", "put", "write", "mutate", "save")
     offenders = [n for n in own if not n.startswith("_") and any(t in n.lower() for t in forbidden)]
-    assert offenders == [], f"tools/innerspace.py must register reads only, found: {offenders}"
+    assert offenders == [], (
+        f"families/innerspace/innerspace.py must register reads only, found: {offenders}"
+    )
 
-    # The InnerSpace write tools live in tools/innerspace_internal.py; every one of them
+    # The InnerSpace write tools live in families/innerspace/innerspace_internal.py; every one of them
     # is classified as a write (not read-only), which is what the write policy gates on.
     from tests import test_cross_tool_invariants as cti
 
     internal = [
         name
         for name, tool in cti.TOOLS.items()
-        if getattr(tool.fn, "__module__", "") == "unifi_fabric.tools.innerspace_internal"
+        if getattr(tool.fn, "__module__", "")
+        == "unifi_fabric.families.innerspace.innerspace_internal"
     ]
     writes = {name for name in internal if not name.startswith(("get_", "list_"))}
     assert {
@@ -1026,7 +1029,7 @@ class TestBinaryBodies:
         client = MagicMock()
         client.dry_run = True
         client.request = AsyncMock(return_value=FakeResp(200, json_body=preview))
-        with caplog.at_level(logging.INFO, logger="unifi_fabric.tools.connector"):
+        with caplog.at_level(logging.INFO, logger="unifi_fabric.families.connector.connector"):
             result = await connector_get(client, registry, "con", path, params={"probe": "value"})
         assert result["status"] == ("dry_run" if mutating else 200)
         assert result["body"] == preview

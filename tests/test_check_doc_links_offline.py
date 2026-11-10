@@ -11,6 +11,7 @@ GitHub Actions run, where the documentation workflows call the script, unless
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -93,3 +94,15 @@ def test_github_actions_requests_external_links_unless_offline(
 def test_external_and_offline_are_mutually_exclusive(project):
     with pytest.raises(SystemExit):
         links.main(["--external", "--offline"])
+
+
+def test_the_developer_portal_landing_link_is_not_frozen_at_a_version():
+    """https://developer.ui.com answers 307 (a temporary redirect) to the current Network
+    version's page, so the stable URL is the one to publish: replacing it with the redirect
+    target pins the link to one version for good. The link checker follows the redirect and
+    reports it as moved, which does not fail the check, so nothing needs the pin."""
+    for name in ("CLIENT-SETUP.md", "COVERAGE.md"):
+        text = (ROOT / "docs" / name).read_text()
+        found = re.findall(r"\[developer\.ui\.com\]\((https://developer\.ui\.com[^)]*)\)", text)
+        assert found, f"{name} no longer links the developer portal"
+        assert set(found) == {"https://developer.ui.com"}, f"{name} pins a redirect target"

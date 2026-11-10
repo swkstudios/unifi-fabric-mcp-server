@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import protect
+from unifi_fabric.families.protect import protect
 
 
 @pytest.mark.parametrize("collector", ["collect_protect_events", "collect_protect_device_changes"])

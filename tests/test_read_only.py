@@ -33,8 +33,8 @@ from unifi_fabric import read_post_routes as rp
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.client import is_write_request as client_is_write_request
 from unifi_fabric.config import Settings
+from unifi_fabric.families.connector import connector
 from unifi_fabric.read_only import AreaOptOutError, ReadOnlyModeError
-from unifi_fabric.tools import connector
 
 BASE = "https://api.ui.com"
 

@@ -18,9 +18,10 @@ protects read-only mode) and whether it reaches the UniFi upstream client
   ``{PUT}`` or exactly ``{DELETE}``. A POST, a PATCH, several verbs, a state-changing GET
   (counted as a POST by the audit) and the connector relays (every verb) are false.
 * ``openWorldHint``: true when the tool reaches the UniFi upstream, false for a tool that
-  only reads local state: ``list_configured_api_keys`` and the discovery tools
-  ``search_tools``, ``describe_tool`` and ``list_tool_families``. The discovery dispatch
-  tools ``call_read_tool`` and ``call_write_tool`` run domain tools, so they are true.
+  only reads local state: ``list_configured_api_keys``, ``get_event_stream_status`` and the
+  discovery tools ``search_tools``, ``describe_tool`` and ``list_tool_families``. The
+  discovery dispatch tools ``call_read_tool`` and ``call_write_tool`` run domain tools, so
+  they are true.
 
 ``tests/test_tool_schema_contract.py`` checks every registered tool against this
 derivation, including the discovery-mode tools, and ``docs/TOOLS.md`` lists the hints.
@@ -73,13 +74,14 @@ def install_tool_annotations(mcp: Any) -> int:
     of leaving tools on their provisional (or default) hints. Returns the number annotated.
     """
     try:
-        components = mcp._local_provider._components  # noqa: SLF001 - registered catalog
+        from .local_components import tool_components
+
+        tools = tool_components(mcp)
     except AttributeError as exc:
         raise RuntimeError(
             "cannot read the registered tool catalog to annotate it; "
             "FastMCP's local provider layout changed"
         ) from exc
-    tools = list(components.values())
     verbs = classify_tool_verbs(tools)
     for tool in tools:
         tool.annotations = for_tool(verbs=verbs[tool.name], open_world=reaches_upstream(tool.fn))

@@ -8,8 +8,11 @@ between marker lines and never edited by hand:
     ...
     <!-- END GENERATED -->
 
-Blocks (the file lists below are the only places a block may appear; a missing, unknown or
-duplicated block fails the run):
+The block registry, ``BLOCKS`` in scripts/doc_blocks.py, lists every generated region of
+every file and the one generator that owns it; this script writes the blocks it owns there.
+A registered block that is missing, duplicated or out of order, an unregistered block, or
+unpaired or crossed markers fail the run, in write and ``--check`` modes, and no file with a
+finding is rewritten. The blocks:
 
 * ``settings-reference`` (docs/CONFIGURATION.md): every ``UNIFI_*`` setting of
   ``unifi_fabric.config.Settings``: variable, default, accepted values and the first sentence
@@ -41,12 +44,17 @@ check fails on a row that disagrees.
 Usage:
     python3 scripts/gen_reference_blocks.py          # rewrite the blocks
     python3 scripts/gen_reference_blocks.py --check  # exit 1 on any stale block or default (CI)
+
+``python3 scripts/regen_docs.py`` runs this generator together with the other documentation
+generators.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import functools
+import importlib.util
 import re
 import sys
 from dataclasses import dataclass
@@ -65,25 +73,30 @@ LLMS = ROOT / "llms.txt"
 CONFIGURATION = ROOT / "docs" / "CONFIGURATION.md"
 TOOL_USAGE = ROOT / "docs" / "TOOL-USAGE.md"
 FIX_COMMAND = "python3 scripts/gen_reference_blocks.py"
+#: This generator's name in the block registry (``BLOCKS`` in scripts/doc_blocks.py).
+OWNER = "gen_reference_blocks"
 
-#: Which blocks each file carries, in file order.
-BLOCKS: dict[Path, tuple[str, ...]] = {
-    README: ("tool-families",),
-    AGENTS: ("code-mode",),
-    LLMS: ("code-mode",),
-    CONFIGURATION: ("settings-reference", "write-switch-names", "write-switches", "audit-schema"),
-    TOOL_USAGE: (
-        "write-switches",
-        "tool-mode-defaults",
-        "tool-mode-choices",
-        "family-names",
-        "search-tools-limit",
-    ),
-}
 
-_BLOCK_RE = re.compile(
-    r"^<!-- BEGIN GENERATED: ([a-z-]+) -->\n(.*?)^<!-- END GENERATED -->$", re.M | re.S
-)
+def _load_doc_blocks():
+    """scripts/doc_blocks.py, loaded by path: this module runs as a script and is loaded by
+    path in tests, so ``scripts`` is not always importable."""
+    path = Path(__file__).with_name("doc_blocks.py")
+    module = sys.modules.get("doc_blocks")
+    if module is not None and Path(module.__file__ or "").resolve() == path.resolve():
+        return module
+    spec = importlib.util.spec_from_file_location("doc_blocks", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("scripts/doc_blocks.py is missing")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["doc_blocks"] = module  # dataclasses resolve their module
+    spec.loader.exec_module(module)
+    return module
+
+
+doc_blocks = _load_doc_blocks()
+
+#: Which of this generator's blocks each file carries, in file order (from the registry).
+BLOCKS: dict[Path, tuple[str, ...]] = doc_blocks.owned(OWNER, ROOT)
 #: Hand-written environment tables whose Default column is checked against the code.
 DEFAULT_TABLES: dict[Path, tuple[str, int]] = {
     CONFIGURATION: ("| Variable | Required | Default | Description |", 2),
@@ -142,6 +155,10 @@ def _accepted(field: Any, name: str = "") -> str:
     minimums = [m.ge for m in field.metadata if hasattr(m, "ge")]
     if minimums:
         return f"integer, {minimums[0]} or more"
+    if name in config._MIN_ONE_INTS:  # validated at construction, no Field(ge=...)
+        return "integer, 1 or more"
+    if name in config._AUDIT_POSITIVE_FLOATS:
+        return "number above 0"
     if field.annotation is type(None):
         return "removed"
     return "text"
@@ -360,37 +377,20 @@ class Finding:
 
 
 def render_file(path: Path, text: str) -> tuple[str, list[Finding]]:
-    """The file text with every block regenerated, and the structural findings."""
-    found: list[Finding] = []
-    seen: list[str] = [m.group(1) for m in _BLOCK_RE.finditer(text)]
-    expected = list(BLOCKS[path])
-    for name in sorted(set(expected) - set(seen)):
-        found.append(Finding(path, name, "block is missing; add its BEGIN and END marker lines"))
-    for name in sorted({n for n in seen if n not in expected}):
-        found.append(Finding(path, name, "unknown block name"))
-    for name in sorted({n for n in seen if seen.count(n) > 1}):
-        found.append(Finding(path, name, "block appears more than once"))
-    # Only line-start markers count: prose may quote the marker syntax inline (llms.txt does).
-    begins = len(re.findall(r"^<!-- BEGIN GENERATED", text, re.M))
-    ends = len(re.findall(r"^<!-- END GENERATED", text, re.M))
-    if begins != len(seen) or ends != len(seen):
-        found.append(Finding(path, "(markers)", "unpaired BEGIN or END GENERATED marker"))
-
-    def fill(match: re.Match[str]) -> str:
-        name = match.group(1)
-        if name not in RENDERERS:
-            return match.group(0)
-        return f"<!-- BEGIN GENERATED: {name} -->\n{RENDERERS[name]()}\n<!-- END GENERATED -->"
-
-    return _BLOCK_RE.sub(fill, text), found
+    """The file text with every block of this generator regenerated, and the structural
+    findings for every registered block of the file (``doc_blocks.problems``)."""
+    rel = path.relative_to(ROOT).as_posix()
+    renderers = {name: RENDERERS[name] for name in BLOCKS[path]}
+    new, found = doc_blocks.fill(rel, text, OWNER, renderers)
+    return new, [Finding(path, block, message) for block, message in found]
 
 
 def stale_blocks(path: Path, text: str) -> list[str]:
-    """Names of the blocks whose current content differs from the generated content."""
+    """Names of this generator's blocks whose current content differs from the generated."""
     return [
-        m.group(1)
-        for m in _BLOCK_RE.finditer(text)
-        if m.group(1) in RENDERERS and m.group(2) != RENDERERS[m.group(1)]() + "\n"
+        m["name"]
+        for m in doc_blocks.BLOCK_RE.finditer(text)
+        if m["name"] in BLOCKS[path] and m["body"] != RENDERERS[m["name"]]() + "\n"
     ]
 
 
@@ -453,6 +453,18 @@ def main() -> int:
     args = parser.parse_args()
     if args.check:
         findings = check_all()
+        for path in BLOCKS:
+            text = path.read_text()
+            new, found = render_file(path, text)
+            if not found and new != text:
+                rel = path.relative_to(ROOT).as_posix()
+                diff = difflib.unified_diff(
+                    text.splitlines(keepends=True),
+                    new.splitlines(keepends=True),
+                    f"a/{rel}",
+                    f"b/{rel}",
+                )
+                sys.stderr.writelines(diff)
         for finding in findings:
             print(finding, file=sys.stderr)
         if findings:
@@ -461,16 +473,21 @@ def main() -> int:
         print("Reference blocks are current", file=sys.stderr)
         return 0
     changed = 0
+    failed = 0
     for path in BLOCKS:
         text = path.read_text()
         new, found = render_file(path, text)
         for finding in found:
             print(finding, file=sys.stderr)
-        if new != text:
+        if found:
+            failed += len(found)  # never rewrite a file whose markers are not intact
+        elif new != text:
             path.write_text(new)
             changed += 1
     print(f"Wrote reference blocks to {changed} file(s)", file=sys.stderr)
-    return 1 if any(render_file(p, p.read_text())[1] for p in BLOCKS) else 0
+    if failed:
+        print(f"{failed} finding(s); no file with findings was rewritten", file=sys.stderr)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

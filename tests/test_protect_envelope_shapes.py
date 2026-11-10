@@ -8,7 +8,7 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import protect
+from unifi_fabric.families.protect import protect
 
 HOST = "host-envelope"
 BASE = "https://api.ui.com"

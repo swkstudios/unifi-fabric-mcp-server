@@ -15,8 +15,8 @@ from tests import upstream_harness as uh
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.network import PROXY_BASE
-from unifi_fabric.tools.network_services_proxy import (
+from unifi_fabric.families.network.network import PROXY_BASE
+from unifi_fabric.families.network.network_services_proxy import (
     _CLASSIC_REST_BASE,
     _CLASSIC_STAT_BASE,
     _V2_API_BASE,
@@ -29,13 +29,11 @@ from unifi_fabric.tools.network_services_proxy import (
     create_port_forward,
     create_traffic_matching_list,
     create_traffic_route,
-    create_traffic_rule,
     delete_dns_policy,
     delete_hotspot_voucher,
     delete_port_forward,
     delete_traffic_matching_list,
     delete_traffic_route,
-    delete_traffic_rule,
     exclude_network_on_port_profile,
     get_account,
     get_channel_plan,
@@ -86,7 +84,6 @@ from unifi_fabric.tools.network_services_proxy import (
     update_setting,
     update_traffic_matching_list,
     update_traffic_route,
-    update_traffic_rule,
     update_user,
     update_wlan_config,
 )
@@ -656,105 +653,6 @@ class TestListTrafficRules:
         client.get.return_value = []
         result = await list_traffic_rules(client, registry, "h", "s")
         assert result == []
-
-
-class TestCreateTrafficRule:
-    async def test_posts_to_v2(self, client, registry):
-        # Live-verified required set: action, matching_target, target_devices.
-        # description/enabled are optional here (not API-required) but ride along fine.
-        payload = {
-            "action": "BLOCK",
-            "matching_target": "INTERNET",
-            "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
-            "description": "Block Social Media",
-        }
-        client.post.return_value = {"_id": "tr-new", **payload}
-        result = await create_traffic_rule(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None, json=payload)
-        assert result["_id"] == "tr-new"
-
-
-_STORED_TRAFFIC_RULE: dict[str, Any] = {
-    "_id": "tr-1",
-    "description": "Block Social Media",
-    "action": "BLOCK",
-    "matching_target": "INTERNET",
-    "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff", "type": "CLIENT"}],
-    "schedule": {"mode": "CUSTOM", "repeat_on_days": ["mon"], "time_all_day": False},
-    "enabled": True,
-}
-
-
-class TestUpdateTrafficRule:
-    async def test_partial_payload_is_merged_into_the_listed_rule(self, client, registry):
-        """The v2 PUT replaces the whole rule: the documented partial payload
-        ({"enabled": false}) must not wipe matching_target / target_devices / schedule."""
-        stored = copy.deepcopy(_STORED_TRAFFIC_RULE)
-        client.get.side_effect = [[stored], [{**stored, "enabled": False}]]
-        client.put.return_value = {**stored, "enabled": False}
-        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", {"enabled": False})
-        client.put.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/tr-1/",
-            key=None,
-            json={**_STORED_TRAFFIC_RULE, "enabled": False},
-        )
-        assert result["enabled"] is False
-        assert result["_verified"] is True
-        assert stored == _STORED_TRAFFIC_RULE  # the listed record is not mutated
-
-    async def test_nested_change_keeps_unrequested_siblings(self, client, registry):
-        stored = copy.deepcopy(_STORED_TRAFFIC_RULE)
-        client.get.return_value = [stored]
-        client.put.return_value = {"_id": "tr-1"}
-        result = await update_traffic_rule(
-            client, registry, "h", "s", "tr-1", {"schedule": {"mode": "ALWAYS"}}
-        )
-        sent = client.put.call_args.kwargs["json"]
-        assert sent["schedule"] == {
-            "mode": "ALWAYS",
-            "repeat_on_days": ["mon"],
-            "time_all_day": False,
-        }
-        assert sent["target_devices"] == _STORED_TRAFFIC_RULE["target_devices"]
-        # The read-back still shows the old mode: the write is not reported verified.
-        assert result["_verified"] is False
-
-    async def test_strips_empty_strings_from_list_fields(self, client, registry):
-        """Padded list fields in a traffic-rule object are cleaned
-        before the PUT so a read-modify-write round-trip does not 400."""
-        client.get.return_value = [{"_id": "tr-1"}]
-        payload = {"enabled": True, "target_devices": ["dev-1", "", ""]}
-        client.put.return_value = {"_id": "tr-1"}
-        await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
-        client.put.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/tr-1/",
-            key=None,
-            json={"_id": "tr-1", "enabled": True, "target_devices": ["dev-1"]},
-        )
-
-    async def test_read_back_failure_is_reported_not_raised(self, client, registry):
-        client.get.side_effect = [
-            [copy.deepcopy(_STORED_TRAFFIC_RULE)],
-            UniFiConnectionError("boom"),
-        ]
-        client.put.return_value = {"_id": "tr-1"}
-        result = await update_traffic_rule(client, registry, "h", "s", "tr-1", {"enabled": False})
-        assert result["_verified"] is None
-        assert "boom" in result["_readAfterError"]
-
-    @pytest.mark.parametrize("payload", [{}, {"_id": "tr-1"}, {"_resolved": 1}])
-    async def test_payload_without_a_field_to_change_sends_nothing(self, client, registry, payload):
-        with pytest.raises(ValueError):
-            await update_traffic_rule(client, registry, "h", "s", "tr-1", payload)
-        client.get.assert_not_called()
-        client.put.assert_not_called()
-
-
-class TestDeleteTrafficRule:
-    async def test_deletes_via_v2_with_trailing_slash(self, client, registry):
-        client.get.return_value = [{"_id": "tr-1"}]
-        await delete_traffic_rule(client, registry, "h", "s", "tr-1")
-        client.delete.assert_called_once_with(f"{V2_API_BASE}/trafficrules/tr-1/", key=None)
 
 
 # --- Users / DHCP Reservations (Classic REST) ---
@@ -2360,8 +2258,7 @@ def test_traffic_matching_list_id_refs_name_source_tool():
     ):
         desc = by_name[name].parameters["properties"]["list_id"]["description"]
         assert "list_traffic_matching_lists" in desc, name
-    for name in ("create_traffic_rule", "create_traffic_route"):
-        assert "list_traffic_matching_lists" in (by_name[name].description or ""), name
+    assert "list_traffic_matching_lists" in (by_name["create_traffic_route"].description or "")
 
 
 @pytest.mark.parametrize(

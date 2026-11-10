@@ -33,6 +33,7 @@ __all__ = [
     "get_device_statistics",
     "get_scheduled_task",
     "get_speedtest_status",
+    "get_switch_port_overrides",
     "list_backups",
     "list_device_firmware",
     "list_device_tags",
@@ -50,6 +51,7 @@ __all__ = [
     "update_device_radio",
     "update_device_tag",
     "update_scheduled_task",
+    "update_switch_port_overrides",
     "upgrade_all_devices",
     "upgrade_device",
 ]
@@ -217,6 +219,15 @@ async def get_speedtest_status(
     return await registered_wrapper("get_speedtest_status")(**validated_arguments)
 
 
+async def get_switch_port_overrides(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_switch_port_overrides``."""
+    return await registered_wrapper("get_switch_port_overrides")(**validated_arguments)
+
+
 async def list_backups(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -368,6 +379,15 @@ async def update_scheduled_task(
 ) -> Any:
     """Adapter of ``update_scheduled_task``."""
     return await registered_wrapper("update_scheduled_task")(**validated_arguments)
+
+
+async def update_switch_port_overrides(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``update_switch_port_overrides``."""
+    return await registered_wrapper("update_switch_port_overrides")(**validated_arguments)
 
 
 async def upgrade_all_devices(

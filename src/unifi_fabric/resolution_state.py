@@ -25,7 +25,7 @@ def with_resolution_state(result: Any, reasons: list[str]) -> Any:
         return result
     if isinstance(result, dict):
         # deferred: tools import this module
-        from .tools._keys import context_value, update_context
+        from .shared_shapes._keys import context_value, update_context
 
         existing = context_value(result, "_incompleteReason") or context_value(
             result, "incompleteReason"
@@ -70,9 +70,10 @@ def wrap_resolution_result(fn: Callable[..., Any]) -> Callable[..., Any]:
 
 def install_resolution_state(mcp: Any) -> int:
     """Wrap every registered handler, before result-shape transforms are installed."""
-    components = mcp._local_provider._components  # noqa: SLF001
+    from .local_components import tool_components
+
     count = 0
-    for component in components.values():
+    for component in tool_components(mcp):
         fn = getattr(component, "fn", None)
         if callable(fn) and not getattr(fn, _WRAPPED, False):
             component.fn = wrap_resolution_result(fn)

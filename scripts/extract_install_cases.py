@@ -21,6 +21,7 @@ MODES = {
     "docker",
     "source",
     "antigravity",
+    "cli",
     "non-executable",
 }
 MARKER = re.compile(

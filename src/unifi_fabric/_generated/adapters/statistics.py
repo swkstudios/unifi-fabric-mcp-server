@@ -15,9 +15,11 @@ if TYPE_CHECKING:
     from unifi_fabric.contracts import Dependencies, RequestContext
 
 __all__ = [
+    "collect_network_incident_evidence",
     "get_client_link_diagnostics",
     "get_device_port_state",
     "get_device_stp_state",
+    "get_event_stream_status",
     "get_historical_stats",
     "get_scoped_system_log",
     "get_site_statistics",
@@ -31,7 +33,17 @@ __all__ = [
     "list_known_clients",
     "list_network_events",
     "list_speedtest_results",
+    "read_recent_events",
 ]
+
+
+async def collect_network_incident_evidence(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``collect_network_incident_evidence``."""
+    return await registered_wrapper("collect_network_incident_evidence")(**validated_arguments)
 
 
 async def get_client_link_diagnostics(
@@ -59,6 +71,15 @@ async def get_device_stp_state(
 ) -> Any:
     """Adapter of ``get_device_stp_state``."""
     return await registered_wrapper("get_device_stp_state")(**validated_arguments)
+
+
+async def get_event_stream_status(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_event_stream_status``."""
+    return await registered_wrapper("get_event_stream_status")(**validated_arguments)
 
 
 async def get_historical_stats(
@@ -176,3 +197,12 @@ async def list_speedtest_results(
 ) -> Any:
     """Adapter of ``list_speedtest_results``."""
     return await registered_wrapper("list_speedtest_results")(**validated_arguments)
+
+
+async def read_recent_events(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``read_recent_events``."""
+    return await registered_wrapper("read_recent_events")(**validated_arguments)

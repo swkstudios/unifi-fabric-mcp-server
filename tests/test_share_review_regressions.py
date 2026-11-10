@@ -274,7 +274,7 @@ async def test_post_write_failure_always_masks_fallback(
 ):
     import base64
 
-    from unifi_fabric.tools import connector
+    from unifi_fabric.families.connector import connector
 
     encoded_wire({"POST": status}, redact_secrets=redact, charset=charset)
 
@@ -393,8 +393,8 @@ def test_failed_snapshot_envelope_covers_every_registered_route(entry, redact):
 
     from unifi_fabric import route_secrets
     from unifi_fabric.config import Settings
+    from unifi_fabric.families.connector import connector
     from unifi_fabric.secret_scrub import secret_scope
-    from unifi_fabric.tools import connector
 
     method = sorted(entry.methods)[0]
     request = {field: LINK for field in entry.request_fields}
@@ -429,7 +429,7 @@ async def test_failed_undecodable_registered_body_follows_opt_in(
 ):
     import base64
 
-    from unifi_fabric.tools import connector
+    from unifi_fabric.families.connector import connector
 
     wire({"POST": 400}, redact_secrets=redact)
     malformed = json.dumps({"shareLink": LINK}).encode("utf-16") + b"x"

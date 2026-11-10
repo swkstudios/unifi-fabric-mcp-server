@@ -8,7 +8,7 @@ import pytest
 
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
-from unifi_fabric.tools import device_commands as commands
+from unifi_fabric.families.devices import device_commands as commands
 
 BASE = "/v1/connector/consoles/host/proxy/network/api/s/default/cmd/"
 SECOND_KEY = APIKeyConfig(key="second-key")

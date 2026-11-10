@@ -73,6 +73,11 @@ TOOL_IDENTITY_FIELDS: dict[str, frozenset[str]] = {
     "update_vpn_client": frozenset({"purpose"}),
 }
 
+#: Identity keys that select the record KIND a tool pins rather than the record its id
+#: argument names (``purpose`` on the Classic networkconf writes). The refusal of a body of
+#: only these says so instead of pointing at the id argument.
+PINNED_KIND_FIELDS = frozenset({"purpose"})
+
 #: Top-level keys the published request schema REQUIRES on a full-replace write: a body
 #: without one is refused before any request (the controller would reject it, and the
 #: order of every rule would be undefined). Pinned to the vendored specs by a test.
@@ -222,11 +227,17 @@ def update_problem(
     if has_field(judged, opaque=opaque):
         return clean, dropped, None
     if addressing and not dropped:
+        named = [k for k in addressing if k not in PINNED_KIND_FIELDS]
+        pinned = [k for k in addressing if k in PINNED_KIND_FIELDS]
+        parts = []
+        if named:
+            parts.append(f"{', '.join(named)}, which the tool's id argument already names")
+        if pinned:
+            parts.append(f"{', '.join(pinned)}, the record kind the tool pins")
         reason = (
             f"{NO_FIELDS}: the {what} carries only the key(s) that address the object "
-            f"({', '.join(addressing)}), which the tool's id argument already names, so the "
-            "request would carry no field to change. Pass at least one field to change. No "
-            "request was sent."
+            f"({'; '.join(parts)}), so the request would carry no field to change. Pass at "
+            "least one field to change. No request was sent."
         )
     elif managed:
         reason = (
@@ -425,7 +436,7 @@ class EmptyUpdateMiddleware(Middleware):
             body = arguments.get(arg)
             # A missing or mistyped body is the framework's argument error, reported next.
             if isinstance(body, dict):
-                from .tools._payload import server_managed_fields
+                from .shared_shapes._payload import server_managed_fields
 
                 try:
                     _clean, _dropped, reason = update_problem(

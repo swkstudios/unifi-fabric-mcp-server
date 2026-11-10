@@ -41,9 +41,9 @@ class PolicyCursor:
     pass
 """
 TOOL_DIFF = """\
-diff --git a/src/unifi_fabric/tools/fw.py b/src/unifi_fabric/tools/fw.py
---- a/src/unifi_fabric/tools/fw.py
-+++ b/src/unifi_fabric/tools/fw.py
+diff --git a/src/unifi_fabric/families/fw.py b/src/unifi_fabric/families/fw.py
+--- a/src/unifi_fabric/families/fw.py
++++ b/src/unifi_fabric/families/fw.py
 @@ -4 +4 @@
 -@mcp.tool(annotations=WRITE)
 +@mcp.tool(annotations=READ_ONLY)
@@ -95,8 +95,8 @@ def files(mapping):
 def tool_files():
     return files(
         {
-            ("old", "src/unifi_fabric/tools/fw.py"): OLD_TOOL,
-            ("new", "src/unifi_fabric/tools/fw.py"): NEW_TOOL,
+            ("old", "src/unifi_fabric/families/fw.py"): OLD_TOOL,
+            ("new", "src/unifi_fabric/families/fw.py"): NEW_TOOL,
         }
     )
 
@@ -115,7 +115,7 @@ def test_parse_diff_numbers_each_side():
         ("new", 7),
         ("new", 8),
     ]
-    assert all(d.path == "src/unifi_fabric/tools/fw.py" for d in lines)
+    assert all(d.path == "src/unifi_fabric/families/fw.py" for d in lines)
 
 
 def test_extracts_function_message_and_annotation_changes():
@@ -155,15 +155,15 @@ def test_env_vars_come_from_code_lines_in_source_only():
 
 def test_removed_and_renamed_tools_are_found_on_the_old_side():
     diff = """\
-diff --git a/src/unifi_fabric/tools/fw.py b/src/unifi_fabric/tools/fw.py
---- a/src/unifi_fabric/tools/fw.py
-+++ b/src/unifi_fabric/tools/fw.py
+diff --git a/src/unifi_fabric/families/fw.py b/src/unifi_fabric/families/fw.py
+--- a/src/unifi_fabric/families/fw.py
++++ b/src/unifi_fabric/families/fw.py
 @@ -5,4 +4,0 @@
 -async def reorder_firewall_policies(host: str) -> dict:
 -    if not host:
 -        return {}
 """
-    found = di.extract(diff, files({("old", "src/unifi_fabric/tools/fw.py"): OLD_TOOL}))
+    found = di.extract(diff, files({("old", "src/unifi_fabric/families/fw.py"): OLD_TOOL}))
     assert "function:reorder_firewall_policies" in labels(found)
 
 

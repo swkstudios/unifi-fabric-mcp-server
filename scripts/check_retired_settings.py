@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Fail when a retired setting name appears outside the changelog and the migration kit.
+"""Fail when a retired setting name appears outside the changelog.
 
 The migration table for retired settings lives in the changelog: in a pending fragment
-under ``changelog.d/`` before the release fold, and in ``CHANGELOG.md`` after it. The 0.7.1
-migration kit (``docs/MIGRATING-0.7.1.md``, ``tools/migrate-0.7.1-env.py`` and its test
-fixtures) also names them; it is deleted in 0.7.2, and a test keeps its table equal to the
-changelog's. Each retired name is one bullet that starts with ``- Retired setting `NAME```.
+under ``changelog.d/`` before the release fold, and in ``CHANGELOG.md`` after it. Each
+retired name is one bullet that starts with ``- Retired setting `NAME```.
 This script reads the names from those bullets, so it carries no retired name itself, then
 searches every tracked file except the excluded paths with ``git grep -I -i -w`` (any
 letter case). A dated capture that records the environment a past run used, and is never
@@ -43,16 +41,13 @@ CAPTURE_ATTRIBUTE = "retired-setting-capture"
 _GLOB_CHARS = frozenset("*?[\\")
 
 #: Paths that may name retired settings: the changelog (released sections stay
-#: byte-identical), the 0.7.1 migration kit (removed in 0.7.2), the docs-facts allowlist
+#: byte-identical), the docs-facts allowlist
 #: (it keys the history and migration table entries by setting name) and the front-page
 #: test (it asserts the published 0.7.0 lead, which is never edited), each by its exact
 #: path, plus every file that carries the capture attribute.
 EXCLUDED_PATHSPECS = (
     ":(exclude)CHANGELOG.md",
     ":(exclude)changelog.d",
-    ":(exclude)docs/MIGRATING-0.7.1.md",
-    ":(exclude)tools/migrate-0.7.1-env.py",
-    ":(exclude)tests/fixtures/upgrade-0.7.1",
     ":(exclude)tests/docs_facts_allowlist.toml",
     ":(exclude)tests/test_front_page_docs.py",
     f":(exclude,attr:{CAPTURE_ATTRIBUTE})",
@@ -180,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     total = sum(counts.values())
     print(
         f"check_retired_settings: {total} lines in {len(counts)} files name a retired setting "
-        "outside the changelog; use the replacements in docs/MIGRATING-0.7.1.md:",
+        "outside the changelog; use the replacements in the CHANGELOG migration table:",
         file=sys.stderr,
     )
     for path, count in sorted(counts.items()):

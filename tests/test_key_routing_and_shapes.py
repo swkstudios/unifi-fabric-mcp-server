@@ -18,18 +18,14 @@ from httpx import Request, Response
 from unifi_fabric import server
 from unifi_fabric.client import PaginationAbortedError, UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network import network, network_services_proxy
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import FetchedRecords, Registry
-from unifi_fabric.tools import (
-    aggregation,
-    carrier_fabric,
-    device_mgmt,
-    mobility,
-    network,
-    network_services_proxy,
-    protect,
-    site_manager,
-)
-from unifi_fabric.tools._pagination import collect_cursor, collect_links
+from unifi_fabric.shared_shapes._pagination import collect_cursor, collect_links
 
 BASE = "https://api.ui.com"
 HOST_A = "AAAAAAAAAAAA0000:1"

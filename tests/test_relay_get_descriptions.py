@@ -17,8 +17,8 @@ import respx
 from tests._tool_catalog import lazy_parametrize, tools_by_name
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.connector import connector
 from unifi_fabric.read_only import STATE_CHANGING_GET_ROUTES, state_changing_get_route
-from unifi_fabric.tools import connector
 
 HOST = "console-relay-doc"
 BASE = "https://api.ui.com"

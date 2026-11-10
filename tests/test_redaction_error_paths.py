@@ -15,19 +15,11 @@ from unifi_fabric import client as client_module
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.matching import find_by_id
-from unifi_fabric.registry import _require_native_id
-from unifi_fabric.tools import (
-    _classic_cmd,
-    _classic_objects,
-    _device_config,
-    _device_wrappers,
-    _keys,
-    client_records,
-    clients,
-    connector,
-    device_radios,
-    innerspace_internal,
+from unifi_fabric.families.clients import client_records, clients
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.devices import _device_config, device_radios
+from unifi_fabric.families.innerspace import innerspace_internal
+from unifi_fabric.families.network import (
     matter,
     network_controller_admin,
     network_controller_insights,
@@ -36,14 +28,17 @@ from unifi_fabric.tools import (
     network_proav_sandbox,
     network_services_proxy,
     network_wifi_radio,
-    protect_private,
     site_admin,
     site_config,
-    site_manager,
-    statistics,
-    vpn,
 )
-from unifi_fabric.tools.site_manager import _unique_proxy_sites
+from unifi_fabric.families.protect import protect_private
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.families.site_manager.site_manager import _unique_proxy_sites
+from unifi_fabric.families.statistics import statistics
+from unifi_fabric.families.vpn import vpn
+from unifi_fabric.matching import find_by_id
+from unifi_fabric.registry import _require_native_id
+from unifi_fabric.shared_shapes import _classic_cmd, _classic_objects, _device_wrappers, _keys
 
 SENTINEL = "synthetic-error-path-SENTINEL"
 PAYLOAD = {"password": SENTINEL, "reason": "synthetic upstream failure"}
@@ -347,54 +342,77 @@ REPR_ALLOWLIST = {
     # Pydantic model field names are defined by the server, never supplied upstream.
     ("config.py", "', '.join((repr(k) for k in APIKeyConfig.model_fields))"),
     # These are caller ids validated by validate_id before any request or readback.
-    ("tools/network_dpi_policy.py", "present or 'none'"),
-    ("tools/network_dpi_policy.py", "unverified or 'none'"),
-    ("tools/network_dpi_policy.py", "[item]"),
-    ("tools/network_dpi_policy.py", "not_attempted + ids[index + 1:] or 'none'"),
+    ("families/network/network_dpi_policy.py", "present or 'none'"),
+    ("families/network/network_dpi_policy.py", "unverified or 'none'"),
+    ("families/network/network_dpi_policy.py", "[item]"),
+    ("families/network/network_dpi_policy.py", "not_attempted + ids[index + 1:] or 'none'"),
+    ("credential_providers.py", "var"),  # Operator provider setting name (UNIFI_API_KEY*).
+    ("credential_providers.py", "names[-1]"),  # Operator provider setting names.
+    ("shared_shapes/_incident_document.py", "source.source_id"),  # Server-defined source constant.
+    ("shared_shapes/_incident_document.py", "bounds['start']"),  # Integer already range-checked.
+    ("shared_shapes/_incident_document.py", "bounds['end']"),  # Integer already range-checked.
     ("_catalog_audit.py", "item"),  # Local catalog snapshot, not an upstream response.
-    ("tools/network_controller_admin.py", "body.get('cmd')"),  # Caller command selector.
-    ("tools/site_config.py", "record['_id']"),  # Validated native id before body comparison.
-    ("tools/device_mgmt.py", "resolved"),  # Device id string, validate_id() checked first.
+    ("families/network/network_controller_admin.py", "body.get('cmd')"),  # Caller command selector.
+    (
+        "families/network/site_config.py",
+        "record['_id']",
+    ),  # Validated native id before body comparison.
+    (
+        "families/devices/device_mgmt.py",
+        "resolved",
+    ),  # Device id string, validate_id() checked first.
     # Proven scalar/caller values discovered by the stronger field-flow guard.
     ("transport_security.py", "digits"),  # length_digits admits only ASCII decimal digits.
     ("request_policy.py", "header"),  # Three server-defined policy header constants.
     ("policy.py", "names"),  # Operator environment setting names.
     ("policy.py", "', '.join(unknown)"),  # Operator environment setting names.
-    ("tools/_pagination.py", "name"),  # Caller's argument name from names.
-    ("tools/_pagination.py", "named['page']"),
-    ("tools/_pagination.py", "named['zero_page']"),
-    ("tools/_pagination.py", "named['offset']"),
-    ("tools/network_nat_qos_traffic.py", "number"),  # Integer page counter.
+    ("shared_shapes/_pagination.py", "name"),  # Caller's argument name from names.
+    ("shared_shapes/_pagination.py", "named['page']"),
+    ("shared_shapes/_pagination.py", "named['zero_page']"),
+    ("shared_shapes/_pagination.py", "named['offset']"),
+    ("families/network/network_nat_qos_traffic.py", "number"),  # Integer page counter.
     # Positions and argument names this server computes, not upstream values.
     ("api_sources.py", "str(i)"),  # Index into the operator's selector list.
     ("client.py", "first"),  # Index of the first non-object item.
-    ("tools/clients.py", "name"),  # The argument's own name (client_id).
+    ("families/clients/clients.py", "name"),  # The argument's own name (client_id).
     # Caller input echoed back, not an upstream record.
-    ("tools/device_mgmt.py", "tag['_id']"),  # Caller's tag body _id.
-    ("tools/device_mgmt.py", "e['mac']"),  # Caller's MAC, colon-normalized.
-    ("tools/device_radios.py", "fields['channel']"),  # Caller's radio channel.
-    ("tools/device_radios.py", "str(channel)"),  # Caller's channel, normalized.
-    ("tools/device_radios.py", "fields['ht']"),  # Caller's channel width.
-    ("tools/device_radios.py", "power"),  # Caller's tx_power.
-    ("tools/network_mobile_wan.py", "repr(k)"),  # Typed argument names found in the body.
-    ("tools/network_vpn_dns.py", "repr(m)"),  # Caller's WireGuard user refs.
-    ("tools/protect.py", "txn_type"),  # Caller's POS transaction type.
-    ("tools/protect.py", "amount"),  # Caller's POS transaction amount.
-    ("tools/protect_ptz_doorbell.py", "missing[0]"),  # Caller's shortcut id.
-    ("tools/protect_ptz_doorbell.py", "kind"),  # Caller's shortcut type, one of three names.
-    ("tools/site_config.py", "given"),  # Caller's body _id.
+    ("families/devices/device_mgmt.py", "tag['_id']"),  # Caller's tag body _id.
+    ("families/devices/device_mgmt.py", "e['mac']"),  # Caller's MAC, colon-normalized.
+    ("families/devices/device_radios.py", "fields['channel']"),  # Caller's radio channel.
+    ("families/devices/device_radios.py", "str(channel)"),  # Caller's channel, normalized.
+    ("families/devices/device_radios.py", "fields['ht']"),  # Caller's channel width.
+    ("families/devices/device_radios.py", "power"),  # Caller's tx_power.
+    (
+        "families/network/network_mobile_wan.py",
+        "repr(k)",
+    ),  # Typed argument names found in the body.
+    ("families/vpn/network_vpn_dns.py", "repr(m)"),  # Caller's WireGuard user refs.
+    ("families/protect/protect.py", "txn_type"),  # Caller's POS transaction type.
+    ("families/protect/protect.py", "amount"),  # Caller's POS transaction amount.
+    ("families/protect/protect_ptz_doorbell.py", "missing[0]"),  # Caller's shortcut id.
+    (
+        "families/protect/protect_ptz_doorbell.py",
+        "kind",
+    ),  # Caller's shortcut type, one of three names.
+    ("families/network/site_config.py", "given"),  # Caller's body _id.
     # The caller's id, rebound later to the upstream id only when that is a string equal to it.
-    ("tools/carrier_fabric.py", "subscriber_id"),
+    ("families/carrier/carrier_fabric.py", "subscriber_id"),
     # Text already rendered through upstream_error_text where it was recorded.
-    ("tools/device_mgmt.py", "e['error']"),  # str() of an error whose body was rendered.
-    ("tools/site_manager.py", "entry['error']"),  # upstream_error_text(exc, client).
+    ("families/devices/device_mgmt.py", "e['error']"),  # str() of an error whose body was rendered.
+    (
+        "families/site_manager/site_manager.py",
+        "entry['error']",
+    ),  # upstream_error_text(exc, client).
     # Not upstream values: names this server or its operator chose, and integers.
     ("catalog.py", "sorted(unknown)"),  # Tool names of a C fixture overlay.
     ("policy.py", "canonical"),  # An environment variable name, upper-cased.
-    ("tools/device_radios.py", "sorted(widths)"),  # Integer MHz widths (int-checked).
-    ("tools/innerspace.py", "sorted(project)"),  # Document key names, never their values.
+    ("families/devices/device_radios.py", "sorted(widths)"),  # Integer MHz widths (int-checked).
+    (
+        "families/innerspace/innerspace.py",
+        "sorted(project)",
+    ),  # Document key names, never their values.
     # Per-site error text rendered through upstream_error_text where it was recorded.
-    ("tools/aggregation.py", "'; '.join(errors + site_errors)"),
+    ("families/site_manager/aggregation.py", "'; '.join(errors + site_errors)"),
 }
 #: Modules whose errors format caller arguments, the published OpenAPI documents or the
 #: server's own catalog, never a controller response.

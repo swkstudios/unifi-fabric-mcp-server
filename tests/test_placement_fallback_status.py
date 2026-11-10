@@ -8,7 +8,7 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import innerspace, placement_snapshot
+from unifi_fabric.families.innerspace import innerspace, placement_snapshot
 
 
 @pytest.mark.parametrize("fallback_status", [403, 404, 500])

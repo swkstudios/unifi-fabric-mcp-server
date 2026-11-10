@@ -33,6 +33,8 @@ DOCS = ROOT / "docs"
 # every setting (read-only mode, write switches, audit log).
 CLIENT_SETUP = DOCS / "CLIENT-SETUP.md"
 CONFIGURATION = DOCS / "CONFIGURATION.md"
+# Positioning phrases the README must keep (chosen by the maintainers, not derived from code).
+DOC_FACTS = tomllib.loads((DOCS / "doc-facts.toml").read_text())
 PUBLIC_REPO = "https://github.com/swkstudios/unifi-fabric-mcp-server"
 
 # Markdown files a visitor can reach from GitHub's front page (internal docs ship nowhere).
@@ -60,8 +62,9 @@ def _text(path: Path) -> str:
 
 def _runtime_tool_count() -> int:
     from unifi_fabric import server
+    from unifi_fabric.local_components import tool_components
 
-    return len(server.mcp._local_provider._components)  # noqa: SLF001 - registered catalog
+    return len(tool_components(server.mcp))
 
 
 def _changed_input_schema_count(release: str = "0.7.0") -> int:
@@ -102,8 +105,9 @@ def _slug(heading: str) -> str:
 
 def _anchors(path: Path) -> set[str]:
     seen: dict[str, int] = {}
-    out: set[str] = set(re.findall(r'<a id="([^"]+)"\s*></a>', _prose(_text(path))))
-    for line in _prose(_text(path)).splitlines():
+    prose = _prose(_text(path))
+    out: set[str] = set(re.findall(r'<a id="([^"]+)"\s*></a>', prose))
+    for line in prose.splitlines():
         m = re.match(r"^#{1,6}\s+(.*?)\s*\Z", line)
         if not m:
             continue
@@ -131,6 +135,8 @@ def _released_changelog_sections(text: str) -> str:
 def test_every_relative_link_and_anchor_resolves():
     """E-03: README linked ``#claude-desktop`` (the heading is "Use with Claude Desktop")."""
     bad = []
+    # One heading-anchor set per linked file: a file is parsed once, not once per link to it.
+    anchors: dict[Path, set[str]] = {}
     for path in PUBLIC_MD:
         text = _prose(_text(path))
         if path.name == "CHANGELOG.md":
@@ -146,8 +152,11 @@ def test_every_relative_link_and_anchor_resolves():
             where = f"{path.relative_to(ROOT)}: {target}"
             if not dest.exists():
                 bad.append(f"{where} (no such file)")
-            elif frag and dest.suffix == ".md" and frag not in _anchors(dest):
-                bad.append(f"{where} (no such heading)")
+            elif frag and dest.suffix == ".md":
+                if dest not in anchors:
+                    anchors[dest] = _anchors(dest)
+                if frag not in anchors[dest]:
+                    bad.append(f"{where} (no such heading)")
     assert not bad, "\n".join(bad)
 
 
@@ -165,8 +174,13 @@ def test_hook_demo_and_quick_start_come_first():
     assert '<h1 align="center">UniFi Fabric MCP Server</h1>' in head
     assert 'href="https://youtu.be/GIzz1bKrtJk"' in head, "the demo link sits in the first screen"
     flat = " ".join(head.split())
-    assert "connects your AI assistant to your UniFi network" in flat
-    assert "Everything goes through Ubiquiti's cloud" in flat
+    phrases = DOC_FACTS["readme"]["hook_phrases"]
+    assert phrases, "docs/doc-facts.toml lists no README hook phrase (vacuous)"
+    for phrase in phrases:
+        assert phrase in flat, (
+            f"the README hook no longer says {phrase!r}; if the rewording is intended, "
+            "change the phrase in docs/doc-facts.toml in the same commit"
+        )
     quick = next(i for i, ln in enumerate(lines) if ln == "## Installation")
     assert quick < 90, f"Installation starts at line {quick + 1}; a visitor must not scroll for it"
     for heading in ("## Architecture", "## What is MCP?", "## Use Cases"):
@@ -503,7 +517,10 @@ def test_release_highlights_open_the_in_flight_section():
         f"{lead[:80]}; recomputed against {previous_release()}: "
         f"{tools} tools ({added} added, {removed} removed)"
     )
-    assert "Breaking" in lead or "Breaking" not in body
+    # A breaking change is announced above the category sections (the Breaking paragraph),
+    # not only in an entry further down.
+    head = body[: body.index("\n### ")]
+    assert "Breaking" in head or "Breaking" not in body
     assert body.index("Highlights: ") < body.index("\n### ")
 
 
@@ -629,7 +646,7 @@ def test_recognition_paging_is_documented_as_it_behaves():
 
     from unifi_fabric.client import UniFiClient
     from unifi_fabric.config import Settings
-    from unifi_fabric.tools._pagination import collect_links
+    from unifi_fabric.shared_shapes._pagination import collect_links
 
     async def run() -> tuple[dict, dict]:
         with respx.mock(assert_all_called=False) as mock:

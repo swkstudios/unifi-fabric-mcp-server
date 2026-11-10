@@ -11,13 +11,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import (
-    firewall_proxy,
-    hotspot,
-    network,
-    network_services_proxy,
-    vpn,
-)
+from unifi_fabric.families.hotspot import hotspot
+from unifi_fabric.families.network import firewall_proxy, network, network_services_proxy
+from unifi_fabric.families.vpn import vpn
 
 # ---------------------------------------------------------------------------
 # Constants

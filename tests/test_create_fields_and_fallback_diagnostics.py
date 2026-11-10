@@ -8,8 +8,10 @@ import respx
 from unifi_fabric import placement_snapshot_cli
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import carrier_fabric, innerspace, protect, recognition
-from unifi_fabric.tools.placement_snapshot import _capability_outcome
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.innerspace import innerspace
+from unifi_fabric.families.innerspace.placement_snapshot import _capability_outcome
+from unifi_fabric.families.protect import protect, recognition
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,33 @@
+{
+  "source": "derived_sets() of tests/test_changelog_breaking_tools.py evaluated on the d8be4363 tree (the v0.7.1 surface, before any 0.7.2 removal), kept only for tools that are in the v0.7.0 snapshot but no longer registered. The source of a removed tool cannot be inspected any more, so its membership is frozen here.",
+  "titles": {
+    "arguments are validated before any request": [
+      "create_traffic_rule",
+      "delete_traffic_rule",
+      "update_traffic_rule"
+    ],
+    "host and site resolution never guess": [
+      "create_traffic_rule",
+      "delete_traffic_rule",
+      "update_traffic_rule"
+    ],
+    "no longer declare an object `outputSchema`": [
+      "create_traffic_rule",
+      "update_traffic_rule"
+    ],
+    "only a GET is retried": [
+      "create_traffic_rule",
+      "delete_traffic_rule",
+      "update_traffic_rule"
+    ],
+    "update tools refuse a body with nothing to change": [
+      "create_traffic_rule",
+      "update_traffic_rule"
+    ],
+    "write tools drop server-added": [
+      "create_traffic_rule",
+      "delete_traffic_rule",
+      "update_traffic_rule"
+    ]
+  }
+}

@@ -21,9 +21,9 @@ from fastmcp import Client, FastMCP
 
 from unifi_fabric import server, switches
 from unifi_fabric.config import Settings
+from unifi_fabric.families.connector import connector
 from unifi_fabric.read_only_tools import AreaOptOutMiddleware, ReadOnlyToolMiddleware
 from unifi_fabric.refusal_audit import RefusedWriteAuditMiddleware
-from unifi_fabric.tools import connector
 
 #: A state-changing route of the mixed GET relay in the Protect area.
 WRITE_GET = "/proxy/protect/api/cameras/camera/enable-control"

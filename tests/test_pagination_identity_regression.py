@@ -6,7 +6,7 @@ import pytest
 
 from unifi_fabric.client import PaginationAbortedError, UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools._pagination import collect_batch, collect_offset
+from unifi_fabric.shared_shapes._pagination import collect_batch, collect_offset
 
 
 @pytest.mark.parametrize("adapter", ["client", "batch", "collect"])
@@ -41,7 +41,7 @@ async def test_t23_identity_repeat_or_contiguous_control(adapter, case):
                 await client.paginate_offset("/synthetic", page_size=200)
             records = error.value.items
             assert error.value.total_count == (1000 if case == "total" else None)
-            assert ("1000" if case == "total" else "no id, _id, uuid or mac") in str(error.value)
+            assert ("1000" if case == "total" else "no id, _id or uuid") in str(error.value)
         else:
             records = await client.paginate_offset("/synthetic", page_size=200)
     else:
@@ -58,7 +58,7 @@ async def test_t23_identity_repeat_or_contiguous_control(adapter, case):
         assert result["totalCount"] == (1000 if case == "total" else None)
         if result["incomplete"]:
             assert result.get("nextOffset") is None
-            assert ("1000" if case == "total" else "no id, _id, uuid or mac") in result[
+            assert ("1000" if case == "total" else "no id, _id or uuid") in result[
                 "incompleteReason"
             ]
     expected = 1200 if case == "minimum" else 5 if case == "overlap" else 250

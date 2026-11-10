@@ -1,0 +1,11 @@
+{"calls":true,"event":"startup","file_mode":"0600","format":"json","level":"normal","schema_version":"1","sink":"file","timestamp_utc":"2026-11-07T12:00:00.123456+00:00","version":"0.0.0-golden"}
+{"digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000","effective_policy":{"write_policy":"allow"},"event":"policy.startup","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.000001+00:00"}
+{"duration_ms":0.0,"event":"audit","method":"POST","outcome":"refused","path":"/proxy/network/api/s/default/***","reason":"lone\ud800 c1\u0085 del\u007f ls\u2028 ps\u2029 café 中 ***","schema_version":"1","status":null,"timestamp_utc":"2026-11-07T12:00:00.123456+00:00","tool":"golden_tool"}
+{"duration_ms":0.0,"event":"call","outcome":"ok","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.123456+00:00","tool":"golden_tool"}
+{"duration_ms":0.0,"error_type":"ValueError","event":"error","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.123456+00:00","tool":"golden_tool"}
+{"code":"invalid_policy_header","event":"policy.refusal","request_id":"0123456789abcdef0123456789abcdef","schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.000002+00:00","tool_id":null,"upstream_calls":0}
+{"event":"audit.recovered","fault":"ENOSPC","lost_records":2,"schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.123456+00:00"}
+{"event":"audit","method":"DELETE","outcome":"http_404","path":"/after-fault","schema_version":"1","status":404,"timestamp_utc":"2026-11-07T12:00:00.123456+00:00"}
+{"event":"
+{"event":"audit.recovered","fault":"EIO","lost_records":1,"schema_version":"1","timestamp_utc":"2026-11-07T12:00:00.123456+00:00"}
+{"event":"audit","method":"POST","outcome":"dry_run","path":"/after-cut","schema_version":"1","status":null,"timestamp_utc":"2026-11-07T12:00:00.123456+00:00"}

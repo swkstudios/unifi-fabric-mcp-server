@@ -18,8 +18,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights, network_vpn_dns, system_log
-from unifi_fabric.tools._number_window import collect_number_window
+from unifi_fabric.families.network import network_controller_insights
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns
+from unifi_fabric.shared_shapes._number_window import collect_number_window
 
 CLAMP = 4
 RECORDS = [{"id": i} for i in range(9)]
@@ -57,7 +59,7 @@ async def test_clamping_console_that_ignores_page_number_is_incomplete(bare):
 def _client(calls: list[dict[str, Any]], *, bare: bool) -> SimpleNamespace:
     fetch = _console(calls, bare=bare)
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         return await fetch({"pageNumber": json["pageNumber"], "pageSize": json["pageSize"]})
 
     return SimpleNamespace(post=post, paginate_max_pages=None)
@@ -181,7 +183,7 @@ def _beta_registry() -> AsyncMock:
 def _keyed_client(calls: list[dict[str, Any]], keys: list[Any], *, ignore: bool) -> SimpleNamespace:
     fetch = _live_console(calls, ignore=ignore)
 
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         keys.append(key)
         return await fetch({"pageNumber": json["pageNumber"], "pageSize": json["pageSize"]})
 

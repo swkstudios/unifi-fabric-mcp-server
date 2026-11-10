@@ -41,8 +41,8 @@ from typing import Any
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
-from ._spec_limits_table import SPEC_LIMITS
 from .argument_errors import echoed_input, input_path_component
+from .generated_api_facts._spec_limits_table import SPEC_LIMITS
 from .redaction import REDACTION_MASK, write_redaction_enabled
 
 _INTEGER_STRING = re.compile(r"-?[0-9]+")

@@ -4,13 +4,13 @@ This folder is a Google Antigravity plugin. It runs the open-source UniFi Fabric
 
 ## What it runs
 
-`uvx --from unifi-fabric-mcp-server==0.7.1 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
+`uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
 
 ## Where the key comes from
 
 The plugin stores no key. Antigravity starts the server with the environment of the shell that started `agy`, so export the key first:
 
-<!-- doc-provenance: source=file:plugins/antigravity/plugin.json@sha256:534580591c2564a05ac0ab7ba5a38171ea2c06eff68f53c895fe490a2dad8ee0 support=0.7.1 case=antigravity-readme-1 -->
+<!-- doc-provenance: source=file:plugins/antigravity/plugin.json@sha256:0020a5d085941148ac58a545f67ac11f74e8a889a5b5a24d58b1e375d9859bea support=0.7.2 case=antigravity-readme-1 -->
 <!-- install-case: antigravity-readme-1 mode=antigravity -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
@@ -27,7 +27,7 @@ Some tools depend on console-internal paths that Ubiquiti can restrict without n
 
 From a checkout of this repository:
 
-<!-- doc-provenance: source=file:plugins/antigravity/plugin.json@sha256:534580591c2564a05ac0ab7ba5a38171ea2c06eff68f53c895fe490a2dad8ee0 support=0.7.1 case=antigravity-readme-2 -->
+<!-- doc-provenance: source=file:plugins/antigravity/plugin.json@sha256:0020a5d085941148ac58a545f67ac11f74e8a889a5b5a24d58b1e375d9859bea support=0.7.2 case=antigravity-readme-2 -->
 <!-- install-case: antigravity-readme-2 mode=antigravity -->
 ```bash
 agy plugin install ./plugins/antigravity

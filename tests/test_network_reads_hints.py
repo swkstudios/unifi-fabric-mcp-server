@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import network_clients_guests as cg
-from unifi_fabric.tools import network_controller_insights as ci
-from unifi_fabric.tools import network_nat_qos_traffic as nt
-from unifi_fabric.tools import network_vpn_dns as vd
-from unifi_fabric.tools import network_wifi_radio as wr
+from unifi_fabric.families.network import network_clients_guests as cg
+from unifi_fabric.families.network import network_controller_insights as ci
+from unifi_fabric.families.network import network_nat_qos_traffic as nt
+from unifi_fabric.families.network import network_wifi_radio as wr
+from unifi_fabric.families.vpn import network_vpn_dns as vd
 
 
 @pytest.mark.parametrize("kind", ["traffic", "poe", "scan", "stats", "logs", "openvpn"])

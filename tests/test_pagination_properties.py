@@ -12,7 +12,7 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from unifi_fabric.client import PaginationAbortedError, UniFiClient
-from unifi_fabric.tools._pagination import collect_batch, collect_links, collect_offset
+from unifi_fabric.shared_shapes._pagination import collect_batch, collect_links, collect_offset
 
 SIZES = (1, 25, 100, 101, 250, 275)
 FAMILIES = ("offset", "number", "links", "cursor", "carrier")
@@ -58,7 +58,7 @@ CASES = st.builds(
     behavior=st.sampled_from(("honours", "clamps", "ignores")),
     native_size=st.sampled_from((1, 25, 37, 100, 200, 500)),
     shape=st.sampled_from(("bare", "object", "echo", "total", "both")),
-    identities=st.sampled_from((None, "id", "_id", "uuid", "mac")),
+    identities=st.sampled_from((None, "id", "_id", "uuid")),
     empty_final=st.booleans(),
 )
 
@@ -145,7 +145,7 @@ def assert_contract(result, expected, upstream):
     assert effective > first
     assert min(upstream.case.total - effective, upstream.case.size(second)) > second
     assert items(result) == upstream.case.records(0, effective)
-    assert "no id, _id, uuid or mac" in result["incompleteReason"]
+    assert "no id, _id or uuid" in result["incompleteReason"]
     for field in ("nextPage", "nextOffset", "nextToken", "nextCursor"):
         assert result.get(field) is None
 
@@ -386,7 +386,7 @@ async def test_client_repeated_unpaged_preserves_first_body(
 @given(
     total=st.integers(1, 1600),
     size=st.sampled_from(SIZES),
-    identities=st.sampled_from((None, "id", "_id", "uuid", "mac")),
+    identities=st.sampled_from((None, "id", "_id", "uuid")),
     live=st.booleans(),
     declared=st.booleans(),
 )

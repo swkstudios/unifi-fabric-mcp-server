@@ -28,9 +28,9 @@ full mode call it directly. For anything else use `search_tools` and `describe_t
 
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
-| `get_device` | read | `host`, `site`, `device_id` | device object verbatim; `tools/device_mgmt.py::get_device`; `readOnlyHint: true` |
-| `get_device_port_state` | read | `host`, `site`, `device_id` (`port_idx`) | `_device_record`, `port_table`, `lldp_table` (or `_port`) verbatim; `tools/statistics.py::get_device_port_state`; `readOnlyHint: true` |
-| `get_client` | read | `host`, `site`, `client_id` | client object verbatim; `tools/clients.py::get_client`; `readOnlyHint: true` |
-| `get_client_link_diagnostics` | read | `host`, `site` (`client_id` or `client_ids`) | `{meta, data}` narrowed to the clients; `tools/statistics.py::get_client_link_diagnostics`; `readOnlyHint: true` |
-| `get_device_stp_state` | read | `host`, `site`, `device_id` | `{meta, _device, _source, _stp, _ports, _device_record}`; `tools/statistics.py::get_device_stp_state`; `readOnlyHint: true` |
-| `restart_device` | write | `host`, `site`, `device_id` (`reboot_type`) | upstream body verbatim, or `{status, dryRun, message, preview, _consequence}`; `tools/device_mgmt.py::restart_device`; `readOnlyHint: false` |
+| `get_device` | read | `host`, `site`, `device_id` | device object verbatim; `families/devices/device_mgmt.py::get_device`; `readOnlyHint: true` |
+| `get_device_port_state` | read | `host`, `site`, `device_id` (`port_idx`) | `_device_record`, `port_table`, `lldp_table` (or `_port`) verbatim; `families/statistics/statistics.py::get_device_port_state`; `readOnlyHint: true` |
+| `get_client` | read | `host`, `site`, `client_id` | client object verbatim; `families/clients/clients.py::get_client`; `readOnlyHint: true` |
+| `get_client_link_diagnostics` | read | `host`, `site` (`client_id` or `client_ids`) | `{meta, data}` narrowed to the clients; `families/statistics/statistics.py::get_client_link_diagnostics`; `readOnlyHint: true` |
+| `get_device_stp_state` | read | `host`, `site`, `device_id` | `{meta, _device, _source, _stp, _ports, _device_record}`; `families/statistics/statistics.py::get_device_stp_state`; `readOnlyHint: true` |
+| `restart_device` | write | `host`, `site`, `device_id` (`reboot_type`) | upstream body verbatim, or `{status, dryRun, message, preview, _consequence}`; `families/devices/device_mgmt.py::restart_device`; `readOnlyHint: false` |

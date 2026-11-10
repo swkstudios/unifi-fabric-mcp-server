@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unifi_fabric.tools import protect_automation_backup as mod
+from unifi_fabric.families.protect import protect_automation_backup as mod
 
 
 class _Client:

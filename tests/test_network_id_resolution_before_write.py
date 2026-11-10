@@ -34,9 +34,10 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_classes import class_axis, tool_batches
 from unifi_fabric.client import UniFiConnectionError, is_dry_run_preview
+from unifi_fabric.families.network import network_services_proxy
+from unifi_fabric.families.statistics import statistics
 from unifi_fabric.matching import with_upstream_id
-from unifi_fabric.tools import network_services_proxy, statistics
-from unifi_fabric.tools._classic_objects import require_listed_record, with_purpose
+from unifi_fabric.shared_shapes._classic_objects import require_listed_record, with_purpose
 
 TOOLS = cti.TOOLS
 ABSENT_ID = "0000000000000000000000ff"
@@ -70,8 +71,6 @@ UNLISTED = {
 NAMED = {
     "update_port_forward",
     "delete_port_forward",
-    "update_traffic_rule",
-    "delete_traffic_rule",
     "update_traffic_route",
     "delete_traffic_route",
     "update_hotspot_operator",

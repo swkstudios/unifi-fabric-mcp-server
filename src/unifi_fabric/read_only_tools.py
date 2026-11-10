@@ -31,6 +31,7 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from .families import _list_tools, _remove_tool
 from .read_only import is_write_request, read_only_message
+from .removed_tools import removed_tool_error
 from .switches import READ_ONLY_ENV, family_denied
 
 #: The pre-dispatch refusal code for a denied write (closed refusal list).
@@ -151,7 +152,7 @@ def area_opt_out_env(name: str, family: str | None, connector_write_enabled: boo
     (derived from source at generation time: :func:`families.connector_write_tools`).
     """
     from . import families
-    from .tools import connector
+    from .families.connector import connector
 
     env = connector.area_write_env(family)
     if (
@@ -166,7 +167,7 @@ def area_opt_out_env(name: str, family: str | None, connector_write_enabled: boo
 def hidden_area_write_refusal(name: str, env: str) -> str:
     """The refusal for a write tool hidden by the denying exception ``env``."""
     from . import families
-    from .tools import connector
+    from .families.connector import connector
 
     if env == connector.CONNECTOR_WRITE_ENV:
         return connector.connector_write_refusal(name)
@@ -251,7 +252,7 @@ class ReadOnlyToolMiddleware(Middleware):
     def _denial(self, target: str, read_only: bool) -> tuple[str, str] | None:
         """``(reason, message)`` when the target's write mode is deny, else None."""
         from . import families, policy
-        from .tools import connector
+        from .families.connector import connector
 
         current = policy.current()
         if read_only:
@@ -343,7 +344,7 @@ class AreaOptOutMiddleware(Middleware):
 
     def _hidden_refusal(self, name: str) -> tuple[str, str] | None:
         """``(refusal, variable)`` for a startup-hidden write whose opt-out is still set."""
-        from .tools import connector
+        from .families.connector import connector
 
         env = self._hidden_writes.get(name)
         if env is None:
@@ -360,7 +361,7 @@ class AreaOptOutMiddleware(Middleware):
         call_next: CallNext[Any, Any],
     ) -> Any:
         from . import families
-        from .tools import connector
+        from .families.connector import connector
 
         name = str(getattr(context.message, "name", ""))
         hidden = self._hidden_refusal(name)
@@ -410,6 +411,9 @@ class ExposureMiddleware(Middleware):
             target, _arguments = dispatch_target(name, getattr(context.message, "arguments", None))
             if target in policy.excluded_names():
                 raise not_exposed(target)
+            removed = removed_tool_error(target)
+            if removed is not None:
+                raise removed
             return await call_next(context)
 
 

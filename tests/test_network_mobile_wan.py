@@ -1,4 +1,4 @@
-"""Network mobile broadband (LTE / MBB / eSIM) and WAN tools (tools/network_mobile_wan.py).
+"""Network mobile broadband (LTE / MBB / eSIM) and WAN tools (families/network/network_mobile_wan.py).
 
 Hermetic: a real ``UniFiClient`` with the HTTP layer mocked by respx and a stub registry
 that records every resolution call (so "zero requests on invalid input" covers the
@@ -20,7 +20,7 @@ from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import refusals, route_secrets
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import network_mobile_wan as nmw
+from unifi_fabric.families.network import network_mobile_wan as nmw
 
 BASE = "https://api.ui.com"
 HOST = "A1B2C3:12345"

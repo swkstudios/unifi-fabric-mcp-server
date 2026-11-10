@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools.firewall_proxy import (
+from unifi_fabric.families.network.firewall_proxy import (
     create_acl_rule,
     create_firewall_policy,
     create_firewall_zone,
@@ -29,7 +29,7 @@ from unifi_fabric.tools.firewall_proxy import (
     update_firewall_policy,
     update_firewall_zone,
 )
-from unifi_fabric.tools.network import PROXY_BASE
+from unifi_fabric.families.network.network import PROXY_BASE
 
 HOST_ID = "host-001"
 SITE_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -416,7 +416,9 @@ class TestSourcePortFilterWarning:
         policy = self._policy(
             source_filter={"type": "PORT", "portFilter": {"items": [{"port": 443}]}}
         )
-        with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
+        with caplog.at_level(
+            logging.WARNING, logger="unifi_fabric.families.network.firewall_proxy"
+        ):
             await create_firewall_policy(client, registry, "h", "s", policy)
         msgs = [r.getMessage() for r in caplog.records]
         assert any("source.trafficFilter is a PORT filter" in m for m in msgs)
@@ -428,7 +430,9 @@ class TestSourcePortFilterWarning:
         policy = self._policy(
             source_filter={"type": "PORT", "portFilter": {"items": [{"port": 22}]}}
         )
-        with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
+        with caplog.at_level(
+            logging.WARNING, logger="unifi_fabric.families.network.firewall_proxy"
+        ):
             await update_firewall_policy(client, registry, "h", "s", "pol-1", policy)
         assert any(
             "source.trafficFilter is a PORT filter" in r.getMessage() for r in caplog.records
@@ -440,7 +444,9 @@ class TestSourcePortFilterWarning:
             source_filter={"type": "PORT", "portFilter": {"items": [{"port": 443}]}},
             dest_filter={"type": "PORT", "portFilter": {"items": [{"port": 443}]}},
         )
-        with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
+        with caplog.at_level(
+            logging.WARNING, logger="unifi_fabric.families.network.firewall_proxy"
+        ):
             await create_firewall_policy(client, registry, "h", "s", policy)
         assert not any(
             "source.trafficFilter is a PORT filter" in r.getMessage() for r in caplog.records
@@ -451,7 +457,9 @@ class TestSourcePortFilterWarning:
         policy = self._policy(
             source_filter={"type": "NETWORK", "networkFilter": {"networkIds": ["n1"]}}
         )
-        with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
+        with caplog.at_level(
+            logging.WARNING, logger="unifi_fabric.families.network.firewall_proxy"
+        ):
             await create_firewall_policy(client, registry, "h", "s", policy)
         assert not any(
             "source.trafficFilter is a PORT filter" in r.getMessage() for r in caplog.records
@@ -463,7 +471,9 @@ class TestSourcePortFilterWarning:
             source_filter={"type": "PORT", "portFilter": {"items": [{"port": 443}]}},
             action_type="BLOCK",
         )
-        with caplog.at_level(logging.WARNING, logger="unifi_fabric.tools.firewall_proxy"):
+        with caplog.at_level(
+            logging.WARNING, logger="unifi_fabric.families.network.firewall_proxy"
+        ):
             await create_firewall_policy(client, registry, "h", "s", policy)
         assert not any(
             "source.trafficFilter is a PORT filter" in r.getMessage() for r in caplog.records

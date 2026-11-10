@@ -6,17 +6,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools.network_services_proxy import (
+from unifi_fabric.families.network.network_services_proxy import (
     _CLASSIC_REST_BASE,
     _V2_API_BASE,
     create_port_forward,
-    create_traffic_rule,
     delete_port_forward,
-    delete_traffic_rule,
     list_port_forwards,
     list_traffic_rules,
     update_port_forward,
-    update_traffic_rule,
 )
 
 HOST_ID = "host-001"
@@ -126,50 +123,3 @@ class TestListTrafficRules:
         await list_traffic_rules(client, registry, "myhost", "mysite")
         registry.resolve_host_id.assert_called_once_with("myhost", key=None)
         registry.resolve_site_slug.assert_called_once_with("mysite", HOST_ID, key=None)
-
-
-class TestCreateTrafficRule:
-    async def test_basic(self, client, registry):
-        payload = {
-            "description": "Block Gaming",
-            "action": "BLOCK",
-            "matching_target": "INTERNET",
-            "target_devices": [{"client_mac": "aa:bb:cc:dd:ee:ff"}],
-        }
-        client.post.return_value = {"_id": "tr-2", **payload}
-        result = await create_traffic_rule(client, registry, "h", "s", payload)
-        client.post.assert_called_once_with(f"{V2_API_BASE}/trafficrules", key=None, json=payload)
-        assert result["description"] == "Block Gaming"
-
-
-class TestUpdateTrafficRule:
-    async def test_basic(self, client, registry):
-        payload = {"enabled": False}
-        # The write target is resolved (and read for the merge) first.
-        client.get.return_value = [
-            {"_id": "abcdef0123456789abcdef01", "action": "BLOCK", "enabled": True}
-        ]
-        client.put.return_value = {"_id": "abcdef0123456789abcdef01", "enabled": False}
-        result = await update_traffic_rule(
-            client, registry, "h", "s", "ABCDEF0123456789ABCDEF01", payload
-        )
-        client.get.assert_any_await(f"{V2_API_BASE}/trafficrules", key=None)
-        client.put.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/abcdef0123456789abcdef01/",
-            key=None,
-            json={"_id": "abcdef0123456789abcdef01", "action": "BLOCK", "enabled": False},
-        )
-        assert result["enabled"] is False
-
-
-class TestDeleteTrafficRule:
-    async def test_basic(self, client, registry):
-        client.get.return_value = [
-            {"_id": "abcdef0123456789abcdef01"}
-        ]  # write target resolved first
-        client.delete.return_value = None
-        await delete_traffic_rule(client, registry, "h", "s", "ABCDEF0123456789ABCDEF01")
-        client.get.assert_any_await(f"{V2_API_BASE}/trafficrules", key=None)
-        client.delete.assert_called_once_with(
-            f"{V2_API_BASE}/trafficrules/abcdef0123456789abcdef01/", key=None
-        )

@@ -2,7 +2,7 @@
 
 import pytest
 
-from unifi_fabric.tools._pagination import collect_batch
+from unifi_fabric.shared_shapes._pagination import collect_batch
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ async def test_explicit_native_offset_remains_one_page():
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    from unifi_fabric.tools._pagination import collect_offset
+    from unifi_fabric.shared_shapes._pagination import collect_offset
 
     client = SimpleNamespace(get=AsyncMock(return_value={"data": [{"id": 1}]}))
     result = await collect_offset(client, "/synthetic", offset=1, limit=1)

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import carrier_fabric as cf
-from unifi_fabric.tools import placement_snapshot as ps
-from unifi_fabric.tools import protect_private as pp
+from unifi_fabric.families.carrier import carrier_fabric as cf
+from unifi_fabric.families.innerspace import placement_snapshot as ps
+from unifi_fabric.families.protect import protect_private as pp
 
 
 @pytest.mark.asyncio

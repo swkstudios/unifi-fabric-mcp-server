@@ -22,21 +22,24 @@ import respx
 from tests._protect_writes import resp
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import carrier_fabric, connector, mobility, protect
-from unifi_fabric.tools._results import leaf_equal, requested_leaves_match
-from unifi_fabric.tools.carrier_fabric import (
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.carrier.carrier_fabric import (
     CARRIER_BASE,
     create_carrier_subscriber,
     update_carrier_subscriber,
 )
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.protect import protect
+from unifi_fabric.families.protect.protect import (
     PROTECT_MUTATIONS_ENV,
     pos_ingest_transaction,
     update_arm_profile,
     update_camera,
     update_siren,
 )
+from unifi_fabric.redaction import REDACTION_MASK
+from unifi_fabric.shared_shapes._results import leaf_equal, requested_leaves_match
 
 HOST_ID = "aabbccddeeff0000:12345"
 BASE = "https://api.ui.com"

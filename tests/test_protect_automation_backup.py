@@ -1,4 +1,4 @@
-"""Hermetic coverage for the 21 P05 Protect automation, backup and cloud archive tools.
+"""Hermetic coverage for the 22 P05 Protect automation, backup and cloud archive tools.
 
 Synthetic fixtures under tests/fixtures/protect_automation_backup; no estate access.
 """
@@ -18,8 +18,8 @@ from httpx import Response
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import route_secrets, server
 from unifi_fabric.client import DRY_RUN_MESSAGE
-from unifi_fabric.tools import protect_automation_backup as tools
-from unifi_fabric.tools.protect import PROTECT_PRIVATE_BASE
+from unifi_fabric.families.protect import protect_automation_backup as tools
+from unifi_fabric.families.protect.protect import PROTECT_PRIVATE_BASE
 
 FIXTURES = Path(__file__).parent / "fixtures" / "protect_automation_backup"
 AUTOMATION_ID = "66f1a2b3c4d5e6f7a8b9c0d1"
@@ -66,7 +66,7 @@ CASES = [
     ("delete_protect_backup", (BACKUP_ID,), "DELETE", f"/backup/{BACKUP_ID}"),
     ("import_protect_backup", ({"name": "mcp-gs3-p05"},), "POST", "/backups/import"),
     ("restore_protect_backup", (BACKUP_ID,), "POST", f"/backup/{BACKUP_ID}/restore"),
-    ("restore_protect_database", (), "POST", "/nvr/restore-pg-dump"),
+    ("restore_protect_database", (), "POST", "/nvr/restore-database-backup"),
     ("get_cloud_archive_status", ("google-drive",), "GET", "/cloud-provider/authenticate"),
     (
         "start_cloud_video_archive",
@@ -249,13 +249,6 @@ async def test_restore_is_never_refused_and_upstream_judges_the_id():
     client.post.assert_awaited_once_with(PREFIX + "/backup/not-listed/restore", key=None)
 
 
-async def test_restore_database_sends_once_without_body():
-    response = fixture("restore_response.json")
-    client = client_for(response)
-    assert await tools._restore_protect_database(client, Registry(), "console") is response
-    client.post.assert_awaited_once_with(PREFIX + "/nvr/restore-pg-dump", key=None)
-
-
 async def test_update_merges_into_listed_record_and_verifies():
     client = client_for({"ok": True})
     result = await tools._update_protect_automation(
@@ -326,7 +319,7 @@ async def test_invalid_input_raises_before_any_request(name, args):
     assert not client.mock_calls
 
 
-async def test_all_21_tools_have_typed_documented_schemas():
+async def test_all_22_tools_have_typed_documented_schemas():
     registered = server.mcp.list_tools()
     registered = await registered if inspect.isawaitable(registered) else registered
     by_name = {tool.name: tool for tool in registered}
@@ -571,7 +564,7 @@ def test_cloud_archive_status_stays_a_read_with_an_honest_description():
 
     from fastmcp import FastMCP
 
-    from unifi_fabric.tools import protect_automation_backup as pab
+    from unifi_fabric.families.protect import protect_automation_backup as pab
 
     mcp = FastMCP("t")
     pab.register(mcp, lambda: (None, None))
@@ -579,3 +572,70 @@ def test_cloud_archive_status_stays_a_read_with_an_honest_description():
     assert tool.annotations.readOnlyHint is True
     assert "authorize endpoint" in tool.description
     assert "changes no" in tool.description
+
+
+# Protect 7.x serves the staged foreign-dump restore at nvr/restore-database-backup; the
+# 5.x nvr/restore-pg-dump route is gone (same server handler, moved).
+RESTORE_DB_ROUTE = "/nvr/restore-database-backup"
+OLD_RESTORE_DB_ROUTE = "/nvr/restore-pg-dump"
+NO_DUMP_BODY = '{"name":"BAD_REQUEST","message":"Foreign Postgres dump file not detected."}'
+
+
+async def test_restore_database_posts_the_7x_route_once_without_a_body():
+    from unifi_fabric.client import UniFiClient
+    from unifi_fabric.config import Settings
+
+    client = UniFiClient(Settings(api_key="synthetic-test-key"))
+    try:
+        with respx.mock(base_url="https://api.ui.com", assert_all_called=False) as mock:
+            old = mock.post(PREFIX + OLD_RESTORE_DB_ROUTE).mock(return_value=Response(404))
+            new = mock.post(PREFIX + RESTORE_DB_ROUTE).mock(
+                return_value=Response(200, json={"success": True})
+            )
+            result = await tools._restore_protect_database(client, Registry(), "console")
+    finally:
+        await client.close()
+    assert not old.called and new.call_count == 1
+    request = new.calls.last.request
+    assert request.method == "POST"
+    assert request.content == b""
+    assert result == {"success": True}
+
+
+async def test_restore_database_passes_the_no_dump_400_through_verbatim():
+    # No foreign Postgres dump staged: Protect answers 400. The upstream body reaches the
+    # caller whole and unrewritten, and the write is not retried.
+    from unifi_fabric.client import UniFiClient, UniFiConnectionError
+    from unifi_fabric.config import Settings
+
+    client = UniFiClient(Settings(api_key="synthetic-test-key"))
+    try:
+        with respx.mock(base_url="https://api.ui.com", assert_all_called=False) as mock:
+            new = mock.post(PREFIX + RESTORE_DB_ROUTE).mock(
+                return_value=Response(400, text=NO_DUMP_BODY)
+            )
+            with pytest.raises(UniFiConnectionError) as caught:
+                await tools._restore_protect_database(client, Registry(), "console")
+    finally:
+        await client.close()
+    assert new.call_count == 1
+    assert caught.value.status == 400
+    assert NO_DUMP_BODY in str(caught.value)
+
+
+async def test_restore_database_is_a_destructive_write_with_an_honest_description():
+    from unifi_fabric._read_only_audit import derive_write_tools
+
+    registered = server.mcp.list_tools()
+    registered = await registered if inspect.isawaitable(registered) else registered
+    by_name = {tool.name: tool for tool in registered}
+    tool = by_name["restore_protect_database"]
+    hints = tool.annotations.model_dump(by_alias=True)
+    assert hints["readOnlyHint"] is False and hints["destructiveHint"] is True
+    assert "restore_protect_database" in derive_write_tools(list(by_name.values()))
+    text = " ".join(tool.description.split())
+    assert "POST protect/api/nvr/restore-database-backup with no body" in text
+    assert "foreign Postgres dump" in text and "restarts Protect" in text
+    assert "HTTP 400" in text and "not run against a console" in text
+    assert "Foreign Postgres dump file not detected" not in text
+    assert "restore-pg-dump" not in text

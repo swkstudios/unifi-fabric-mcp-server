@@ -46,7 +46,7 @@ def test_route_fix_write_count_matches_the_named_writes():
 
 
 def test_spec_limit_tools_are_listed_in_the_migration_guide():
-    from unifi_fabric._spec_limits_table import SPEC_LIMITS
+    from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
 
     entry = _section("change-085")
     match = re.search(r"The (\d+) tools: (.*?)\.\n", entry, re.S)
@@ -76,10 +76,4 @@ def test_known_console_side_limits_are_in_the_tool_descriptions():
     assert "HTTP 500" in _description("list_ptz_presets")
     doors = _description("list_innerspace_doors")
     assert "HTTP 502" in doors and "UniFi Access app" in doors
-    for name in (
-        "list_traffic_rules",
-        "create_traffic_rule",
-        "update_traffic_rule",
-        "delete_traffic_rule",
-    ):
-        assert "HTTP 501" in _description(name), name
+    assert "HTTP 501" in _description("list_traffic_rules")

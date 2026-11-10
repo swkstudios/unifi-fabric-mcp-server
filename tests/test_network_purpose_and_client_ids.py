@@ -26,7 +26,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests._tool_classes import class_axis
 from unifi_fabric import macs
-from unifi_fabric.tools.clients import CLIENT_TYPES
+from unifi_fabric.families.clients.clients import CLIENT_TYPES
 
 SRC = pathlib.Path(macs.__file__).parent
 TOOLS = cti.TOOLS

@@ -40,7 +40,7 @@ from tests._tool_catalog import LazyCatalog, lazy_parametrize
 from tests._tool_classes import tool_batches
 from tests.spec_limits_gen import LOGICAL_PAGINATION_COUNT_ARGS, accept_value
 from unifi_fabric import refusals, server
-from unifi_fabric._spec_limits_table import SPEC_LIMITS
+from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
 
 PACKAGE = Path(server.__file__).resolve().parent
 
@@ -48,7 +48,11 @@ PACKAGE = Path(server.__file__).resolve().parent
 TOOLS = LazyCatalog()
 
 #: Tools with no upstream request at all (their whole answer is local).
-NO_UPSTREAM = {"list_configured_api_keys": "reports the server's own key configuration"}
+NO_UPSTREAM = {
+    "list_configured_api_keys": "reports the server's own key configuration",
+    "get_server_diagnostic_bundle": "local diagnostics; no request unless a probe is asked for",
+    "get_event_stream_status": "reports the recorded stream compatibility and local listeners",
+}
 
 
 def _is_write(tool: Any) -> bool:
@@ -98,6 +102,10 @@ TOOL_SAMPLES: dict[tuple[str, str], Any] = {
     # firmware locations the console is told to fetch: http(s) URLs with a host
     ("upgrade_device", "firmware_url"): "https://firmware.example.invalid/fw.bin",
     ("update_device_battery_settings", "url"): "https://firmware.example.invalid/bat.bin",
+    # a list of event types (list_protect_events takes one type as a string)
+    ("collect_protect_incident_evidence", "types"): ["motion"],
+    # only the read-allowlisted system-log class can be collected (read_post_routes)
+    ("collect_network_incident_evidence", "log_classes"): ["all"],
 }
 
 
@@ -393,30 +401,139 @@ def test_sweep_covers_every_argument_kind():
 
 
 # --------------------------------------------------------------------------- inventory
+#: Reasons shared by the audit-chain, audit-verify and credential-provider raise sites.
+_CHAIN_STARTUP = (
+    "configuration (UNIFI_AUDIT_CHAIN with its key, the JSON format and the file sink); "
+    "Settings refuses the combination first, so this is a startup invariant and never a "
+    "tool call"
+)
+_VERIFY_CLI = (
+    "operator CLI (unifi-fabric-audit-verify): a usage or key-file fault reported on "
+    "stderr with an exit code; never a tool call"
+)
+_PROVIDER_STARTUP = (
+    "startup (UNIFI_API_KEY* file and command providers): a ProviderError names the "
+    "setting, never the content; never a tool call"
+)
+
 #: Raise sites that are not pre-upstream argument refusals: {module.py:qualname: reason}.
 NON_REFUSAL_RAISES: dict[str, str] = {
-    "tools/statistics.py:_list_speedtest_results": (
+    "audit.py:AuditStream._put": _CHAIN_STARTUP,
+    "audit.py:_build_chain": _CHAIN_STARTUP,
+    "audit_verify.py:_Parser.error": _VERIFY_CLI,
+    "audit_verify.py:_anchor": _VERIFY_CLI,
+    "audit_verify.py:cli": _VERIFY_CLI,
+    "audit_verify.py:load_keys": _VERIFY_CLI,
+    "audit_verify.py:main": _VERIFY_CLI,
+    "audit_verify.py:read_key_file": _VERIFY_CLI,
+    "credential_providers.py:_check_conflicts": _PROVIDER_STARTUP,
+    "credential_providers.py:_decode": _PROVIDER_STARTUP,
+    "credential_providers.py:_parse": _PROVIDER_STARTUP,
+    "credential_providers.py:_read_file": _PROVIDER_STARTUP,
+    "credential_providers.py:_run_command": _PROVIDER_STARTUP,
+    "credential_providers.py:parse_command": _PROVIDER_STARTUP,
+    "credential_providers.py:resolve_into": _PROVIDER_STARTUP,
+    "diagnostic_bundle.py:validate_probes": (
+        "defence in depth: the live_probes schema enumerates the probes (Literal), so an "
+        "unknown name is refused by schema validation before this function runs"
+    ),
+    "families/protect/protect.py:_global_alarm_manager_hint": "upstream error re-raised with a hint",
+    "shared_shapes/_incident_document.py:PostStatusTap.post": (
+        "defence in depth behind post_read, which already refuses an unlisted POST; the "
+        "collector reaches the tap only through post_read and validates log_classes first"
+    ),
+    "shared_shapes/_incident_document.py:Window._ordered": (
+        "closed incident-evidence schema invariant on the server's own output document; "
+        "the collectors build it from validated arguments, never from caller input"
+    ),
+    "shared_shapes/_incident_document.py:EventTime._consistent": (
+        "closed incident-evidence schema invariant on the server's own output document; "
+        "the collectors build it from validated arguments, never from caller input"
+    ),
+    "shared_shapes/_incident_document.py:SourceResult._outcome_rules": (
+        "closed incident-evidence schema invariant on the server's own output document; "
+        "the collectors build it from validated arguments, never from caller input"
+    ),
+    "shared_shapes/_incident_document.py:IncidentEvidence._document_rules": (
+        "closed incident-evidence schema invariant on the server's own output document; "
+        "the collectors build it from validated arguments, never from caller input"
+    ),
+    "stream_buffers.py:EventBuffer.__init__": (
+        "programming invariant: the buffer capacity is a server constant, never a tool argument"
+    ),
+    "stream_buffers.py:StreamListener.__init__": (
+        "programming invariant: the reconnect delays are a server constant"
+    ),
+    "stream_buffers.py:StreamManager.attach": (
+        "programming invariant: the tools report an unsupported product before attaching, "
+        "so no tool call reaches this refusal"
+    ),
+    "families/statistics/event_streams.py:read_recent_event_buffer": (
+        "programming invariant: the server registry exists whenever a supported product "
+        "needs host resolution (inside the server lifespan)"
+    ),
+    "families/statistics/statistics.py:_list_speedtest_results": (
         "re-raises an observed upstream archive.speedtest error; only a 403 host-not-found "
         "response gets host-id guidance appended, with status and request_sent preserved"
     ),
-    "tools/site_manager.py:register.query_isp_metrics": (
+    "families/site_manager/site_manager.py:register.query_isp_metrics": (
         "re-raises a selector-resolution failure gathered from the per-key resolvers: an "
         "invalid selector fails the whole call before any metrics request, a partial or "
         "failed listing is scoped to its key, and a cancellation propagates"
     ),
-    "tools/site_manager.py:register.query_isp_metrics._query": (
+    "families/site_manager/site_manager.py:register.query_isp_metrics._query": (
         "re-raises an already-observed host/site selector-resolution failure through the "
         "existing per-key fan-out; selector ValueErrors propagate before metrics requests"
+    ),
+    "fingerprint.py:key_fingerprint": (
+        "programming invariant: internal helper whose length is a code constant (8) at every "
+        "call site; it is never a tool argument and adds no caller-visible refusal"
     ),
     "route_secrets.py:matching": (
         "programming invariant: the internal registry query requires string method/path "
         "values supplied by typed client routes or validated relay routes; this is not "
         "an additional constraint on upstream tool arguments"
     ),
+    "protect_resources.py:ProtectResources.snapshot": (
+        "a snapshot resource read: re-raises the backing get_camera_snapshot error (already "
+        "scrubbed by the tool chain) with the snapshot-index URI appended, or reports a result "
+        "shape or base64 the tool never produces; no argument is judged here"
+    ),
+    "protect_resources.py:ResourceExposureMiddleware._visible": (
+        "resources/list policy-header error: the same invalid_policy_header MCP error the "
+        "tools/list request-policy filter raises, not a tool-argument refusal"
+    ),
+    "protect_resources.py:_records": (
+        "unexpected backing-tool result shape (no record array), raised with the type received"
+    ),
+    "protect_resources.py:_record": (
+        "unexpected upstream record shape in a resource index, raised with describe_shape"
+    ),
+    "protect_resources.py:_object_field": (
+        "unexpected upstream field shape in a resource index, raised with describe_shape"
+    ),
+    "protect_resources.py:summarize": (
+        "unexpected upstream event shape in the event summary, raised with describe_shape"
+    ),
     # configuration and process start (not a tool call)
     "server.py:": "module __main__ entrypoint exits before the tool catalog is imported",
     "audit.py:AuditStream.__post_init__": (
         "configuration (UNIFI_AUDIT_LOG_FORMAT, UNIFI_AUDIT_LEVEL)"
+    ),
+    "audit.py:configure_audit_stream": (
+        "configuration (UNIFI_AUDIT_HMAC_IDENTIFIERS without a key); Settings refuses the "
+        "flag first, so this is a startup invariant and never a tool call"
+    ),
+    "audit_identifiers.py:IdentifierHasher.__init__": (
+        "configuration (UNIFI_AUDIT_HMAC_KEY decoded length); startup, never a tool call"
+    ),
+    "audit_remote.py:RemoteConfig.__post_init__": (
+        "configuration (UNIFI_AUDIT_REMOTE_* numeric and TLS-file settings, named without "
+        "their values); startup, never a tool call"
+    ),
+    "audit_remote.py:check_url": (
+        "configuration (UNIFI_AUDIT_REMOTE_URL shape and plaintext opt-in, named without "
+        "the value); startup, never a tool call"
     ),
     "audit.py:FileSink.write": "audit sink fault: converted to SinkWriteError and handled "
     "fail-open inside AuditStream._write; never reaches a tool call",
@@ -538,30 +655,43 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "registration.py:_check_signature": "catalog registration (import time)",
     "registration.py:_resolve": "catalog registration (import time)",
     "registration.py:validate_catalog": "catalog registration (import time)",
-    "tools/placement_snapshot.py:build_snapshot": "internal caller contract (aware datetime)",
+    "families/innerspace/placement_snapshot.py:build_snapshot": "internal caller contract (aware datetime)",
     "client.py:gather_or_cancel": "re-raise concurrent upstream failure after cancellation",
-    "tools/protect.py:_collector_id": "upstream poll-record identity shape",
-    "tools/_device_config.py:require_classic_success": "failed or malformed upstream Classic read",
-    "tools/device_radios.py:_radio_rows": "upstream radio table shape",
-    "tools/device_radios.py:_radios_by_band": "ambiguous or malformed upstream radio band",
-    "tools/device_radios.py:_validated_changes": "device-reported capability bounds after GET",
-    "tools/device_radios.py:_update_device_radio.read_after": "post-read device identity changed",
-    "tools/network_wifi_radio.py:configure_wifi_wan.read_after": (
+    "families/protect/protect.py:_collector_id": "upstream poll-record identity shape",
+    "families/devices/_device_config.py:require_classic_success": "failed or malformed upstream Classic read",
+    "families/devices/device_radios.py:_radio_rows": "upstream radio table shape",
+    "families/devices/device_radios.py:_radios_by_band": "ambiguous or malformed upstream radio band",
+    "families/devices/device_radios.py:_validated_changes": "device-reported capability bounds after GET",
+    "families/devices/device_radios.py:_update_device_radio.read_after": "post-read device identity changed",
+    "families/devices/switch_port_overrides.py:_update_switch_port_overrides.read_after": (
+        "post-write device identity changed; reported as readAfterError"
+    ),
+    "families/devices/switch_port_overrides.py:_by_port": (
+        "unexpected upstream port_overrides entry shape (no port_idx), raised with describe_shape"
+    ),
+    "families/devices/switch_port_overrides.py:_require_string_id": (
+        "unexpected upstream portconf/networkconf record shape (no string _id), raised with "
+        "describe_shape"
+    ),
+    "families/protect/protect_door_locks.py:list_door_lock_unlock_events": (
+        "re-raises the upstream error of a paged read once GET /locks lists the lock id as given"
+    ),
+    "families/network/network_wifi_radio.py:configure_wifi_wan.read_after": (
         "post-write read-after collection omitted the WAN record"
     ),
-    "tools/network_security_diagnostics.py:_records": "upstream shape",
-    "tools/network_security_diagnostics.py:_update_setting": "upstream setting shape "
+    "families/network/network_security_diagnostics.py:_records": "upstream shape",
+    "families/network/network_security_diagnostics.py:_update_setting": "upstream setting shape "
     "(read-before answered a non-object; no write was sent)",
-    "tools/network_security_diagnostics.py:get_unified_ip_thread_topology": "every "
+    "families/network/network_security_diagnostics.py:get_unified_ip_thread_topology": "every "
     "topology source failed upstream (the first failure is re-raised)",
-    "tools/network_proav_sandbox.py:get_port_forward_statistics": (
+    "families/network/network_proav_sandbox.py:get_port_forward_statistics": (
         "upstream Classic stat/portforward without meta.rc ok"
     ),
-    "tools/network_dpi_policy.py:_collection_record": "upstream v2 collection shape",
-    "tools/network_dpi_policy.py:_v2_rows": "upstream v2 collection shape",
-    "tools/network_dpi_policy.py:_batch_delete_firewall_policies": "upstream DELETE error",
-    "tools/network_dpi_policy.py:_official_record": "upstream Integration object shape",
-    "tools/protect_ptz_doorbell.py:_verified_update._read": (
+    "families/network/network_dpi_policy.py:_collection_record": "upstream v2 collection shape",
+    "families/network/network_dpi_policy.py:_v2_rows": "upstream v2 collection shape",
+    "families/network/network_dpi_policy.py:_batch_delete_firewall_policies": "upstream DELETE error",
+    "families/network/network_dpi_policy.py:_official_record": "upstream Integration object shape",
+    "families/protect/protect_ptz_doorbell.py:_verified_update._read": (
         "post-write read-after did not locate the updated record (reported, never raised)"
     ),
     # upstream responses the tool cannot read (raised after the request, naming it)
@@ -575,121 +705,114 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "client.py:UniFiClient.paginate_offset": "upstream shape / paging protocol failure",
     "client.py:UniFiClient.paginate_links": "upstream shape / paging protocol failure",
     "registry.py:ea_site_labels": "upstream site meta of the wrong type",
-    "tools/_pagination.py:_page_items": "upstream page of the wrong shape",
-    "tools/_device_wrappers.py:wrapper_devices": "upstream wrapper of the wrong shape",
-    "tools/_classic_objects.py:consumed_string_array": "upstream array shape",
-    "tools/_classic_objects.py:_classic_data": "upstream Classic envelope of the wrong shape",
-    "tools/aggregation.py:_count_key": "upstream field of the wrong type",
-    "tools/aggregation.py:_unwrap_ea_devices": "upstream wrapper of the wrong shape",
-    "tools/carrier_fabric.py:_unwrap_data_obj": "upstream envelope of the wrong shape",
-    "tools/carrier_fabric.py:_paginate_cursor": "upstream paging protocol failure",
-    "tools/carrier_fabric.py:list_carrier_service_plans._fetch": "upstream shape",
-    "tools/carrier_fabric.py:list_carrier_subscribers._page": "upstream shape",
-    "tools/hotspot.py:_list_hotspot_operators": "upstream shape",
-    "tools/innerspace.py:_extract_list": "upstream shape",
-    "tools/innerspace.py:_require_objects": "upstream shape",
-    "tools/innerspace.py:_validated_project": "upstream shape",
-    "tools/innerspace.py:_fetch_project_document": "upstream shape / both paths failed",
-    "tools/innerspace.py:get_innerspace_project": "upstream shape (legacy project route)",
-    "tools/innerspace_internal.py:_project_plans": "upstream shape",
-    "tools/mobility.py:_device_from_body": "upstream shape",
-    "tools/matter.py:_list": "upstream shape",
-    "tools/matter.py:commission_matter_node": "internal caller contract (SecretStr setup code)",
-    "tools/matter.py:rename_matter_node": "internal caller contract (str name)",
-    "tools/mobility.py:_extract_list": "upstream shape",
-    "tools/network.py:list_wan_interfaces": "upstream shape",
-    "tools/network_services_proxy.py:_classic_records": "upstream shape",
-    "tools/network_services_proxy.py:_setting_state": "upstream shape",
-    "tools/protect.py:_as_list": "upstream shape",
-    "tools/protect.py:_require_object": "upstream shape",
-    "tools/site_manager.py:_object_body": "upstream shape",
-    "tools/site_manager.py:isp_metric_records": "upstream shape",
-    "tools/site_manager.py:search_across_sites._search_site": "upstream field of the wrong type",
-    "tools/site_config.py:_config_rows": "upstream shape",
-    "tools/statistics.py:_stat_records": "upstream shape",
-    "tools/_pagination.py:collect_batch": "upstream page shape / pagination protocol",
-    "tools/_pagination.py:PageSizeBatch.observe": "upstream page-size metadata shape",
+    "shared_shapes/_pagination.py:_page_items": "upstream page of the wrong shape",
+    "shared_shapes/_device_wrappers.py:wrapper_devices": "upstream wrapper of the wrong shape",
+    "shared_shapes/_classic_objects.py:consumed_string_array": "upstream array shape",
+    "shared_shapes/_classic_objects.py:_classic_data": "upstream Classic envelope of the wrong shape",
+    "families/site_manager/aggregation.py:_count_key": "upstream field of the wrong type",
+    "families/site_manager/aggregation.py:_unwrap_ea_devices": "upstream wrapper of the wrong shape",
+    "families/carrier/carrier_fabric.py:_unwrap_data_obj": "upstream envelope of the wrong shape",
+    "families/carrier/carrier_fabric.py:_paginate_cursor": "upstream paging protocol failure",
+    "families/carrier/carrier_fabric.py:list_carrier_service_plans._fetch": "upstream shape",
+    "families/carrier/carrier_fabric.py:list_carrier_subscribers._page": "upstream shape",
+    "families/hotspot/hotspot.py:_list_hotspot_operators": "upstream shape",
+    "families/innerspace/innerspace.py:_extract_list": "upstream shape",
+    "families/innerspace/innerspace.py:_require_objects": "upstream shape",
+    "families/innerspace/innerspace.py:_validated_project": "upstream shape",
+    "families/innerspace/innerspace.py:_fetch_project_document": "upstream shape / both paths failed",
+    "families/innerspace/innerspace.py:get_innerspace_project": "upstream shape (legacy project route)",
+    "families/innerspace/innerspace_internal.py:_project_plans": "upstream shape",
+    "families/mobility/mobility.py:_device_from_body": "upstream shape",
+    "families/network/matter.py:_list": "upstream shape",
+    "families/network/matter.py:commission_matter_node": "internal caller contract (SecretStr setup code)",
+    "families/network/matter.py:rename_matter_node": "internal caller contract (str name)",
+    "families/mobility/mobility.py:_extract_list": "upstream shape",
+    "families/network/network.py:list_wan_interfaces": "upstream shape",
+    "families/network/network_services_proxy.py:_classic_records": "upstream shape",
+    "families/network/network_services_proxy.py:_setting_state": "upstream shape",
+    "families/protect/protect.py:_as_list": "upstream shape",
+    "families/protect/protect.py:_require_object": "upstream shape",
+    "families/site_manager/site_manager.py:_object_body": "upstream shape",
+    "families/site_manager/site_manager.py:isp_metric_records": "upstream shape",
+    "families/site_manager/site_manager.py:search_across_sites._search_site": "upstream field of the wrong type",
+    "families/network/site_config.py:_config_rows": "upstream shape",
+    "families/statistics/statistics.py:_stat_records": "upstream shape",
+    "shared_shapes/_pagination.py:collect_batch": "upstream page shape / pagination protocol",
+    "shared_shapes/_pagination.py:PageSizeBatch.observe": "upstream page-size metadata shape",
     # upstream errors re-raised (with a hint appended) or aggregated
     "client.py:UniFiClient._request": "transport / HTTP errors of the request it sent (its "
     "pre-send refusals are registered: unsafe-api-path, empty-update)",
-    "tools/_keys.py:fan_out_scopes": "every API key failed upstream",
-    "tools/_keys.py:first_success": "no API key could serve the request",
-    "tools/aggregation.py:_fleet_devices": "every API key failed upstream",
-    "tools/aggregation.py:_fleet_summary": "every API key failed upstream",
-    "tools/aggregation.py:_list_all_clients_fleet": "every key / site failed upstream",
-    "tools/site_manager.py:_aggregate_lists_over_keys": "every API key failed upstream",
-    "tools/site_manager.py:compare_site_performance": "every site failed upstream",
-    "tools/site_manager.py:search_across_sites": "no site could be searched upstream",
-    "tools/innerspace.py:_fetch_integration_list": "upstream error re-raised with context",
-    "tools/innerspace.py:get_innerspace_asset": "upstream error re-raised with context",
-    "tools/device_mgmt.py:_call_with_device_id": "upstream error re-raised",
-    "tools/device_mgmt.py:_device_mac": "upstream device without a MAC",
-    "tools/_classic_objects.py:_object_rows": "upstream shape",
+    "shared_shapes/_keys.py:fan_out_scopes": "every API key failed upstream",
+    "shared_shapes/_keys.py:first_success": "no API key could serve the request",
+    "families/site_manager/aggregation.py:_fleet_devices": "every API key failed upstream",
+    "families/site_manager/aggregation.py:_fleet_summary": "every API key failed upstream",
+    "families/site_manager/aggregation.py:_list_all_clients_fleet": "every key / site failed upstream",
+    "families/site_manager/site_manager.py:_aggregate_lists_over_keys": "every API key failed upstream",
+    "families/site_manager/site_manager.py:compare_site_performance": "every site failed upstream",
+    "families/site_manager/site_manager.py:search_across_sites": "no site could be searched upstream",
+    "families/innerspace/innerspace.py:_fetch_integration_list": "upstream error re-raised with context",
+    "families/innerspace/innerspace.py:get_innerspace_asset": "upstream error re-raised with context",
+    "families/devices/device_mgmt.py:_call_with_device_id": "upstream error re-raised",
+    "families/devices/device_mgmt.py:_device_mac": "upstream device without a MAC",
+    "shared_shapes/_classic_objects.py:_object_rows": "upstream shape",
     "registry.py:_require_native_id": "upstream record without a native id",
-    "tools/_classic_objects.py:listed_record_id": "upstream record without a valid native _id",
-    "tools/site_manager.py:_unique_proxy_sites": "upstream console site without a native id",
-    "tools/clients.py:_stamgr_mac": "upstream client without a MAC",
-    "tools/protect.py:collect_protect_events": "a failing first poll re-raises its error",
-    "tools/protect.py:list_protect_events": "upstream error re-raised with a host hint",
-    "tools/network.py:create_wifi_broadcast": "upstream SSID-limit error re-raised with a hint",
-    "tools/network_services_proxy.py:create_traffic_rule": (
-        "upstream error re-raised with a hint; a 501 api.err.NotImplemented names the "
-        "supported rule families"
-    ),
-    "tools/network_dpi_policy.py:update_predefined_firewall_policy": (
+    "shared_shapes/_classic_objects.py:listed_record_id": "upstream record without a valid native _id",
+    "families/site_manager/site_manager.py:_unique_proxy_sites": "upstream console site without a native id",
+    "families/clients/clients.py:_stamgr_mac": "upstream client without a MAC",
+    "families/protect/protect.py:collect_protect_events": "a failing first poll re-raises its error",
+    "families/protect/protect.py:list_protect_events": "upstream error re-raised with a host hint",
+    "families/network/network.py:create_wifi_broadcast": "upstream SSID-limit error re-raised with a hint",
+    "families/network/network_dpi_policy.py:update_predefined_firewall_policy": (
         "upstream system-defined-policy refusal re-raised with a patch_firewall_policy hint"
     ),
-    "tools/protect.py:_poll_device_snapshot": "upstream error re-raised with a host hint",
-    "tools/recognition.py:list_recognition_groups": "upstream error with a host hint",
-    "tools/recognition.py:get_recognition_group_counts": "upstream error with a host hint",
-    "tools/recognition.py:get_recognition_group_image": "upstream error with a host hint",
-    "tools/recognition.py:list_recognition_detections": "upstream error with a host hint",
-    "tools/recognition.py:get_thumbnail": "upstream error with a host hint",
-    "tools/statistics.py:_list_known_clients": "upstream error with a host hint",
-    "tools/_payload.py:with_upstream_hint": "re-raises an upstream error with a hint appended",
-    "tools/_results.py:deletion_readback_ids": (
+    "families/protect/protect.py:_poll_device_snapshot": "upstream error re-raised with a host hint",
+    "families/protect/recognition.py:list_recognition_groups": "upstream error with a host hint",
+    "families/protect/recognition.py:get_recognition_group_counts": "upstream error with a host hint",
+    "families/protect/recognition.py:get_recognition_group_image": "upstream error with a host hint",
+    "families/protect/recognition.py:list_recognition_detections": "upstream error with a host hint",
+    "families/protect/recognition.py:get_thumbnail": "upstream error with a host hint",
+    "families/statistics/statistics.py:_list_known_clients": "upstream error with a host hint",
+    "shared_shapes/_payload.py:with_upstream_hint": "re-raises an upstream error with a hint appended",
+    "shared_shapes/_results.py:deletion_readback_ids": (
         "post-write readback contains a row without a usable identity; deletion remains unverified"
     ),
-    "tools/network_dpi_policy.py:preview_policy_engine_rule": (
+    "families/network/network_dpi_policy.py:preview_policy_engine_rule": (
         "re-raises an upstream HTTP 405 after POST with controller-version guidance"
     ),
-    "tools/device_commands.py:export_site": (
+    "families/devices/device_commands.py:export_site": (
         "re-raises the upstream error; Network's 400 api.err.BackupFailed gets a hint appended"
     ),
-    "tools/protect_camera_recording.py:get_camera_adoption_qr": (
-        "re-raises the upstream error; Protect 7.3's 404 for camera id 'qr' gets a hint appended"
-    ),
-    "tools/network_proav_sandbox.py:get_5g_topology": "re-raises the upstream error; an "
+    "families/network/network_proav_sandbox.py:get_5g_topology": "re-raises the upstream error; an "
     "HTTP 404 gets a hint appended",
-    "tools/connector.py:connector_write": "a relayed mutation answered 429 is not retried "
+    "families/connector/connector.py:connector_write": "a relayed mutation answered 429 is not retried "
     "(its pre-send method check is registered: relay-path)",
-    "tools/protect.py:update_arm_profile._read": "read-after lookup after the write: a "
+    "families/protect/protect.py:update_arm_profile._read": "read-after lookup after the write: a "
     "missing profile is captured as readAfterError by safe_read_after",
-    "tools/protect_private.py:_update": "read-before response of the wrong shape (raised "
+    "families/protect/protect_private.py:_update": "read-before response of the wrong shape (raised "
     "after the GET, naming it)",
-    "tools/protect_private.py:_action": "upstream transport error of the action it sent, "
+    "families/protect/protect_private.py:_action": "upstream transport error of the action it sent, "
     "re-raised as outcome unknown",
     "redaction.py:install_response_redaction": "server construction: UNIFI_REDACT_SECRETS "
     "is on but no tool handler could be wrapped; fails closed, never a tool call",
-    "tools/innerspace_internal.py:get_innerspace_ucore_manifest": "upstream 403 re-raised "
+    "families/innerspace/innerspace_internal.py:get_innerspace_ucore_manifest": "upstream 403 re-raised "
     "with a permission hint",
-    "tools/innerspace_internal.py:list_innerspace_doors": "upstream 502 re-raised with a "
+    "families/innerspace/innerspace_internal.py:list_innerspace_doors": "upstream 502 re-raised with a "
     "UniFi Access hint",
-    "tools/network_device_operations.py:get_device_adoption_info": "upstream 404 re-raised "
+    "families/network/network_device_operations.py:get_device_adoption_info": "upstream 404 re-raised "
     "with a pending-adoption hint",
-    "tools/network_device_operations.py:recover_switch_port": "upstream "
+    "families/network/network_device_operations.py:recover_switch_port": "upstream "
     "api.err.InvalidTargetPort re-raised with a recoverable-state hint",
-    "tools/network_nat_qos_traffic.py:get_poe_info": "upstream 400 re-raised with a hint",
-    "tools/network_nat_qos_traffic.py:get_traffic_stats": "upstream 400 re-raised with a hint",
-    "tools/network_vpn_dns.py:delete_wireguard_users.read_after": "post-write read-after "
+    "families/network/network_nat_qos_traffic.py:get_poe_info": "upstream 400 re-raised with a hint",
+    "families/network/network_nat_qos_traffic.py:get_traffic_stats": "upstream 400 re-raised with a hint",
+    "families/vpn/network_vpn_dns.py:delete_wireguard_users.read_after": "post-write read-after "
     "list of the wrong shape (raised after the GET, naming it)",
-    "tools/network_vpn_dns.py:get_openvpn_client_config": "upstream 404 re-raised with a hint",
-    "tools/network_wifi_radio.py:get_wifi_quick_scan_status": "upstream 400 re-raised with a hint",
-    "tools/protect_automation_backup.py:_get_cloud_archive_status": "upstream 500 re-raised "
+    "families/vpn/network_vpn_dns.py:get_openvpn_client_config": "upstream 404 re-raised with a hint",
+    "families/network/network_wifi_radio.py:get_wifi_quick_scan_status": "upstream 400 re-raised with a hint",
+    "families/protect/protect_automation_backup.py:_get_cloud_archive_status": "upstream 500 re-raised "
     "with a hint",
-    "tools/protect_automation_backup.py:_import_unifi_video_cameras": "upstream 500 re-raised "
+    "families/protect/protect_automation_backup.py:_import_unifi_video_cameras": "upstream 500 re-raised "
     "with a hint",
-    "tools/protect_recognition_search.py:_search_detections": "upstream 404 searchHost "
+    "families/protect/protect_recognition_search.py:_search_detections": "upstream 404 searchHost "
     "re-raised with a hint",
 }
 
@@ -1004,14 +1127,14 @@ def test_fix_batch_refusals_are_registered_under_their_category(message, expecte
 def test_fix_batch_raise_sites_are_registered():
     sites = refusals.registered_sites()
     for site in (
-        "tools/network_device_operations.py:update_device_battery_settings",
-        "tools/network_proav_sandbox.py:get_multicast_insights",
-        "tools/protect.py:_validate_collector_limit",
-        "tools/protect_private.py:reboot_protect_device",
-        "tools/protect_private.py:adopt_protect_device",
-        "tools/protect_private.py:unadopt_protect_device",
-        "tools/protect_ptz_doorbell.py:_validate_shortcut_element",
-        "tools/carrier_fabric.py:update_carrier_subscriber",
+        "families/network/network_device_operations.py:update_device_battery_settings",
+        "families/network/network_proav_sandbox.py:get_multicast_insights",
+        "families/protect/protect.py:_validate_collector_limit",
+        "families/protect/protect_private.py:reboot_protect_device",
+        "families/protect/protect_private.py:adopt_protect_device",
+        "families/protect/protect_private.py:unadopt_protect_device",
+        "families/protect/protect_ptz_doorbell.py:_validate_shortcut_element",
+        "families/carrier/carrier_fabric.py:update_carrier_subscriber",
     ):
         assert site in sites, site
 
@@ -1050,6 +1173,6 @@ def test_retired_collector_window_is_not_registered_as_a_current_control():
 def test_legacy_reset_compatibility_calls_have_no_refusal_entry(message):
     assert refusals.classify(message) is None
     assert (
-        "tools/network_device_operations.py:register.reset_switch_port"
+        "families/network/network_device_operations.py:register.reset_switch_port"
         not in refusals.registered_sites()
     )

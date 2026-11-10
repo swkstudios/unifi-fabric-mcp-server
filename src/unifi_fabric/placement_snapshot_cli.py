@@ -20,13 +20,13 @@ from pydantic_settings import SettingsError
 
 from .client import UniFiClient
 from .config import Settings
-from .registry import Registry
-from .secret_scrub import configured_secrets, install_log_scrubber, scrub
-from .tools.innerspace import exception_message
-from .tools.placement_snapshot import (
+from .families.innerspace.innerspace import exception_message
+from .families.innerspace.placement_snapshot import (
     get_unifi_placement_snapshot,
     preflight_placement_snapshot_capabilities,
 )
+from .registry import Registry
+from .secret_scrub import configured_secrets, install_log_scrubber, scrub
 
 
 async def export_snapshot(host: str) -> dict[str, Any]:
@@ -86,7 +86,9 @@ def _settings_with_keys(what: str) -> Settings:
     if not settings.get_key_configs():
         raise SnapshotConfigError(
             f"placement snapshot {what} requires an API key: set UNIFI_API_KEY, or "
-            'UNIFI_API_KEYS to a JSON list of {"key": ..., "label": ...} objects'
+            'UNIFI_API_KEYS to a JSON list of {"key": ..., "label": ...} objects, or point '
+            "UNIFI_API_KEY_FILE / UNIFI_API_KEY_COMMAND (UNIFI_API_KEYS_FILE / "
+            "UNIFI_API_KEYS_COMMAND for the list) at where the key is kept"
         )
     return settings
 

@@ -25,7 +25,7 @@ from unifi_fabric import server
 from unifi_fabric._read_only_audit import derive_write_tools
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, UniFiHTTPError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import network_dpi_policy as lane
+from unifi_fabric.families.network import network_dpi_policy as lane
 
 
 @pytest.fixture(autouse=True)

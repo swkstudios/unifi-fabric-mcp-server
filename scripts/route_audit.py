@@ -20,12 +20,14 @@ from fastmcp import FastMCP
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from unifi_fabric.config import Settings  # noqa: E402
-from unifi_fabric.tools import aggregation  # noqa: E402
-from unifi_fabric.tools.innerspace_internal import get_innerspace_stats  # noqa: E402
-from unifi_fabric.tools.network import get_network_application_info  # noqa: E402
-from unifi_fabric.tools.site_manager import get_host  # noqa: E402
+from unifi_fabric.families.innerspace.innerspace_internal import get_innerspace_stats  # noqa: E402
+from unifi_fabric.families.network.network import get_network_application_info  # noqa: E402
+from unifi_fabric.families.site_manager import aggregation  # noqa: E402
+from unifi_fabric.families.site_manager.site_manager import get_host  # noqa: E402
 
-MANIFEST = Path(__file__).resolve().parents[1] / "src/unifi_fabric/route_manifest.json"
+MANIFEST = (
+    Path(__file__).resolve().parents[1] / "src/unifi_fabric/generated_api_facts/route_manifest.json"
+)
 # Signature of the Ubiquiti cloud connector refusal of console-internal routes.
 CONNECTOR_REFUSAL_SIGNATURE = "the Connector reaches each application's public integration API"
 CANARIES = {

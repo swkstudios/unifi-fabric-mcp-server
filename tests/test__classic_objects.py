@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools._classic_objects import _classic_data, of_purpose
+from unifi_fabric.shared_shapes._classic_objects import _classic_data, of_purpose
 
 RECORDS = [
     {"_id": "a", "purpose": "vpn-client", "name": "first"},
@@ -51,7 +51,7 @@ def test_classic_data_requires_object_rows():
 def test_upstream_error_credential_fields_use_shared_formatter():
     from unifi_fabric.client import UniFiConnectionError
     from unifi_fabric.redaction import write_redaction_scope
-    from unifi_fabric.tools._classic_objects import checked_classic_response
+    from unifi_fabric.shared_shapes._classic_objects import checked_classic_response
 
     body = {"meta": {"rc": "error"}, "password": "CLASSIC_SHAPE_SENTINEL"}
     with write_redaction_scope(True), pytest.raises(UniFiConnectionError) as exc:

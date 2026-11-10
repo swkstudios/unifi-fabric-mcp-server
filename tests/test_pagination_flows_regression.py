@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from unifi_fabric.tools import network_nat_qos_traffic as flows
+from unifi_fabric.families.network import network_nat_qos_traffic as flows
 
 
 class FlowPages:

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools.device_mgmt import _restart_device, _upgrade_device
+from unifi_fabric.families.devices.device_mgmt import _restart_device, _upgrade_device
 
 
 @pytest.fixture

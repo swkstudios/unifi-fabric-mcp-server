@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import device_mgmt as dm
-from unifi_fabric.tools import network_services_proxy as ns
+from unifi_fabric.families.devices import device_mgmt as dm
+from unifi_fabric.families.network import network_services_proxy as ns
 
 BAD_ARRAYS = ["abc", None, {}, 7, [None], [7], [True], [{}], [[]]]
 
@@ -118,7 +118,7 @@ async def test_created_network_bad_exclusions_report_read_after_error(excluded):
 
 
 def test_valid_tag_member_arrays_normalize_macs_without_coercion():
-    from unifi_fabric.tools._classic_objects import device_tag_update_body
+    from unifi_fabric.shared_shapes._classic_objects import device_tag_update_body
 
     assert device_tag_update_body(
         {"member_device_macs": ["AA-BB-CC-DD-EE-FF"]},

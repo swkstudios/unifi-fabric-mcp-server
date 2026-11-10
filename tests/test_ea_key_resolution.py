@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from unifi_fabric.tools.site_manager import _resolve_ea_site_record
+from unifi_fabric.families.site_manager.site_manager import _resolve_ea_site_record
 
 
 def registry_for(rows):

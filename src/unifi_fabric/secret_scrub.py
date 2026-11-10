@@ -82,7 +82,6 @@ field of a response is masked only by the opt-in ``UNIFI_REDACT_SECRETS`` (see
 from __future__ import annotations
 
 import base64
-import hashlib
 import html
 import json
 import logging
@@ -103,6 +102,9 @@ from itertools import chain, repeat, starmap
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote, quote_plus
 
+from . import fingerprint as _fingerprint
+from .credential_providers import resolved_secret_values
+
 if TYPE_CHECKING:
     from .config import MCPTransportSettings, Settings
 
@@ -112,6 +114,7 @@ MASK = "***"
 SECRET_ENV_VARS = (
     "UNIFI_API_KEY",
     "UNIFI_AUDIT_HMAC_KEY",
+    "UNIFI_AUDIT_CHAIN_KEY",
     "MCP_BEARER_TOKEN",
     "MCP_TLS_KEY_PASSWORD",
 )
@@ -127,6 +130,8 @@ _PERCENT_HEX = re.compile(r"%[0-9A-F]{2}")
 
 def _env_secrets() -> list[str]:
     values = [os.environ.get(name, "") for name in SECRET_ENV_VARS]
+    # Keys read from UNIFI_API_KEY(S)_FILE / _COMMAND at startup are configured secrets too.
+    values.extend(resolved_secret_values())
     raw = os.environ.get(KEYS_ENV_VAR, "")
     if raw.strip():
         try:
@@ -293,6 +298,8 @@ def configured_secrets(
         values.extend(cfg.key for cfg in settings.api_keys)
         if settings.audit_hmac_key is not None:
             values.append(settings.audit_hmac_key.get_secret_value())
+        if settings.audit_chain_key is not None:
+            values.append(settings.audit_chain_key.get_secret_value())
     if transport is not None:
         values.extend((transport.bearer_token, transport.tls_key_password))
     values.extend(extra)
@@ -701,7 +708,14 @@ def _child_breaks(size: int, parent: _Breaks, units: _Units) -> _Breaks:
     """The breaks of a layer of a view of ``size`` characters (breaks ``parent``) that
     decodes ``units`` (token start, end, characters; in order): a copied character
     keeps its span, a decoded one spans its whole token, a token decoding to nothing
-    leaves no character."""
+    leaves no character.
+
+    The loops are separate, short functions on purpose: for every allocation it
+    traces, tracemalloc (CPython 3.12) looks up the line of the running Python frame by
+    scanning that frame's line table from the start of its code object, so each
+    allocation costs time in proportion to how far into its function it happens. The
+    allocation-heavy code of a layer therefore starts its own code object. Same
+    searches, same appends, same order: the breaks are unchanged."""
     p_at, p_starts, p_ends = parent
     at: array[int] | list[int]
     starts: array[int] | list[int]
@@ -711,70 +725,68 @@ def _child_breaks(size: int, parent: _Breaks, units: _Units) -> _Breaks:
         at, starts, ends = array(code), array(code), array(code)
     else:
         at, starts, ends = [], [], []
-    count = len(p_at)
-    if not count:
-        # The parent maps every character to itself (the raw view): a decoded character
-        # spans its token; a copied one breaks only right after a token that decoded to
-        # nothing (it does not start where the character before it ends).
-        child = 0
-        previous = 0
-        pos = 0
-        for token_start, token_end, char in units:
-            child += token_start - pos
-            if token_start > pos and pos != previous:
-                at.append(child - (token_start - pos))
-                starts.append(pos)
-                ends.append(pos + 1)
-            for _ in char:
-                at.append(child)
-                starts.append(token_start)
-                ends.append(token_end)
-                child += 1
-            previous = token_end if char else (previous if token_start == pos else token_start)
-            pos = token_end
-        if size > pos and pos != previous:
-            at.append(child)
+    if not len(p_at):
+        return _raw_child_breaks(size, units, at, starts, ends)
+    return _mapped_child_breaks(size, parent, units, at, starts, ends)
+
+
+def _raw_child_breaks(
+    size: int,
+    units: _Units,
+    at: array[int] | list[int],
+    starts: array[int] | list[int],
+    ends: array[int] | list[int],
+) -> _Breaks:
+    """:func:`_child_breaks` when the parent maps every character to itself (the raw
+    view): a decoded character spans its token; a copied one breaks only right after a
+    token that decoded to nothing (it does not start where the character before it
+    ends). ``at``, ``starts`` and ``ends`` are empty and receive the breaks."""
+    child = 0
+    previous = 0
+    pos = 0
+    for token_start, token_end, char in units:
+        child += token_start - pos
+        if token_start > pos and pos != previous:
+            at.append(child - (token_start - pos))
             starts.append(pos)
             ends.append(pos + 1)
-        return at, starts, ends
-    previous = child = pos = k = 0
-    # Source spans of parent characters, as _Closure.source, inlined: the queried
-    # positions only grow, so each search gallops up from the last break found
-    # (``low``), and the whole layer reads each parent break a bounded number of times.
-    low = 0
+        for _ in char:
+            at.append(child)
+            starts.append(token_start)
+            ends.append(token_end)
+            child += 1
+        previous = token_end if char else (previous if token_start == pos else token_start)
+        pos = token_end
+    if size > pos and pos != previous:
+        at.append(child)
+        starts.append(pos)
+        ends.append(pos + 1)
+    return at, starts, ends
+
+
+def _mapped_child_breaks(
+    size: int,
+    parent: _Breaks,
+    units: _Units,
+    at: array[int] | list[int],
+    starts: array[int] | list[int],
+    ends: array[int] | list[int],
+) -> _Breaks:
+    """:func:`_child_breaks` when the parent has breaks. ``at``, ``starts`` and
+    ``ends`` are empty and receive the breaks.
+
+    Source spans of parent characters, as _Closure.source, inlined: the queried
+    positions only grow, so each search gallops up from the last break found
+    (``low``), and the whole layer reads each parent break a bounded number of times.
+    The copied characters before a token are :func:`_copied_breaks`, so the per-token
+    code stays near the start of this code object."""
+    p_at, p_starts, p_ends = parent
+    previous = child = pos = k = low = 0
     for token_start, token_end, char in chain(units, ((size, size, ""),)):
         if token_start > pos:  # characters [pos, token_start) are copied
-            j = _forward(bisect_right, p_at, pos, low) - 1
-            if j < 0:
-                start, end = pos, pos + 1
-            else:
-                low = j
-                offset = pos - p_at[j]
-                if offset:
-                    end = p_ends[j] + offset
-                    start = end - 1
-                else:
-                    start, end = p_starts[j], p_ends[j]
-            if start != previous or end != start + 1:
-                at.append(child)
-                starts.append(start)
-                ends.append(end)
-            # The parent's breaks after ``pos`` and before the token, shifted.
-            k = _forward(bisect_right, p_at, pos, k)
-            stop = _forward(bisect_left, p_at, token_start, k)
-            if stop > k:
-                shift = child - pos
-                at.extend([value + shift for value in p_at[k:stop]])
-                starts.extend(p_starts[k:stop])
-                ends.extend(p_ends[k:stop])
-                k = stop
-            last = token_start - 1
-            j = _forward(bisect_right, p_at, last, low) - 1
-            if j < 0:
-                previous = last + 1
-            else:
-                low = j
-                previous = p_ends[j] + last - p_at[j]
+            previous, low, k = _copied_breaks(
+                parent, at, starts, ends, child, pos, token_start, previous, low, k
+            )
             child += token_start - pos
         if token_start == size:
             break
@@ -801,6 +813,63 @@ def _child_breaks(size: int, parent: _Breaks, units: _Units) -> _Breaks:
             previous = end
         pos = token_end
     return at, starts, ends
+
+
+def _copied_breaks(
+    parent: _Breaks,
+    at: array[int] | list[int],
+    starts: array[int] | list[int],
+    ends: array[int] | list[int],
+    child: int,
+    pos: int,
+    token_start: int,
+    previous: int,
+    low: int,
+    k: int,
+) -> tuple[int, int, int]:
+    """The breaks of the copied characters ``[pos, token_start)`` of a parent view
+    (breaks ``parent``), the first at child position ``child``, appended to ``at``,
+    ``starts`` and ``ends``. ``previous`` is where the child character before ends;
+    ``low`` and ``k`` are the gallop starts of :func:`_mapped_child_breaks`. Returns
+    the new ``previous``, ``low`` and ``k``."""
+    p_at, p_starts, p_ends = parent
+    j = _forward(bisect_right, p_at, pos, low) - 1
+    if j < 0:
+        start, end = pos, pos + 1
+    else:
+        low = j
+        offset = pos - p_at[j]
+        if offset:
+            end = p_ends[j] + offset
+            start = end - 1
+        else:
+            start, end = p_starts[j], p_ends[j]
+    if start != previous or end != start + 1:
+        at.append(child)
+        starts.append(start)
+        ends.append(end)
+    # The parent's breaks after ``pos`` and before the token, shifted.
+    k = _forward(bisect_right, p_at, pos, k)
+    stop = _forward(bisect_left, p_at, token_start, k)
+    if stop > k:
+        _extend_shifted(at, p_at[k:stop], child - pos)
+        starts.extend(p_starts[k:stop])
+        ends.extend(p_ends[k:stop])
+        k = stop
+    last = token_start - 1
+    j = _forward(bisect_right, p_at, last, low) - 1
+    if j < 0:
+        previous = last + 1
+    else:
+        low = j
+        previous = p_ends[j] + last - p_at[j]
+    return previous, low, k
+
+
+def _extend_shifted(at: array[int] | list[int], values: array[int] | list[int], shift: int) -> None:
+    """Append each of ``values`` plus ``shift`` to ``at``. A function of its own so the
+    per-break allocations sit at the start of a code object (see :func:`_child_breaks`)."""
+    at.extend([value + shift for value in values])
 
 
 class _Closure:
@@ -1558,14 +1627,13 @@ def _scrub_rounds(view: str, values: tuple[str, ...], as_bytes: bool) -> tuple[s
 # line; an exception's text when its chain is checked and again when its stand-in is
 # built; a response body by contains_secret, then by scrub_bytes. Each is a full decode
 # of the text (on a large escape-dense error body, most of the scrubbing time), so the
-# outcome of scrubbing a large text is remembered by a per-process keyed BLAKE2b digest --
+# outcome of scrubbing a large text is remembered by a per-process keyed (HMAC-SHA256) digest --
 # never the text itself, which may hold a secret -- with the configured secrets (already
 # held by the form caches above) and the str/bytes mode: whether it holds a secret, and
 # its scrubbed result (what the caller is returned anyway, never the input). A result
 # that is a fixed point is remembered as clean too, so scrubbing it again is free.
 # Bounded in entries and in the characters of the results kept.
 #: Shorter texts are scrubbed again rather than hashed (their decode costs less).
-_MEMO_HASH_KEY = os.urandom(32)
 _MEMO_MIN_CHARS = 4096
 _MEMO_MAX_ENTRIES = 64
 _MEMO_MAX_CHARS = 4_000_000
@@ -1578,9 +1646,7 @@ _memo_lock = threading.Lock()
 
 
 def _memo_key(view: str, values: tuple[str, ...], as_bytes: bool) -> _MemoKey:
-    digest = hashlib.blake2b(
-        view.encode("utf-8", "surrogatepass"), key=_MEMO_HASH_KEY, digest_size=32
-    ).digest()
+    digest = _fingerprint.key_digest_bytes(view)
     return values, as_bytes, digest
 
 

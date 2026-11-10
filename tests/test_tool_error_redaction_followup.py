@@ -4,8 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unifi_fabric.families.clients import client_records, clients
+from unifi_fabric.families.network import matter
 from unifi_fabric.redaction import write_redaction_scope
-from unifi_fabric.tools import client_records, clients, matter
 
 
 @pytest.mark.parametrize(
@@ -30,7 +31,7 @@ async def test_matter_missing_node_redacts_nested_upstream_values():
 
 
 async def test_relay_read_error_redacts_nested_credentials():
-    from unifi_fabric.tools.connector import _safe_get
+    from unifi_fabric.families.connector.connector import _safe_get
 
     client = AsyncMock()
     client.request.side_effect = ValueError('{"password": "SYNTHETIC_SECRET"}')
@@ -42,7 +43,7 @@ async def test_relay_read_error_redacts_nested_credentials():
 
 async def test_legacy_shape_error_keeps_integration_rejection():
     from unifi_fabric.client import UniFiConnectionError
-    from unifi_fabric.tools.innerspace import _fetch_project_document
+    from unifi_fabric.families.innerspace.innerspace import _fetch_project_document
 
     client, registry = AsyncMock(), AsyncMock()
     client.get.side_effect = [UniFiConnectionError("HTTP 403 host not found"), {}]
@@ -55,7 +56,7 @@ async def test_legacy_shape_error_keeps_integration_rejection():
 async def test_device_dry_run_prepares_and_audits_body():
     from unittest.mock import MagicMock
 
-    from unifi_fabric.tools._device_config import update_device_config
+    from unifi_fabric.families.devices._device_config import update_device_config
 
     client = MagicMock()
     client.dry_run = False
@@ -88,7 +89,7 @@ async def test_device_dry_run_prepares_and_audits_body():
     ],
 )
 async def test_carrier_guard_names_actual_method(monkeypatch, name, args, method):
-    from unifi_fabric.tools import carrier_fabric
+    from unifi_fabric.families.carrier import carrier_fabric
 
     def refuse(verb):
         raise RuntimeError(verb)

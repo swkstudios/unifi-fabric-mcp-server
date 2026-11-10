@@ -37,13 +37,13 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
-from unifi_fabric.tools import connector
-from unifi_fabric.tools._device_wrappers import wrapper_devices
-from unifi_fabric.tools.carrier_fabric import (
+from unifi_fabric.families.carrier.carrier_fabric import (
     CARRIER_BASE,
     suspend_carrier_subscriber,
     update_carrier_subscriber,
 )
+from unifi_fabric.families.connector import connector
+from unifi_fabric.shared_shapes._device_wrappers import wrapper_devices
 
 TOOLS = cti.TOOLS
 _call = cti._call

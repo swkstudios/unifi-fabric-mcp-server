@@ -5,13 +5,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from tests.test_site_config import HOST_ID, RADIUS_USERS
+from unifi_fabric.families.network import site_config as sc
 from unifi_fabric.redaction import (
     MASKED_FIELDS_KEY,
     REDACTION_MASK,
     _make_redacting_fn,
     _with_dropped_report,
 )
-from unifi_fabric.tools import site_config as sc
 
 COLLECTIONS = [
     sc.USER_GROUPS,
@@ -165,7 +165,7 @@ def test_redaction_metadata_never_changes_bare_array_shape(answer):
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("given", ["different-record", None, "", 42])
 async def test_device_tag_merge_rejects_conflicting_identity(native, given):
-    from unifi_fabric.tools.device_mgmt import _update_device_tag
+    from unifi_fabric.families.devices.device_mgmt import _update_device_tag
 
     client, registry = dependencies()
     client.get.return_value = [{"_id": "record-a", "name": "Cameras", "member_device_macs": []}]
@@ -183,7 +183,7 @@ async def test_device_tag_merge_rejects_conflicting_identity(native, given):
 
 @pytest.mark.parametrize("native", [False, True])
 async def test_device_tag_merge_validates_then_removes_matching_identity(native):
-    from unifi_fabric.tools.device_mgmt import _update_device_tag
+    from unifi_fabric.families.devices.device_mgmt import _update_device_tag
 
     client, registry = dependencies()
     client.get.return_value = [{"_id": "aabbccdd", "name": "Cameras", "member_device_macs": []}]

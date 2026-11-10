@@ -66,8 +66,8 @@ async def registered_tools() -> list[Any]:
 
 def classified_sources(names: list[str]) -> dict[str, str]:
     """``name -> primary app/source pair`` from the baseline source table."""
-    from ._api_source_table import TOOL_API_SOURCES
     from .api_sources import primary_pair
+    from .generated_api_facts._api_source_table import TOOL_API_SOURCES
 
     out: dict[str, str] = {}
     for name in names:

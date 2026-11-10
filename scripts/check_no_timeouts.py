@@ -111,6 +111,22 @@ def _is_qualified_timeout(func: ast.expr) -> bool:
     return False
 
 
+TIME_KEY = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*_(?:timeout|deadline)(?:_secs?|_seconds|_ms)?$")
+
+
+def _is_time_key(node: ast.expr) -> bool:
+    """A string-literal mapping key that names an elapsed-time budget (``recovery_timeout``).
+
+    A budget read from a config mapping is a cap however it is later used, so a poll or
+    retry bound must be a count (``recovery_polls``) and carry no seconds-derived value.
+    """
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and TIME_KEY.search(node.value) is not None
+    )
+
+
 def _is_time_arg(node: ast.expr) -> bool:
     if isinstance(node, ast.Constant):
         return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
@@ -196,6 +212,8 @@ def python_findings(path: Path, text: str) -> list[str]:
         return [f"{path}:{exc.lineno or 1}: Python parse error during timeout scan"]
     found: list[str] = []
     waitable_names: set[str] = set()
+    # Fixtures in tests/ spell other tools' settings; harness and source code must not.
+    budget_keys = path.parts[:1] != ("tests",)
 
     class Visitor(ast.NodeVisitor):
         def visit_Assign(self, node: ast.Assign) -> None:
@@ -271,6 +289,13 @@ def python_findings(path: Path, text: str) -> list[str]:
                         keyword.value
                     ):
                         found.append(f"{path}:{node.lineno}: HTTP client timeout component")
+            if (
+                budget_keys
+                and name in {"get", "pop", "setdefault"}
+                and node.args
+                and _is_time_key(node.args[0])
+            ):
+                found.append(f"{path}:{node.lineno}: time-budget configuration key")
             if name == "wait_for":
                 found.append(f"{path}:{node.lineno}: wait_for call")
             if name in CAP_CALLS and not _is_pytest_mark(func):
@@ -305,7 +330,15 @@ def python_findings(path: Path, text: str) -> list[str]:
                 found.append(f"{path}:{node.lineno}: pytest timeout mark")
             self.generic_visit(node)
 
+        def visit_Subscript(self, node: ast.Subscript) -> None:
+            if budget_keys and _is_time_key(node.slice):
+                found.append(f"{path}:{node.lineno}: time-budget configuration key")
+            self.generic_visit(node)
+
         def visit_Dict(self, node: ast.Dict) -> None:
+            for key in node.keys:
+                if budget_keys and key is not None and _is_time_key(key):
+                    found.append(f"{path}:{key.lineno}: time-budget configuration key")
             for key, value in zip(node.keys, node.values, strict=True):
                 if (
                     isinstance(key, ast.Constant)

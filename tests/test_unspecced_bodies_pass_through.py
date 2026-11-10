@@ -4,8 +4,8 @@ Every write whose upstream operation has no published request schema (Classic RE
 v2 API) sends the caller's body as given, whatever documented field is left out, and an
 upstream error keeps its text with the documented guidance appended as a hint. Covered:
 
-* the documented-fields writes (``create_port_forward``, ``create_traffic_rule``,
-  ``create_traffic_route``, ``create_site_to_site_tunnel``, ``create_device_tag``): each
+* the documented-fields writes (``create_port_forward``, ``create_traffic_route``,
+  ``create_site_to_site_tunnel``, ``create_device_tag``): each
   documented field left out, one at a time;
 * the purpose-scoped networkconf writes (VPN servers, site-to-site tunnels, WAN): a body
   naming another purpose;
@@ -49,15 +49,6 @@ DOCUMENTED: dict[str, tuple[str, tuple[str, ...], dict[str, Any]]] = {
         ("name", "dst_port", "fwd", "fwd_port"),
         {"name": "SSH", "dst_port": "2222", "fwd": "192.0.2.10", "fwd_port": "22"},
     ),
-    "create_traffic_rule": (
-        "payload",
-        ("action", "matching_target", "target_devices"),
-        {
-            "action": "BLOCK",
-            "matching_target": "INTERNET",
-            "target_devices": [{"type": "ALL_CLIENTS"}],
-        },
-    ),
     "create_traffic_route": (
         "payload",
         ("network_id", "matching_target", "target_devices"),
@@ -85,7 +76,7 @@ CASES = sorted((n, f) for n, (_a, fields, _b) in DOCUMENTED.items() for f in fie
 def test_documented_tools_are_exactly_the_unspecced_creates():
     """Every tool listed has no published request schema (else it belongs in
     SPEC_REQUIRED_FIELDS)."""
-    assert {"create_port_forward", "create_traffic_rule", "create_traffic_route"} <= set(DOCUMENTED)
+    assert {"create_port_forward", "create_traffic_route"} <= set(DOCUMENTED)
     for name in DOCUMENTED:
         assert name in sc.UNSPECCED_EXEMPT, name
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -13,6 +14,12 @@ from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
 
 # Assert diagnostics after process completion, independent of runner startup speed.
+
+
+def _hostnames(text: str) -> set[str]:
+    """Exact hostnames of the https URLs among the whitespace-separated tokens of ``text``."""
+    parts = (urlsplit(token) for token in text.split())
+    return {p.hostname for p in parts if p.scheme == "https" and p.hostname}
 
 
 @pytest.mark.parametrize("entrypoint", ["module", "console"])
@@ -32,7 +39,7 @@ def test_missing_api_key_exits_with_one_actionable_line(entrypoint):
     assert "Traceback" not in result.stderr
     assert len(result.stderr.strip().splitlines()) == 1
     assert "UNIFI_API_KEY is not set" in result.stderr
-    assert "https://unifi.ui.com" in result.stderr.split()
+    assert _hostnames(result.stderr) >= {"unifi.ui.com"}
     assert "README#1-join-your-fabric-and-create-an-api-key" in result.stderr
 
 
@@ -98,7 +105,7 @@ async def test_upstream_auth_body_retained_and_hint_appended(status, multi):
         hint = text[len(f"HTTP {status} from GET /ea/hosts: {body}") :]
         assert ("UNIFI_API_KEYS" if multi else "UNIFI_API_KEY") in hint
         assert ("second" in hint) if multi else ("first" not in hint)
-        assert "https://unifi.ui.com" in hint.split()
+        assert _hostnames(hint) >= {"unifi.ui.com"}
         assert (
             "check the key's permissions, API scopes, and allowed sites"
             if status == 403
@@ -106,6 +113,37 @@ async def test_upstream_auth_body_retained_and_hint_appended(status, multi):
         ) in hint
     finally:
         await client.close()
+
+
+@respx.mock
+async def test_ucore_access_403_gets_no_generic_key_hint_but_a_plain_403_still_does():
+    """InnerSpace refuses uCore routes to proxied requests (errors.ucore.access); the key is
+    not the cause, so the key-permissions hint is skipped and the upstream body stays verbatim.
+    The real body nests the code under ``error``; the flat form is kept as a second case."""
+    client = UniFiClient(Settings(api_key="synthetic-only"))
+    ucore = (
+        '{"error":{"type":"access","code":"errors.ucore.access",'
+        '"message":"Access denied for proxy","errors":[]}}'
+    )
+    flat = '{"errors.ucore.access":"Access denied for proxy"}'
+    plain = '{"error":"forbidden"}'
+    respx.get("https://api.ui.com/ea/ucore").mock(return_value=httpx.Response(403, text=ucore))
+    respx.get("https://api.ui.com/ea/ucore-flat").mock(return_value=httpx.Response(403, text=flat))
+    respx.get("https://api.ui.com/ea/hosts").mock(return_value=httpx.Response(403, text=plain))
+    try:
+        with pytest.raises(UniFiConnectionError) as ucore_err:
+            await client.get("/ea/ucore")
+        with pytest.raises(UniFiConnectionError) as flat_err:
+            await client.get("/ea/ucore-flat")
+        with pytest.raises(UniFiConnectionError) as plain_err:
+            await client.get("/ea/hosts")
+    finally:
+        await client.close()
+    assert str(ucore_err.value) == f"HTTP 403 from GET /ea/ucore: {ucore}"
+    assert "Hint" not in str(ucore_err.value)
+    assert ucore_err.value.status == 403
+    assert str(flat_err.value) == f"HTTP 403 from GET /ea/ucore-flat: {flat}"
+    assert "check the key's permissions, API scopes, and allowed sites" in str(plain_err.value)
 
 
 @pytest.mark.parametrize(

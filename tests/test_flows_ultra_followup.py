@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import network_nat_qos_traffic as nc
 
 
 def _page(number: int, size: int, total: int) -> dict[str, Any]:

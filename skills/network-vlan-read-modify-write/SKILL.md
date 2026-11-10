@@ -29,7 +29,7 @@ anything else, such as finding the network id, use `search_tools` and `describe_
 
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
-| `get_network` | read | `host`, `site`, `network_id` | network object verbatim; `tools/network.py::get_network` → `tools/network.py::get_network`; `readOnlyHint: true` |
-| `update_network` | write | `host`, `site`, `network_id`, `network_config` | upstream body verbatim, or `{status, dryRun, message, preview}`; `tools/network.py::update_network` → `tools/network.py::update_network`; `readOnlyHint: false` |
+| `get_network` | read | `host`, `site`, `network_id` | network object verbatim; `families/network/network.py::get_network` → `families/network/network.py::get_network`; `readOnlyHint: true` |
+| `update_network` | write | `host`, `site`, `network_id`, `network_config` | upstream body verbatim, or `{status, dryRun, message, preview}`; `families/network/network.py::update_network` → `families/network/network.py::update_network`; `readOnlyHint: false` |
 
 Responses can include secrets such as passphrases; never copy them into a report.

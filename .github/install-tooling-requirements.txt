@@ -203,6 +203,7 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
     # via
     #   -c .github/publish-pypi-requirements.txt
+    #   -c requirements.lock
     #   requests
 click==8.5.0 \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
@@ -520,6 +521,7 @@ requests==2.34.2 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
     # via
     #   -c .github/publish-pypi-requirements.txt
+    #   -c requirements.lock
     #   cachecontrol
     #   pip-audit
 rich==15.0.0 \
@@ -617,6 +619,7 @@ urllib3==2.8.0 \
     --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
     # via
     #   -c .github/publish-pypi-requirements.txt
+    #   -c requirements.lock
     #   requests
 userpath==1.9.2 \
     --hash=sha256:2cbf01a23d655a1ff8fc166dfb78da1b641d1ceabf0fe5f970767d380b14e89d \

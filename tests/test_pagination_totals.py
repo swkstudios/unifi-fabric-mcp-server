@@ -13,11 +13,11 @@ from httpx import Request, Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.clients.clients import _list_clients
+from unifi_fabric.families.devices.device_mgmt import _list_site_devices
+from unifi_fabric.families.network.network_services_proxy import list_countries
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry, incomplete_reason
-from unifi_fabric.tools import aggregation, site_manager
-from unifi_fabric.tools.clients import _list_clients
-from unifi_fabric.tools.device_mgmt import _list_site_devices
-from unifi_fabric.tools.network_services_proxy import list_countries
 
 BASE = "https://api.ui.com"
 HOST = "AABBCCDDEEFF0000:1"

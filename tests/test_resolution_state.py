@@ -7,6 +7,7 @@ import asyncio
 import pytest
 
 from unifi_fabric import server
+from unifi_fabric.local_components import tool_components
 from unifi_fabric.resolution_state import (
     note_incomplete_resolution,
     wrap_resolution_result,
@@ -73,7 +74,6 @@ async def test_error_resets_resolution_state():
 
 
 async def test_every_registered_handler_preserves_partial_resolution():
-    components = server.mcp._local_provider._components
-    handlers = [c.fn for c in components.values() if callable(getattr(c, "fn", None))]
+    handlers = [c.fn for c in tool_components(server.mcp) if callable(getattr(c, "fn", None))]
     assert handlers
     assert all(getattr(fn, "_unifi_resolution_wrapped", False) for fn in handlers)

@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from tests import test_spec_conformance as sc
-from unifi_fabric._tool_shapes_table import SHAPE_SOURCES
+from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES
 
 Path = tuple[str, ...]
 Constraint = tuple[Path, str]

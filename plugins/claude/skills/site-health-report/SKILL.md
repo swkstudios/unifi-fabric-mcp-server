@@ -27,7 +27,7 @@ anything else use `search_tools` and `describe_tool`.
 
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
-| `get_site_health_summary` | read | `site` | `{meta, data}` verbatim plus `_healthSummary`; `tools/site_manager.py::get_site_health_summary` → `tools/site_manager.py::get_site_health_summary`; `readOnlyHint: true` |
-| `get_site_inventory` | read | `site` (`device_filter`, `client_filter`) | `{_siteId, _devices, _deviceCount, _clients, _clientCount}`; `tools/site_manager.py::get_site_inventory` → `tools/site_manager.py::get_site_inventory`; `readOnlyHint: true` |
-| `query_isp_metrics` | read | `interval` (`host`, `site`, `sites`, `start_time`, `end_time`) | `{data: {metrics}, httpStatusCode, traceId}` verbatim; `tools/site_manager.py::query_isp_metrics` → `tools/site_manager.py::query_isp_metrics`; `readOnlyHint: true` |
-| `get_fleet_summary` | read | none (`key_label`) | `{hosts, sites, devices: {total, byStatus, byType}, _key_label}`; `tools/aggregation.py::get_fleet_summary`; `readOnlyHint: true` |
+| `get_site_health_summary` | read | `site` | `{meta, data}` verbatim plus `_healthSummary`; `families/site_manager/site_manager.py::get_site_health_summary` → `families/site_manager/site_manager.py::get_site_health_summary`; `readOnlyHint: true` |
+| `get_site_inventory` | read | `site` (`device_filter`, `client_filter`) | `{_siteId, _devices, _deviceCount, _clients, _clientCount}`; `families/site_manager/site_manager.py::get_site_inventory` → `families/site_manager/site_manager.py::get_site_inventory`; `readOnlyHint: true` |
+| `query_isp_metrics` | read | `interval` (`host`, `site`, `sites`, `start_time`, `end_time`) | `{data: {metrics}, httpStatusCode, traceId}` verbatim; `families/site_manager/site_manager.py::query_isp_metrics` → `families/site_manager/site_manager.py::query_isp_metrics`; `readOnlyHint: true` |
+| `get_fleet_summary` | read | none (`key_label`) | `{hosts, sites, devices: {total, byStatus, byType}, _key_label}`; `families/site_manager/aggregation.py::get_fleet_summary`; `readOnlyHint: true` |

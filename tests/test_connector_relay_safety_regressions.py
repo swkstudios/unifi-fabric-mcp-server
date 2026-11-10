@@ -8,8 +8,9 @@ import respx
 
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.protect import protect_private
 from unifi_fabric.secret_scrub import secret_scope
-from unifi_fabric.tools import connector, protect_private
 
 KEY = "synthetic-w10-configured-api-key"
 HOST = "synthetic-host"

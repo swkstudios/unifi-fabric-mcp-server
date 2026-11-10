@@ -14,8 +14,8 @@ import respx
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.site_manager.site_manager import list_devices, list_hosts, list_sites
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools.site_manager import list_devices, list_hosts, list_sites
 
 HOSTS = "https://api.ui.com/v1/hosts"
 DEVICES = "https://api.ui.com/v1/devices"

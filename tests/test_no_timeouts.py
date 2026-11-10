@@ -34,7 +34,7 @@ def test_allowlist_contains_only_the_approved_entries():
 
 def test_allowlist_rejects_unrecognized_private_verdict(tmp_path):
     entries = json.loads((ROOT / ALLOWLIST).read_text())
-    entries[0]["verdict"] = "R-" + "2026-10-23-UNIFI-361-HEALTHCHECK-OTHER"
+    entries[0]["verdict"] = "unrecognised-verdict-for-this-class"
     target = tmp_path / ALLOWLIST
     target.parent.mkdir(parents=True)
     target.write_text(json.dumps(entries))

@@ -20,7 +20,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric._read_only_audit import derive_write_tools
 from unifi_fabric.client import DRY_RUN_MESSAGE
-from unifi_fabric.tools import network_controller_admin as admin
+from unifi_fabric.families.network import network_controller_admin as admin
 
 HOST, SITE, MAC = uh.HOST, uh.SITE, uh.ARG_MAC
 CLASSIC = "/proxy/network/api/s/"

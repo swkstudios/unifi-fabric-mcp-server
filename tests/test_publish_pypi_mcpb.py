@@ -103,3 +103,39 @@ def test_bundle_supports_macos_and_windows():
     manifest = json.loads((ROOT / "plugins/claude-desktop/manifest.json").read_text())
     assert set(manifest["compatibility"]["platforms"]) == {"darwin", "win32"}
     assert manifest["server"]["mcp_config"]["command"] == "uvx"
+
+
+# Lowest fixed release of every advisory that has hit the bundle toolchain lock
+# (tools/mcpb/package-lock.json). The pinned packer still asks for older ranges, so
+# tools/mcpb/package.json overrides them; this keeps a lock refresh from regressing.
+_MCPB_LOCK_FLOORS = {
+    "zod": (4, 6, 6),  # GHSA-mrhx-c7xc-m3w5
+    "tmp": (0, 2, 6),  # GHSA-ph9p-34f9-6g65, GHSA-52f5-9888-hmc6
+}
+
+
+def _semver(text: str) -> tuple[int, ...]:
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", text)
+    assert match, text
+    return tuple(int(part) for part in match.groups())
+
+
+def test_mcpb_toolchain_lock_has_no_known_vulnerable_versions():
+    manifest = json.loads((ROOT / "tools/mcpb/package.json").read_text())
+    lock = json.loads((ROOT / "tools/mcpb/package-lock.json").read_text())
+    locked = {
+        key.rsplit("node_modules/", 1)[1]: value["version"]
+        for key, value in lock["packages"].items()
+        if key
+    }
+    for name, floor in _MCPB_LOCK_FLOORS.items():
+        assert name in locked, name
+        assert _semver(locked[name]) >= floor, (name, locked[name])
+        # Exact override, so npm ci cannot resolve anything but the locked fixed release.
+        assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["overrides"][name]), name
+        assert manifest["overrides"][name] == locked[name], name
+    # Every copy of a floored package in the lock (nested ones too) is the fixed one.
+    for key, value in lock["packages"].items():
+        name = key.rsplit("node_modules/", 1)[-1]
+        if name in _MCPB_LOCK_FLOORS:
+            assert _semver(value["version"]) >= _MCPB_LOCK_FLOORS[name], (key, value["version"])

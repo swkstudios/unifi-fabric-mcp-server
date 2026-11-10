@@ -15,7 +15,7 @@ import respx
 from httpx import Response
 
 from tests.test_protect_ptz_doorbell import CAM, PRIVATE, SC1, _client, _registry, _sent
-from unifi_fabric.tools import protect_ptz_doorbell as p02
+from unifi_fabric.families.protect import protect_ptz_doorbell as p02
 
 LINKED_CAMERA = {"type": "linkedCamera", "linkedCameraId": "0000000000000000000000c2"}
 LINKED_DOOR = {"type": "linkedDoor", "linkedDoorId": "0000000000000000000000d2"}

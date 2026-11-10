@@ -7,7 +7,8 @@ import pytest
 
 from tests import test_invariants_carrier_devices_and_relay_writes as relay_tests
 from unifi_fabric import server
-from unifi_fabric.tools import carrier_fabric, connector
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.connector import connector
 
 
 @pytest.mark.parametrize(

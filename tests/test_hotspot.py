@@ -2,7 +2,7 @@
 
 Hotspot vouchers live in the network-services proxy tools
 (``tests/test_network_services_proxy.py``); this module covers only the
-Classic-REST operator tools registered from ``tools/hotspot.py``.
+Classic-REST operator tools registered from ``families/hotspot/hotspot.py``.
 """
 
 from __future__ import annotations
@@ -12,16 +12,16 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.hotspot import (
+from unifi_fabric.families.hotspot.hotspot import (
     _create_hotspot_operator as create_hotspot_operator,
 )
-from unifi_fabric.tools.hotspot import (
+from unifi_fabric.families.hotspot.hotspot import (
     _delete_hotspot_operator as delete_hotspot_operator,
 )
-from unifi_fabric.tools.hotspot import (
+from unifi_fabric.families.hotspot.hotspot import (
     _list_hotspot_operators as list_hotspot_operators,
 )
-from unifi_fabric.tools.hotspot import (
+from unifi_fabric.families.hotspot.hotspot import (
     _update_hotspot_operator as update_hotspot_operator,
 )
 

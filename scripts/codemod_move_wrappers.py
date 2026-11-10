@@ -14,7 +14,7 @@ registration order (and therefore the tools/list order) and ``server.<wrapper>``
 attribute access stay as they were. ``deps_fn`` is ``lambda: _require()`` so a patched
 ``server._require`` still applies.
 
-The server-only helpers the wrappers use move to ``tools/_shared.py``
+The server-only helpers the wrappers use move to ``shared_shapes/_shared.py``
 (``_image_result``, ``_nullable_default``, ``_validate_optional_site``) with a
 ``get_settings`` that forwards to ``server.get_settings`` at call time, so the settings
 cache and its test patches stay in server.py; server.py imports the moved helpers back.
@@ -41,9 +41,9 @@ SERVER = PKG / "server.py"
 TOOLS = PKG / "tools"
 SHARED = TOOLS / "_shared.py"
 
-#: server.py helpers moved verbatim to tools/_shared.py.
+#: server.py helpers moved verbatim to shared_shapes/_shared.py.
 MOVED_HELPERS: tuple[str, ...] = ("_image_result", "_nullable_default", "_validate_optional_site")
-#: server.py names the wrappers reach through tools/_shared.py without moving them.
+#: server.py names the wrappers reach through shared_shapes/_shared.py without moving them.
 FORWARDED: dict[str, str] = {
     "get_settings": (
         "def get_settings() -> Settings:\n"
@@ -523,7 +523,7 @@ def _long_docstring_ignores(modules: list[str]) -> None:
     text = PYPROJECT.read_text(encoding="utf-8")
     entries = ""
     for module in sorted(modules):
-        key = f'"src/unifi_fabric/tools/{module}.py" = ["E501"]'
+        key = f'"src/unifi_fabric/families/{module}.py" = ["E501"]'
         if key not in text:
             entries += f"{key}  # wrappers moved from server.py keep their docstrings\n"
     if entries:

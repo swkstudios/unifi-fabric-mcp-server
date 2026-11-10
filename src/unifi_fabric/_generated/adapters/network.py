@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from unifi_fabric.contracts import Dependencies, RequestContext
 
 __all__ = [
+    "acknowledge_critical_alert",
     "activate_lte_trial",
     "activate_ssl_inspection_certificate",
     "allow_network_on_port_profile",
@@ -63,7 +64,6 @@ __all__ = [
     "create_test_config",
     "create_traffic_matching_list",
     "create_traffic_route",
-    "create_traffic_rule",
     "create_user_group",
     "create_wan_sla",
     "create_wifi_broadcast",
@@ -98,7 +98,6 @@ __all__ = [
     "delete_test_config",
     "delete_traffic_matching_list",
     "delete_traffic_route",
-    "delete_traffic_rule",
     "delete_user_group",
     "delete_wan_sla",
     "delete_wifi_broadcast",
@@ -114,8 +113,10 @@ __all__ = [
     "get_ap_group",
     "get_bgp_status",
     "get_channel_plan",
+    "get_client_dpi_usage",
     "get_client_insights",
     "get_client_observability",
+    "get_client_wifi_experience",
     "get_console_general_info",
     "get_controller_stats",
     "get_cybersecure_summary",
@@ -169,6 +170,7 @@ __all__ = [
     "get_shadow_mode_status",
     "get_site_dashboard",
     "get_site_degradation_status",
+    "get_site_dpi_usage",
     "get_sites_overview",
     "get_spectrum_scan_results",
     "get_ssl_inspection_settings",
@@ -314,6 +316,7 @@ __all__ = [
     "start_spectrum_scan",
     "start_wifi_quick_scan",
     "suggest_network_settings",
+    "suggest_service_port",
     "unpair_building_bridge",
     "update_ap_group",
     "update_bgp_config",
@@ -349,7 +352,6 @@ __all__ = [
     "update_system_log_settings",
     "update_traffic_matching_list",
     "update_traffic_route",
-    "update_traffic_rule",
     "update_user",
     "update_user_group",
     "update_wan_interface",
@@ -359,6 +361,15 @@ __all__ = [
     "update_wlan_config",
     "verify_sim_pin",
 ]
+
+
+async def acknowledge_critical_alert(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``acknowledge_critical_alert``."""
+    return await registered_wrapper("acknowledge_critical_alert")(**validated_arguments)
 
 
 async def activate_lte_trial(
@@ -793,15 +804,6 @@ async def create_traffic_route(
     return await registered_wrapper("create_traffic_route")(**validated_arguments)
 
 
-async def create_traffic_rule(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``create_traffic_rule``."""
-    return await registered_wrapper("create_traffic_rule")(**validated_arguments)
-
-
 async def create_user_group(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1108,15 +1110,6 @@ async def delete_traffic_route(
     return await registered_wrapper("delete_traffic_route")(**validated_arguments)
 
 
-async def delete_traffic_rule(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``delete_traffic_rule``."""
-    return await registered_wrapper("delete_traffic_rule")(**validated_arguments)
-
-
 async def delete_user_group(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1252,6 +1245,15 @@ async def get_channel_plan(
     return await registered_wrapper("get_channel_plan")(**validated_arguments)
 
 
+async def get_client_dpi_usage(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_client_dpi_usage``."""
+    return await registered_wrapper("get_client_dpi_usage")(**validated_arguments)
+
+
 async def get_client_insights(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1268,6 +1270,15 @@ async def get_client_observability(
 ) -> Any:
     """Adapter of ``get_client_observability``."""
     return await registered_wrapper("get_client_observability")(**validated_arguments)
+
+
+async def get_client_wifi_experience(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_client_wifi_experience``."""
+    return await registered_wrapper("get_client_wifi_experience")(**validated_arguments)
 
 
 async def get_console_general_info(
@@ -1745,6 +1756,15 @@ async def get_site_degradation_status(
 ) -> Any:
     """Adapter of ``get_site_degradation_status``."""
     return await registered_wrapper("get_site_degradation_status")(**validated_arguments)
+
+
+async def get_site_dpi_usage(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_site_dpi_usage``."""
+    return await registered_wrapper("get_site_dpi_usage")(**validated_arguments)
 
 
 async def get_sites_overview(
@@ -3052,6 +3072,15 @@ async def suggest_network_settings(
     return await registered_wrapper("suggest_network_settings")(**validated_arguments)
 
 
+async def suggest_service_port(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``suggest_service_port``."""
+    return await registered_wrapper("suggest_service_port")(**validated_arguments)
+
+
 async def unpair_building_bridge(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -3365,15 +3394,6 @@ async def update_traffic_route(
 ) -> Any:
     """Adapter of ``update_traffic_route``."""
     return await registered_wrapper("update_traffic_route")(**validated_arguments)
-
-
-async def update_traffic_rule(
-    request_context: RequestContext,
-    validated_arguments: Mapping[str, Any],
-    dependencies: Dependencies,
-) -> Any:
-    """Adapter of ``update_traffic_rule``."""
-    return await registered_wrapper("update_traffic_rule")(**validated_arguments)
 
 
 async def update_user(

@@ -5,14 +5,15 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from unifi_fabric._tool_shapes_table import TOOL_SHAPES
+from unifi_fabric.generated_api_facts._tool_shapes_table import TOOL_SHAPES
 
 
 def install_tool_shapes(mcp: Any) -> int:
     """Enrich advertised schemas only; function annotations/parsing stay unchanged."""
-    components = mcp._local_provider._components  # noqa: SLF001
+    from unifi_fabric.local_components import tool_components
+
     count = 0
-    for component in components.values():
+    for component in tool_components(mcp):
         shapes = TOOL_SHAPES.get(getattr(component, "name", ""))
         if not shapes:
             continue

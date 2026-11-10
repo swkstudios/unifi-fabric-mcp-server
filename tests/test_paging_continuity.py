@@ -15,11 +15,11 @@ from tests._tool_catalog import tools_by_name
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.network import network_nat_qos_traffic as flows
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import carrier_fabric
-from unifi_fabric.tools import network_nat_qos_traffic as flows
-from unifi_fabric.tools._continuation import decode_continuation
-from unifi_fabric.tools._pagination import (
+from unifi_fabric.shared_shapes._continuation import decode_continuation
+from unifi_fabric.shared_shapes._pagination import (
     PageSizeBatch,
     collect_batch,
     collect_links,

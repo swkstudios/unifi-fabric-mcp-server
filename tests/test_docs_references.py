@@ -30,6 +30,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.removed_tools import is_history_surface, removed_since_release
 from tests.retired_names import migration_table_names
 from tests.test_api_keys_and_env_contract import _ENV_NAME, SRC, _is_read, _source_text
 from tests.test_docs_currency import HISTORICAL, IMAGE_RE, PACKAGE, PUBLISHED_VERSION, VERSION
@@ -169,6 +170,16 @@ def _surface() -> tuple[set[str], set[str]]:
 
 
 @functools.cache
+def _removed() -> frozenset[str]:
+    """Tools a release record shows as removed (derived, never a hand list)."""
+    return frozenset(removed_since_release(_surface()[0]))
+
+
+#: Documented response fields whose names start with a tool verb.
+PAYLOAD_FIELDS = frozenset({"read_at"})
+
+
+@functools.cache
 def _lz__VERBS():
     return sorted({name.split("_", 1)[0] for name in _surface()[0]})
 
@@ -180,12 +191,22 @@ def _lz_TOOL_NAME_RE():
     )
 
 
-def unknown_tool_names(text: str) -> list[tuple[int, str]]:
+def unknown_tool_names(text: str, rel: str = "") -> list[tuple[int, str]]:
     bad = []
     for number, line in enumerate(text.splitlines(), 1):
         for match in _lz_TOOL_NAME_RE().finditer(line):
             name = match.group(1)
             if name in _surface()[0] or name in _surface()[1] or name == "query_string":
+                continue
+            if is_history_surface(rel) and name in _removed():
+                # A tool an earlier release shipped and a later one removed, named where
+                # that history is recorded: its migration guide, changelog or coverage
+                # notes (tests/removed_tools.py derives the set and says which surfaces are
+                # history). A current doc naming it as live, or a misspelling, still fails.
+                continue
+            if name in PAYLOAD_FIELDS:
+                # A documented response field (``read_at``), not a tool: the ``read_`` verb
+                # (read_recent_events) must not claim it.
                 continue
             if name in CREDENTIAL_FIELDS:
                 # A documented redaction field name (``refresh_token``), not a tool: a tool
@@ -295,9 +316,48 @@ def test_every_documented_tool_name_is_registered():
     bad = [
         f"{f.relative_to(ROOT)}:{n}: {name}"
         for f in FILES
-        for n, name in unknown_tool_names(f.read_text(encoding="utf-8"))
+        for n, name in unknown_tool_names(
+            f.read_text(encoding="utf-8"), f.relative_to(ROOT).as_posix()
+        )
     ]
     assert bad == [], bad
+
+
+def test_removed_tool_names_are_derived_and_a_misspelling_still_fails():
+    removed = _removed()
+    assert {"reboot_nvr", "create_traffic_rule"} <= removed
+    assert not removed & _surface()[0]
+    history = "docs/MIGRATING-0.7.2.md"
+    assert [n for _n, n in unknown_tool_names("Use `create_traffic_rule`.", history)] == []
+    assert [n for _n, n in unknown_tool_names("Use `create_traffic_rulez`.", history)] == [
+        "create_traffic_rulez"
+    ]
+    assert [n for _n, n in unknown_tool_names("Use `reboot_nvrs`.", history)] == ["reboot_nvrs"]
+
+
+@pytest.mark.parametrize(
+    "rel",
+    ["README.md", "docs/TOOLS.md", "docs/CONFIGURATION.md", "plugins/claude/README.md"],
+)
+def test_a_current_doc_naming_a_removed_tool_as_live_is_flagged(rel):
+    """The removed-tool exemption is for history surfaces only."""
+    assert [n for _n, n in unknown_tool_names("Call `reboot_nvr` to restart.", rel)] == [
+        "reboot_nvr"
+    ]
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "CHANGELOG.md",
+        "changelog.d/protect-7x-routes.removed.md",
+        "docs/MIGRATING-0.7.2.md",
+        "docs/COVERAGE.md",
+        "docs/notes/removals.md",
+    ],
+)
+def test_a_history_surface_may_name_a_removed_tool(rel):
+    assert unknown_tool_names("`reboot_nvr` was removed.", rel) == []
 
 
 @pytest.mark.parametrize(

@@ -44,13 +44,14 @@ from unifi_fabric import registry as registry_module
 from unifi_fabric import server
 from unifi_fabric.client import PaginationAbortedError, ResponseShapeError, UniFiClient
 from unifi_fabric.config import APIKeyConfig, MCPTransportSettings, Settings
+from unifi_fabric.families.innerspace import placement_snapshot
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.matching import name_keys, same_id, tiered_name_matches
 from unifi_fabric.read_only import is_write_request
 from unifi_fabric.read_post_routes import is_read_post
 from unifi_fabric.registry import FetchedRecords, Registry, filter_records, incomplete_reason
-from unifi_fabric.tools import placement_snapshot, site_manager
-from unifi_fabric.tools._classic_objects import select_classic_record
-from unifi_fabric.tools._pagination import verbatim_list_result
+from unifi_fabric.shared_shapes._classic_objects import select_classic_record
+from unifi_fabric.shared_shapes._pagination import verbatim_list_result
 
 SRC = pathlib.Path(registry_module.__file__).parent
 TOOLS = cti.TOOLS
@@ -347,7 +348,7 @@ def test_placement_numbers_keep_finite_values_and_skip_non_numbers():
 
 
 def test_innerspace_scale_skips_non_finite_candidates():
-    from unifi_fabric.tools import innerspace
+    from unifi_fabric.families.innerspace import innerspace
 
     plan = {"id": "p", "scale": math.nan, "planScale": {"scale": 2.5}}
     assert innerspace._plan_scale(plan) == 2.5
@@ -534,6 +535,10 @@ _BAD_SETTINGS: dict[str, tuple[str, str]] = {
     "api_base_url": ("UNIFI_API_BASE_URL", "ftp://x"),
     "api_keys": ("UNIFI_API_KEYS", "not json"),
     "api_key": ("UNIFI_API_KEY", "a b"),
+    "api_key_file": ("UNIFI_API_KEY_FILE", "relative/key.txt"),
+    "api_key_command": ("UNIFI_API_KEY_COMMAND", "relative/helper"),
+    "api_keys_file": ("UNIFI_API_KEYS_FILE", "relative/keys.json"),
+    "api_keys_command": ("UNIFI_API_KEYS_COMMAND", "relative/helper"),
     "cache_ttl_seconds": ("UNIFI_CACHE_TTL_SECONDS", "-1"),
     "cache_max_hosts": ("UNIFI_CACHE_MAX_HOSTS", "0"),
     "cache_max_sites": ("UNIFI_CACHE_MAX_SITES", "x"),
@@ -545,10 +550,25 @@ _BAD_SETTINGS: dict[str, tuple[str, str]] = {
     "audit_log": ("UNIFI_AUDIT_LOG", "audit.log\n"),
     "audit_log_format": ("UNIFI_AUDIT_LOG_FORMAT", "xml"),
     "audit_sink": ("UNIFI_AUDIT_SINK", "syslog"),
+    "audit_remote_url": ("UNIFI_AUDIT_REMOTE_URL", "https://collector.example/a\n"),
+    "audit_remote_plaintext": ("UNIFI_AUDIT_REMOTE_PLAINTEXT", "maybe"),
+    "audit_remote_ca_file": ("UNIFI_AUDIT_REMOTE_CA_FILE", "/ca\x7f.pem"),
+    "audit_remote_cert_file": ("UNIFI_AUDIT_REMOTE_CERT_FILE", " /c.pem"),
+    "audit_remote_key_file": ("UNIFI_AUDIT_REMOTE_KEY_FILE", "/k.pem\t"),
+    "audit_remote_max_attempts": ("UNIFI_AUDIT_REMOTE_MAX_ATTEMPTS", "0"),
+    "audit_remote_retry_backoff_seconds": ("UNIFI_AUDIT_REMOTE_RETRY_BACKOFF_SECONDS", "0"),
+    "audit_remote_batch_max_records": ("UNIFI_AUDIT_REMOTE_BATCH_MAX_RECORDS", "x"),
+    "audit_remote_batch_max_bytes": ("UNIFI_AUDIT_REMOTE_BATCH_MAX_BYTES", "-1"),
+    "audit_remote_flush_interval_seconds": ("UNIFI_AUDIT_REMOTE_FLUSH_INTERVAL_SECONDS", "nan"),
+    "audit_remote_buffer_max_records": ("UNIFI_AUDIT_REMOTE_BUFFER_MAX_RECORDS", "0"),
+    "audit_remote_buffer_max_bytes": ("UNIFI_AUDIT_REMOTE_BUFFER_MAX_BYTES", "1.5"),
+    "audit_hmac_identifiers": ("UNIFI_AUDIT_HMAC_IDENTIFIERS", "maybe"),
     "audit_level": ("UNIFI_AUDIT_LEVEL", "verbose"),
     "audit_calls": ("UNIFI_AUDIT_CALLS", "maybe"),
     "audit_log_mode": ("UNIFI_AUDIT_LOG_MODE", "0644"),
     "audit_hmac_key": ("UNIFI_AUDIT_HMAC_KEY", "invalid"),
+    "audit_chain": ("UNIFI_AUDIT_CHAIN", "maybe"),
+    "audit_chain_key": ("UNIFI_AUDIT_CHAIN_KEY", "invalid"),
     "tool_mode": ("UNIFI_TOOL_MODE", "discovery,full"),
     "write_policy": ("UNIFI_WRITE_POLICY", "maybe"),
     "write_exceptions": ("UNIFI_WRITE_EXCEPTIONS", "family:network=allow"),
@@ -661,7 +681,7 @@ async def test_one_consoles_site_list_is_fetched_once_under_concurrency():
 async def test_device_tag_with_padded_upstream_name_is_selectable(monkeypatch):
     """A device tag literally named "Fiber - " is selected by that name (the name rule:
     edge whitespace allowed) and by its visible text; its _id in any case."""
-    from unifi_fabric.tools import _classic_objects
+    from unifi_fabric.shared_shapes import _classic_objects
 
     tags = [{"_id": "650000000000000000000aa1", "name": "Fiber - ", "member_table": []}]
 

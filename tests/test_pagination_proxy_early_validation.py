@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifi_fabric.client import UniFiClient
+from unifi_fabric.families.network import firewall_proxy as firewall
+from unifi_fabric.families.network import network_services_proxy as services
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import firewall_proxy as firewall
-from unifi_fabric.tools import network_services_proxy as services
 
 ListTool = Callable[..., Awaitable[dict[str, Any]]]
 PROXY_LISTS = [

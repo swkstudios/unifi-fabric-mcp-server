@@ -25,7 +25,6 @@ fingerprint.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -48,6 +47,7 @@ from typing import Any
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
+from . import fingerprint as _fingerprint
 from .config import APIKeyConfig, credential_problem
 from .contracts import (
     CredentialHandle,
@@ -161,13 +161,14 @@ def check_startup(transport: str, environ: Mapping[str, str] | None = None) -> s
 
 
 def full_key_digest(key: str) -> str:
-    """Full lowercase SHA256 hex of a key: cache/authorization identity, never logged."""
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+    """Full keyed (HMAC-SHA256, per-process key) hex of a key: in-process cache and
+    authorization identity, never logged. See :mod:`unifi_fabric.fingerprint`."""
+    return _fingerprint.key_digest(key)
 
 
 def key_fingerprint(key: str) -> str:
     """The 8-hex fingerprint records may carry."""
-    return full_key_digest(key)[:8]
+    return _fingerprint.key_fingerprint(key, 8)
 
 
 class _DuplicateLabel(ValueError):

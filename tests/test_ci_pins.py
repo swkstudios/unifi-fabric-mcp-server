@@ -5,7 +5,9 @@
 - ruff: ``requirements.lock``; ``scripts/extract_ruff_requirements.py`` generates the
   hash-pinned ruff-only requirement the lint-only jobs install.
 - Python: ``.python-version``; every ``actions/setup-python`` step reads it and every
-  cache key takes the interpreter from that step's output.
+  cache key takes the interpreter from that step's output. The one exception is the
+  locked suite: its jobs run the exact release ``LOCKED_PYTHON`` (ci.yml env), of the same
+  minor version.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import gzip
 import hashlib
 import importlib.util
 import io
+import json
 import os
 import re
 import shutil
@@ -252,6 +255,11 @@ def test_ruff_extractor_rejects_an_unhashed_duplicate(extra):
 # --- Python -----------------------------------------------------------------------------
 
 
+#: Every job of the locked suite: prep (with its anchor collection), shards, aggregate.
+LOCKED_JOBS = ("test-locked-prep", "test-locked-shard", "test-locked")
+LOCKED_PYTHON_REF = "${{ env.LOCKED_PYTHON }}"
+
+
 def test_python_version_single_source():
     version = PYTHON_VERSION_FILE.read_text()
     assert re.fullmatch(r"3\.\d+\n", version), version
@@ -265,6 +273,10 @@ def test_python_version_single_source():
             continue
         seen += 1
         options = step.get("with") or {}
+        if name == "ci.yml" and job_name in LOCKED_JOBS:
+            # The locked suite's one exact interpreter (test_locked_suite_runs_one_interpreter).
+            assert options == {"python-version": LOCKED_PYTHON_REF}, (name, job_name)
+            continue
         assert options.get("python-version-file") == ".python-version", (name, job_name)
         assert "python-version" not in options, (name, job_name)
         checkout = [
@@ -288,3 +300,54 @@ def test_python_version_single_source():
                 key = str((step.get("with") or {}).get("key", ""))
                 for used in re.findall(r"steps\.([\w-]+)\.outputs\.python-version", key):
                     assert used in ids, (name, job_name, key)
+
+
+def test_locked_suite_runs_one_interpreter():
+    """Every test-locked job runs the one exact interpreter release, LOCKED_PYTHON.
+
+    The aggregate requires one environment identity (Python release and installed set) in
+    every shard and the anchor. A minor-version request lets each runner resolve its own
+    patch release (a runner without the pinned tool cache downloads the newest), and the
+    proof then fails closed. LOCKED_PYTHON is set once, in the workflow env, and each job
+    installs into a fresh venv of that interpreter, whose pip is the bundled one.
+    """
+    text = (WORKFLOWS / "ci.yml").read_text()
+    ci = yaml.safe_load(text)
+    minor = PYTHON_VERSION_FILE.read_text().strip()
+    value = ci["env"]["LOCKED_PYTHON"]
+    assert isinstance(value, str), value
+    assert re.fullmatch(re.escape(minor) + r"\.\d+", value), (value, minor)
+    # Defined once: no job or step env redefines it, and no other line spells a version.
+    assert len(re.findall(r"(?m)^\s*LOCKED_PYTHON:", text)) == 1
+    for job_name, job in ci["jobs"].items():
+        assert "LOCKED_PYTHON" not in (job.get("env") or {}), job_name
+        for step in job.get("steps") or []:
+            assert "LOCKED_PYTHON" not in (step.get("env") or {}), (job_name, step)
+    assert tuple(j for j in ci["jobs"] if j.startswith("test-locked")) == LOCKED_JOBS
+    users = {
+        job_name
+        for job_name, job in ci["jobs"].items()
+        for step in job.get("steps") or []
+        if LOCKED_PYTHON_REF in json.dumps(step)
+    }
+    assert users == set(LOCKED_JOBS), users
+    for job_name in LOCKED_JOBS:
+        steps = ci["jobs"][job_name]["steps"]
+        setups = [
+            i
+            for i, step in enumerate(steps)
+            if str(step.get("uses", "")).startswith("actions/setup-python@")
+        ]
+        assert len(setups) == 1, job_name
+        assert steps[setups[0]]["with"] == {"python-version": LOCKED_PYTHON_REF}, job_name
+        # The first python the job runs is the fresh venv of that interpreter; its bin
+        # goes on PATH, so every later bare "python" is the venv's.
+        runs = [(i, step.get("run", "")) for i, step in enumerate(steps) if "run" in step]
+        first = next((i, run) for i, run in runs if re.search(r"\bpython\b", run))
+        assert first[0] > setups[0], job_name
+        install = first[1]
+        assert 'python -m venv "$venv"' in install, job_name
+        assert "--system-site-packages" not in install, job_name
+        assert '"$venv/bin/python" -m pip install --require-hashes --no-deps' in install
+        assert 'echo "$venv/bin" >> "$GITHUB_PATH"' in install, job_name
+        assert not re.search(r"(?m)^\s*(python|pip)\b.*pip install", install), job_name

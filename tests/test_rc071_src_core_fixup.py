@@ -85,7 +85,9 @@ async def test_codemode_filters_request_visibility_before_limit(monkeypatch):
     restore = await apply_tool_mode(app, "codemode", audit_hmac_key=bytes(range(32)))
     try:
         async with Client(app) as client:
-            found = (await client.call_tool("search_tools", {"query": "", "limit": 1})).data
+            found = (
+                await client.call_tool("search_tools", {"query": "", "limit": 1})
+            ).structured_content["result"]
             assert [row["name"] for row in found] == ["list_beta"]
     finally:
         restore()

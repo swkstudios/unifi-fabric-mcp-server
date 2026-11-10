@@ -28,9 +28,9 @@ from unifi_fabric.client import (
     validate_id,
 )
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry, _assert_uuid, ea_site_labels
 from unifi_fabric.selector_args import selector_problem
-from unifi_fabric.tools import aggregation, site_manager
 
 # ============================================== key labels use the key_label rule
 _LABELS = [

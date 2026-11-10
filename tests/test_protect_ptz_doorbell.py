@@ -22,8 +22,8 @@ from unifi_fabric import route_secrets, server
 from unifi_fabric._read_only_audit import classify_tool_verbs, derive_write_tools, is_destructive
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.protect import protect_ptz_doorbell as p02
 from unifi_fabric.refusals import classify
-from unifi_fabric.tools import protect_ptz_doorbell as p02
 
 HOST_ID = "000000000000000000000000000000000000000000:1"
 CAM = "0000000000000000000000c1"

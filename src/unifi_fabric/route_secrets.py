@@ -453,12 +453,14 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
             "x_wireguard_private_key",
             "wireguard_private_key",
             "wireguard_client_preshared_key",
+            "wireguard_client_configuration_file",
             "openvpn_configuration",
         ),
         response_fields=(
             "x_wireguard_private_key",
             "wireguard_private_key",
             "wireguard_client_preshared_key",
+            "wireguard_client_configuration_file",
             "openvpn_configuration",
         ),
         relay_path="network/api/s/{site}/rest/networkconf/0000000000000000000000aa",
@@ -651,7 +653,6 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         route=r"protect/api/cameras/qr",
         methods=frozenset({"GET"}),
         request_fields=("password",),
-        tool_arguments={"get_camera_adoption_qr": ("wifi_password",)},
         relay_path="protect/api/cameras/qr",
         evidence=(
             f"{_FE_PROTECT} GET cameras/qr query keys ssid, password "
@@ -682,7 +683,7 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
     ),
     RouteSecret(
         name="protect-backup-secrets",
-        route=r"protect/api/(?:backups(?:/[^/]+(?:/(?:restore|download|export))?)?|nvr/(?:backup|restore-pg-dump))",
+        route=r"protect/api/(?:backups(?:/[^/]+(?:/(?:restore|download|export))?)?|nvr/(?:backup|restore-database-backup))",
         methods=ALL_METHODS,
         request_fields=(
             "credentials",

@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.families.network import network_services_proxy as ns
+from unifi_fabric.families.site_manager import site_manager as sm
 from unifi_fabric.registry import FetchedRecords
-from unifi_fabric.tools import network_services_proxy as ns
-from unifi_fabric.tools import site_manager as sm
 
 UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 EA = {

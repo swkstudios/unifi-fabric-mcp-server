@@ -112,8 +112,9 @@ def test_callers_pass_the_exact_interpreter_and_save_under_the_action_key():
             assert f"steps.{call['id']}.outputs.cache-hit != 'true'" in save["if"], name
             assert "github.event.repository.default_branch" in save["if"], name
             assert "github.event_name == 'push'" in save["if"], name
-    # typecheck, docs and test seed the cache on the default branch; the others only read.
-    assert {"typecheck", "docs", "test"} <= {
+    # typecheck, docs and test-prep (for the full suite) seed the cache on the default
+    # branch; the others only read.
+    assert {"typecheck", "docs", "test-prep"} <= {
         name
         for name, job in callers.items()
         if any(str(s.get("uses", "")).startswith("actions/cache/save@") for s in job["steps"])

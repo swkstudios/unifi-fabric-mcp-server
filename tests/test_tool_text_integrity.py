@@ -26,7 +26,7 @@ from typing import Any
 
 from tests import tool_shapes_gen as gen
 from unifi_fabric import server
-from unifi_fabric._tool_shapes_table import TOOL_SHAPES
+from unifi_fabric.generated_api_facts._tool_shapes_table import TOOL_SHAPES
 
 NETWORK_SPEC = json.loads(
     (Path(__file__).parent / "fixtures" / "openapi" / "network-11.0.97.json").read_text()

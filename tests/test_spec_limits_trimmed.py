@@ -20,10 +20,10 @@ from httpx import Response
 from tests import spec_limits_gen as gen
 from tests import test_spec_conformance as sc
 from unifi_fabric import server
-from unifi_fabric._spec_limits_table import SPEC_LIMITS
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import Settings
-from unifi_fabric.tools.carrier_fabric import CARRIER_BASE
+from unifi_fabric.families.carrier.carrier_fabric import CARRIER_BASE
+from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
 
 SID = "11111111-1111-4111-8111-111111111111"
 SUBS = f"https://api.ui.com{CARRIER_BASE}/subscribers"

@@ -9,10 +9,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.families.network.network import list_local_sites
+from unifi_fabric.families.site_manager.aggregation import _fleet_summary
+from unifi_fabric.families.site_manager.site_manager import (
+    list_all_sites_aggregated,
+    list_hosts,
+    list_sites,
+)
 from unifi_fabric.registry import FetchedRecords, incomplete_reason
-from unifi_fabric.tools.aggregation import _fleet_summary
-from unifi_fabric.tools.network import list_local_sites
-from unifi_fabric.tools.site_manager import list_all_sites_aggregated, list_hosts, list_sites
 
 FAMILIES = ("hosts", "ea_sites", "sites")
 RESOLVERS = ("host", "ea_site", "site_id", "site_slug", "routing")

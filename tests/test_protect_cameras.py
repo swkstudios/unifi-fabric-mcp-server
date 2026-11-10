@@ -10,7 +10,7 @@ import pytest
 
 from tests._protect_writes import assert_write, resp
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.protect import (
+from unifi_fabric.families.protect.protect import (
     PROTECT_MUTATIONS_ENV,
     PROTECT_PRIVATE_BASE,
     PROTECT_PROXY_BASE,

@@ -6,22 +6,22 @@ import pytest
 from fastmcp import FastMCP
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import (
+from unifi_fabric.families.network import (
     network_clients_guests as clients,
 )
-from unifi_fabric.tools import (
+from unifi_fabric.families.network import (
     network_controller_insights as controller,
 )
-from unifi_fabric.tools import (
+from unifi_fabric.families.network import (
     network_nat_qos_traffic as traffic,
 )
-from unifi_fabric.tools import (
+from unifi_fabric.families.network import (
     network_wifi_radio as wifi,
 )
-from unifi_fabric.tools import (
+from unifi_fabric.families.protect import (
     protect_device_lifecycle as lifecycle,
 )
-from unifi_fabric.tools import (
+from unifi_fabric.families.protect import (
     protect_recognition_search as recognition,
 )
 

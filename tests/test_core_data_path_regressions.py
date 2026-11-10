@@ -15,9 +15,11 @@ import pytest
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError, gather_or_cancel
 from unifi_fabric.config import Settings
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.innerspace import placement_snapshot
+from unifi_fabric.families.site_manager import aggregation, site_manager
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import aggregation, connector, placement_snapshot, site_manager
-from unifi_fabric.tools._keys import tag_items, with_context
+from unifi_fabric.shared_shapes._keys import tag_items, with_context
 
 H = "AA:1"
 U1 = "11111111-1111-1111-1111-111111111111"

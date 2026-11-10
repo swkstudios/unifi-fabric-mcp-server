@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unifi_fabric.tools import network_controller_admin as mod
+from unifi_fabric.families.network import network_controller_admin as mod
 
 
 def test_verified_wraps_a_non_object_body():

@@ -5,7 +5,7 @@
   "find": "Audit is best-effort and off by default: with",
   "claim": "Relay mutation audit: best-effort, off by default; unset UNIFI_AUDIT_LOG writes no record (was: every mutation attempt is written to an audit line)",
   "kind": "manual",
-  "source": "src/unifi_fabric/tools/connector.py",
+  "source": "src/unifi_fabric/families/connector/connector.py",
   "disposition": "corrected",
   "reviewer": "maintainer",
   "source_find": "when the audit\n    log is off"
@@ -82,7 +82,7 @@
   "find": "`list_ptz_presets` returns the console's HTTP 500",
   "claim": "list_ptz_presets implies an HTTP 500 error; it returns the upstream status 500 and body unchanged. Released 0.7.0 section stays byte-identical; corrected by a changelog.d fragment",
   "kind": "manual",
-  "source": "src/unifi_fabric/tools/protect_private.py",
+  "source": "src/unifi_fabric/families/protect/protect_private.py",
   "disposition": "historical",
   "reviewer": "maintainer",
   "source_find": "the upstream\n        status and body are returned unchanged"
@@ -93,7 +93,7 @@
   "find": "returns the body as received, but the shape depends on the route",
   "claim": "change-027 shapes: six tools return {data, httpStatusCode, traceId}; get_innerspace_project returns data-wrapped (integration route) or the bare project (legacy route)",
   "kind": "manual",
-  "source": "src/unifi_fabric/tools/innerspace.py",
+  "source": "src/unifi_fabric/families/innerspace/innerspace.py",
   "disposition": "corrected",
   "reviewer": "maintainer",
   "source_find": "the legacy path returns the project itself"
@@ -104,7 +104,7 @@
   "find": "every list tool that pages upstream drains every page by default",
   "claim": "Every list tool that pages upstream drains every page by default; locally answered lists return their full set",
   "kind": "manual",
-  "source": "src/unifi_fabric/tools/aggregation.py",
+  "source": "src/unifi_fabric/families/site_manager/aggregation.py",
   "disposition": "corrected",
   "reviewer": "maintainer",
   "source_find": "list_configured_api_keys"

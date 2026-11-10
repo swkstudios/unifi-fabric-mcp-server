@@ -9,6 +9,8 @@ build/
 *.egg
 .ruff_cache/
 .pytest_cache/
+.mypy_cache/
+.hypothesis/
 
 # coverage artifacts
 .coverage

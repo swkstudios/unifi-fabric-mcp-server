@@ -13,3 +13,10 @@ which the Model Context Protocol registry project generates
 (https://github.com/modelcontextprotocol/registry). That project licenses new contributions
 under the Apache License 2.0; contributions not relicensed remain under the MIT License. See
 https://github.com/modelcontextprotocol/registry/blob/main/LICENSE.
+
+The diagnostic bundle (src/unifi_fabric/diagnostic_bundle.py) follows the design of the
+sanitized support bundle in sirkirby/unifi-mcp
+(https://github.com/sirkirby/unifi-mcp/tree/7a40f40fd2af69bc5cd0c6b531888f54601cc613),
+Copyright (c) 2025 Chris Kirby, MIT License: local cached diagnostics kept separate from an
+explicit allowlist of live probes. Credit to its maintainers and contributors. No code from
+that project is copied or adapted here.

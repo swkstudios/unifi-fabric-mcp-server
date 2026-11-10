@@ -9,7 +9,7 @@ for staff who should investigate without making changes.
 Set `UNIFI_API_KEYS` to a JSON array. Each label is unique and identifies a key in
 tool results; `is_org_key` identifies an organization key when applicable.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:2059742604710e2a025ed26c40cf668babfb2101ccbfa0daf75052241fb8755b support=0.7.1 citation=file:src/unifi_fabric/config.py@sha256:2059742604710e2a025ed26c40cf668babfb2101ccbfa0daf75052241fb8755b -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
 ```json
 [
   {"key": "YOUR_EAST_KEY", "label": "east", "is_org_key": true},

@@ -210,6 +210,22 @@ def _tools_doc_categories() -> tuple[dict[str, str], dict[str, str]]:
     return anchors, category
 
 
+#: Tools of the released 0.7.0 catalog that the catalog has dropped since, with the docs/TOOLS.md
+#: heading each was counted under when 0.7.0 shipped. The released section's family counts still
+#: include them; the in-flight Removed rule lists each with its replacement.
+DROPPED_SINCE_RELEASE: dict[str, str] = {
+    "calibrate_door_lock": "Other",
+    "create_traffic_rule": "Create",
+    "delete_traffic_rule": "Delete",
+    "get_camera_adoption_qr": "Reading & Inspection",
+    "get_protect_case_asset_snapshot": "Reading & Inspection",
+    "reboot_nvr": "Other",
+    "set_door_lock_auto_close": "Configuration",
+    "update_protect_user_notifications": "Update",
+    "update_traffic_rule": "Update",
+}
+
+
 def _added_partition(
     section: str, additions: set[str], version: str = RELEASED
 ) -> tuple[set[str], list[tuple[str, int]]]:
@@ -250,6 +266,8 @@ def test_every_new_tool_is_named_or_counted_by_exactly_one_family_bullet(release
     anchors, category = _tools_doc_categories()
     if release == IN_FLIGHT:
         assert set(category) == set(_live()), "docs/TOOLS.md is stale"
+    else:
+        category = {**category, **DROPPED_SINCE_RELEASE}
     named, families = _added_partition(_section(release), additions, version)
     linked = [anchor for anchor, _count in families]
     assert len(linked) == len(set(linked)), f"two family bullets link one heading: {linked}"
@@ -334,12 +352,55 @@ def test_subsections_follow_keep_a_changelog_order(release: str) -> None:
     assert names == [name for name in KEEP_A_CHANGELOG if name in names], names
 
 
+NO_REPLACEMENT = re.compile(r"\bNo (?:direct )?replacement\b")
+
+
+def _replacement_problem(bullet: str, registered: set[str]) -> str | None:
+    """Why a Removed entry neither names a replacement nor says there is none, else None.
+
+    The entry shape is ``**Breaking (tool removed): `x`.** <reason>. Use `y`; affected: `x`.``
+    Either ``Use`` names a registered tool, or the entry says ``No replacement`` (or ``No
+    direct replacement``) after a reason of at least three words. Only the text before the
+    ``affected:`` clause counts: the removed tool and a tool that merely stays are not
+    replacements.
+    """
+    body = REMOVED_TITLE.sub("", bullet).split("affected:")[0]
+    if NO_REPLACEMENT.search(body):
+        reason = NO_REPLACEMENT.split(body)[0].strip(" .;")
+        if len(reason.split()) < 3:
+            return "'No replacement' needs a reason of at least three words before it"
+        return None
+    if set(re.findall(r"`(\w+)`", body)) & registered:
+        return None
+    return "the Removed entry names no registered replacement and does not say 'No replacement'"
+
+
+_HEAD = "**Breaking (tool removed): `a`.** "
+
+
+@pytest.mark.parametrize(
+    ("bullet", "problem"),
+    [
+        (_HEAD + "Gone upstream. Use `b`; affected: `a`.", None),
+        (_HEAD + "The console answers 501. No replacement; affected: `a`.", None),
+        (_HEAD + "Protect has no route. No direct replacement; `b` mutes; affected: `a`.", None),
+        (_HEAD + "Gone. No replacement; affected: `a`.", "reason"),
+        (_HEAD + "Gone upstream, nothing to use; affected: `a`.", "names no registered"),
+        (_HEAD + "Gone upstream; `list_a` still reads; affected: `a`.", "names no registered"),
+    ],
+)
+def test_removed_entry_needs_a_replacement_or_an_explicit_none(bullet, problem):
+    found = _replacement_problem(bullet, {"b", "list_x"})
+    assert (found is None) if problem is None else (found is not None and problem in found)
+
+
 @pytest.mark.parametrize("release", [RELEASED, IN_FLIGHT])
 def test_every_removed_tool_is_listed_under_removed_with_its_replacement(release: str) -> None:
     """A tool the previous release shipped that this one no longer registers is Removed.
 
     Each removed tool gets exactly one ``**Breaking (tool removed): `name`.**`` bullet
-    under ``### Removed`` naming a registered tool that replaces it; no other subsection
+    under ``### Removed`` naming a registered tool that replaces it, or saying ``No
+    replacement`` after a reason (a tool the console no longer serves at all); no other subsection
     carries a tool-removed entry, and Changed, Deprecated, Fixed and Security do not
     mention a removed tool at all. The highlights lead states the recomputed counts.
     """
@@ -372,8 +433,8 @@ def test_every_removed_tool_is_listed_under_removed_with_its_replacement(release
     }
     for name, bullets in entries.items():
         assert len(bullets) == 1, name
-        replacements = set(re.findall(r"`(\w+)`", bullets[0])) & set(schemas_new)
-        assert replacements, f"{name}: the Removed entry names no registered replacement"
+        problem = _replacement_problem(bullets[0], set(schemas_new))
+        assert problem is None, f"{name}: {problem}"
 
     for heading, body in subsections.items():
         if heading == "Removed":

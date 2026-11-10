@@ -1,0 +1,43 @@
+# Lines outside the release render that keep their own version on purpose.
+#
+# scripts/prepare_release.py refuses to render while any line outside the files it writes
+# names the current version or the published release, because such a line goes stale at the
+# next release. Prefer, in order: read the version when the generator runs; add a
+# VERSION_FIELDS entry; mark the line "docs-currency: historical". Only where none fits,
+# excuse that one version in that one file here, with the reason. An entry whose file no
+# longer names its version fails the release-state contract test: delete it then.
+
+[[excuse]]
+path = ".github/forbidden-names.txt"
+version = "0.7.1"
+reason = "names the release that added a rule"
+
+[[excuse]]
+path = ".github/workflows/dependabot-auto-merge.yml"
+version = "0.7.1"
+reason = "names the release a hold switch came in"
+
+[[excuse]]
+path = "scripts/codeql_alert_ledger.py"
+version = "0.7.1"
+reason = "the alert ledger recorded for 0.7.1"
+
+[[excuse]]
+path = "scripts/lane_gate.py"
+version = "0.7.1"
+reason = "records what the 0.7.1 release hit"
+
+[[excuse]]
+path = "src/unifi_fabric/policy.py"
+version = "0.7.1"
+reason = "the settings renamed in 0.7.1 and the migration guide at that release tag"
+
+[[excuse]]
+path = "src/unifi_fabric/audit.py"
+version = "0.7.1"
+reason = "the audit stream without the opt-in hash chain is the 0.7.1 format, byte for byte"
+
+[[excuse]]
+path = "src/unifi_fabric/config.py"
+version = "0.7.1"
+reason = "UNIFI_AUDIT_CHAIN off keeps the audit stream byte-identical to the 0.7.1 format"

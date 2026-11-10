@@ -81,23 +81,27 @@ async def test_startup_read_only_catalog_and_hidden_refusals(
             assert {tool.name for tool in listed} == callable_reads
         else:
             assert {tool.name for tool in listed} == META_TOOLS - {"call_write_tool"}
-            rows = (await client.call_tool("search_tools", {"query": "", "limit": None})).data
+            rows = (
+                await client.call_tool("search_tools", {"query": "", "limit": None})
+            ).structured_content["result"]
             assert {row["name"] for row in rows} == callable_reads
             assert {row["name"] for row in rows if row["writes"]} == mixed_reads
             matches = (
                 await client.call_tool("search_tools", {"query": "update configuration"})
-            ).data
+            ).structured_content["result"]
             assert matches
             assert {row["name"] for row in matches if row["writes"]} <= mixed_reads
             write_rows = (
                 await client.call_tool("search_tools", {"query": "", "writes": True})
-            ).data
+            ).structured_content["result"]
             assert {row["name"] for row in write_rows} == mixed_reads
             for name in (hidden_name, "call_write_tool"):
                 with pytest.raises(Exception, match="UNIFI_WRITE_POLICY") as error:
                     await client.call_tool("describe_tool", {"name": name})
                 assert read_only_message(name, tool=True) in str(error.value)
-            family_counts = (await client.call_tool("list_tool_families", {})).data
+            family_counts = (await client.call_tool("list_tool_families", {})).structured_content[
+                "result"
+            ]
             family_index = build_family_index()
             assert {row["family"]: row["tools"] for row in family_counts} == dict(
                 Counter(family_index[name] for name in callable_reads)
@@ -147,9 +151,11 @@ async def test_default_startup_catalog_is_identical(monkeypatch, mode):
                 tool.model_dump_json() for tool in await before.list_tools()
             ]
             if mode == "discovery":
-                assert (await after.call_tool("search_tools", {"query": ""})).data == (
-                    await before.call_tool("search_tools", {"query": ""})
-                ).data
+                assert (await after.call_tool("search_tools", {"query": ""})).structured_content[
+                    "result"
+                ] == (await before.call_tool("search_tools", {"query": ""})).structured_content[
+                    "result"
+                ]
     finally:
         restore()
 

@@ -14,8 +14,7 @@ import pytest
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import read_only
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import system_log
-from unifi_fabric.tools.client_records import (
+from unifi_fabric.families.clients.client_records import (
     _create_client_reservation,
     _extend_guest,
     _forget_client,
@@ -23,9 +22,10 @@ from unifi_fabric.tools.client_records import (
     _put_user,
     _set_client_fixed_ip,
 )
-from unifi_fabric.tools.site_admin import _create_site, _delete_site, _rename_site
-from unifi_fabric.tools.system_log import _epoch_hints, _read_system_log, _window
-from unifi_fabric.tools.vpn_clients import (
+from unifi_fabric.families.network.site_admin import _create_site, _delete_site, _rename_site
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.statistics.system_log import _epoch_hints, _read_system_log, _window
+from unifi_fabric.families.vpn.vpn_clients import (
     _create_vpn_client,
     _delete_vpn_client,
     _list_vpn_clients,
@@ -335,7 +335,9 @@ async def test_page_size_alone_is_requested_total_with_effective_size_readback(c
 
 async def test_paging_keys_in_query_are_honoured(client, registry):
     # 18 entries on console pages of 2: pageNumber 1 with pageSize 7 is entries 7 to 13.
-    async def post(_path: str, *, key: Any = None, json: dict[str, Any]) -> Any:
+    async def post(
+        _path: str, *, key: Any = None, json: dict[str, Any], always_write: bool = False
+    ) -> Any:
         return _page(json["pageNumber"], 9)
 
     client.post.side_effect = post
@@ -491,7 +493,11 @@ _NET_V2 = "/v1/connector/consoles/h/proxy/network/v2/api/site/default"
 @pytest.mark.parametrize(
     "path,is_write",
     [
-        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/all", True),
+        # system-log/all is a read-POST route (the collector reads it through post_read); the
+        # native readers keep it a write with always_write (test_system_log_incident_document:
+        # test_native_system_log_writes_preview_under_dry_run_on_every_class)
+        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/all", False),
+        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/critical", True),
         (
             "/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/threat-alert/",
             True,

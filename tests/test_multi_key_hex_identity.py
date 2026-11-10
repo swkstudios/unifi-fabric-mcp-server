@@ -3,10 +3,10 @@
 import pytest
 
 from unifi_fabric.config import APIKeyConfig
+from unifi_fabric.families.site_manager import site_manager
+from unifi_fabric.families.site_manager.aggregation import _device_host
 from unifi_fabric.registry import Registry
-from unifi_fabric.tools import site_manager
-from unifi_fabric.tools._keys import merge_first_key, stable_id
-from unifi_fabric.tools.aggregation import _device_host
+from unifi_fabric.shared_shapes._keys import merge_first_key, stable_id
 
 
 class _TwoKeys:

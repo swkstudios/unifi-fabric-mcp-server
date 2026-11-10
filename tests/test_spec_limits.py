@@ -1,6 +1,6 @@
 """Spec value limits: enforced exactly, before any request.
 
-* The committed table (``src/unifi_fabric/_spec_limits_table.py``) is exactly what
+* The committed table (``src/unifi_fabric/generated_api_facts/_spec_limits_table.py``) is exactly what
   ``tests/spec_limits_gen.py`` derives from the vendored specs, so a limit can neither be
   invented nor go missing; every name-alike argument left out is accounted for.
 * Generated from the table: argument values just past each non-paging boundary fail
@@ -27,7 +27,7 @@ from tests import test_spec_conformance as sc
 from tests import tool_args
 from tests import upstream_harness as uh
 from unifi_fabric import refusals, server
-from unifi_fabric._spec_limits_table import SPEC_LIMITS
+from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
 from unifi_fabric.redaction import REDACTION_MASK
 from unifi_fabric.spec_limits import check_arguments, limit_problems
 
@@ -53,7 +53,7 @@ _LARGE = 10_000
 def test_table_is_exactly_what_the_specs_derive():
     table, report = gen.derive()
     assert SPEC_LIMITS == table, (
-        "src/unifi_fabric/_spec_limits_table.py is stale: run "
+        "src/unifi_fabric/generated_api_facts/_spec_limits_table.py is stale: run "
         "`python -m tests.spec_limits_gen --write` and `ruff format` it"
     )
     assert report["untraced"] == {}

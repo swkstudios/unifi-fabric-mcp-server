@@ -494,7 +494,7 @@ async def test_declared_binary_json_looking_body_uses_byte_scrubber():
 @pytest.mark.parametrize("media_type", ["application/json", "text/plain"])
 def test_own_secret_json_scrub_preserves_declared_charset(encoding, media_type):
     from unifi_fabric.config import APIKeyConfig
-    from unifi_fabric.tools.connector import _relay_body
+    from unifi_fabric.families.connector.connector import _relay_body
 
     key = "1"
     body = {"count": 1, "label": "café", "echo": key}
@@ -514,7 +514,7 @@ def test_own_secret_json_scrub_preserves_declared_charset(encoding, media_type):
 def test_invalid_json_encoding_remains_binary_after_own_secret_scrub():
     import base64
 
-    from unifi_fabric.tools.connector import _relay_body
+    from unifi_fabric.families.connector.connector import _relay_body
 
     raw = b'{"name":"\xff","echo":"' + SECRET.encode() + b'"}'
     response = httpx.Response(
@@ -536,7 +536,7 @@ def test_invalid_json_encoding_remains_binary_after_own_secret_scrub():
 def test_unusable_codec_keeps_binary_body_during_own_secret_scrubbing(codec):
     import base64
 
-    from unifi_fabric.tools.connector import _relay_body
+    from unifi_fabric.families.connector.connector import _relay_body
 
     raw = json.dumps({"echo": SECRET, "label": "literal\\n"}).encode()
     response = httpx.Response(

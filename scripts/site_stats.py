@@ -3,7 +3,7 @@
 
 The website reads ``docs/site-stats.json`` from inside each release tag. Its contract::
 
-    {"schema": 1, "version": "v0.7.1", "tools": 792, "live_verified": 380, "unit_tested": 412,
+    {"schema": 1, "version": "v1.2.3", "tools": 792, "live_verified": 380, "unit_tested": 412,
      "live_verified_note": "historical: 380 of 786 passed on build cde04b5c1520, 2026-10-28"}
 
 - ``version`` equals the release tag (``v`` plus ``pyproject.toml`` ``[project] version``);

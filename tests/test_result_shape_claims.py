@@ -53,7 +53,7 @@ from tests._tool_catalog import lazy_parametrize, tools_by_name
 from unifi_fabric import server
 from unifi_fabric.catalog_descriptions import DELETION_RESULT
 from unifi_fabric.client import UniFiClient
-from unifi_fabric.tools import _results
+from unifi_fabric.shared_shapes import _results
 
 #: The pass-through line ``FabricMCP.tool`` adds to a docstring that states no result.
 FOOTER = "Returns: the upstream response body verbatim."
@@ -352,7 +352,13 @@ async def _payloads(monkeypatch, name: str) -> list[Any]:
             assert requests[0].url.params["cursor"] == "c1"
             assert result == {"result": records}
             out.append(result)
-    if name in {"get_controller_stats", "get_observability_site_health", "get_protect_stream_url"}:
+    if name in {
+        "get_controller_stats",
+        "get_observability_site_health",
+        "get_protect_stream_url",
+        "get_site_dpi_usage",
+        "get_client_dpi_usage",
+    }:
         args = cti.tool_args.generated_args(tools_by_name()[name])
         args["start"] = 1700000000000
         with monkeypatch.context() as mp:
@@ -686,7 +692,7 @@ def test_the_pass_through_line_is_added_only_without_a_result_statement():
 def test_carrier_cursor_envelope_is_documented():
     from pathlib import Path
 
-    from unifi_fabric.tools._pagination import mark_incomplete
+    from unifi_fabric.shared_shapes._pagination import mark_incomplete
 
     cursor = "opaque-cursor"
     result = mark_incomplete({}, {"nextCursor": cursor, "pages": 2})

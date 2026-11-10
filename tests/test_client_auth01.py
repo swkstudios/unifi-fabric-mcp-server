@@ -11,7 +11,7 @@ from unifi_fabric import server
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.secret_scrub import secret_scope
-from unifi_fabric.tools._classic_objects import checked_classic_response
+from unifi_fabric.shared_shapes._classic_objects import checked_classic_response
 
 PATH = "/v1/connector/consoles/console/proxy/network/v2/api/site/default/matter/nodes"
 CALLER = "synthetic-caller-credential"

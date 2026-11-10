@@ -27,8 +27,8 @@ from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.protect import protect_events_cases as pec
 from unifi_fabric.redaction import REDACTION_MASK
-from unifi_fabric.tools import protect_events_cases as pec
 
 HOST = "console-p04"
 BASE = f"/v1/connector/consoles/{HOST}/proxy/protect/api"
@@ -47,8 +47,8 @@ READ_TOOLS = {
     "get_protect_case_activity",
     "list_protect_case_assets",
     "export_protect_case",
-    "get_protect_case_asset_snapshot",
     "get_protect_stream_url",
+    "collect_protect_incident_evidence",
 }
 WRITE_TOOLS = {
     "set_protect_event_favorite",
@@ -629,23 +629,6 @@ async def test_export_missing_id_fails_before_any_request(action, kwargs, name):
     assert up.seen == []
 
 
-async def test_case_asset_snapshot_binary_and_upstream_404():
-    path = f"{BASE}/cases/{CASE}/assets/{ASSET}/snapshot"
-    up = Upstream(
-        {
-            ("GET", path): httpx.Response(
-                200, content=b"\x89PNG", headers={"content-type": "image/png"}
-            )
-        }
-    )
-    result = await run(up, pec.get_protect_case_asset_snapshot, CASE, ASSET)
-    assert result["image_base64"] == base64.b64encode(b"\x89PNG").decode()
-    html = "<pre>Cannot GET /api/cases/x/assets/y/snapshot</pre>"
-    up = Upstream({("GET", path): httpx.Response(404, text=html)})
-    with pytest.raises(UniFiConnectionError, match="Cannot GET"):
-        await run(up, pec.get_protect_case_asset_snapshot, CASE, ASSET)
-
-
 # ---------------------------------------------------------------------- stream URLs
 
 
@@ -728,8 +711,12 @@ CALLS: dict[str, tuple[Any, tuple[Any, ...], dict[str, Any]]] = {
     "update_protect_case_asset": (pec.update_protect_case_asset, (CASE, ASSET), {"note": "n"}),
     "remove_protect_case_asset": (pec.remove_protect_case_asset, (CASE, ASSET), {}),
     "export_protect_case": (pec.export_protect_case, ("prepare",), {"case_id": CASE}),
-    "get_protect_case_asset_snapshot": (pec.get_protect_case_asset_snapshot, (CASE, ASSET), {}),
     "get_protect_stream_url": (pec.get_protect_stream_url, ("livestream", CAMERA), {}),
+    "collect_protect_incident_evidence": (
+        pec._collect_protect_incident_evidence,
+        (1_790_000_000, 1_790_003_600),
+        {},
+    ),
 }
 
 
@@ -748,6 +735,10 @@ class GenericUpstream(Upstream):
             return httpx.Response(200, json={"activities": [], "links": {"next": None}})
         if path.endswith(("/cases", "/assets")):
             return httpx.Response(200, json=[{"id": CASE, "type": "clip"}])
+        if path.endswith("/events"):
+            # the events feed: one event on the first page, nothing after it
+            page = [{"id": EVENT, "start": 1_790_000_100_000}]
+            return httpx.Response(200, json=page if req.url.params.get("offset") == "0" else [])
         if path.endswith(("/thumbnail", "/snapshot")) or "/download/" in path:
             return httpx.Response(200, content=b"\x00", headers={"content-type": "image/jpeg"})
         return httpx.Response(200, json={"id": EVENT, "isFavorite": True})
@@ -867,8 +858,14 @@ async def test_multikey_data_requests_ride_the_owning_key(multikey_client, multi
         seen.append(key.label if key else None)
         return b"\x00", "image/jpeg"
 
+    async def capture_request(method, path, *a, key=None, **kw):
+        seen.append(key.label if key else None)
+        return httpx.Response(200, json=[])
+
     for method in ("get", "post", "patch", "delete"):
         setattr(multikey_client, method, AsyncMock(side_effect=capture))
+    # the evidence collector reads its events through client.request (status tap)
+    multikey_client.request = AsyncMock(side_effect=capture_request)
     multikey_client.get_binary = AsyncMock(side_effect=capture_binary)
     assert "get_protect_event" in CALLS
     for name, (fn, args, kwargs) in sorted(CALLS.items()):
@@ -888,7 +885,7 @@ def _registered() -> dict[str, Any]:
     return {t.name: t for t in tools}
 
 
-def test_register_adds_exactly_the_fifteen_tools():
+def test_register_adds_exactly_the_sixteen_tools():
     assert set(_registered()) == READ_TOOLS | WRITE_TOOLS
 
 

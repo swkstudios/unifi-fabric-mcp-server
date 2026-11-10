@@ -25,13 +25,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests._tool_classes import tool_module_paths
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
-from unifi_fabric.tools import (
-    carrier_fabric,
-    connector,
-    innerspace,
-    innerspace_internal,
-    mobility,
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.connector import connector
+from unifi_fabric.families.innerspace import innerspace, innerspace_internal
+from unifi_fabric.families.mobility import mobility
+from unifi_fabric.families.network import (
     network_clients_guests,
     network_controller_admin,
     network_dpi_policy,
@@ -42,7 +42,8 @@ from unifi_fabric.tools import (
     network_security_diagnostics,
     network_services_proxy,
     network_switching_power,
-    network_vpn_dns,
+)
+from unifi_fabric.families.protect import (
     protect,
     protect_automation_backup,
     protect_events_cases,
@@ -50,12 +51,13 @@ from unifi_fabric.tools import (
     protect_recognition_search,
     protect_users_assets,
 )
-from unifi_fabric.tools._results import (
+from unifi_fabric.families.vpn import network_vpn_dns
+from unifi_fabric.shared_shapes._results import (
     read_after_verdict,
     requested_leaves_verdict,
 )
 
-TOOLS_DIR = Path(__file__).resolve().parents[1] / "src" / "unifi_fabric" / "tools"
+TOOLS_DIR = Path(__file__).resolve().parents[1] / "src" / "unifi_fabric" / "families"
 SID = "00000000-0000-4000-8000-000000000001"
 PID = "00000000-0000-4000-8000-000000000002"
 HEX_ID = "0000000000000000000000a1"
@@ -83,7 +85,7 @@ def _read_after_tools() -> set[str]:
     """
     graph: dict[str, set[str]] = {}
     public: dict[str, str] = {}
-    for path in sorted(TOOLS_DIR.glob("*.py")):
+    for path in sorted(tool_module_paths()):
         tree = ast.parse(path.read_text())
         for node in tree.body:
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -143,7 +145,6 @@ PROTECT_PRIVATE_CLASSIFICATION = {
     "unadopt_protect_device": "verified",
     "adopt_protect_device": "connector_read_back",
     "reboot_protect_device": "connector_read_back",
-    "reboot_nvr": "connector_read_back",
 }
 PROTECT_PRIVATE_READ_AFTER = {
     f"protect_private.{name}"
@@ -223,7 +224,6 @@ ASSETS_VERIFIED = [
     "update_protect_device_tag",
     "update_protect_user_group",
     "update_protect_user",
-    "update_protect_user_notifications",
     "set_protect_notifications_muted",
 ]
 
@@ -248,7 +248,6 @@ def test_read_after_catalog_is_complete():
         | {f"network_dpi_policy.{n}" for n in DPI_POLICY_VERIFIED}
         | {f"protect_events_cases.{n}" for n in EVENTS_CASES_VERIFIED}
         | {"network_services_proxy.update_setting", "connector.connector_write"}
-        | {"network_services_proxy.update_traffic_rule"}
         | {"network_wifi_radio.configure_wifi_wan"}
         | {"network_proav_sandbox.update_digital_twin_layout"}
         | {f"network_controller_admin.{n}" for n in ADMIN_VERIFIED}
@@ -432,9 +431,7 @@ class AssetsCase(Case):
 
             def wrap(record):
                 if isinstance(record, dict):
-                    if self.name == "update_protect_user_notifications":
-                        record = {"id": SID, "notifications": record}
-                    elif self.name == "set_protect_notifications_muted":
+                    if self.name == "set_protect_notifications_muted":
                         record = {"id": SID, "notificationSnoozeSettings": record}
                     return {family: [{"id": SID, **record}]}
                 return record
@@ -698,30 +695,6 @@ class NcCase(Case):
 
     def response(self, result):
         return {key: value for key, value in result.items() if not key.startswith("_")}
-
-
-class TrafficRuleCase(NcCase):
-    """update_traffic_rule: read-before from list_traffic_rules, merged v2 PUT, read-after."""
-
-    def __init__(self) -> None:
-        super().__init__("update_traffic_rule")
-        self.family = "network_services_proxy"
-
-    async def run(self, monkeypatch, before, after, *, dry_run=False, write=None):
-        client = _client(dry_run)
-        client.put.return_value = PREVIEW if dry_run else (write or dict(WRITE_RESPONSE))
-        reads: list[Any] = [[{"_id": NC_HEX_ID, **before}]]
-        if isinstance(after, BaseException):
-            reads.append(after)
-        elif isinstance(after, dict):
-            reads.append([{"_id": NC_HEX_ID, **after}])
-        else:
-            reads.append(after)
-        client.get = AsyncMock(side_effect=reads)
-        result = await network_services_proxy.update_traffic_rule(
-            client, _registry(), "h", "default", NC_HEX_ID, copy.deepcopy(self.requested)
-        )
-        return result, client.put
 
 
 class VpnDnsCase(Case):
@@ -1043,7 +1016,7 @@ class LifecycleCase(Case):
         self.bool_field = "settings.enabled"
 
     async def run(self, monkeypatch, before, after, *, dry_run=False, write=None):
-        from unifi_fabric.tools import protect_device_lifecycle as pdl
+        from unifi_fabric.families.protect import protect_device_lifecycle as pdl
 
         client = _client(dry_run)
         resolved = AsyncMock(return_value=(None, "synthetic-host"))
@@ -1310,7 +1283,6 @@ CASES: list[Case] = [
     *(SwitchingPowerCase(n) for n in SWITCHING_POWER_VERIFIED),
     *(SecurityCase(n) for n in SECURITY_VERIFIED),
     *(NcCase(n) for n in NC_VERIFIED),
-    TrafficRuleCase(),
     *(VpnDnsCase(n) for n in VPN_DNS_VERIFIED),
     DigitalTwinLayoutCase(),
     *(PtzDoorbellCase(n) for n in PTZ_DOORBELL_VERIFIED),

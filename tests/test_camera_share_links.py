@@ -12,7 +12,7 @@ import pytest
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import protect
+from unifi_fabric.families.protect import protect
 
 CAM = "0000000000000000000000aa"
 PATH = f"/v1/connector/consoles/host-a/proxy/protect/api/cameras/{CAM}/sharedStream"

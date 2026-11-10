@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unifi_fabric.tools import network_routing_topology as mod
+from unifi_fabric.families.network import network_routing_topology as mod
 
 
 def test_with_verdict_wraps_a_non_object_body():

@@ -7,6 +7,189 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-10
+
+Highlights: 798 tools (15 added, 9 removed); the full list is in the [tool catalog](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md).
+
+- Opt-in tamper evidence and a remote sink for the audit log.
+- Read UniFi API keys from a file or a helper command instead of the environment.
+- A sanitized server diagnostic bundle for bug reports.
+- Opt-in OTLP trace export of per-request MCP spans.
+- Protect MCP resources for consoles, events and camera snapshots.
+- Tools whose routes no current UniFi application serves are removed.
+
+**Breaking:** 9 tools are removed; a client that calls one gets an unknown-tool error. 1 Changed entry marked Breaking alters existing behavior. **Upgrade:** the [migration guide](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md) says what to use instead, where one exists.
+
+### Added
+
+#### Credentials and audit
+
+- **Audit:** opt-in remote sink to a TLS collector with `UNIFI_AUDIT_SINK=remote`; TLS 1.3 is the default and fails closed. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#remote-audit-sink-unifi_audit_sinkremote)
+
+- **Audit:** opt-in `UNIFI_AUDIT_HMAC_IDENTIFIERS` replaces client MAC addresses and user identifiers in audit records with stable HMAC tokens. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#pseudonymised-identifiers-unifi_audit_hmac_identifiers)
+
+- **Audit:** opt-in tamper evidence for the JSON audit file with `UNIFI_AUDIT_CHAIN`, checked offline by the `unifi-fabric-audit-verify` command. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#tamper-evidence-unifi_audit_chain)
+
+- **Credentials:** read API keys from a file or helper command with `UNIFI_API_KEY_FILE` or `UNIFI_API_KEY_COMMAND` (list forms too). [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#key-files-and-helper-commands)
+
+#### Diagnostics and observability
+
+- **Diagnostics:** `get_server_diagnostic_bundle` returns a sanitized, reviewable bundle describing this server, with no UniFi request by default. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#server-diagnostics)
+
+- **Traces:** opt-in OTLP trace export of per-request MCP spans to a collector you run; with no endpoint set, nothing is loaded. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#trace-export-otlp)
+
+#### Discovery
+
+- **Search:** `search_tools` results now say when the limit cut the list (`more_available`, `total_matched`). [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#discovery-mode)
+
+- **Schemas:** twelve server-assembled tools, including `search_tools` and `get_fleet_summary`, now advertise a fully described `outputSchema`; results are unchanged. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#output-schemas-of-server-assembled-tools)
+
+#### Incident evidence
+
+- **Incident evidence:** `collect_network_incident_evidence` and `collect_protect_incident_evidence` return one versioned document of evidence ids, provenance and coverage for a time window. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#incident-evidence)
+
+#### Network
+
+- **Network diagnostics:** `get_site_dpi_usage`, `get_client_dpi_usage` and `get_client_wifi_experience` read per-application traffic and per-client Wi-Fi experience. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md#get_site_dpi_usage)
+
+- **Network:** `suggest_service_port` lists free ports for a VPN service; `acknowledge_critical_alert` marks one critical alert as read. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md#suggest_service_port)
+
+- **Switch ports:** `get_switch_port_overrides` and `update_switch_port_overrides` change only the named ports and fields, preview with `dry_run` and verify on read-back. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#update_switch_port_overrides)
+
+#### Statistics
+
+- **Statistics:** `get_controller_stats` gains `view: "series"` for history in hourly, eight-hourly or monthly buckets. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md#get_controller_stats)
+
+#### Protect
+
+- **Alarm Manager:** `get_protect_alarm_manager_mode` reports whether a console runs local or global Alarm Manager, and whether the arm-profile tools apply. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/COVERAGE.md#protect-global-alarm-manager)
+
+- **Protect door locks:** `get_door_lock` and `list_door_lock_unlock_events` read one Protect 7.x lock and its remote unlock requests. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md#get_door_lock)
+
+- **Resources:** MCP resources for consoles, recent events, an event summary and camera snapshots. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#protect-mcp-resources)
+
+#### Event streams
+
+- **Event streams:** `get_event_stream_status` and `read_recent_events` report stream compatibility and read bounded recent-event buffers; both report `unsupported` today. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/COVERAGE.md#live-event-streams-network-and-protect)
+
+### Changed
+
+#### Documentation
+
+- **Docs:** Docker examples now pass the API key without putting it on the `docker run` command line.
+
+- **Docs:** the README's Claude Desktop install badge links straight to the current `.mcpb` bundle.
+
+#### Install
+
+- **Install:** the minimum `pydantic-settings` is now 2.7.
+
+- **Upgrade kit:** the 0.7.1 settings migrator and its guide leave the source tree; use the v0.7.1 tag to migrate from 0.7.0. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#the-071-settings-migration-kit-is-removed)
+
+- **Install:** `server.json` now carries a display `title` (`UniFi Fabric MCP Server`) and `websiteUrl` (`https://github.com/swkstudios/unifi-fabric-mcp-server`), so MCP registries show the server's name and project page.
+
+#### Network
+
+- **Descriptions:** `preview_policy_engine_rule` says it needs Network 11.1.11 or later; 11.0.89 answered HTTP 405 and 11.0.99 does not list the route.
+
+- **Traffic rules:** `list_traffic_rules` is labelled legacy; Network 11 no longer shows or manages them. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#network-traffic-rule-changes)
+
+- **Hints:** the placement snapshot's missing-key hint now names the key file and helper settings.
+
+#### Protect
+
+- **Protect 7.x:** `restore_protect_database` now sends the 7.x restore route; with no dump staged, Protect's HTTP 400 passes through unchanged. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking:** `set_door_lock_state` takes `unlock` and now refuses `lock` and `close`, and gains `hold_extra_sec`; affected: `set_door_lock_state`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Door locks:** `list_door_locks` reads the Protect 7.x `/locks` route. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Arm profiles:** the arm-profile tools keep the console's HTTP 400 and add a pointer to `get_protect_alarm_manager_mode`.
+
+#### Fabric connector
+
+- **Fabric connector:** `fabric_connector_get` and the other relays state the connector's documented limits, and a matching error gets an actionable hint. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/RETRY.md#fabric-connector-limits-http-408-429-502)
+
+- **Fabric connector:** `fabric_connector_put`, `fabric_connector_patch` and `update_device_radio` now say a device-settings write can restart the device. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#fabric_connector_put)
+
+### Removed
+
+- **Breaking (tool removed): `create_traffic_rule`.** The console answers HTTP 501. Use `create_firewall_policy`; affected: `create_traffic_rule`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#network-traffic-rule-changes)
+
+- **Breaking (tool removed): `update_traffic_rule`.** The console answers HTTP 501. No replacement; affected: `update_traffic_rule`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#network-traffic-rule-changes)
+
+- **Breaking (tool removed): `delete_traffic_rule`.** The console answers HTTP 501. No replacement; affected: `delete_traffic_rule`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#network-traffic-rule-changes)
+
+- **Breaking (tool removed): `get_camera_adoption_qr`.** Protect 7.3 has no QR route. No replacement; affected: `get_camera_adoption_qr`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking (tool removed): `calibrate_door_lock`.** Protect 7.x door locks have no calibrate route. No replacement; affected: `calibrate_door_lock`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking (tool removed): `set_door_lock_auto_close`.** Protect 7.x door locks have no auto-close route. No replacement; affected: `set_door_lock_auto_close`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking (tool removed): `get_protect_case_asset_snapshot`.** Protect 7.3 has no snapshot route. Use `list_protect_case_assets` then `get_thumbnail`; affected: `get_protect_case_asset_snapshot`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking (tool removed): `reboot_nvr`.** No Protect version serves it. Use `reboot_unifi_os_console`; affected: `reboot_nvr`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+- **Breaking (tool removed): `update_protect_user_notifications`.** Protect 7.3 keeps notifications per automation. No direct replacement; `set_protect_notifications_muted` still mutes; affected: `update_protect_user_notifications`. [Migration details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/MIGRATING-0.7.2.md#protect-7x-route-changes)
+
+### Fixed
+
+#### Network
+
+- **Fixed IPs:** `remove_client_fixed_ip` reports `deleted: true` only when the client's fixed IP is actually gone. [#47](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/47)
+
+- **Clients:** `set_client_name` and three related writes read the client's own record when the client list omits it, instead of reporting not found ([#48](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/48)).
+
+- **Descriptions:** `get_firewall_policy_ordering` and `set_firewall_policy_ordering` now say zone ids must be UUIDs, and the latter says the ordering body is sent as given.
+
+- **Descriptions:** the firewall zone tools, such as `list_firewall_zones_proxy`, now say they call the Network Integration API through the connector proxy.
+
+- **Errors:** `get_multicast_insights` now explains that an HTML 404 means this console's Network application does not serve multicast insights, and keeps the upstream body.
+
+- **Purpose-only updates:** `update_vpn_server` and three sibling tools refuse a body holding only `purpose`, with a clearer reason.
+
+- **Network:** an HTML 404 from `/v2/api/stats/*` now carries a hint that the console's Network application does not serve that statistics route. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#generic-fabric-connector-relay-guarded)
+
+- **Network:** a write the console refuses inside an HTTP 200 reply is now reported as an error, and the audit log records it as `upstream_error_body`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/RETRY.md#http-200-carrying-an-error-network-v2)
+
+- **Error hints:** `get_innerspace_ucore_manifest` and `search_detections` name the working tool on a refusal, `get_5g_topology` explains its 404, and a 403 with `errors.ucore.access` drops the API-key hint.
+
+#### Pagination
+
+- **Pagination:** all-pages lists no longer stop early when rows share a MAC address; records are told apart by `id`, `_id` or `uuid`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/PAGINATION.md#partial-results-when-a-page-cap-is-set)
+
+#### Tool descriptions
+
+- **Descriptions:** write tool descriptions now say what the dry-run preview returns and what the write changes; the `UNIFI_WRITE_POLICY=dry-run` setting is explained in its own sentence. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#dry-run-behavior)
+
+#### Credentials and audit
+
+- **Redaction:** with `UNIFI_REDACT_SECRETS`, WireGuard client configurations and preshared keys are masked in every tool. [#46](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/46)
+
+#### Write policy
+
+- **Write policy:** reads that send a POST outside the read allowlist are now classed as writes consistently, so `UNIFI_WRITE_POLICY=deny` hides them. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOL-USAGE.md#reads-that-send-a-post)
+
+#### Fabric connector
+
+- **Fabric connector:** an HTTP 408 now carries a hint after the upstream body; a 408 on a write is reported as outcome unknown, never retried. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/RETRY.md#fabric-connector-limits-http-408-429-502)
+
+#### Retries
+
+- **Retries:** a read that gets HTTP 429 waits for `Retry-After` up to 64 seconds; a longer wait is raised with the header value. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/RETRY.md#rate-limit-handling-http-429-for-a-read-via-get)
+
+### Security
+
+#### Install
+
+- **Bundle build:** the Claude Desktop bundle build no longer installs `zod` or `tmp` versions with published advisories (build-time only; [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), [GHSA-ph9p-34f9-6g65](https://github.com/advisories/GHSA-ph9p-34f9-6g65), [GHSA-52f5-9888-hmc6](https://github.com/advisories/GHSA-52f5-9888-hmc6)).
+
+#### Credentials and audit
+
+- **Credentials:** API key fingerprints are now keyed hashes that change at each server start, so they cannot be guessed offline. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/CONFIGURATION.md#credential-redaction)
+
+Fixes #46, Fixes #47, Fixes #48.
+
 ## [0.7.1] - 2026-11-08
 
 Highlights: 792 tools (6 added, 0 removed); four settings replace the 0.7.0 write and exposure settings (`UNIFI_WRITE_POLICY`, `UNIFI_WRITE_EXCEPTIONS`, `UNIFI_FAMILY_ALLOW`, `UNIFI_EXCLUDE`); opt-in header mode (`UNIFI_KEY_MODE=header`) takes UniFi API keys per request; request headers can tighten, never loosen, the operator policy; opt-in read-only Code Mode (experimental, may change without a deprecation cycle); audit log sink and file-mode hardening; opt-in `/health` route. Breaking (configuration): the 0.7.0 settings are retired with no aliases and the server refuses to start while one is set (see the Breaking items below and the migration guide).

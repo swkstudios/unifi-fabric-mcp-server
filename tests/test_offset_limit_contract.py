@@ -24,7 +24,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests._tool_catalog import tools as catalog_tools
 from unifi_fabric import refusals, server
-from unifi_fabric._spec_limits_table import SPEC_LIMITS
+from unifi_fabric.generated_api_facts._spec_limits_table import SPEC_LIMITS
 
 PAGING_NAMES = {"limit", "page_size", "offset", "page", "page_number"}
 #: Wording that tells a caller offset plus limit fetches one page.

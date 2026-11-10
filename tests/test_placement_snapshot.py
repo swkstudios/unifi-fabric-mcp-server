@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools.placement_snapshot import (
+from unifi_fabric.families.innerspace.placement_snapshot import (
     APPROVED_READ_SOURCES,
     CAPABILITY_OUTCOMES,
     DEVICE_TYPES,
@@ -872,12 +872,16 @@ class TestSnapshotCapabilityPreflight:
             return {"data": [], "_count": 0}
 
         monkeypatch.setattr(
-            "unifi_fabric.tools.placement_snapshot.innerspace.fetch_project", project
+            "unifi_fabric.families.innerspace.placement_snapshot.innerspace.fetch_project", project
         )
-        monkeypatch.setattr("unifi_fabric.tools.placement_snapshot.protect.list_cameras", cameras)
-        monkeypatch.setattr("unifi_fabric.tools.placement_snapshot.protect.list_sensors", sensors)
         monkeypatch.setattr(
-            "unifi_fabric.tools.placement_snapshot.site_manager.list_devices", devices
+            "unifi_fabric.families.innerspace.placement_snapshot.protect.list_cameras", cameras
+        )
+        monkeypatch.setattr(
+            "unifi_fabric.families.innerspace.placement_snapshot.protect.list_sensors", sensors
+        )
+        monkeypatch.setattr(
+            "unifi_fabric.families.innerspace.placement_snapshot.site_manager.list_devices", devices
         )
 
         report = await preflight_placement_snapshot_capabilities(object(), object(), "host-canary")
@@ -910,15 +914,17 @@ class TestSnapshotCapabilityPreflight:
             return {"devices": [{"a": "response payload must be discarded"}]}
 
         monkeypatch.setattr(
-            "unifi_fabric.tools.placement_snapshot.innerspace.fetch_project", denied
+            "unifi_fabric.families.innerspace.placement_snapshot.innerspace.fetch_project", denied
         )
         monkeypatch.setattr(
-            "unifi_fabric.tools.placement_snapshot.protect.list_cameras", unavailable
+            "unifi_fabric.families.innerspace.placement_snapshot.protect.list_cameras", unavailable
         )
         monkeypatch.setattr(
-            "unifi_fabric.tools.placement_snapshot.protect.list_sensors", unexpected
+            "unifi_fabric.families.innerspace.placement_snapshot.protect.list_sensors", unexpected
         )
-        monkeypatch.setattr("unifi_fabric.tools.placement_snapshot.site_manager.list_devices", good)
+        monkeypatch.setattr(
+            "unifi_fabric.families.innerspace.placement_snapshot.site_manager.list_devices", good
+        )
 
         report = await preflight_placement_snapshot_capabilities(object(), object(), "host-canary")
         serialized = json.dumps(report)

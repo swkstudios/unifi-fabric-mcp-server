@@ -52,12 +52,31 @@ AXIS_BATCH = int(os.environ.get("UNIFI_TEST_AXIS_BATCH", "100"))
 
 
 @functools.cache
+def tool_module_paths() -> list[Path]:
+    """Every family handler and shared helper module (was ``tools/*.py``)."""
+    pkg = Path(__file__).resolve().parents[1] / "src" / "unifi_fabric"
+    found = [*(pkg / "families").rglob("*.py"), *(pkg / "shared_shapes").glob("*.py")]
+    return sorted(p for p in found if p.name != "__init__.py")
+
+
+def tool_module_names() -> list[str]:
+    """Dotted names of :func:`tool_module_paths`."""
+    root = Path(__file__).resolve().parents[1] / "src"
+    parts = [p.relative_to(root).with_suffix("").parts for p in tool_module_paths()]
+    return [".".join(part) for part in parts]
+
+
+def tool_module_name(stem: str) -> str:
+    """Dotted name of the moved module whose basename is ``stem``."""
+    return next(n for n in tool_module_names() if n.rsplit(".", 1)[1] == stem)
+
+
 def module_index() -> dict[str, str]:
     """``tool name -> tools/ sub-module``, statically from source (the reference the fast
     runtime classification is checked against in ``tests/test_tool_classes.py``)."""
     from unifi_fabric import families as fam
 
-    pkg = Path(fam.__file__).parent
+    pkg = Path(fam.__file__).parent.parent
     index: dict[str, str] = {}
     server_tree = ast.parse((pkg / "server.py").read_text())
     for node in server_tree.body:
@@ -67,7 +86,7 @@ def module_index() -> dict[str, str]:
             refs = fam._module_refs(node)
             index[fam._tool_name(node)] = refs[0] if refs else "server"
     for mod in fam._REGISTER_MODULES:
-        tree = ast.parse((pkg / "tools" / f"{mod}.py").read_text())
+        tree = ast.parse((pkg / fam._module_rel(mod)).read_text())
         for reg in ast.walk(tree):
             if isinstance(reg, ast.FunctionDef) and fam._REGISTER_FUNCTION_RE.fullmatch(reg.name):
                 for sub in ast.walk(reg):

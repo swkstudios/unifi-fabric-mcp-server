@@ -26,8 +26,8 @@ from httpx import Response
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import carrier_fabric
-from unifi_fabric.tools.carrier_fabric import (
+from unifi_fabric.families.carrier import carrier_fabric
+from unifi_fabric.families.carrier.carrier_fabric import (
     CARRIER_BASE,
     assign_carrier_subscriber_plan,
     attach_carrier_subscriber_host,
@@ -41,7 +41,7 @@ from unifi_fabric.tools.carrier_fabric import (
     suspend_carrier_subscriber,
     update_carrier_subscriber,
 )
-from unifi_fabric.tools.carrier_fabric import (
+from unifi_fabric.families.carrier.carrier_fabric import (
     WRITE_ENABLED_ENV as WRITE_DENIED_ENV,
 )
 

@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import hashlib
 import json
-import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -26,6 +24,7 @@ import httpx
 from unifi_fabric import server
 from unifi_fabric.client import UniFiClient, is_write_request
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.fingerprint import key_fingerprint
 from unifi_fabric.registry import Registry
 
 RECORDED = Path(__file__).parent / "fixtures" / "recorded"
@@ -43,7 +42,6 @@ ARG_SLOT = 1
 VPN_SERVER_EXTERNAL_ID = "00000000-0000-4000-9000-000000000038"
 SITE = "Default"
 NOW = int(time.time())
-_PROBE_KEY = os.urandom(32)
 
 # Upstream envelope/framing keys: transport metadata around the records, not record data.
 FRAMING = frozenset(
@@ -348,6 +346,10 @@ DECODED_BODIES: dict[str, Any] = {
 }
 
 
+#: A Classic REST PUT of one known-client record (``rest/user/{_id}``).
+_CLASSIC_USER_PUT = re.compile(r".*/proxy/network/api/s/[^/]+/rest/user/[^/]+")
+
+
 def request_json(req: Any) -> Any:
     """The decoded JSON body of an httpx request, or None (the write classifier
     is body-aware for metadata-only Classic commands)."""
@@ -455,6 +457,11 @@ class FakeUpstream:
     # compact JSON; ``classic_rc_methods`` limits it to those HTTP methods (None: all).
     classic_rc_body: Any = None
     classic_rc_methods: tuple[str, ...] | None = None
+    # Every non-resolution Network v2 request (``/proxy/network/v2/...``) answers HTTP 200
+    # with this body (a bare ``{"error": {"code", "message"}}`` refusal inside a 200), sent
+    # as compact JSON; ``v2_error_methods`` limits it to those HTTP methods (None: all).
+    v2_error_body: Any = None
+    v2_error_methods: tuple[str, ...] | None = None
     # A complete documented InnerSpace project document for shape-specific
     # large-body checks.  This is kept separate from the generic list generator.
     project_body: dict[str, Any] | None = None
@@ -1092,6 +1099,19 @@ class FakeUpstream:
                 content=json.dumps(body, separators=(",", ":")).encode(),
                 headers={"content-type": "application/json"},
             )
+        if (
+            self.v2_error_body is not None
+            and not resolution
+            and family(path) == "v2"
+            and (self.v2_error_methods is None or req.method in self.v2_error_methods)
+        ):
+            body = copy.deepcopy(self.v2_error_body)
+            self._record(req, 200, body, False)
+            return httpx.Response(
+                200,
+                content=json.dumps(body, separators=(",", ":")).encode(),
+                headers={"content-type": "application/json"},
+            )
         if key in self.failing_keys:
             body = {"code": "forbidden", "message": f"key {key} lacks scope", "traceId": "t"}
             self._record(req, 403, body, resolution)
@@ -1285,6 +1305,13 @@ class FakeUpstream:
             self._record(req, 200, "probe-write-text", False)
             return httpx.Response(200, text="probe-write-text")
         self._last_synthetic = True
+        if req.method == "PUT" and _CLASSIC_USER_PUT.fullmatch(path):
+            # A Classic known-client PUT answers with the UPDATED record (live, Network
+            # 11.0.81), and remove_client_fixed_ip confirms its removal from that echo
+            # alone, so record 0 carries the written fields in this answer too.
+            sent = request_json(req)
+            if isinstance(sent, dict):
+                self.overlay.update({k: v for k, v in sent.items() if not isinstance(v, dict)})
         body = self._generic(req)
         if req.method == "GET":
             body = self._probe_envelope(body)
@@ -1397,7 +1424,7 @@ class FakeUpstream:
 
 def key_probe_tag(key: str) -> str:
     """Return a per-run keyed fingerprint without exposing configured credentials."""
-    return hashlib.blake2b(key.encode(), key=_PROBE_KEY).hexdigest()[:16]
+    return key_fingerprint(key, 16)
 
 
 def _tag_probes(node: Any, key: str) -> None:

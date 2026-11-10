@@ -29,9 +29,10 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import LazyCatalog
 from unifi_fabric import server
 from unifi_fabric.client import DRY_RUN_MESSAGE, RateLimitError, is_dry_run_preview
-from unifi_fabric.tools import device_mgmt, statistics
-from unifi_fabric.tools._results import deletion_result
-from unifi_fabric.tools.network import PROXY_BASE
+from unifi_fabric.families.devices import device_mgmt
+from unifi_fabric.families.network.network import PROXY_BASE
+from unifi_fabric.families.statistics import statistics
+from unifi_fabric.shared_shapes._results import deletion_result
 
 TOOLS = LazyCatalog()
 

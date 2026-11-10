@@ -18,7 +18,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import tools_by_name
 from unifi_fabric import policy, server
 from unifi_fabric.config import Settings
-from unifi_fabric.tools.statistics import SESSION_TYPES
+from unifi_fabric.families.statistics.statistics import SESSION_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 

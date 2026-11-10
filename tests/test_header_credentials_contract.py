@@ -33,6 +33,7 @@ from typing import Any
 import httpx
 import pytest
 
+from tests._tool_classes import tool_module_paths
 from unifi_fabric import header_credentials as hc
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
@@ -43,7 +44,7 @@ KEY_A = "synthetic-key-a"
 KEY_B = "synthetic-key-b"
 KEY_C = "synthetic-key-c"
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS_DIR = ROOT / "src" / "unifi_fabric" / "tools"
+TOOLS_DIR = ROOT / "src" / "unifi_fabric" / "families"
 
 
 def _hdr(obj: Any) -> str:
@@ -474,7 +475,7 @@ async def test_hostless_non_fanout_call_uses_first_label(
 async def test_hostless_fanout_list_hosts_uses_every_label_in_request_order(
     header_mode: None, upstream: Upstream
 ) -> None:
-    from unifi_fabric.tools.site_manager import list_hosts
+    from unifi_fabric.families.site_manager.site_manager import list_hosts
 
     upstream.hosts_by_key = {
         KEY_A: [{"id": "host-a1", "name": "HQ-A"}],
@@ -499,7 +500,7 @@ async def test_hostless_fanout_list_hosts_uses_every_label_in_request_order(
 async def test_single_label_header_list_hosts_single_call(
     header_mode: None, upstream: Upstream
 ) -> None:
-    from unifi_fabric.tools.site_manager import list_hosts
+    from unifi_fabric.families.site_manager.site_manager import list_hosts
 
     upstream.hosts_by_key = {KEY_A: [{"id": "host-a1", "name": "HQ-A"}]}
     client = _client()
@@ -514,7 +515,7 @@ async def test_single_label_header_list_hosts_single_call(
 async def test_paged_call_over_two_labels_refuses_before_any_request(
     header_mode: None, upstream: Upstream
 ) -> None:
-    from unifi_fabric.tools.site_manager import list_hosts
+    from unifi_fabric.families.site_manager.site_manager import list_hosts
 
     client = _client()
     registry = Registry(client, ttl_seconds=900)
@@ -661,7 +662,7 @@ def _fanout_functions() -> set[str]:
     first_success or _aggregate_lists_over_keys.
     """
     out: set[str] = set()
-    for path in sorted(TOOLS_DIR.glob("*.py")):
+    for path in sorted(tool_module_paths()):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         funcs = {
             n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -690,7 +691,7 @@ def test_hostless_selection_matches_fanout_set_for_every_tool() -> None:
     fanout = frozenset(_fanout_functions())
     ctx, transport = _ingress([("X-UniFi-Api-Key", _hdr({"alpha": KEY_A, "beta": KEY_B}))])
     with hc.bind_request(ctx, transport, header_mode=True):
-        for path in sorted(TOOLS_DIR.glob("*.py")):
+        for path in sorted(tool_module_paths()):
             for node in ast.parse(path.read_text(encoding="utf-8")).body:
                 if isinstance(
                     node, (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -713,7 +714,8 @@ def test_header_cache_label_differs_per_key(header_mode: None) -> None:
     a = APIKeyConfig(key=KEY_A, label="alpha")
     b = APIKeyConfig(key=KEY_B, label="alpha")
     assert hc.cache_label("alpha", a) != hc.cache_label("alpha", b)
-    assert hashlib.sha256(KEY_A.encode()).hexdigest() in hc.cache_label("alpha", a)
+    assert hc.full_key_digest(KEY_A) in hc.cache_label("alpha", a)
+    assert hashlib.sha256(KEY_A.encode()).hexdigest() not in hc.cache_label("alpha", a)
 
 
 def _prefix_collision() -> tuple[str, str]:

@@ -19,8 +19,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from unifi_fabric.tools import network_controller_insights, network_vpn_dns, system_log
-from unifi_fabric.tools._number_window import collect_number_window
+from unifi_fabric.families.network import network_controller_insights
+from unifi_fabric.families.statistics import system_log
+from unifi_fabric.families.vpn import network_vpn_dns
+from unifi_fabric.shared_shapes._number_window import collect_number_window
 
 REPEAT_REASON = (
     "page 1 repeated the entries of an earlier page; the controller did not page by "
@@ -108,7 +110,7 @@ async def test_short_page_zero_repeated_with_evidence_of_more_stays_an_abort(evi
 
 
 def _client(body: Any, calls: list[dict[str, Any]]) -> SimpleNamespace:
-    async def post(path, *, key=None, json=None):
+    async def post(path, *, key=None, json=None, always_write=False):
         calls.append({k: v for k, v in json.items() if k in ("pageNumber", "pageSize")})
         return body
 

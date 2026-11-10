@@ -151,9 +151,13 @@ def write_verbs_for(fn: Callable[..., Any]) -> set[str]:
 
 
 #: Source evidence that a function talks to the UniFi upstream: it obtains the client
-#: through ``_require()`` or calls a method on a ``client``. ``client._key_configs()`` only
-#: reads the configured (or request-supplied) key list: local state, not the upstream.
-_UPSTREAM_RE = re.compile(r"\b_require\(|\bclient\.(?!_key_configs\()\w+\(")
+#: through ``_require()``, calls a method on a ``client``, or resolves a host or site through
+#: the ``registry`` (``registry.resolve_*`` reads the console list or a console's sites
+#: through the client). ``client._key_configs()`` only reads the configured (or
+#: request-supplied) key list: local state, not the upstream.
+_UPSTREAM_RE = re.compile(
+    r"\b_require\(|\bclient\.(?!_key_configs\()\w+\(|\bregistry\.resolve_\w+\("
+)
 
 
 @functools.cache

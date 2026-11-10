@@ -19,7 +19,7 @@ import pytest
 from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
-from unifi_fabric.tools import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import network_nat_qos_traffic as nc
 
 MAX = nc.TRAFFIC_FLOWS_MAX_PAGE_SIZE
 REJECT_TEXT = '{"errorCode":400,"message":"Validation failed for argument [1]"}'

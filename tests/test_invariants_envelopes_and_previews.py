@@ -46,7 +46,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import lazy_parametrize
 from tests._tool_classes import class_axis, tool_batches
 from unifi_fabric.client import is_dry_run_preview
-from unifi_fabric.tools.protect import UPLOAD_CONTENT_TYPES
+from unifi_fabric.families.protect.protect import UPLOAD_CONTENT_TYPES
 from unifi_fabric.write_body import update_body_argument
 
 TOOLS = cti.TOOLS
@@ -421,7 +421,7 @@ async def test_ce_relay_dry_run_is_audited_dry_run_with_no_status(monkeypatch, t
             caplog_lines.append(record.getMessage())
 
     logging.disable(logging.NOTSET)
-    relay_logger = logging.getLogger("unifi_fabric.tools.connector")
+    relay_logger = logging.getLogger("unifi_fabric.families.connector.connector")
     handler = _Grab(level=logging.INFO)
     relay_logger.addHandler(handler)
     old_level = relay_logger.level

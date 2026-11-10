@@ -2,7 +2,7 @@
 
 Hermetic: the in-process upstream serves synthetic Classic ``rest/radiusprofile`` records;
 nothing contacts a controller. The shared record-CRUD core is covered in test_site_config*;
-this file proves the two tools of ``tools/radius_profiles.py`` through the real server.
+this file proves the two tools of ``families/vpn/radius_profiles.py`` through the real server.
 """
 
 from __future__ import annotations

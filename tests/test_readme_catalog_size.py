@@ -113,9 +113,30 @@ def _measure(
     return len(result["tools"]), size
 
 
-def test_readme_prose_matches_the_table() -> None:
+def test_readme_catalog_blocks_match_the_table() -> None:
+    """The README's catalog blocks are exactly what the generator renders for the table's
+    tool count (the count CI measures), so neither can state a different catalog size."""
+    gen = _generator()
+    blocks = gen._doc_blocks()
     text = README.read_text()
     _families, tools, _kb = _table()[0]
+    fig = gen.Figures(
+        tools=tools,
+        read_only=0,
+        writes=0,
+        full_kb=0,
+        families={},
+        modes={},
+        shaped=0,
+        free=0,
+        shape_bytes=0,
+        domains={},
+        family_counts={},
+        hidden={},
+    )
+    rendered = gen.readme_blocks(fig)
+    for name in ("catalog-headline", "how-it-works-catalog"):
+        assert blocks.body(text, name) == rendered[name]() + "\n", name
     assert f"loading the entire {tools}-tool catalog" in text
 
 
@@ -209,7 +230,7 @@ def test_catalog_figures_are_generated_and_drift_checked_in_ci() -> None:
     """One generator owns every figure, and the docs CI job runs its drift check."""
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     docs_job = workflow[workflow.index("\n  docs:\n") : workflow.index("\n  test:\n")]
-    assert "scripts/gen_catalog_figures.py --check" in docs_job
+    assert "scripts/regen_docs.py --check" in docs_job
 
 
 CONFIGURATION_TEXT = (ROOT / "docs" / "CONFIGURATION.md").read_text()
@@ -266,6 +287,21 @@ def test_generator_rewrites_every_documented_figure(tmp_path, monkeypatch) -> No
     new_coverage = gen.render_coverage(gen.COVERAGE.read_text(), fig)
     assert "19 write and action tools accept an optional `confirm`" in new_coverage
     assert "loading the entire 987-tool catalog" in new_readme
+    assert "**987 tools, loaded on demand.**" in new_readme
+    assert "| Every tool runs in CI against a simulated upstream | 987 tools |" in new_readme
+    # Registry level: every README block the generator owns holds exactly its rendering.
+    blocks = gen._doc_blocks()
+    rendered = gen.readme_blocks(fig)
+    assert set(rendered) == set(blocks.names("README.md", gen.OWNER))
+    for name, render in rendered.items():
+        assert blocks.body(new_readme, name) == render() + "\n", name
+    # A figure sentence reworded inside its block is restored, never silently left stale.
+    for old, new in (
+        ("loaded on demand.**", "served on demand.**"),
+        ("than loading the entire", "than pulling the entire"),
+    ):
+        assert old in readme
+        assert gen.render_readme(readme.replace(old, new), fig) == new_readme
     for path in (gen.DOCKER, gen.BUNDLE_README):
         source = path.read_text()
         stale, count = re.subn(

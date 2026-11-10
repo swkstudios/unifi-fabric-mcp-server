@@ -32,7 +32,6 @@ READ_TO_WRITE = {
     "get_firewall_policy": "update_firewall_policy",
     "list_port_forwards": "update_port_forward",
     "list_hotspot_operators": "update_hotspot_operator",
-    "list_traffic_rules": "update_traffic_rule",
     "list_device_tags": "update_device_tag",
     "list_site_to_site_tunnels": "update_site_to_site_tunnel",
     "list_wan_interfaces": "update_wan_interface",

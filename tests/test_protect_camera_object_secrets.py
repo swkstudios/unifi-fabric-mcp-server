@@ -24,7 +24,7 @@ from hypothesis import strategies as st
 from unifi_fabric import route_secrets as rs
 from unifi_fabric.client import UniFiClient, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
-from unifi_fabric.tools import protect_ptz_doorbell
+from unifi_fabric.families.protect import protect_ptz_doorbell
 
 CONSOLE = "/v1/connector/consoles/HOST:1/proxy/"
 CAMERA_ID = "0000000000000000000000aa"

@@ -35,8 +35,8 @@ from unifi_fabric.client import (
     wrong_type_error,
 )
 from unifi_fabric.config import APIKeyConfig, MCPTransportSettings, Settings, whole_number
+from unifi_fabric.families.site_manager import site_manager
 from unifi_fabric.registry import Registry, match_ea_site
-from unifi_fabric.tools import site_manager
 
 SRC = pathlib.Path(registry_module.__file__).parent
 
