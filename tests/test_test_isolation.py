@@ -90,3 +90,28 @@ def test_server_import_namespace_is_restored(operation):
         logger.name, logging.INFO, __file__, 1, "configured key: %s", (synthetic_key,), None
     )
     assert record.getMessage() == "configured key: ***"
+
+
+def test_reload_fixture_releases_function_keyed_caches():
+    """A reload must not leave earlier registrations alive in identity-keyed caches."""
+    from tests._reload_caches import function_keyed_caches
+    from tests.conftest import _reset_server_singletons
+    from unifi_fabric import _read_only_audit
+
+    patch = pytest.MonkeyPatch()
+    boundary = _reset_server_singletons.__wrapped__(None, patch)
+    next(boundary)
+    try:
+        importlib.reload(server)
+        assert _read_only_audit._source_facts.cache_info().currsize > 0
+        assert any(
+            c.cache_info().currsize
+            for c in function_keyed_caches()
+            if c is not _read_only_audit._source_facts
+        )
+    finally:
+        with pytest.raises(StopIteration):
+            next(boundary)
+
+    assert _read_only_audit._source_facts.cache_info().currsize == 0
+    assert [c for c in function_keyed_caches() if c.cache_info().currsize] == []

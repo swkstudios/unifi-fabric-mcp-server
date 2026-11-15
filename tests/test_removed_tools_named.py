@@ -51,3 +51,17 @@ def test_the_map_is_the_migration_guide_table():
     guide = (ROOT / "docs" / "MIGRATING-0.7.2.md").read_text()
     for name in REMOVED_TOOLS:
         assert re.search(rf"`{name}`", guide), name
+
+
+@pytest.mark.parametrize("name", sorted(REMOVED_TOOLS))
+def test_the_error_names_the_release_and_a_guide_that_exists(name):
+    from unifi_fabric.removed_tools import removed_tool_error
+
+    error = removed_tool_error(name)
+    assert error is not None
+    message = json.loads(str(error))["error"]["message"]
+    # The tools were removed in 0.7.2, whatever release is installed now.
+    assert "was removed in 0.7.2:" in message
+    guides = re.findall(r"docs/MIGRATING-[\w.-]+\.md", message)
+    assert guides == ["docs/MIGRATING-0.7.2.md"]
+    assert (ROOT / guides[0]).is_file()

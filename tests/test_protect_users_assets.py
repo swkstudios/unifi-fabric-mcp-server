@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from unifi_fabric._read_only_audit import classify_tool_verbs, derive_write_tools
 from unifi_fabric.client import DRY_RUN_MESSAGE
 from unifi_fabric.families.protect import protect_users_assets as assets
+from unifi_fabric.families.protect import registrar as protect_registrar
 
 ID = "65d4f1e2a1b2c3d4e5f60718"
 READS = {
@@ -69,7 +70,7 @@ def client(monkeypatch):
 
 async def tools_for(client):
     mcp = FastMCP("P06 test")
-    assets.register(mcp, lambda: (client, None))
+    protect_registrar.register_7(mcp, lambda: (client, None))
     return {tool.name: tool for tool in await mcp.list_tools()}
 
 

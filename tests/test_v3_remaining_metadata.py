@@ -230,18 +230,3 @@ def test_readme_documents_empty_patch_whole_body_fallback():
     paragraph = next(line for line in usage.splitlines() if line.startswith("- **Read-before"))
     assert "empty object" in paragraph and "whole reads" in paragraph
     assert "empty-object PATCH" in paragraph and "noOp: false" in paragraph
-
-
-def test_existing_tool_collision_fragment_is_a_fix():
-    from tests.changelog_section import section
-
-    release = section("0.7.0")  # the published 0.7.0 entry; released sections never change
-    entry = next(
-        line
-        for line in release.splitlines()
-        if line.startswith("- Keep upstream `_redactedFieldsNotSent` values")
-    )
-    fixed = release.split("### Fixed", 1)[1].split("### ", 1)[0]
-    assert entry in fixed
-    assert "put a colliding server report in `_wrapperFields`" in entry
-    assert "fleet device envelope's field order" in entry

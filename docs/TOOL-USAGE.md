@@ -436,6 +436,23 @@ The tool sections that follow are mostly write tools. They are hidden and refuse
 In the default discovery mode call them through `call_write_tool` with the arguments shown in
 each example; set `UNIFI_TOOL_MODE=full` for direct calls.
 
+## set_client_name
+
+`set_client_name(host, site, client, name)` renames a known client selected by its MAC or its record `_id`. A MAC or `_id` that the site's client list does not hold is looked up once more on its own resource (`rest/user/{id}`), because the list can be partial. The development console (Network 11.1.47) answers an unknown id there with HTTP 200 and an empty `data` list, not with an error, so the tool reports the client as not found and sends no write. Any other error from that lookup (permission, login, server) is raised as it came, never read as "not found".
+
+## System log readers
+
+`get_system_log`, `list_network_events` and `list_ips_events` read the Network system log with
+`POST /v2/api/site/{site}/system-log/{class}` and a JSON query body. The nine class routes
+(`all`, `device-alert`, `client-alert`, `admin-activity`, `update-alert`, `threat-alert`,
+`next-ai-alert`, `vpn-alert`, `critical`) are on the read-POST allowlist, so the three tools are
+reads: they stay available under `UNIFI_WRITE_POLICY=deny`, dry-run policy sends their POST, and
+discovery mode runs them through `call_read_tool`. `all` was proven live; the other eight are
+proven from Ubiquiti's own Network 11.0.99 server code (each handler carries Ubiquiti's READ
+access marker and reaches only find and count queries). Any other class (`triggers`, `count`, ...)
+is refused before a request: `get_system_log` takes the nine as its `log_class` enum, and
+`list_network_events` refuses another `view`.
+
 ## update_switch_port_overrides
 
 A switch's per-port settings live in one `port_overrides` array on its device record, and the
@@ -450,15 +467,18 @@ what you name and keeps the rest.
 - Fields are the controller's own `port_overrides` fields and pass through unchanged: a port
   profile is `portconf_id` (from `list_port_profiles`; checked to exist before the write),
   port monitoring (SPAN) is the controller's monitoring `op_mode` value on the analyzer port plus
-  the monitored-port key (that value followed by `_port_idx`; copy both from an
-  already-monitoring port in `get_switch_port_overrides`), aggregation is
+  the monitored-port key (that value followed by `_port_idx`; `get_switch_port_overrides`
+  returns both under `_spanMode` even when no port monitors yet), aggregation is
   `op_mode: "aggregate"` with `aggregate_num_ports` (or the member fields your controller
   reports). Member ports that keep their own override are named in `_warnings`; list them in
   remove_ports if your controller needs them cleared.
 - Refused before any request: a port named twice, a port both updated and removed, a
   `port_idx` that is not a positive integer, a null field value, or no change at all. Refused
   after the read, before any write: a port the switch does not report, a removal of a port with
-  no override, an unknown monitored-port number or `portconf_id`; each error lists the valid choices.
+  no override, an unknown monitored-port number or `portconf_id`, a port that monitors itself,
+  and an `aggregate_num_ports` that reaches past the last physical port; each error lists the
+  valid choices. `get_switch_port_overrides` marks an override whose port is not in the port
+  table with `_phantom: true` in `_ports`; remove it with remove_ports.
 - dry_run true (or `UNIFI_WRITE_POLICY=dry-run`) returns the merged array as the PUT body
   preview, the per-port diff and `_plan`, with `_outcome: "preview"`; nothing is written.
 - After a write, `_outcome` is `verified` (every requested field, every removal and every
@@ -1042,7 +1062,7 @@ passed in `settings`. No key is required; send only the keys to change.
   {type: "IMAGE", text, resetAt?}] (type required; text: string, required for
   CUSTOM_MESSAGE / IMAGE; resetAt: number or null)
 - micVolume: number (1-100)
-- videoMode: enum[default|highFps|sport|slowShutter|lprReflex|lprNoneReflex]
+- videoMode: enum[default|highFps|sport|slowShutter|lprReflex|lprNoneReflex|antiFlicker]
 - hdrType: enum[auto|on|off]
 - smartDetectSettings: object {objectTypes: array of
   enum[person|vehicle|package|licensePlate|face|animal], audioTypes: array of
@@ -1451,7 +1471,7 @@ device support files, which are separate and unchanged.
 - **Opt-in live probes.** `live_probes` takes only `"hosts"` (`list_hosts`,
   `GET /v1/hosts`) and `"sites"` (`list_sites`, `GET /v1/sites`). Each runs once per
   configured API key and reports a status, a record count, a duration and a reason such
-  as `HTTP 401`. No record is copied. An unknown probe name is refused before any
+  as `HTTP 401`, `unexpected-shape`, `incomplete` or `no-api-key`. No record is copied. An unknown probe name is refused before any
   request, listing the valid names. Each probe drains the full list once per key, so
   call it when diagnosing, not on a schedule: do not poll it. There is no lock or
   cooldown; the cost is the same as one `list_hosts` plus one `list_sites` call.
@@ -1471,8 +1491,14 @@ device support files, which are separate and unchanged.
   under `neverCollected`.
 - **Sanitization.** The bundle is built from that allowlist, then the server's central
   scrubber removes any configured secret (API keys, `MCP_BEARER_TOKEN`,
-  `MCP_TLS_KEY_PASSWORD`) from the whole result and checks it again; `sanitization`
+  `MCP_TLS_KEY_PASSWORD`, `UNIFI_AUDIT_HMAC_KEY`, and keys bound to the current
+  request in header mode) from the whole result and checks it again; `sanitization`
   reports the outcome. If a secret were still found, every section would be withheld.
+- **Header mode.** With `UNIFI_KEY_MODE=header`, probes run with the key on that request
+  and `apiKeys.count` shows configured keys only, which is 0.
+- **Trace export and remote audit.** `traceExport` is `on` or `off`, and the audit section
+  has `remoteSinkConfigured` and `remotePlaintext` booleans. Never an endpoint, a header or
+  a URL.
 - **Review before sharing.** The bundle exists only in the tool response. The server
   does not save it to disk, so there is nothing to clean up, and it never sends it
   anywhere. Read it, then share it yourself.
@@ -1510,11 +1536,11 @@ Guards (all enforced, none optional):
 - **No 429 auto-retry on a write** — a relayed POST/PUT/PATCH/DELETE is sent once and an HTTP 429 is raised with the upstream body (the server-wide retry rule: only a read via GET is retried; a relayed GET of a state-changing route, the Protect camera enable-control or disable-control, is sent once too), because the relay cannot tell a physical action (a siren, a relay output, a Classic `cmd`) from a settings write and a retry can repeat it. The read-before / read-after GETs keep the GET retry.
 - **Read-before / write / read-after** — for PUT/PATCH/DELETE the resource is read before and after the write (`readBefore` / `readAfter`), and the no-op verdict compares only what the write requests (`_no_op_verdict` in `src/unifi_fabric/families/connector/connector.py`). A PUT/PATCH with a JSON object body is `noOp: true` when the write and both reads answered 2xx and every leaf the body names holds the same value (type-strict) before and after; unrequested siblings never count, so an unchanged requested `enabled` beside a changed `updatedAt` is still `noOp: true`. A requested leaf that differs, appears or disappears is `noOp: false`; a requested leaf absent from both reads, or a read that is not one JSON object, is `noOp: null` with `noOpReason`. A body-less write, a non-object body, or an empty object (`{}`) falls back to comparing the two whole reads, so a change only to `updatedAt` makes an empty-object PATCH `noOp: false`. A Classic `rest/device/<_id>` write reads the site's `stat/device` list narrowed to that device and compares only the fields the body writes (`noOpBasis`). A DELETE is `noOp: false`, `changed: true` only when the read-after answers 404; one still readable afterwards is `noOp: null` ("deletion not confirmed"). `noOp` is null when it cannot be told (a rejected write, a failed or non-2xx read: `readAfterError`), and `changed` is present only beside a non-null `noOp`.
 - **Classic `meta.rc` errors** — a Classic route (`network/api/...`) reports its outcome in the body: HTTP 200 with `meta.rc` other than `"ok"` (e.g. `{"meta": {"rc": "error", "msg": "api.err.Invalid"}, "data": []}`) is a rejected request. The relay reports it the way it reports any upstream error status, without raising: `status` and `body` stay verbatim and the result gains `_classicRcError` (the reason, `meta.msg` included); the write then has no `noOp` / `changed` verdict. A `readBefore` / `readAfter` answered that way carries the same marker and never counts as a successful read.
-- **Network v2 `error` envelope** — a Network v2 route (`network/v2/api/...`) can refuse a request with HTTP 200 and a body whose only member is `error`, an object with a `code` and a `message` (e.g. `{"error": {"code": 400, "message": "api.err.InvalidPayload"}}`). That is a rejected request, not a success. Typed tools raise with the complete body verbatim and audit a write as `upstream_error_body`. The relay reports it without raising: `status` and `body` stay verbatim and the result gains `_upstreamError` (the reason); the write then has no `noOp` / `changed` verdict, and a `readBefore` / `readAfter` answered that way carries the same marker. Only that exact shape counts; a record or list that holds an `error` field is passed through unchanged. See [RETRY.md](RETRY.md).
+- **Network v2 `error` envelope** — a Network v2 reply (`network/v2/api/...`) with a 2xx status and a body whose only member is `error`, an object with a `code` and a `message` (e.g. `{"error": {"code": 400, "message": "api.err.InvalidPayload"}}`), is a rejected request, not a success. Ubiquiti's own code sends such errors with a 4xx or 5xx status, so this guards against a status-rewriting proxy. Typed tools raise with the complete body verbatim and audit a write as `upstream_error_body`. The relay reports it without raising: `status` and `body` stay verbatim and the result gains `_upstreamError` (the reason); the write then has no `noOp` / `changed` verdict, and a `readBefore` / `readAfter` answered that way carries the same marker. Only that exact shape counts; a record or list that holds an `error` field is passed through unchanged. See [RETRY.md](RETRY.md).
 - **Fabric connector limits** — the pinned Site Manager spec limits each proxied request to 25 seconds (HTTP 408), each console to 100 requests per minute (HTTP 429) and the upstream response body to 10 MB, and requires console firmware 5.0.3 or later. A connector error that matches (a 408, a 429, or a 502 that may be a response over 10 MB) keeps its status and body verbatim and gains a hint (the relay adds it as `_hint`; a raised 429 carries it after the body). A 408 or 502 on a write means the outcome is unknown: read the resource back before retrying; the write is never retried automatically. Details and the spec sections: [RETRY.md](RETRY.md#fabric-connector-limits-http-408-429-502).
-- **HTML 404 from `/v2/api/stats/*`** — the console's Network application does not serve that statistics route. The body stays verbatim and a hint follows it.
+- **HTML 404 from `/v2/api/stats/*`** — the console's Network application does not serve that statistics route. The routes are in Ubiquiti's Network 10.6.109 and 11.0.99 server packages, so the Network version alone does not explain the 404. The body stays verbatim and a hint follows it.
 - **Scope guard** — an optional `scope` (`device` / `site` / `global`) is cross-checked against the path so a site-global setting route (e.g. `global_switch.stp_version`) cannot be driven by a device-scoped request.
-- **Verbatim bodies + audit** — the relayed upstream body is returned unchanged, except that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` if the body echoes them (credential fields are masked only when the operator opts in with [`UNIFI_REDACT_SECRETS`](CONFIGURATION.md#credential-redaction), which covers this relay like every tool); every relayed body carries the upstream `contentType`. JSON is returned decoded and any other text exactly as received (decoded in its declared charset, such as latin-1), under `body`. A **binary** body (a non-text Content-Type such as `image/jpeg` or `application/octet-stream`, or bytes that do not decode in the declared charset, UTF-8 when none) is returned the way the typed binary tools return bytes: complete, with no size cap, base64-encoded under `bodyBase64` with `sizeBytes`, and `body` null. The same applies to the write responses and to `readBefore` / `readAfter`. A 3xx is never followed: its response headers (`Location` included; credentials and cookies excluded) come back under `headers`, on the write and on `readBefore` / `readAfter`. Bodies are never logged. Audit is best-effort and off by default: with [`UNIFI_AUDIT_LOG`](CONFIGURATION.md#audit-log) unset (the default) a relayed mutation writes no audit record, and with it set every relayed mutation attempt is recorded in that file (fields under that heading). Separately, each attempt emits a best-effort INFO log line, `connector-relay-audit` (host, site, method, path, confirm, outcome, status). Neither contains the API key.
+- **Verbatim bodies + audit** — the relayed upstream body is returned unchanged, except that the server's own configured secrets (its API keys, `MCP_BEARER_TOKEN`, `MCP_TLS_KEY_PASSWORD`) are always replaced by `***` if the body echoes them (credential fields are masked only when the operator opts in with [`UNIFI_REDACT_SECRETS`](CONFIGURATION.md#credential-redaction), which covers this relay like every tool); every relayed body carries the upstream `contentType`. JSON is returned decoded and any other text exactly as received (decoded in its declared charset, such as latin-1), under `body`. A **binary** body (a non-text Content-Type such as `image/jpeg` or `application/octet-stream`, or bytes that do not decode in the declared charset, UTF-8 when none) is returned the way the typed binary tools return bytes: complete, with no size cap, base64-encoded under `bodyBase64` with `sizeBytes`, and `body` null. The same applies to the write responses and to `readBefore` / `readAfter`. A 3xx is never followed: its response headers (`Location` included; credentials and cookies excluded) come back under `headers`, on the write and on `readBefore` / `readAfter`. Bodies are not logged, except the upstream error body of a failed write while the audit log is on ([`UNIFI_LOG_LEVEL`](CONFIGURATION.md#unifi-api-settings)). Audit is best-effort and off by default: with [`UNIFI_AUDIT_LOG`](CONFIGURATION.md#audit-log) unset (the default) a relayed mutation writes no audit record, and with it set every relayed mutation attempt is recorded in that file (fields under that heading). Separately, each attempt emits a best-effort INFO log line, `connector-relay-audit` (host, site, method, path, confirm, outcome, status). Neither contains the API key.
 - **Dry-run** — under `UNIFI_WRITE_POLICY=dry-run` (or a matching `dry-run` exception) a relayed mutation is not sent: the result's `status` is `"dry_run"` (never an HTTP status) and `body` is the preview, and the audit line says `outcome=dry_run` with no status.
 
 A 4xx/5xx from the relay is returned as `status` (not raised), so an invalid-ID probe surfaces its own reachability status. Undocumented legacy routes remain **experimental** until persistence and rollback are proven against a live console.
@@ -2340,3 +2366,364 @@ Before relying on the snapshot, `unifi-fabric-mcp placement-snapshot-preflight -
 checks that the four read sources answer.
 
 For official-only deployments, use `list_all_clients` and select records by `_siteId` for per-site client inventory; `list_clients` also supports a private v2 route.
+
+## diagnose_wifi
+
+`diagnose_wifi` is a read-only, composed Wi-Fi report for one Network site. It issues eleven
+GET reads one after another (Classic `stat/device` and `stat/sta`, then Wi-Fi statistics for
+the radios and the clients, Wi-Fi connectivity, neighbouring APs, WLAN settings, the
+`radio_ai` setting, the channel plan, the available channels and the spectrum scans) and
+applies the rules below. It never writes. Only `stat/device` and `stat/sta` are required: when
+another read fails, the rules that need it are listed under `skipped` and `notAssessed` with the
+reason, and a missing input never produces a finding.
+
+It returns only the fields its rules use (`summary`, `findings`, `skipped`, `notAssessed`,
+`accessPoints`, `sources`, `warnings`, `thresholds`), never an upstream body. Device key fields
+(`x_authkey`, `syslog_key`, `x_vwirekey`, `guest_token`) and WLAN passphrases are never copied
+into the result. An AP that is not connected is listed under `accessPointsNotAssessed`, not as
+checked.
+
+Every one of the 20 rules is accounted for, always: `summary.byRule` lists each rule that was
+assessed, with a count of `0` when it ran and found nothing, and `notAssessed` lists each rule
+that could not run. The two lists together name all 20 rules, each in exactly one of them, so a
+rule that is absent from both cannot happen: "assessed and clean" reads as `0` in `byRule`,
+"could not run" reads as a `notAssessed` entry with its reason under `skipped`.
+A `0` therefore always means the rule examined at least one record and found nothing: a rule with
+nothing to examine, such as every AP offline or a site with no access point, is in `notAssessed`
+with that reason, never `0`.
+Every finding has `rule`, `severity`, `subject`, `evidence` (the values it was computed from)
+and `recommendation` (advice for a person; nothing is applied). Example call:
+
+    {
+      "host": "my-console",
+      "site": "Default",
+      "thresholds": {"high_utilization_pct": 60},
+      "window_hours": 24
+    }
+
+| Rule | What it finds | Reads |
+| --- | --- | --- |
+| `ap_offline` | an AP that is not connected, with the time it went away | `stat/device` |
+| `sticky_client` | a connected client below the SSID's roaming-assistant level (per band, else -75 dBm) while another AP offers the SSID, unless its SNR is clean | `stat/sta`, WLAN settings |
+| `high_power_co_channel` | two radios of different APs at high power whose occupied spectrum (primary channel and width) overlaps | `stat/device` |
+| `non_standard_2ghz_channel` | a 2.4 GHz radio not on channel 1, 6 or 11 | `stat/device` |
+| `channel_width_policy` | 2.4 GHz not at 20 MHz, a width above the site's Channel AI policy, a wide channel in the DFS range | `stat/device`, `radio_ai`, available channels |
+| `channel_flap` | a radio that changed channel in the window, from the stored channel plans | channel plan |
+| `high_tx_retries` | a retry rate over the per-band limit, on the window average when available | `stat/device`, Wi-Fi statistics (radios) |
+| `radio_window_health` | airtime utilization or interference over the limit across the window | Wi-Fi statistics (radios) |
+| `neighbor_co_channel` | many strong, recent, foreign networks overlapping a radio's spectrum | neighbouring APs |
+| `spectrum_scan_quality` | a spectrum scan that is old or holds values no radio can measure | spectrum scans |
+| `connection_failures` | repeated failed connects by client and stage (association, authentication, DHCP, DNS), and a low site success ratio | Wi-Fi connectivity |
+| `weak_snr_clients` | a wireless client at or under the SNR limit | `stat/sta` |
+| `band_fit` | a client held on 5 or 6 GHz at low SNR whose SSID offers other bands | `stat/sta`, WLAN settings |
+| `airtime_hog` | a client with a large traffic share at a low link rate | Wi-Fi statistics (clients) |
+| `roam_churn` | a client with many roams in the window | Wi-Fi statistics (clients) |
+| `client_retries` | a client with a high retry rate or retry bursts | `stat/sta` |
+| `client_experience` | a client the console itself scores low | `stat/sta` |
+| `ap_uplink_bottleneck` | an AP uplink below its port capability and below its fastest client link rate, or with errors | `stat/device`, `stat/sta` |
+| `band_load` | a large 2.4 GHz client share, or one AP carrying far more clients than another | `stat/sta` |
+| `wlan_config_audit` | SSID settings that cost performance: 802.11b, low 2.4 GHz minimum rate, 802.11v or 802.11k off, 6 GHz without WPA3 | WLAN settings |
+
+Limits come from public guidance where it exists (SNR 25 dB good and 15 dB or less poor, 20 MHz
+on 2.4 GHz, the roaming-assistant level the SSID itself sets) and are otherwise this
+project's own choice (retry rate, utilization, interference, neighbour counts). Each default is
+listed in the tool description and can be replaced through `thresholds`; a value that is not a
+number or is out of range is rejected before any request, and an unknown name is ignored and
+listed under `warnings`. Not assessed by design: a per-radio noise
+floor (the console does not return one), a client's signal at another AP, radar events and
+per-client airtime. The `satisfaction_reason` code is shown as returned because the console does
+not document it.
+
+## Network 11.1 port automations and wake_client
+
+Both need a Network application of 11.1.47 or later; an older console answers 404. The
+controller publishes no spec for them: the request shapes are the ones the 11.1.47 web
+application sends, and no field is invented by the tools.
+
+`list_port_automations`, `get_port_automation`, `create_port_automation`,
+`update_port_automation` and `delete_port_automation` manage the rules that apply a port
+profile when a device with a matching vendor id or MAC OUI is plugged into a switch port.
+A record has `name`, `enabled`, `port_profile_id`, `match` (`vendor_ids`, `mac_ouis`; at least
+one of them) and `scope` (`switch_macs`, `device_tag_ids`, optional `port_range` with
+`from_port` and `to_port`). The controller has no single-record route, so `get_port_automation`
+picks the record from the list.
+
+`wake_client` sends a Wake-on-LAN packet to a client by MAC, or by client id when the client is
+connected. `execute_client_action` still only authorizes or unauthorizes guests.
+
+With `UNIFI_REDACT_SECRETS` on, the guest field `personal_wifi_password` that 11.1.47 adds to
+hotspot guest records is masked like every other `*_password` field.
+
+## Network 11.1.47 notes
+
+- **Guest-data webhook.** `get_hotspot_guest_webhook_delivery` reads the last delivery attempt of
+  the hotspot guest-data webhook (`attemptedAtSeconds`, `delivered`, `httpStatus`, `error`). A
+  console that never attempted a delivery answers HTTP 204, which returns null. The webhook URL
+  and its enabled flag live in the hotspot settings (`get_hotspot_settings`).
+- **Threat-signature flow filter.** `query_traffic_flows` takes `threat_signature`, sent as the
+  body key `ips_signature_id` (an array), the key the 11.1.47 web app filters flows by IPS
+  signature with, next to `risk`, `action` and `direction`. The signature ids are the entries
+  of `ips_signatures` in `GET network/v2/api/site/{site}/traffic-flows/filter-data`
+  (`fabric_connector_get`); that list was empty on the development console, so a signature
+  filter could not be exercised live.
+- **STARTTLS.** The 11.1.47 web application shows one SSL/TLS switch for outbound SMTP (its help
+  text names port 465 and STARTTLS) and no separate STARTTLS field, so `send_test_email` and the
+  `super_smtp` setting take no STARTTLS option.
+- **Passthrough VLANs and VLANs per port.** A WAN is a networkconf record of purpose `wan`;
+  `update_wan_interface` sends its fields as given. On 11.1.47 the passthrough VLANs are the
+  array `tagged_networkconf_ids` of VLAN Only network `_id`s (the web app sends it only with
+  `setting_preference` `manual`, and an empty array clears them); the WAN's own VLAN is
+  `wan_vlan_enabled`, `wan_vlan` and `wan_vlan_networkconf_id`. Several WANs can share one
+  port with different VLAN IDs.
+- **New event and alarm keys.** The 11.1.47 web app handles `WAN_PUBLIC_IP_CHANGED`,
+  `CLIENT_ROAMED`, `CLIENT_ROAMED_2`, `MBB_SIM_INSERTED`, `MBB_SIM_REMOVED`,
+  `MBB_WARNING_LIMIT_EXCEEDED`, `MBB_DATA_LIMIT_REACHED`, `AP_CHANGED_CHANNELS` and
+  `AP_CHANGED_CHANNELS_RADIO_AI` (alarms and system log), and the device events
+  `client_roamed`, `radio_channel_changed` and `radio_channel_width_changed`. The system log
+  tools return them verbatim.
+- **IGMP querier addresses.** The `igmp_snooping` setting (`get_setting`, `update_setting`)
+  carries `querier_mode`, `querier_subscription_mode`, `querier_switches`, `primary_querier`,
+  `failover_querier` and `querier_addresses` (an array of `{mac, network_id, querier_address}`
+  in the web app) beside `enabled`, `network_ids`, `subscription_mode` and `switches`. Read
+  live on 11.1.47 with IGMP snooping off: `querier_mode` `OFF` and `querier_addresses` `[]`.
+- **Object-oriented network usage statistics.** The 11.1.47 web app has no usage-statistics
+  field on object-oriented network objects (none of its 1903 chunks names one), and the
+  development console has no such object, so no field is documented; the tools return
+  whatever the controller sends.
+- **Critical operations.** The only critical-upgrade guard in the 11.1.47 web app is browser
+  side: a confirm dialog, and a disabled upgrade button while the MC-LAG peer is offline. It
+  never reaches the upgrade API, so this server has no such check. Before `upgrade_device`,
+  `upgrade_all_devices` or `start_rolling_upgrade` on an MC-LAG pair, check that the peer
+  switch is online. The `upgrade`, `restart` and `set-rollupgrade` commands carry no override
+  key (`restart` sends `reboot_type` and `unit_id`), and the 592 error codes the web app knows
+  include no critical-operation code, so a console-side refusal is unconfirmed: the 409 in
+  `tests/test_l3_930_follow_ups.py` is synthetic. If the console does refuse, the upgrade and
+  restart tools return the refusal as received, once, and offer no override argument.
+
+## alarm_hub_trigger_output
+
+Request body (Protect 7.3.74, POST /v1/alarm-hubs/{id}/outputs/{outputId}/trigger; schema
+"inline requestBody schema") is built from scalar parameters. No key is required; send only the
+keys to change.
+- enable: boolean
+- delay: integer (ms)
+- duration: integer (ms; 0 = indefinite)
+
+## create_arm_profile
+
+Request body (Protect 7.3.74, POST /v1/arm-profiles; schema "inline requestBody schema") is
+passed in `name` + settings (merged; settings must NOT contain name). Required keys — name,
+automations, schedules, recordEverything, activationDelay.
+- name: string 1-255
+- automations: array of string (automation ids)
+- schedules: array of armSchedule objects {start: string (cron expression), end: string
+  (cron expression)} (both required)
+- recordEverything: boolean
+- activationDelay: one of 0|60000|300000|600000 (ms)
+
+## create_carrier_subscriber
+
+Request body (Carrier Fabric 1.0.0, POST /v1/carrier/subscribers (createSubscriber); schema
+"SubscriberCreate") is built from scalar parameters. Required keys — subscriberNumber.
+- subscriberNumber: string
+- name: string
+- email: string(email)
+- notes: string
+- serviceAddress: string
+- planId: string(uuid)
+- metadata: object
+
+## create_dns_policy
+
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/dns/policies (createDnsPolicy); schema
+"Create or update DNS policy") is passed in `policy`. Required keys — enabled, type.
+- enabled: boolean
+- type: string
+Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
+A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
+enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
+type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
+domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
+requires domain, enabled, text, type.
+
+## create_hotspot_vouchers
+
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/hotspot/vouchers (createVouchers);
+schema "Hotspot voucher creation request") is passed in `voucher_config`. Required keys — name,
+timeLimitMinutes.
+- authorizedGuestLimit: integer(int64)
+- count: integer(int32)
+- dataUsageLimitMBytes: integer(int64)
+- name: string
+- rxRateLimitKbps: integer(int64)
+- timeLimitMinutes: integer(int64)
+- txRateLimitKbps: integer(int64)
+
+## create_liveview
+
+Request body (Protect 7.3.74, POST /v1/liveviews; schema "inline requestBody schema") is passed
+in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout, slots.
+- id: string
+- modelKey: string
+- name: string
+- isDefault: boolean
+- isGlobal: boolean
+- owner: string
+- layout: number (1-26; the number of slots)
+- slots: array of object {cameras: array of string (camera ids), cycleMode:
+  enum[motion|time], cycleInterval: number (seconds)} (every item key required)
+Spec POST /v1/liveviews body is allOf[liveview] whose required list includes server-side fields
+(id, modelKey, owner); tool merges name + settings into the body. Provide layout + slots; treat
+id/modelKey/owner requirement as spec-as-published.
+
+## create_traffic_matching_list
+
+Request body (Network 11.0.97, POST /v1/sites/{siteId}/traffic-matching-lists
+(createTrafficMatchingList); schema "Create or update traffic matching list") is passed in
+`traffic_list`. Required keys — name, type.
+- name: string
+- type: string
+Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
+name, type; PORTS requires items, name, type.
+
+## patch_firewall_policy
+
+Request body (Network 11.0.97, PATCH /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}
+(patchFirewallPolicy); schema "Patch firewall policy") is passed in `fields`. No key is
+required; send only the keys to change.
+- loggingEnabled: boolean
+- reportFlowEnabled: boolean (report matched traffic in Insights Flows; ignored for the
+  predefined Allow Return Traffic, multicast-only and IPv6 neighbor-discovery policies)
+Only loggingEnabled and reportFlowEnabled are patchable per spec; enabled/name/action
+changes need update_firewall_policy (full PUT).
+
+## set_acl_rule_ordering
+
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/acl-rules/ordering
+(updateAclRuleOrdering) — "Reorder User-Defined ACL Rules"; schema "ACL rule ordering") is
+passed in `ordering` (sent verbatim as the body). Required keys — orderedAclRuleIds.
+- orderedAclRuleIds: array of string (uuid)
+Full replace of the site-wide user-defined ACL rule order. No zone/query params. Read with
+get_acl_rule_ordering first.
+
+## update_arm_profile
+
+Request body (Protect 7.3.74, PATCH /v1/arm-profiles/{id}; schema "inline requestBody schema")
+is passed in `settings`. No key is required; send only the keys to change.
+- name: string
+- automations: array of string
+- schedules: array of armSchedule objects {start: string (cron expression), end: string
+  (cron expression)} (both required)
+- recordEverything: boolean
+- activationDelay: one of 0|60000|300000|600000 (ms)
+
+## update_carrier_subscriber
+
+Request body (Carrier Fabric 1.0.0, PATCH /v1/carrier/subscribers/{id} (updateSubscriber);
+schema "SubscriberPatch") is built from scalar parameters. No key is required; send only the
+keys to change.
+- subscriberNumber: string
+- name: string
+- email: string(email)
+- notes: string
+- serviceAddress: string
+- planId: string(uuid)
+- metadata: object
+
+## update_chime
+
+Request body (Protect 7.3.74, PATCH /v1/chimes/{id}; schema "inline requestBody schema") is
+passed in `settings`. No key is required; send only the keys to change.
+- name: string
+- cameraIds: array of string
+- ringSettings: array of object {cameraId: string, repeatTimes: number (1-10),
+  ringtoneId: string, volume: number (0-100)} (every item key required)
+
+## update_dns_policy
+
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/dns/policies/{dnsPolicyId}
+(updateDnsPolicy); schema "Create or update DNS policy") is passed in `policy`. Required keys —
+enabled, type.
+- enabled: boolean
+- type: string
+Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
+A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
+enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
+type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
+domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
+requires domain, enabled, text, type.
+
+## update_light
+
+Request body (Protect 7.3.74, PATCH /v1/lights/{id}; schema "inline requestBody schema") is
+passed in `settings`. No key is required; send only the keys to change.
+- name: string
+- isLightForceEnabled: boolean
+- lightModeSettings: object {mode: enum[always|motion|off], enableAt:
+  enum[fulltime|dark]}
+- lightDeviceSettings: object {isIndicatorEnabled: boolean, pirDuration: number,
+  milliseconds the light stays on after motion (>= 0, e.g. 30000), pirSensitivity:
+  number (0-100), ledLevel: number (1-6)}
+
+## update_network
+
+Request body (Network 11.0.97, PUT /v1/sites/{siteId}/networks/{networkId} (updateNetwork);
+schema "Create or update Network") is passed in `network_config`. Required keys — enabled,
+management, name, vlanId.
+- dhcpGuarding: object (Network DHCP Guarding)
+- enabled: boolean
+- management: string
+- name: string
+- vlanId: integer(int32)
+Variants by `management` — GATEWAY requires cellularBackupEnabled, enabled,
+internetAccessEnabled, ipv4Configuration, isolationEnabled, name, vlanId, management; SWITCH
+requires cellularBackupEnabled, deviceId, enabled, ipv4Configuration, isolationEnabled, name,
+vlanId, management; UNMANAGED requires enabled, name, vlanId, management.
+
+## update_sensor
+
+Request body (Protect 7.3.74, PATCH /v1/sensors/{id}; inline schema) is `settings`.
+No required key; send only changed keys.
+- name: string
+- lightSettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
+  null (1-503192), highThreshold: number or null (1-503192)}
+- humiditySettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
+  null (1-99), highThreshold: number or null (1-99)}
+- temperatureSettings: object {isEnabled: boolean, margin: number, lowThreshold: number
+  or null (-39-124), highThreshold: number or null (-39-124)}
+- motionSettings: object {isEnabled: boolean, sensitivity: number (0-100),
+  sensitivityWhenArmed: number (0-100)}
+- glassBreakSettings: object {isEnabled: boolean, sensitivity: number (0-100),
+  sensitivityWhenArmed: number (0-100)}
+- scheduleMode: enum[always|when_armed]
+- armProfileIds: array|null
+- hasCustomSensitivityWhenArmed: boolean
+- alarmSettings: object {isEnabled: boolean}
+
+## update_siren
+
+Request body (Protect 7.3.74, PATCH /v1/sirens/{id}; schema "inline requestBody schema") is
+passed in `settings`. No key is required; send only the keys to change.
+- name: string
+- volume: integer (1-100)
+- ledSettings: object {isEnabled: boolean (required inside ledSettings)}
+
+## update_speaker
+
+Request body (Protect 7.3.74, PATCH /v1/speakers/{id}; schema "inline requestBody schema") is
+passed in `settings`. No key is required; send only the keys to change.
+- name: string
+- volume: integer (0-100)
+- micVolume: integer (0-100)
+- isMicEnabled: boolean
+
+## update_traffic_matching_list
+
+Request body (Network 11.0.97, PUT
+/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId} (updateTrafficMatchingList);
+schema "Create or update traffic matching list") is passed in `traffic_list`. Required keys —
+name, type.
+- name: string
+- type: string
+Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
+name, type; PORTS requires items, name, type.

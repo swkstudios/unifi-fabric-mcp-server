@@ -1,12 +1,15 @@
 """Keyed fingerprints of secret values: the one shared construction.
 
-Why this is a keyed MAC and not a bare hash. CodeQL's ``py/weak-sensitive-data-hashing``
-flags a bare fast hash (SHA-256, BLAKE2 without a key) of a secret: an attacker who sees
-the digest can brute-force or dictionary-test candidate secrets offline at hash speed.
-A keyed MAC, here HMAC-SHA256 under a per-process random key, is the accepted fix: the
-digest cannot be checked against a guessed secret without the key, and the key lives only
-in this process's memory. The scanner's concern is the construction, not the digest
-length, so truncating a digest does not address it and a longer one is not needed.
+Why this is a keyed MAC and not a bare hash. A bare fast hash of a secret (SHA-256, or
+BLAKE2 without a key) can be brute-forced or dictionary-tested offline at hash speed by
+anyone who sees the digest. HMAC-SHA256 under a per-process random key cannot: the digest
+cannot be checked against a guessed secret without the key, and the key lives only in this
+process's memory. Truncating a digest does not change this, and a longer one is not needed.
+
+CodeQL's ``py/weak-sensitive-data-hashing`` still reports this site: the query models the
+digest algorithm of an HMAC or keyed BLAKE2 and ignores the key, so it does not accept a
+keyed MAC. The finding is a modelling gap of the query, recorded with its reason, and not
+evidence that the construction is weak.
 
 The key is ``secrets.token_bytes(32)`` drawn once at import. It is never logged, never
 persisted, and never derived from a configured secret. Consequences: a fingerprint is

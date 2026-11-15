@@ -1,21 +1,20 @@
 # Homebrew formula for the UniFi Fabric MCP server.
 #
-# IN-REPO TEMPLATE ONLY. This formula lives in the application repository so it
-# can be reviewed and kept in lockstep with the package. It is NOT published to
-# a tap by this repo — tap publication (copying this file into a first-party
-# `homebrew-tap` repo, or submitting to homebrew-core) is a separate, maintainer-
-# initiated action.
+# Install:  brew install swkstudios/tap/unifi-fabric-mcp-server
 #
-# At ship time the maintainer fills in the real `sha256` for the tagged release
-# source tarball. The `url` below is the PUBLIC GitHub release tag archive, so the
-# `sha256` is the checksum of THAT archive — not the PyPI sdist. Compute it with:
+# This file is generated for each release by the release tooling in the application
+# repository (template: packaging/homebrew/): it sets the `url` and `sha256` of
+# the public release tag archive and rewrites the `resource` stanzas below. Change the
+# template there; a hand edit of this copy is overwritten by the next release.
+#
+# The `url` is the GitHub release tag archive, so the `sha256` is the checksum of THAT
+# archive, not the PyPI sdist:
 #   curl -sL https://github.com/swkstudios/unifi-fabric-mcp-server/archive/refs/tags/vX.Y.Z.tar.gz | sha256sum
 #
-# The `resource` stanzas below pin every Python dependency to exactly the version in
+# The `resource` stanzas pin every Python dependency to exactly the version in
 # requirements-runtime.lock (the runtime-only set the container image installs; the test
 # and lint packages in requirements.lock are not installed), so the virtualenv install
-# is self-contained and matches the tested build.
-# Regenerate them after a dependency change with:
+# is self-contained and matches the tested build. They are regenerated with
 #   python3 scripts/gen_homebrew_resources.py
 # (not `brew update-python-resources`, which picks the newest PyPI releases instead of
 # the locked ones). tests/test_homebrew_formula.py fails if the two drift apart.
@@ -24,7 +23,7 @@ class UnifiFabricMcpServer < Formula
 
   desc "MCP server for the UniFi Fabric API (Network, Protect, Site Manager, more)"
   homepage "https://github.com/swkstudios/unifi-fabric-mcp-server"
-  url "https://github.com/swkstudios/unifi-fabric-mcp-server/archive/refs/tags/v0.7.2.tar.gz"
+  url "https://github.com/swkstudios/unifi-fabric-mcp-server/archive/refs/tags/v0.7.3.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "MIT"
 
@@ -308,6 +307,10 @@ class UnifiFabricMcpServer < Formula
   end
 
   def install
+    # Work around superenv breaking aws-lc-sys `-O0` needed to build CPU Jitter RNG
+    # (pydantic-monty-client builds aws-lc-sys through maturin).
+    ENV["AWS_LC_SYS_NO_JITTER_ENTROPY"] = "1"
+
     virtualenv_install_with_resources
   end
 

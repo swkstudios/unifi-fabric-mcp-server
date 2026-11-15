@@ -43,12 +43,21 @@ def token_decode(token: str) -> str | None:
         return None
 
 
+@lru_cache(maxsize=8192)
+def _decode_cached(token: str) -> str | None:
+    """``token_decode`` for a token seen again. The oracle's own stdlib decoder, a pure
+    function of the token string (its complete semantic key), so reusing its result changes
+    nothing; the same bounded cache as the packed decoder below. Nothing from the product."""
+    return token_decode(token)
+
+
 def decode_view(view, kind):
     text, spans = view
     parts, mapped = [], []
     pos = 0
     for match in PATTERNS[kind].finditer(text):
-        decoded = token_decode(match.group())
+        token = match.group()
+        decoded = _decode_cached(token) if len(token) <= 16 else token_decode(token)
         if decoded is None:
             continue
         a, b = match.span()
@@ -62,6 +71,19 @@ def decode_view(view, kind):
 
 
 def views(text):
+    """Every distinct decoded view of ``text`` in BFS order. The enumeration is a pure
+    function of the text, and one corpus case asks for it several times (the reference
+    scrub rounds, the leak checks), so the last few texts are kept; the views are immutable
+    tuples, and a different text is a different key."""
+    return iter(_all_views(text))
+
+
+@lru_cache(maxsize=16)
+def _all_views(text):
+    return tuple(_enumerate_views(text))
+
+
+def _enumerate_views(text):
     raw = text, tuple((i, i + 1) for i in range(len(text)))
     pending, seen = [(raw, 0)], {raw}
     for view, depth in pending:
@@ -223,27 +245,37 @@ def forms(value):
 
 def reference_spans(source, secrets):
     found = []
+    # Per call, not per view: the forms of a secret and its length class do not depend on
+    # the view (pure functions of the secret), so they are computed once for this call.
+    live = {}
+    for secret in secrets:
+        if secret.strip() and secret not in live:
+            live[secret] = (len(secret.strip()) >= 12, forms(secret))
+    fragments = None
     for text, spans in views(source):
         for secret in secrets:
             if not secret.strip():
                 continue
-            for form in forms(secret):
+            long_secret, secret_forms_ = live[secret]
+            for form in secret_forms_:
                 pos = 0
                 while (i := text.find(form, pos)) >= 0:
                     j = i + len(form)
                     a, b = spans[i][0], spans[j - 1][1]
                     left = (
-                        len(secret.strip()) >= 12
+                        long_secret
                         or i == 0
                         or text[i - 1] not in WORD
                         or spans[i - 1][1] - spans[i - 1][0] > 1
                     )
-                    right = len(secret.strip()) >= 12 or b == len(source) or source[b] not in WORD
+                    right = long_secret or b == len(source) or source[b] not in WORD
                     if left and right:
                         found.append((a, b))
                     pos = i + 1
         for run in re.finditer(r"[A-Za-z0-9+/_-]+=*", text):
-            if any(fragment in run.group() for fragment in _fragments(tuple(secrets))):
+            if fragments is None:
+                fragments = _fragments(tuple(secrets))
+            if any(fragment in run.group() for fragment in fragments):
                 found.append((spans[run.start()][0], spans[run.end() - 1][1]))
     return merge(found)
 

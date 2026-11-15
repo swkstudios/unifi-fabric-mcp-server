@@ -24,9 +24,11 @@ from pydantic import ValidationError
 
 from unifi_fabric import server
 from unifi_fabric._read_only_audit import classify_tool_verbs
+from unifi_fabric.catalog.loaders import LOADERS
 from unifi_fabric.client import ClassicApiError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.network import network_clients_guests as ncg
+from unifi_fabric.families.network import registrar as network_registrar
 from unifi_fabric.registry import Registry
 
 HOST = "console-n05"
@@ -1017,8 +1019,8 @@ def test_every_tool_is_a_typed_named_function_with_typed_schemas():
         assert empty_schemas(tool.parameters, name) == [], name
         for prop, schema in tool.parameters["properties"].items():
             assert typed(schema), f"{name}.{prop} has no type"
-    src = Path(ncg.__file__).read_text()
-    assert "lambda" not in src.split("def register(", 1)[1]
+    step = next(entry for entry in LOADERS if entry.origin == "network_clients_guests")
+    assert "lambda" not in inspect.getsource(getattr(network_registrar, step.function))
 
 
 def test_every_argument_description_carries_a_real_example():

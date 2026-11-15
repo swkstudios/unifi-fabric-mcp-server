@@ -100,7 +100,7 @@ def test_the_developer_portal_landing_link_is_not_frozen_at_a_version():
     """https://developer.ui.com answers 307 (a temporary redirect) to the current Network
     version's page, so the stable URL is the one to publish: replacing it with the redirect
     target pins the link to one version for good. The link checker follows the redirect and
-    reports it as moved, which does not fail the check, so nothing needs the pin."""
+    accepts a 307 without reporting the link as moved, so nothing needs the pin."""
     for name in ("CLIENT-SETUP.md", "COVERAGE.md"):
         text = (ROOT / "docs" / name).read_text()
         found = re.findall(r"\[developer\.ui\.com\]\((https://developer\.ui\.com[^)]*)\)", text)

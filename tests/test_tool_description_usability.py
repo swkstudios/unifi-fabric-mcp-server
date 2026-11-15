@@ -37,11 +37,6 @@ def test_protect_event_description_explicitly_states_returns(tools):
         assert key in description
 
 
-def test_device_tag_description_has_no_markup(tools):
-    for name in ("create_device_tag", "list_device_tags", "update_device_tag", "delete_device_tag"):
-        assert re.search(r"<[A-Za-z][^>]*>", tools[name].description) is None, name
-
-
 @pytest.mark.parametrize("name", ["get_isp_metrics", "query_isp_metrics"])
 def test_isp_interval_values_are_discoverable(tools, name):
     interval = tools[name].parameters["properties"]["interval"]

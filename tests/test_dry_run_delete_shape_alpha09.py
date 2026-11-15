@@ -1,4 +1,4 @@
-"""GS3 N09: the listed tools return the deletion_result dry-run shape.
+"""Dry-run shape: the listed tools return the deletion_result dry-run shape.
 
 Under dry-run policy each listed tool returns ``{status: "dry_run", deleted: false, message,
 response: <client preview>}`` - never the bare client preview - and sends no write.
@@ -14,6 +14,7 @@ from unifi_fabric.client import is_dry_run_preview
 
 DELETE_TOOLS = [
     "delete_energy_saving_policy",
+    "delete_port_automation",
     "delete_power_supervisor",
     "delete_power_supervisor_link",
 ]

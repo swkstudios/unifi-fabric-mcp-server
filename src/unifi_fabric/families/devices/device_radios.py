@@ -7,13 +7,8 @@ can reorder its radios and reprovision the AP when presented with partial tables
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from copy import deepcopy
-from typing import Annotated, Any, Literal
-
-from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
-from pydantic.json_schema import SkipJsonSchema
+from typing import Any
 
 from ...client import (
     UniFiClient,
@@ -32,44 +27,12 @@ from ...shared_shapes._classic_objects import classic_rest, resolve_site_slug
 from ...shared_shapes._keys import with_context
 from ...shared_shapes._results import leaf_equal
 from ...switches import connector_writes_enabled
-from ...tool_annotations import READ_ONLY, WRITE
 from ..connector.connector import CONNECTOR_WRITE_ENV, connector_write_refusal
 from ..statistics.statistics import _classic_stat, _select_one_record, _stat_records
 from ._device_config import require_classic_success, update_device_config
-
-
-class RadioChanges(BaseModel):
-    """Only explicitly supplied fields are merged into the selected radio."""
-
-    model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
-
-    channel: StrictInt | str | SkipJsonSchema[None] = Field(
-        default=None, description='Primary channel number for this band, or "auto", e.g. 44.'
-    )
-    ht: Annotated[StrictInt, Field(ge=1)] | SkipJsonSchema[None] = Field(
-        default=None,
-        description="Positive channel width in MHz within reported radio caps, e.g. 40.",
-    )
-    tx_power_mode: Literal["auto", "low", "medium", "high", "custom"] | SkipJsonSchema[None] = (
-        Field(default=None, description='Transmit power mode, e.g. "medium"; custom uses tx_power.')
-    )
-    tx_power: StrictInt | SkipJsonSchema[None] = Field(
-        default=None,
-        description="Power in dBm within this radio's min_txpower/max_txpower, e.g. 10.",
-    )
-    min_rssi_enabled: StrictBool | SkipJsonSchema[None] = Field(
-        default=None, description="Enable the minimum RSSI threshold on this radio, e.g. true."
-    )
-    min_rssi: StrictInt | SkipJsonSchema[None] = Field(
-        default=None, description="Minimum RSSI threshold in dBm, e.g. -78."
-    )
-
-    @model_validator(mode="after")
-    def _no_null_fields(self) -> RadioChanges:
-        for field in self.model_fields_set:
-            if getattr(self, field) is None:
-                raise ValueError(f"{field} must have a value; omit it to leave it unchanged")
-        return self
+from .schemas import (  # the family's shapes (family-owned layout)
+    RadioChanges,
+)
 
 
 def _radio_rows(record: dict[str, Any], field: str) -> list[dict[str, Any]]:
@@ -329,84 +292,3 @@ async def _update_device_radio(
         client, path, before, desired, body, read_after, _diff, key=key, dry_run=dry_run
     )
     return with_context(result, {"_readBeforeResponse": before_response, "_lookupResponse": lookup})
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the typed read and full-table write tools."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_device_radios(host: str, site: str, device: str) -> dict[str, Any]:
-        """Read an AP's radio configuration, capabilities and operating state per band.
-
-        Returns the complete upstream envelope and every device record unchanged.
-        _device selects the requested AP; _radio_table and _radio_table_stats project its
-        configuration and operating state. _radios is keyed by ng (2.4 GHz), na (5 GHz),
-        6e (6 GHz). Classic stat/device is used; rest/device has no GET.
-        Provide host (console name or id from list_hosts) and site (network site name or UUID
-        from list_local_sites).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device: AP MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from list_device_stats.
-                Unknown or ambiguous devices fail listing choices; Integration ids differ.
-        """
-        client, registry = deps_fn()
-        return await _get_device_radios(client, registry, host, site, device)
-
-    @mcp.tool(annotations=WRITE)
-    async def update_device_radio(
-        host: str,
-        site: str,
-        device: str,
-        radios: dict[Literal["ng", "na", "6e"], RadioChanges],
-        dry_run: bool = False,
-    ) -> dict[str, Any]:
-        """Update selected AP radio fields while preserving the full radio_table and its order.
-
-        Reads stat/device by MAC, validates against the device's own radio capabilities,
-        and PUTs the entire table to rest/device using its Classic _id. Other radios and
-        fields stay unchanged. DFS channels may sit in DFS_WAIT for about 60 s; clients
-        may roam; a device-settings write can restart or reprovision the AP and briefly drop its
-        clients. Never co-channel a mesh AP's
-        only wireless uplink. Never auto-retried; a timeout reports outcome unknown.
-        Read back before retrying. Returns readBefore/readAfter, changed per band/field, noOp and
-        radio_table_stats, with the upstream write response verbatim under response.
-        _diff is the requested diff; _noOp is an alias of noOp.
-        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message,
-        preview (method, path, params, body), and diff; changed/noOp are null, never write results;
-        no-op skips PUT. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny.
-        _lookupResponse and _readBeforeResponse preserve the lookup and before envelopes;
-        _readAfterResponse preserves the after envelope. readAfterError means verification
-        failed on the fresh read-after; changed/noOp/_verified are null. _verified compares
-        the complete desired table to the successful read-after; false means a mismatch.
-        Even a skipped no-op PUT requires a new successful read; read back before retrying.
-        Provide host (console name or id from list_hosts) and site (network site name or UUID
-        from list_local_sites).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device: AP MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from list_device_stats.
-                Unknown or ambiguous devices fail listing choices; Integration ids differ.
-            radios: Changes keyed by band ng, na or 6e, e.g. {"na": {"channel": 44, "ht": 40},
-                "ng": {"tx_power_mode": "medium"}}. Set only fields to change: channel (auto
-                or a primary channel number), ht (MHz, device capabilities), tx_power_mode,
-                tx_power (dBm, reported min/max), min_rssi_enabled or min_rssi (dBm).
-                Shape: {ng?:RADIO,na?:RADIO,'6e'?:RADIO}; RADIO keys the server reads:
-                {channel?:integer|'auto',ht?:integer,
-                tx_power_mode?:'auto'|'low'|'medium'|'high'|'custom',tx_power?:integer,
-                min_rssi_enabled?:boolean,min_rssi?:integer}
-            dry_run: Preview the exact full-table PUT body and diff without writing, e.g. true.
-                dry-run policy also previews; read-only and write opt-outs still apply.
-        """
-        client, registry = deps_fn()
-        return await _update_device_radio(
-            client,
-            registry,
-            host,
-            site,
-            device,
-            {str(band): change for band, change in radios.items()},
-            dry_run=dry_run,
-        )

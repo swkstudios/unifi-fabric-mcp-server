@@ -268,15 +268,25 @@ def _required_array_query_params() -> set[tuple[str, str, str, str]]:
 #: Every published required array query parameter -> (tool, argument). A new one in a
 #: vendored spec fails test_dc_every_required_array_query_param_is_mapped until it is mapped.
 REQUIRED_ARRAY_QUERY: dict[tuple[str, str, str, str], tuple[str, str]] = {
-    ("protect-7.3.74.json", "DELETE", "/v1/cameras/{id}/rtsps-stream", "qualities"): (
+    ("protect-7.4.96.json", "DELETE", "/v1/cameras/{id}/rtsps-stream", "qualities"): (
         "delete_rtsps_stream",
         "qualities",
     ),
 }
 
 
+#: Required array query parameters of routes no tool can call: the WebSocket subscriptions,
+#: which the Fabric connector cannot carry (docs/COVERAGE.md, Protect persistent WebSocket
+#: subscription).
+WEBSOCKET_ONLY_ARRAY_QUERY: dict[tuple[str, str, str, str], str] = {
+    ("protect-7.4.96.json", "GET", "/v1/subscribe/updates", "modelKeys"): "WebSocket subscription",
+}
+
+
 def test_dc_every_required_array_query_param_is_mapped():
-    assert _required_array_query_params() == set(REQUIRED_ARRAY_QUERY)
+    assert _required_array_query_params() == set(REQUIRED_ARRAY_QUERY) | set(
+        WEBSOCKET_ONLY_ARRAY_QUERY
+    )
 
 
 @pytest.mark.parametrize(("tool", "arg"), sorted(set(REQUIRED_ARRAY_QUERY.values())))

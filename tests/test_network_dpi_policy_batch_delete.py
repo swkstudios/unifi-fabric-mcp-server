@@ -25,7 +25,9 @@ from unifi_fabric import server
 from unifi_fabric._read_only_audit import derive_write_tools
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, UniFiHTTPError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.families.firewall import registrar as firewall_registrar
 from unifi_fabric.families.network import network_dpi_policy as lane
+from unifi_fabric.families.network import registrar as network_registrar
 
 
 @pytest.fixture(autouse=True)
@@ -575,7 +577,7 @@ async def test_members_group_unusual_fields_reach_upstream_and_error_is_preserve
         resolve_site_slug=AsyncMock(return_value="default"),
     )
     mcp = FastMCP("members-group-contract")
-    lane.register(mcp, lambda: (c, reg))
+    network_registrar.register_13(mcp, lambda: (c, reg))
     args = {"host": "my-console", "site": "Default", "group": body}
     if name.startswith("update"):
         args["group_id"] = "g1"
@@ -735,7 +737,7 @@ async def test_registered_empty_policy_dry_run_never_claims_deletion(registry):
     console = FakeIntegration()
     client, transport = real_client(console, dry_run=True)
     mcp = FastMCP("empty-policy-dry-run")
-    lane.register(mcp, lambda: (client, registry))
+    firewall_registrar.register_2(mcp, lambda: (client, registry))
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     async with transport:
         result = await tools[POLICIES].fn(host="my-console", site="Default", ids=[])
@@ -767,7 +769,7 @@ async def test_policy_batch_retains_rate_limit_class_status_and_truthful_progres
     client, transport = real_client(handler)
     if registered:
         mcp = FastMCP("policy-batch-rate-limit")
-        lane.register(mcp, lambda: (client, registry))
+        firewall_registrar.register_2(mcp, lambda: (client, registry))
         tools = {tool.name: tool for tool in await mcp.list_tools()}
         invoke = tools[POLICIES].fn
     else:

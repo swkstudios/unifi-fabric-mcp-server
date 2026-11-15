@@ -60,7 +60,7 @@ def generate():
         tools = {}
         for name in sorted(conformance._tools()):
             rows = set()
-            requests = conformance.capture(name)
+            requests = list(conformance.captured(name))
             # Capture each declared route selector, including alternate actions.
             # Some actions have mutually exclusive companion arguments.
             variants = {

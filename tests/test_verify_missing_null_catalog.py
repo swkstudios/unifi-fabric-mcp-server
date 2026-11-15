@@ -285,7 +285,7 @@ def test_spec_omitted_null_property(entry, present):
     assert not _results.requested_leaves_match({field: "set"}, actual, spec=spec, schema=schema)
     assert not _results.requested_leaves_match({"unknown": None}, {}, spec=spec, schema=schema)
     assert not _results.requested_leaves_match(
-        {field: None}, {}, spec="protect-7.3.74.json", schema=schema
+        {field: None}, {}, spec="protect-7.4.96.json", schema=schema
     )
     assert not _results.requested_leaves_match(
         {"nested": {field: None}}, {"nested": {}}, spec=spec, schema=schema

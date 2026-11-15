@@ -1,0 +1,43 @@
+name: CI relabel
+
+# ci.yml no longer triggers on labeled/unlabeled: opening a pull request with a label started
+# two CI runs of one commit, the first was cancelled and its always-on aggregate jobs showed
+# FAILURE in the rollup. The three labels CI reads re-run the existing run instead
+# (scripts/ci_relabel.py); every other label does nothing here, so one push is one CI run.
+on:
+  pull_request:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  # One re-run at a time per pull request, none replaced: a second label waits for the first.
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  rerun:
+    name: rerun
+    if: ${{ (github.event.label.name == 'full-ci' || github.event.label.name == 'skip-heavy' || github.event.label.name == 'skip-changelog') }}
+    # The repository's Linux runner label (the LINUX_RUNNER setting), like every other Linux
+    # job here; the private tree checks the label in its workflow-form tests. The job only
+    # calls the Actions API; it may wait for a cancelled run to finish, and holds one runner
+    # slot while it does.
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Re-run CI with the new labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABEL: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 scripts/ci_relabel.py --repo "$REPO" --head "$HEAD_SHA" --label "$LABEL" --pr "$PR_NUMBER"

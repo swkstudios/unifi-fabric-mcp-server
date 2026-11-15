@@ -1,0 +1,1246 @@
+{
+ "tools": [
+  {
+   "name": "fabric_connector_get",
+   "description": "Relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too.\n\nOfficial-only setups also exclude source:relay.\n\nState-changing GET routes (Protect enable-control/disable-control) need write authorization, obey connector/area opt-outs, read-only mode and dry-run, and are sent once; in discovery mode use call_write_tool. Consequence: they change camera controllability until set back. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status \"dry_run\", body previews method, path, params, body.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body}. status/body are the upstream's verbatim (4xx/5xx returned, not raised): decoded JSON, text in its declared charset, or null when empty (masked only with UNIFI_REDACT_SECRETS). Binary is base64 bodyBase64 plus sizeBytes with body null; an unfollowed 3xx adds headers. HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\n\nLimits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name or id: the short name from list_hosts\n(data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.\n\"my-console\") or the long data[].id (MAC:numericId composite)."
+     },
+     "path": {
+      "type": "string",
+      "description": "the relay-relative application path AFTER ``/proxy/`` — e.g.\n``network/integration/v1/sites`` or ``network/api/s/{site}/stat/device``. Use the\n``{site}`` (slug) or ``{site_id}`` (UUID) placeholder for the site segment; the server\nresolves and substitutes it, and resolvedPath reports the path as sent (the console id\nand API key are never part of path or resolvedPath). Mapped application routes carry\ntheir routeClass; unmapped routes relay as\nrouteClass \"unclassified\". Ordinary GET reads relay while an area write opt-out\nis active. Mutations on unclassified routes are refused only while an area write\nopt-out is active, with the refusal naming its variable. ``..``, ``%``-encoding,\nand control characters are rejected."
+     },
+     "site": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "site name or UUID — REQUIRED only when path contains a site placeholder."
+     },
+     "params": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "optional query-string parameters.\nFree-form JSON object; the caller-chosen route determines its shape."
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "optional 'device' / 'site' / 'global' — cross-checked against the path so a device\nroute cannot be confused with a site-global setting route."
+     }
+    },
+    "required": [
+     "host",
+     "path"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Fabric Connector Get",
+   "_meta": {
+    "unifi/apiSource": "relay/generic/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "fabric_connector_post",
+   "description": "Relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too.\n\nConsequence: whatever the target route creates or does happens on the live controller immediately.\n\nTargets a collection or command route (e.g. network/api/s/{site}/cmd/...). Params as fabric_connector_get; body is sent verbatim, confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled}: status/body are the upstream's verbatim (4xx/5xx returned, not raised); binary is bodyBase64 plus sizeBytes with body null. No GET twin, so no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent: status \"dry_run\", body the dry-run preview (method, path, params, body). HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_post. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "path": {
+      "type": "string",
+      "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+     },
+     "site": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "array"
+       },
+       {
+        "type": "string"
+       },
+       {
+        "type": "number"
+       },
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+     },
+     "params": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+     }
+    },
+    "required": [
+     "host",
+     "path"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Fabric Connector Post",
+   "_meta": {
+    "unifi/apiSource": "relay/generic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "fabric_connector_put",
+   "description": "Relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too.\n\nConsequence: replaces the resource now; omitted fields may reset.\n\nFor network/api/s/{site}/rest/device/{id}, pass scope='device' to refuse site-global routes; it has no GET, so reads use stat/device and noOp compares only sent fields (noOpBasis). A device write can restart or reprovision it. Undocumented routes are EXPERIMENTAL. Params as fabric_connector_get; body is verbatim; confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed, noOpBasis]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the dry-run preview (method, path, params, body).\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.\n\nRequired arguments: host, path.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "path": {
+      "type": "string",
+      "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+     },
+     "site": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "array"
+       },
+       {
+        "type": "string"
+       },
+       {
+        "type": "number"
+       },
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+     },
+     "params": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+     }
+    },
+    "required": [
+     "host",
+     "path"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Fabric Connector Put",
+   "_meta": {
+    "unifi/apiSource": "relay/generic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "fabric_connector_patch",
+   "description": "Relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too.\n\nConsequence: applies to the live controller immediately.\n\nClassic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write can restart or reprovision it. For legacy InnerSpace innerspace/api/shapes/{id} (EXPERIMENTAL), first probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop. Params as fabric_connector_get; body is verbatim; confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the dry-run preview (method, path, params, body).\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.\n\nRequired arguments: host, path.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "path": {
+      "type": "string",
+      "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+     },
+     "site": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "array"
+       },
+       {
+        "type": "string"
+       },
+       {
+        "type": "number"
+       },
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+     },
+     "params": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+     }
+    },
+    "required": [
+     "host",
+     "path"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Fabric Connector Patch",
+   "_meta": {
+    "unifi/apiSource": "relay/generic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "fabric_connector_delete",
+   "description": "Relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too.\n\nConsequence: the target resource is removed from the controller; there is no undo.\n\nConfirm the exact resource path first; body is optional and verbatim, confirm is ignored. Params as fabric_connector_get.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Deletion is confirmed only by a 404 read-after following a 2xx read-before: noOp false, changed true; changed (= not noOp) is present only when noOp is non-null; binary is {bodyBase64, sizeBytes, body: null}. If the read-after still returns the resource, noOp is null with noOpReason \"deletion not confirmed\". HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the {method, path, params, body} preview.\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_delete. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "path": {
+      "type": "string",
+      "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+     },
+     "site": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Optional for DELETE.\nOmit to send no body; an explicit null is sent as the JSON body null.\nFree-form JSON object; the caller-chosen route determines its shape."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+     },
+     "params": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+     }
+    },
+    "required": [
+     "host",
+     "path"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Fabric Connector Delete",
+   "_meta": {
+    "unifi/apiSource": "relay/generic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  }
+ ],
+ "describe": {
+  "fabric_connector_get": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"fabric_connector_get\",\"title\":\"Fabric Connector Get\",\"description\":\"Relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too.\\n\\nOfficial-only setups also exclude source:relay.\\n\\nState-changing GET routes (Protect enable-control/disable-control) need write authorization, obey connector/area opt-outs, read-only mode and dry-run, and are sent once; in discovery mode use call_write_tool. Consequence: they change camera controllability until set back. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status \\\"dry_run\\\", body previews method, path, params, body.\\n\\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body}. status/body are the upstream's verbatim (4xx/5xx returned, not raised): decoded JSON, text in its declared charset, or null when empty (masked only with UNIFI_REDACT_SECRETS). Binary is base64 bodyBase64 plus sizeBytes with body null; an unfollowed 3xx adds headers. HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\\n\\nLimits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\\n\\nRequired arguments: host, path.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name or id: the short name from list_hosts\\n(data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.\\n\\\"my-console\\\") or the long data[].id (MAC:numericId composite).\"},\"path\":{\"type\":\"string\",\"description\":\"the relay-relative application path AFTER ``/proxy/`` — e.g.\\n``network/integration/v1/sites`` or ``network/api/s/{site}/stat/device``. Use the\\n``{site}`` (slug) or ``{site_id}`` (UUID) placeholder for the site segment; the server\\nresolves and substitutes it, and resolvedPath reports the path as sent (the console id\\nand API key are never part of path or resolvedPath). Mapped application routes carry\\ntheir routeClass; unmapped routes relay as\\nrouteClass \\\"unclassified\\\". Ordinary GET reads relay while an area write opt-out\\nis active. Mutations on unclassified routes are refused only while an area write\\nopt-out is active, with the refusal naming its variable. ``..``, ``%``-encoding,\\nand control characters are rejected.\"},\"site\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"site name or UUID — REQUIRED only when path contains a site placeholder.\"},\"params\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"optional query-string parameters.\\nFree-form JSON object; the caller-chosen route determines its shape.\"},\"scope\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"optional 'device' / 'site' / 'global' — cross-checked against the path so a device\\nroute cannot be confused with a site-global setting route.\"}},\"required\":[\"host\",\"path\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"relay/generic/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "fabric_connector_get",
+    "title": "Fabric Connector Get",
+    "description": "Relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too.\n\nOfficial-only setups also exclude source:relay.\n\nState-changing GET routes (Protect enable-control/disable-control) need write authorization, obey connector/area opt-outs, read-only mode and dry-run, and are sent once; in discovery mode use call_write_tool. Consequence: they change camera controllability until set back. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status \"dry_run\", body previews method, path, params, body.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body}. status/body are the upstream's verbatim (4xx/5xx returned, not raised): decoded JSON, text in its declared charset, or null when empty (masked only with UNIFI_REDACT_SECRETS). Binary is base64 bodyBase64 plus sizeBytes with body null; an unfollowed 3xx adds headers. HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\n\nLimits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name or id: the short name from list_hosts\n(data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.\n\"my-console\") or the long data[].id (MAC:numericId composite)."
+      },
+      "path": {
+       "type": "string",
+       "description": "the relay-relative application path AFTER ``/proxy/`` — e.g.\n``network/integration/v1/sites`` or ``network/api/s/{site}/stat/device``. Use the\n``{site}`` (slug) or ``{site_id}`` (UUID) placeholder for the site segment; the server\nresolves and substitutes it, and resolvedPath reports the path as sent (the console id\nand API key are never part of path or resolvedPath). Mapped application routes carry\ntheir routeClass; unmapped routes relay as\nrouteClass \"unclassified\". Ordinary GET reads relay while an area write opt-out\nis active. Mutations on unclassified routes are refused only while an area write\nopt-out is active, with the refusal naming its variable. ``..``, ``%``-encoding,\nand control characters are rejected."
+      },
+      "site": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "site name or UUID — REQUIRED only when path contains a site placeholder."
+      },
+      "params": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "optional query-string parameters.\nFree-form JSON object; the caller-chosen route determines its shape."
+      },
+      "scope": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "optional 'device' / 'site' / 'global' — cross-checked against the path so a device\nroute cannot be confused with a site-global setting route."
+      }
+     },
+     "required": [
+      "host",
+      "path"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "relay/generic/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "fabric_connector_post": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"fabric_connector_post\",\"title\":\"Fabric Connector Post\",\"description\":\"Relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too.\\n\\nConsequence: whatever the target route creates or does happens on the live controller immediately.\\n\\nTargets a collection or command route (e.g. network/api/s/{site}/cmd/...). Params as fabric_connector_get; body is sent verbatim, confirm is ignored.\\n\\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled}: status/body are the upstream's verbatim (4xx/5xx returned, not raised); binary is bodyBase64 plus sizeBytes with body null. No GET twin, so no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent: status \\\"dry_run\\\", body the dry-run preview (method, path, params, body). HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\\n\\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_post. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\\n\\nRequired arguments: host, path.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"path\":{\"type\":\"string\",\"description\":\"Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\\nroutes carry their routeClass; unmapped routes relay as routeClass \\\"unclassified\\\".\\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\\nstate-changing route (protect/api/cameras/{id}/enable-control or\\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\\nonce. Mutations on\\nunclassified routes are refused only while an area write opt-out is active, with\\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\\nplaceholder for the site segment; '..', %-encoding and control characters are\\nrejected.\"},\"site\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\\n(UUID); the server substitutes it.\"},\"body\":{\"anyOf\":[{\"type\":\"object\"},{\"type\":\"array\"},{\"type\":\"string\"},{\"type\":\"number\"},{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\\nThe caller-chosen route determines its shape.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for backward compatibility. The call executes immediately when\\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\\na preview of the request is returned).\"},\"scope\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device.\"},\"params\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional query-string parameters sent with the write (and with the\\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\\nFree-form JSON object; the caller-chosen route determines its shape.\"}},\"required\":[\"host\",\"path\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"relay/generic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "fabric_connector_post",
+    "title": "Fabric Connector Post",
+    "description": "Relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too.\n\nConsequence: whatever the target route creates or does happens on the live controller immediately.\n\nTargets a collection or command route (e.g. network/api/s/{site}/cmd/...). Params as fabric_connector_get; body is sent verbatim, confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled}: status/body are the upstream's verbatim (4xx/5xx returned, not raised); binary is bodyBase64 plus sizeBytes with body null. No GET twin, so no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent: status \"dry_run\", body the dry-run preview (method, path, params, body). HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_post. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "path": {
+       "type": "string",
+       "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+      },
+      "site": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+      },
+      "body": {
+       "anyOf": [
+        {
+         "type": "object"
+        },
+        {
+         "type": "array"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+      },
+      "scope": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+      },
+      "params": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+      }
+     },
+     "required": [
+      "host",
+      "path"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "relay/generic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "fabric_connector_put": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"fabric_connector_put\",\"title\":\"Fabric Connector Put\",\"description\":\"Relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too.\\n\\nConsequence: replaces the resource now; omitted fields may reset.\\n\\nFor network/api/s/{site}/rest/device/{id}, pass scope='device' to refuse site-global routes; it has no GET, so reads use stat/device and noOp compares only sent fields (noOpBasis). A device write can restart or reprovision it. Undocumented routes are EXPERIMENTAL. Params as fabric_connector_get; body is verbatim; confirm is ignored.\\n\\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed, noOpBasis]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \\\"dry_run\\\", body the dry-run preview (method, path, params, body).\\n\\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.\\n\\nRequired arguments: host, path.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"path\":{\"type\":\"string\",\"description\":\"Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\\nroutes carry their routeClass; unmapped routes relay as routeClass \\\"unclassified\\\".\\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\\nstate-changing route (protect/api/cameras/{id}/enable-control or\\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\\nonce. Mutations on\\nunclassified routes are refused only while an area write opt-out is active, with\\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\\nplaceholder for the site segment; '..', %-encoding and control characters are\\nrejected.\"},\"site\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\\n(UUID); the server substitutes it.\"},\"body\":{\"anyOf\":[{\"type\":\"object\"},{\"type\":\"array\"},{\"type\":\"string\"},{\"type\":\"number\"},{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\\nThe caller-chosen route determines its shape.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for backward compatibility. The call executes immediately when\\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\\na preview of the request is returned).\"},\"scope\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device.\"},\"params\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional query-string parameters sent with the write (and with the\\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\\nFree-form JSON object; the caller-chosen route determines its shape.\"}},\"required\":[\"host\",\"path\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"relay/generic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "fabric_connector_put",
+    "title": "Fabric Connector Put",
+    "description": "Relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too.\n\nConsequence: replaces the resource now; omitted fields may reset.\n\nFor network/api/s/{site}/rest/device/{id}, pass scope='device' to refuse site-global routes; it has no GET, so reads use stat/device and noOp compares only sent fields (noOpBasis). A device write can restart or reprovision it. Undocumented routes are EXPERIMENTAL. Params as fabric_connector_get; body is verbatim; confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed, noOpBasis]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the dry-run preview (method, path, params, body).\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.\n\nRequired arguments: host, path.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "path": {
+       "type": "string",
+       "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+      },
+      "site": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+      },
+      "body": {
+       "anyOf": [
+        {
+         "type": "object"
+        },
+        {
+         "type": "array"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+      },
+      "scope": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+      },
+      "params": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+      }
+     },
+     "required": [
+      "host",
+      "path"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "relay/generic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "fabric_connector_patch": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"fabric_connector_patch\",\"title\":\"Fabric Connector Patch\",\"description\":\"Relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too.\\n\\nConsequence: applies to the live controller immediately.\\n\\nClassic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write can restart or reprovision it. For legacy InnerSpace innerspace/api/shapes/{id} (EXPERIMENTAL), first probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop. Params as fabric_connector_get; body is verbatim; confirm is ignored.\\n\\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \\\"dry_run\\\", body the dry-run preview (method, path, params, body).\\n\\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.\\n\\nRequired arguments: host, path.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"path\":{\"type\":\"string\",\"description\":\"Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\\nroutes carry their routeClass; unmapped routes relay as routeClass \\\"unclassified\\\".\\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\\nstate-changing route (protect/api/cameras/{id}/enable-control or\\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\\nonce. Mutations on\\nunclassified routes are refused only while an area write opt-out is active, with\\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\\nplaceholder for the site segment; '..', %-encoding and control characters are\\nrejected.\"},\"site\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\\n(UUID); the server substitutes it.\"},\"body\":{\"anyOf\":[{\"type\":\"object\"},{\"type\":\"array\"},{\"type\":\"string\"},{\"type\":\"number\"},{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\\nThe caller-chosen route determines its shape.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for backward compatibility. The call executes immediately when\\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\\na preview of the request is returned).\"},\"scope\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device.\"},\"params\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional query-string parameters sent with the write (and with the\\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\\nFree-form JSON object; the caller-chosen route determines its shape.\"}},\"required\":[\"host\",\"path\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"relay/generic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "fabric_connector_patch",
+    "title": "Fabric Connector Patch",
+    "description": "Relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too.\n\nConsequence: applies to the live controller immediately.\n\nClassic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write can restart or reprovision it. For legacy InnerSpace innerspace/api/shapes/{id} (EXPERIMENTAL), first probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop. Params as fabric_connector_get; body is verbatim; confirm is ignored.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the dry-run preview (method, path, params, body).\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.\n\nRequired arguments: host, path.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "path": {
+       "type": "string",
+       "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+      },
+      "site": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+      },
+      "body": {
+       "anyOf": [
+        {
+         "type": "object"
+        },
+        {
+         "type": "array"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Use the typed tool when one exists.\nFree-form JSON value: object, array (e.g. []), string, number, boolean or null.\nThe caller-chosen route determines its shape."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+      },
+      "scope": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+      },
+      "params": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+      }
+     },
+     "required": [
+      "host",
+      "path"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "relay/generic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "fabric_connector_delete": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"fabric_connector_delete\",\"title\":\"Fabric Connector Delete\",\"description\":\"Relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too.\\n\\nConsequence: the target resource is removed from the controller; there is no undo.\\n\\nConfirm the exact resource path first; body is optional and verbatim, confirm is ignored. Params as fabric_connector_get.\\n\\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Deletion is confirmed only by a 404 read-after following a 2xx read-before: noOp false, changed true; changed (= not noOp) is present only when noOp is non-null; binary is {bodyBase64, sizeBytes, body: null}. If the read-after still returns the resource, noOp is null with noOpReason \\\"deletion not confirmed\\\". HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \\\"dry_run\\\", body the {method, path, params, body} preview.\\n\\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_delete. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\\n\\nRequired arguments: host, path.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"path\":{\"type\":\"string\",\"description\":\"Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\\nroutes carry their routeClass; unmapped routes relay as routeClass \\\"unclassified\\\".\\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\\nstate-changing route (protect/api/cameras/{id}/enable-control or\\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\\nonce. Mutations on\\nunclassified routes are refused only while an area write opt-out is active, with\\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\\nplaceholder for the site segment; '..', %-encoding and control characters are\\nrejected.\"},\"site\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\\n(UUID); the server substitutes it.\"},\"body\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\\nNetwork 11.0.97 for network/integration/v1). Optional for DELETE.\\nOmit to send no body; an explicit null is sent as the JSON body null.\\nFree-form JSON object; the caller-chosen route determines its shape.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for backward compatibility. The call executes immediately when\\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\\na preview of the request is returned).\"},\"scope\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device.\"},\"params\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional query-string parameters sent with the write (and with the\\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\\nFree-form JSON object; the caller-chosen route determines its shape.\"}},\"required\":[\"host\",\"path\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"relay/generic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "fabric_connector_delete",
+    "title": "Fabric Connector Delete",
+    "description": "Relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too.\n\nConsequence: the target resource is removed from the controller; there is no undo.\n\nConfirm the exact resource path first; body is optional and verbatim, confirm is ignored. Params as fabric_connector_get.\n\nReturns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Deletion is confirmed only by a 404 read-after following a 2xx read-before: noOp false, changed true; changed (= not noOp) is present only when noOp is non-null; binary is {bodyBase64, sizeBytes, body: null}. If the read-after still returns the resource, noOp is null with noOpReason \"deletion not confirmed\". HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status \"dry_run\", body the {method, path, params, body} preview.\n\nRefused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_delete. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.\n\nRequired arguments: host, path.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "path": {
+       "type": "string",
+       "description": "Path AFTER /proxy/, e.g. 'network/integration/v1/sites/{site_id}/networks'. Mapped\nroutes carry their routeClass; unmapped routes relay as routeClass \"unclassified\".\nAn ordinary GET relays even while an area write opt-out is active. A GET of a\nstate-changing route (protect/api/cameras/{id}/enable-control or\nprotect/api/cameras/{id}/disable-control) is a write: it follows the area write\nopt-outs, family:connector=deny, read-only mode and dry-run, and is sent\nonce. Mutations on\nunclassified routes are refused only while an area write opt-out is active, with\nthe refusal naming its variable. Use the {site} (slug) or {site_id} (UUID)\nplaceholder for the site segment; '..', %-encoding and control characters are\nrejected."
+      },
+      "site": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Site name or UUID. Required only when path contains '{site}' (slug) or '{site_id}'\n(UUID); the server substitutes it."
+      },
+      "body": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "JSON body sent verbatim to the target route. Shape = that route's spec schema (e.g.\nNetwork 11.0.97 for network/integration/v1). Optional for DELETE.\nOmit to send no body; an explicit null is sent as the JSON body null.\nFree-form JSON object; the caller-chosen route determines its shape."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for backward compatibility. The call executes immediately when\nmade unless the operator opted in to dry-run policy (then nothing is sent upstream and\na preview of the request is returned)."
+      },
+      "scope": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional 'device'|'site'|'global'. Cross-checked against path: 'device' rejects\nglobal-setting routes; 'site'/'global' reject /rest|/stat/device."
+      },
+      "params": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional query-string parameters sent with the write (and with the\nread-before/read-after GET for PUT/PATCH/DELETE), e.g. the\nsourceFirewallZoneId/destinationFirewallZoneId of an Integration ordering route.\nFree-form JSON object; the caller-chosen route determines its shape."
+      }
+     },
+     "required": [
+      "host",
+      "path"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "relay/generic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  }
+ },
+ "calls": {
+  "read": {
+   "tool": "fabric_connector_get",
+   "arguments": {
+    "host": "hostname-0001",
+    "path": "network/integration/v1/sites/{site_id}/clients",
+    "site": "Default"
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"method\":\"GET\",\"routeClass\":\"network-integration\",\"scope\":null,\"path\":\"network/integration/v1/sites/{site_id}/clients\",\"resolvedPath\":\"network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients\",\"status\":200,\"contentType\":\"application/json\",\"body\":{\"offset\":0,\"limit\":1,\"count\":1,\"totalCount\":1,\"data\":[{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients#0\"}]}}"
+     }
+    ],
+    "structuredContent": {
+     "method": "GET",
+     "routeClass": "network-integration",
+     "scope": null,
+     "path": "network/integration/v1/sites/{site_id}/clients",
+     "resolvedPath": "network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients",
+     "status": 200,
+     "contentType": "application/json",
+     "body": {
+      "offset": 0,
+      "limit": 1,
+      "count": 1,
+      "totalCount": 1,
+      "data": [
+       {
+        "id": "00000000-0000-4000-8000-0000000000aa",
+        "_id": "0000000000000000000000aa",
+        "mac": "02:00:5e:00:00:aa",
+        "macAddress": "02:00:5e:00:00:aa",
+        "key": "probe-object",
+        "name": "probe-object",
+        "subsystem": "wan",
+        "hostId": "00000000-0000-4000-8000-0000000000aa",
+        "nested": {
+         "list": [
+          1,
+          "two",
+          {
+           "three": null
+          }
+         ],
+         "flag": false,
+         "ratio": 1.25
+        },
+        "probe": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients#0"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "write_dry_run": {
+   "tool": "fabric_connector_post",
+   "arguments": {
+    "host": "hostname-0001",
+    "path": "network/integration/v1/sites/{site_id}/clients",
+    "confirm": true,
+    "site": "Default",
+    "body": {
+     "name": "probe-object"
+    }
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "dry-run"
+   },
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"method\":\"POST\",\"routeClass\":\"network-integration\",\"scope\":null,\"path\":\"network/integration/v1/sites/{site_id}/clients\",\"resolvedPath\":\"network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients\",\"status\":\"dry_run\",\"contentType\":\"application/json\",\"body\":{\"status\":\"dry_run\",\"dryRun\":true,\"sent\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"preview\":{\"method\":\"POST\",\"path\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients\",\"params\":null,\"body\":{\"name\":\"probe-object\"},\"keyLabel\":\"default\"}},\"writeEnabled\":true}"
+     }
+    ],
+    "structuredContent": {
+     "method": "POST",
+     "routeClass": "network-integration",
+     "scope": null,
+     "path": "network/integration/v1/sites/{site_id}/clients",
+     "resolvedPath": "network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients",
+     "status": "dry_run",
+     "contentType": "application/json",
+     "body": {
+      "status": "dry_run",
+      "dryRun": true,
+      "sent": false,
+      "message": "DRY RUN - no upstream write was performed",
+      "preview": {
+       "method": "POST",
+       "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients",
+       "params": null,
+       "body": {
+        "name": "probe-object"
+       },
+       "keyLabel": "default"
+      }
+     },
+     "writeEnabled": true
+    }
+   }
+  },
+  "write_confirm": {
+   "tool": "fabric_connector_post",
+   "arguments": {
+    "host": "hostname-0001",
+    "path": "network/integration/v1/sites/{site_id}/clients",
+    "confirm": true,
+    "site": "Default",
+    "body": {
+     "name": "probe-object"
+    }
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"method\":\"POST\",\"routeClass\":\"network-integration\",\"scope\":null,\"path\":\"network/integration/v1/sites/{site_id}/clients\",\"resolvedPath\":\"network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients\",\"status\":200,\"contentType\":\"application/json\",\"body\":{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients#0\"},\"writeEnabled\":true}"
+     }
+    ],
+    "structuredContent": {
+     "method": "POST",
+     "routeClass": "network-integration",
+     "scope": null,
+     "path": "network/integration/v1/sites/{site_id}/clients",
+     "resolvedPath": "network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients",
+     "status": 200,
+     "contentType": "application/json",
+     "body": {
+      "id": "00000000-0000-4000-8000-0000000000aa",
+      "_id": "0000000000000000000000aa",
+      "mac": "02:00:5e:00:00:aa",
+      "macAddress": "02:00:5e:00:00:aa",
+      "key": "probe-object",
+      "name": "probe-object",
+      "subsystem": "wan",
+      "hostId": "00000000-0000-4000-8000-0000000000aa",
+      "nested": {
+       "list": [
+        1,
+        "two",
+        {
+         "three": null
+        }
+       ],
+       "flag": false,
+       "ratio": 1.25
+      },
+      "probe": "POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/integration/v1/sites/00000000-0000-3000-a000-000000000016/clients#0"
+     },
+     "writeEnabled": true
+    }
+   }
+  },
+  "write_denied": {
+   "tool": "fabric_connector_post",
+   "arguments": {
+    "host": "hostname-0001",
+    "path": "network/integration/v1/sites/{site_id}/clients",
+    "confirm": true,
+    "site": "Default",
+    "body": {
+     "name": "probe-object"
+    }
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "deny"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"write_denied\", \"message\": \"fabric_connector_post refused: the server is in read-only mode because UNIFI_WRITE_POLICY=deny is set. Every write and action tool across all areas (Network create/update/delete, device/client actions, Protect, the connector relay, Carrier Fabric, Mobility, port-profiles, vouchers, etc.) is refused; read tools are unaffected. To allow writes, unset UNIFI_WRITE_POLICY (the default is allow) or set it to allow or dry-run where you set it: the server's `env` block in your MCP client's configuration (or set the plugin's Write policy option to allow), or the service's `environment:` block of the docker-compose file that deploys this server. Then restart the server (recreate the container for Docker). See Read-only mode in docs/CONFIGURATION.md#read-only-mode.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "validation_error": {
+   "tool": "fabric_connector_get",
+   "arguments": {
+    "baseline_unknown_argument": 1
+   },
+   "env": {},
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "Invalid arguments for tool 'fabric_connector_get':\n- host: missing required argument. Console name or id: the short name from list_hosts (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g. \"my-console\") or the long data[].id (MAC:numericId composite).\n- path: missing required argument. the relay-relative application path AFTER ``/proxy/`` — e.g. ``network/integration/v1/sites`` or ``network/api/s/{site}/stat/device``. Use the ``{site}`` (slug) or ``{site_id}`` (UUID) placeholder for the site segment; the server resolves and substitutes it, and resolvedPath reports the path as sent (the console id and API key are never part of path or resolvedPath). Mapped application routes carry their routeClass; unmapped routes relay as routeClass \"unclassified\". Ordinary GET reads relay while an area write opt-out is active. Mutations on unclassified routes are refused only while an area write opt-out is active, with the refusal naming its variable. ``..``, ``%``-encoding, and control characters are rejected.\n- baseline_unknown_argument: not a parameter of this tool.\nValid parameters: host (required), path (required), site, params, scope.\nCall shape (required arguments): {\"host\": \"STRING\", \"path\": \"STRING\"}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "tool_not_exposed": {
+   "tool": "fabric_connector_get",
+   "arguments": {
+    "host": "hostname-0001",
+    "path": "network/integration/v1/sites/{site_id}/clients",
+    "site": "Default"
+   },
+   "env": {
+    "UNIFI_EXCLUDE": "family:connector"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"tool_not_exposed\", \"message\": \"'fabric_connector_get' is not exposed: the operator's UNIFI_FAMILY_ALLOW or UNIFI_EXCLUDE removes it. No request was sent. Use search_tools to list the exposed tools.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  }
+ }
+}

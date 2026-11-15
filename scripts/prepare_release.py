@@ -18,8 +18,8 @@ and the Gemini CLI extension; the Homebrew formula's tagged-archive ``url``; the
 ``llms.txt`` agent index; the "describes X.Y.Z source" notes in ``README.md`` and
 ``docs/CLIENT-SETUP.md``. The Dockerfile carries no version label.
 
-Install pins (``unifi-fabric-mcp-server==X.Y.Z``, image tags, bundle links, ``support=``
-markers and every other current mention in the documentation set and the client
+Install pins (``unifi-fabric-mcp-server==X.Y.Z``, image tags, bundle links
+and every other current mention in the documentation set and the client
 manifests) name the latest PUBLISHED release, recorded in ``scripts/published-version.txt``.
 A bump leaves them alone, so an install never points at an unpublished package. At
 publication, ``--published`` flips the pins and ``published-version.txt`` to VERSION
@@ -334,7 +334,6 @@ PIN_MANIFESTS = (
     "gemini-extension.json",
     "Dockerfile",
 )
-_VERSION_FIELD_LINE = re.compile(r'^\s*"version":')
 
 
 def is_historical(rel: str) -> bool:
@@ -482,15 +481,50 @@ def _scanned_files(root: Path):
             yield rel, path
 
 
-def unrendered_holders(root: Path, versions: set[str]) -> list[str]:
+def _pin_rendered(rel: str, line: str, version: str) -> bool:
+    """Every mention of ``version`` in ``line`` of ``rel`` is written by the render.
+
+    A pin file is rendered by pattern, so a mention of the release in prose that no pattern
+    reaches would go stale: it is a holder like any line outside the render. A line that
+    holds a patterned pin and also names the release in plain words is such a line, so the
+    test is that the rendered line no longer names ``version``. The one mention allowed to
+    remain is a version field's own (``describes X.Y.Z source``): it is cut out, and anything
+    else on that line that still names ``version`` is a holder, as on any other line.
+    """
+    rest = render_doc_pins(line, "9.9.9")
+    for field in VERSION_FIELDS:
+        found = field.pattern.search(rest) if field.path == rel else None
+        if found is not None and found[2] == version:
+            rest = rest[: found.start(2)] + rest[found.end(2) :]
+    return not _token(version).search(rest)
+
+
+def pin_file_holders(root: Path, versions: set[str]) -> list[str]:
+    """``path:line: text`` for every line of a pin file that names one of ``versions`` and
+    that neither a pin pattern nor a version field writes."""
+    excused = not_holders(root)
+    found: list[str] = []
+    for rel in pin_files(root):
+        text = read_text(root / rel)
+        for version in sorted(versions - {v for (r, v) in excused if r == rel}):
+            found += [
+                f"{rel}:{n}: {line.strip()}"
+                for n, line in version_lines(text, version)
+                if not _pin_rendered(rel, line, version)
+            ]
+    return found
+
+
+def unrendered_holders(root: Path, versions: set[str], *, pin_files_too: bool = True) -> list[str]:
     """``path:line: text`` for every line outside the render that names one of ``versions``.
 
     Historical documents and lines, generated records and ``not_holders()`` excuses are
-    skipped; whatever is left would go stale at the next release.
+    skipped; whatever is left would go stale at the next release. A pin file is rendered by
+    pattern, so with ``pin_files_too`` a line in one that no pattern or field reaches counts.
     """
     skip = rendered_files(root) | set(GENERATED_RECORDS) | {NOT_HOLDERS_FILE}
     excused = not_holders(root)
-    found: list[str] = []
+    found: list[str] = pin_file_holders(root, versions) if pin_files_too else []
     for rel, path in _scanned_files(root):
         if rel in skip or is_historical(rel):
             continue
@@ -528,30 +562,35 @@ def published_version(root: Path) -> str | None:
     return text
 
 
-def _sub_pin_line(line: str, old: str, new: str) -> str:
-    pattern = re.compile(r"(?<![\w.])(v?)" + re.escape(old) + r"(?![\w.]*\d)")
-    return pattern.sub(lambda m: m[1] + new, line)
+def _pin_renderer():
+    """scripts/gen_catalog_figures.py, loaded by path: it owns the install-pin patterns."""
+    import importlib.util
+
+    name = "gen_catalog_figures_pins"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().with_name("gen_catalog_figures.py")
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("scripts/gen_catalog_figures.py is missing")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
 
 
-def render_pins(text: str, rel: str, old: str, new: str) -> str:
-    """Move every current mention of ``old`` in ``text`` to ``new``, line by line.
+def render_doc_pins(text: str, version: str) -> str:
+    """Every install pin in ``text`` set to ``version``, line by line.
 
-    Historical lines keep their version; JSON ``"version"`` lines are version fields,
-    rendered separately.
+    The one renderer for every pin: ``gen_catalog_figures.render_install_versions`` (package
+    pins, image tags, bundle links, the encoded install badges and the pins in prose), also
+    what ``scripts/regen_docs.py`` runs. A line that says it is historical keeps its version;
+    JSON ``"version"`` fields are version fields, which the patterns never touch.
     """
-    if old == new:
-        return text
-    out = []
-    for line in text.splitlines(keepends=True):
-        if (
-            HISTORICAL.search(line)
-            or "clientInfo" in line
-            or (rel.endswith(".json") and _VERSION_FIELD_LINE.match(line))
-        ):
-            out.append(line)
-        else:
-            out.append(_sub_pin_line(line, old, new))
-    return "".join(out)
+    render = _pin_renderer().render_install_versions
+    return "".join(
+        line if HISTORICAL.search(line) or "clientInfo" in line else render(line, version)
+        for line in text.splitlines(keepends=True)
+    )
 
 
 @dataclass
@@ -671,7 +710,7 @@ def plan(
     before = current_version(root)
     recorded = published_version(root)
     pinned_before = recorded or before
-    if strays := unrendered_holders(root, {before, pinned_before}):
+    if strays := unrendered_holders(root, {before, pinned_before}, pin_files_too=False):
         raise PrepareError(
             f"{len(strays)} line(s) name the release outside the rendered files and would go "
             "stale: read the version at generate time, add a VERSION_FIELDS entry, or mark the "
@@ -708,8 +747,14 @@ def plan(
     if archive_sha256 is None and url_changed:
         notes.append(f"{FORMULA}: archive url moved to v{version}; sha256 reset to the placeholder")
 
+    if strays := pin_file_holders(root, {before, pinned_before}):
+        raise PrepareError(
+            f"{len(strays)} line(s) of the pin files name the release where no pin pattern or "
+            "version field writes it and would go stale: use a pattern the renderer knows, or "
+            "mark the line docs-currency: historical: " + "; ".join(strays[:20])
+        )
     for rel in pin_files(root):
-        texts[rel] = render_pins(read(rel), rel, pinned_before, pinned_after)
+        texts[rel] = render_doc_pins(read(rel), pinned_after)
 
     if recorded != pinned_after:
         path = root / PUBLISHED_FILE

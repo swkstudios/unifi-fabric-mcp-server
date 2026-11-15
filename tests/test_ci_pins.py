@@ -6,7 +6,7 @@
   hash-pinned ruff-only requirement the lint-only jobs install.
 - Python: ``.python-version``; every ``actions/setup-python`` step reads it and every
   cache key takes the interpreter from that step's output. The one exception is the
-  locked suite: its jobs run the exact release ``LOCKED_PYTHON`` (ci.yml env), of the same
+  install-proof job: it runs the exact release ``LOCKED_PYTHON`` (ci.yml env), of the same
   minor version.
 """
 
@@ -255,8 +255,8 @@ def test_ruff_extractor_rejects_an_unhashed_duplicate(extra):
 # --- Python -----------------------------------------------------------------------------
 
 
-#: Every job of the locked suite: prep (with its anchor collection), shards, aggregate.
-LOCKED_JOBS = ("test-locked-prep", "test-locked-shard", "test-locked")
+#: The one job that installs the lock: install-proof (unsharded).
+LOCKED_JOBS = ("install-proof",)
 LOCKED_PYTHON_REF = "${{ env.LOCKED_PYTHON }}"
 
 
@@ -274,7 +274,7 @@ def test_python_version_single_source():
         seen += 1
         options = step.get("with") or {}
         if name == "ci.yml" and job_name in LOCKED_JOBS:
-            # The locked suite's one exact interpreter (test_locked_suite_runs_one_interpreter).
+            # install-proof's one exact interpreter (test_install_proof_runs_one_interpreter).
             assert options == {"python-version": LOCKED_PYTHON_REF}, (name, job_name)
             continue
         assert options.get("python-version-file") == ".python-version", (name, job_name)
@@ -302,14 +302,14 @@ def test_python_version_single_source():
                     assert used in ids, (name, job_name, key)
 
 
-def test_locked_suite_runs_one_interpreter():
-    """Every test-locked job runs the one exact interpreter release, LOCKED_PYTHON.
+def test_install_proof_runs_one_interpreter():
+    """The install-proof job runs the one exact interpreter release, LOCKED_PYTHON.
 
-    The aggregate requires one environment identity (Python release and installed set) in
-    every shard and the anchor. A minor-version request lets each runner resolve its own
-    patch release (a runner without the pinned tool cache downloads the newest), and the
-    proof then fails closed. LOCKED_PYTHON is set once, in the workflow env, and each job
-    installs into a fresh venv of that interpreter, whose pip is the bundled one.
+    The proof is "this lock installs and collects on this exact release". A minor-version
+    request lets each runner resolve its own patch release (a runner without the pinned
+    tool cache downloads the newest), so the proof would differ by runner. LOCKED_PYTHON is
+    set once, in the workflow env, and the job installs into a fresh venv of that
+    interpreter, whose pip is the bundled one.
     """
     text = (WORKFLOWS / "ci.yml").read_text()
     ci = yaml.safe_load(text)
@@ -323,7 +323,8 @@ def test_locked_suite_runs_one_interpreter():
         assert "LOCKED_PYTHON" not in (job.get("env") or {}), job_name
         for step in job.get("steps") or []:
             assert "LOCKED_PYTHON" not in (step.get("env") or {}), (job_name, step)
-    assert tuple(j for j in ci["jobs"] if j.startswith("test-locked")) == LOCKED_JOBS
+    assert not [j for j in ci["jobs"] if j.startswith("test-locked")]
+    assert tuple(j for j in ci["jobs"] if j.startswith("install-proof")) == LOCKED_JOBS
     users = {
         job_name
         for job_name, job in ci["jobs"].items()
@@ -348,6 +349,7 @@ def test_locked_suite_runs_one_interpreter():
         install = first[1]
         assert 'python -m venv "$venv"' in install, job_name
         assert "--system-site-packages" not in install, job_name
-        assert '"$venv/bin/python" -m pip install --require-hashes --no-deps' in install
+        assert '"$venv/bin/python" -m pip install --require-hashes -r requirements.lock' in install
+        assert "--no-deps -r" not in install  # the lock itself is installed with its checks on
         assert 'echo "$venv/bin" >> "$GITHUB_PATH"' in install, job_name
         assert not re.search(r"(?m)^\s*(python|pip)\b.*pip install", install), job_name

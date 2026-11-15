@@ -7,6 +7,155 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-14
+
+Highlights: 814 tools (16 added, 0 removed); the full list is in the [tool catalog](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOLS.md).
+
+- A Wi-Fi health report that names each problem and how to fix it.
+- The server can start faster and use less memory: with `UNIFI_PRELOAD=none` and dependencies matching the lock on Python 3.12, tool families load on first call; the Docker image preloads every family ([Startup loading](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#startup-loading-unifi_preload)).
+- Install the server with Homebrew.
+- The server now has its own icon in registries and plugins.
+- Shorter tool descriptions leave your assistant more room to work.
+- System log lookups keep working with writes switched off.
+
+### Added
+
+#### Credentials and audit
+
+- **Audit:** records add `route_template`, a fixed `reason` code and a `ref` request id; error text stays in the server log. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#audit-record-fields)
+
+- **Diagnostics:** the server bundle reports trace export and remote audit sink as flags only. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#get_server_diagnostic_bundle)
+
+- **Audit:** `unifi-fabric-audit-verify --strict` fails on lines excused by a recovery, so a forged line cannot pass as a fault. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#tamper-evidence-unifi_audit_chain)
+
+#### Wi-Fi and radio
+
+- **Wi-Fi diagnosis:** `diagnose_wifi` is a read-only site report with twenty rules, each finding carrying its evidence and advice. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#diagnose_wifi)
+
+#### Install
+
+- **Startup:** with `UNIFI_PRELOAD=none` (the default outside the Docker image) and installed dependencies matching the lock on Python 3.12, tool families load on first call, so the server starts faster and uses less memory. The Docker image sets `UNIFI_PRELOAD=all` and loads every family at startup; so does an install whose dependencies differ, as 0.7.2 did, saying so once on stderr. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#startup-loading-unifi_preload)
+
+- **Install:** `brew install swkstudios/tap/unifi-fabric-mcp-server` installs the server from a Homebrew tap. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CLIENT-SETUP.md#track-a--local-stdio)
+
+- **Branding:** the server has an icon, a dot-matrix globe in light and dark variants, shown in the registry listing, the plugins and the README. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/ICON.md#icon)
+
+- **Transport:** opt-in `UNIFI_BACKGROUND_TASKS=on` lets clients that support MCP tasks run three long multi-site reads as background tasks. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#background-tasks-unifi_background_tasks)
+
+#### Fabric connector
+
+- **Fabric connector:** the relay's write opt-out checks run in the core server; `fabric_connector_post` and the other relay writes refuse exactly as before. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#startup-loading-unifi_preload)
+
+#### Diagnostics and observability
+
+- **Diagnostics:** `get_server_diagnostic_bundle` counts every registered tool, including families that have not loaded yet. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#startup-loading-unifi_preload)
+
+- **Connector:** each console is paced to `UNIFI_CONNECTOR_MAX_RPM` sends per minute, and `X-UF-Lane` tags a call's upstream requests. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/RETRY.md#connector-pacing)
+
+#### Write policy
+
+- **Fork profiles:** `UNIFI_EXCLUDE` accepts `module:<module>` to remove one sub-area module's tools; an unknown module fails startup. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#fork-profiles)
+
+#### Protect
+
+- **Protect:** external alarm manager arm profile tools `list_external_arm_profiles`, `get_external_arm_profile` and `create_external_arm_profile`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#coverage-and-limitations)
+
+- **Protect:** `update_external_arm_profile`, `delete_external_arm_profile` and `arm_external_arm_profile` for the external alarm manager. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#coverage-and-limitations)
+
+- **Protect:** `disarm_external_arm_profile` and `stop_speaker_siren`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#coverage-and-limitations)
+
+#### Network
+
+- **Network:** `query_traffic_flows` takes `threat_signature` to filter flows by IPS signature. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#network-11147-notes)
+
+- **Network:** port automation tools `list_port_automations`, `get_port_automation` and `create_port_automation`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#network-111-port-automations-and-wake_client)
+
+- **Network:** `update_port_automation`, `delete_port_automation` and `wake_client` for Wake-on-LAN. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#network-111-port-automations-and-wake_client)
+
+- **Network:** `get_hotspot_guest_webhook_delivery` reads the last guest-data webhook delivery. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#network-11147-notes)
+
+### Changed
+
+#### Install
+
+- **Install:** no setup example puts the API key on a command line; Codex and Antigravity register a key file. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CLIENT-SETUP.md#use-with-google-antigravity)
+
+#### Tool descriptions
+
+- **Tool descriptions:** 213 long tool descriptions are shorter, and their request bodies and examples moved to the usage reference. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#tool-usage-details)
+
+- **Tool descriptions:** Descriptions shortened in the network, firewall, vpn, clients, devices, statistics and site_manager families. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#tool-usage-details)
+
+- **Tool descriptions:** Descriptions shortened in the protect, connector, carrier, hotspot, innerspace and mobility families. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#tool-usage-details)
+
+#### Protect
+
+- **Protect:** the pinned Protect spec moves to 7.4.96, adding the `antiFlicker` video mode to `update_camera`. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#update_camera)
+
+- **Protect:** `enable_arm` and `disable_arm` now read the NVR `armMode` back and report `verified`; `get_protect_alarm_manager_mode` points to it. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#protect-global-alarm-manager)
+
+#### Network
+
+- **Network:** `get_system_log`, `list_network_events` and `list_ips_events` are now reads for nine system-log classes; another class is refused before any request. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#system-log-readers)
+
+- **Network:** the `acknowledge_critical_alert` and `suggest_service_port` descriptions now say what is proven live and what only in Ubiquiti's server code. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#limits-of-the-2026-11-10-run)
+
+#### Retries
+
+- **Retries:** an HTML 404 from the statistics routes now gets a hint that the Network version alone does not explain it. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#generic-fabric-connector-relay-guarded)
+
+#### Fabric connector
+
+- **Coverage:** per-application memory figures are not offered; the console serves them only outside the paths the Fabric connector relays. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#unifi-os-per-application-memory)
+
+### Removed
+
+### Fixed
+
+#### Tool catalog
+
+- **Tool catalog:** the packaged typed catalog now records every tool's input and output schema exactly as `tools/list` sends them. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/AI-CHANGES.md#generated-files-sources-outputs-and-checks)
+
+#### Credentials and audit
+
+- **Errors:** a 401 or 403 keeps its API-key hint under `UNIFI_REDACT_SECRETS=1`, with secrets in the same error still masked. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#credential-redaction)
+
+- **Errors:** a validation echo that names a credential field and its value is masked in errors and logs. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#credential-redaction)
+
+- **Credential redaction:** with `UNIFI_REDACT_SECRETS` on, `update_ipsec_settings`, `update_wireguard_users`, `update_bgp_config`, `update_ospf_router` and `update_protect_automation` keep stored secrets the caller leaves out of an object field or passes back masked. A list the caller sends replaces the stored list, so pass each element's secrets back masked, or send them. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#credential-redaction)
+
+- **Credential redaction:** masking an error message now takes linear time; a message built to defeat the masker is withheld whole instead of stalling the server. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#credential-redaction)
+
+- **Transport auth:** an `MCP_OAUTH_*` setting without `MCP_AUTH_MODE=oauth` now fails startup, naming the setting, instead of starting without OAuth authentication. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/AUTH-OAUTH.md#configuration)
+
+#### Network
+
+- **Switch ports:** `update_switch_port_overrides` refuses a port that monitors itself or an aggregate past the last port; `get_switch_port_overrides` flags dangling overrides. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#update_switch_port_overrides)
+
+- **Clients:** `set_client_name` reports an unknown client id as not found, the way the console answers it, and raises permission or login errors as they came. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/TOOL-USAGE.md#set_client_name)
+
+- **Network:** the `suggest_service_port` description now says the console answers HTTP 200 with a free port even without a service. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#limits-of-the-2026-11-10-run)
+
+#### Retries
+
+- **Retries:** a Network v2 HTTP 207 reply with a non-empty `errors` list is now an upstream error, so `get_rolling_upgrade_plan` raises. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/RETRY.md#http-200-carrying-an-error-network-v2)
+
+#### Fabric connector
+
+- **Network:** `reboot_unifi_os_console` names the Network application route it posts to, which has no console reboot, and adds a route hint to its errors. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/COVERAGE.md#unifi-os-console-reboot)
+
+- **Fabric connector:** under a `family:<area>=dry-run` entry, a relay write to an unclassified route is previewed, not sent; `deny` already refused it. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#dry-run-behavior)
+
+### Security
+
+#### Credentials and audit
+
+- **Traces:** credential values in the OTLP collector headers join the configured secrets. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#trace-export-otlp)
+
+- **Audit:** audit lines, including the connector relay log, mask every path segment that is not a known route word or identifier, on every route. [Details](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.3/docs/CONFIGURATION.md#audit-record-fields)
+
+Fixes #41, Fixes #42, Fixes #45.
+
 ## [0.7.2] - 2026-11-10
 
 Highlights: 798 tools (15 added, 9 removed); the full list is in the [tool catalog](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.2/docs/TOOLS.md).

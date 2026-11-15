@@ -17,8 +17,8 @@ from unifi_fabric.families.site_manager.aggregation import (
     _list_api_keys,
     _search_device,
     _unwrap_ea_devices,
-    register,
 )
+from unifi_fabric.families.site_manager.registrar import register_2 as register
 from unifi_fabric.registry import Registry
 
 

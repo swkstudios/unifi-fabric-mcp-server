@@ -1,8 +1,8 @@
-"""With ``UNIFI_AUDIT_CHAIN`` unset or false the audit stream is
-byte-identical to 0.7.1.
+"""With ``UNIFI_AUDIT_CHAIN`` unset or false the audit stream gains no chain bytes.
 
-The fixtures in ``tests/fixtures/audit_golden_071/`` were written by :func:`scenario`
-running against the 0.7.1 code (integration/0.7.1 at ffb09e3, before the chain existed).
+The fixtures in ``tests/fixtures/audit_golden_071/`` were first written by
+:func:`scenario` running against the 0.7.1 code, before the chain existed, and were
+regenerated when the record gained ``ref`` and default path masking.
 The scenario emits every event type (``startup``, ``audit``, ``call``, ``error``,
 ``audit.recovered``), both policy records, a sink fault and recovery, a record cut by a
 fault (the ``_partial`` newline prefix), and hostile values (a lone surrogate, C1 and DEL,
@@ -53,6 +53,7 @@ class _FixedDatetime(datetime):
 def _pin_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(audit, "datetime", _FixedDatetime)
     monkeypatch.setattr(audit, "perf_counter", lambda: 1.0)
+    monkeypatch.setattr(audit, "audit_ref", lambda: "0" * 32)
 
 
 def scenario(stream: AuditStream, monkeypatch: pytest.MonkeyPatch) -> None:

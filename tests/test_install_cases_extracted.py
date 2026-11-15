@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -292,10 +294,17 @@ def test_repo_docker_cases_validate():
         smoke.validate_docker_case(case, version, version)
 
 
-# --- claude/codex mcp add registrations are executed -----------------------------------
+# --- claude mcp add registrations are executed -----------------------------------------
 
 CLI_PROMPT = "printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo\n"
 CLI_LAUNCHER = "-- uvx --from unifi-fabric-mcp-server==0.6.4 unifi-fabric-mcp"
+CLI_REFERENCE = "claude mcp add unifi-fabric -e 'UNIFI_API_KEY=${UNIFI_API_KEY}' "
+KEY_FILE = "$HOME/.config/unifi-fabric/api-key"
+KEY_SETUP = (
+    '(umask 077; mkdir -p "$HOME/.config/unifi-fabric"; '
+    f'printf \'%s\\n\' "$UNIFI_API_KEY" > "{KEY_FILE}"); unset UNIFI_API_KEY\n'
+)
+CODEX_KEY_FILE = f'codex mcp add unifi-fabric --env UNIFI_API_KEY_FILE="{KEY_FILE}" '
 
 
 def test_readme_cli_registrations_are_executable_cases():
@@ -306,14 +315,12 @@ def test_readme_cli_registrations_are_executable_cases():
 
 @pytest.mark.parametrize(
     "command",
-    [
-        'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" ',
-        'codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" ',
-    ],
+    [CLI_PROMPT + CLI_REFERENCE, CLI_PROMPT + KEY_SETUP + CODEX_KEY_FILE],
+    ids=["claude-reference", "codex-key-file"],
 )
 def test_cli_registration_runs_the_pinned_launcher(tmp_path, command):
     wheel = tmp_path / "local.whl"
-    case = {"mode": "cli", "body": CLI_PROMPT + command + CLI_LAUNCHER + "\n"}
+    case = {"mode": "cli", "body": command + CLI_LAUNCHER + "\n"}
     argv = smoke.prepare(case, wheel, tmp_path / "x.tar.gz", "0.6.4", tmp_path, "pipx")
     assert argv[1:] == ["--from", str(wheel), "unifi-fabric-mcp"]
 
@@ -321,26 +328,38 @@ def test_cli_registration_runs_the_pinned_launcher(tmp_path, command):
 @pytest.mark.parametrize(
     "body, message",
     [
-        (CLI_PROMPT + "claude mcp add unifi-fabric -e UNIFI_API_KEY=abc " + CLI_LAUNCHER, "shell"),
-        (CLI_PROMPT + "claude mcp add unifi-fabric " + CLI_LAUNCHER, "shell"),
+        (
+            CLI_PROMPT + "claude mcp add unifi-fabric -e UNIFI_API_KEY=abc " + CLI_LAUNCHER,
+            "reference",
+        ),
         (
             CLI_PROMPT
-            + 'codex mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" '
+            + 'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" '
             + CLI_LAUNCHER,
-            "unsupported",
+            "reference",
+        ),
+        (CLI_PROMPT + "claude mcp add unifi-fabric " + CLI_LAUNCHER, "reference"),
+        (
+            CLI_PROMPT
+            + 'codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" '
+            + CLI_LAUNCHER,
+            "command line",
         ),
         (
-            CLI_PROMPT + 'claude mcp add other -e UNIFI_API_KEY="$UNIFI_API_KEY" ' + CLI_LAUNCHER,
+            CLI_PROMPT + KEY_SETUP + "codex mcp add unifi-fabric " + CLI_LAUNCHER,
+            "UNIFI_API_KEY_FILE",
+        ),
+        (CLI_PROMPT + CODEX_KEY_FILE + CLI_LAUNCHER, "umask 077"),
+        (
+            CLI_PROMPT + CLI_REFERENCE.replace("unifi-fabric -e", "other -e") + CLI_LAUNCHER,
             "unifi-fabric",
         ),
+        (CLI_PROMPT + CLI_REFERENCE + "uvx x", "launcher"),
+        (CLI_REFERENCE + CLI_LAUNCHER, "prompt"),
         (
-            CLI_PROMPT + 'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" uvx x',
-            "launcher",
-        ),
-        ('claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" ' + CLI_LAUNCHER, "prompt"),
-        (
-            CLI_PROMPT + 'claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" '
-            "-- uvx --from unifi-fabric-mcp-server==0.0.1 unifi-fabric-mcp",
+            CLI_PROMPT
+            + CLI_REFERENCE
+            + "-- uvx --from unifi-fabric-mcp-server==0.0.1 unifi-fabric-mcp",
             "pin",
         ),
     ],
@@ -348,4 +367,79 @@ def test_cli_registration_runs_the_pinned_launcher(tmp_path, command):
 def test_cli_registration_mutations_fail(tmp_path, body, message):
     case = {"mode": "cli", "body": body}
     with pytest.raises(ValueError, match=message):
+        smoke.prepare(case, tmp_path / "l.whl", tmp_path / "x.tar.gz", "0.6.4", tmp_path, "pipx")
+
+
+# --- no install example carries the key on a command line --------------------------------
+
+_KEY_PLACEHOLDER_PATH = "/absolute/path/to/unifi-api-key"
+#: An ``-e`` / ``--env`` argument that sets the key on a command line.
+_ARGV_KEY = re.compile(r"""(?:^|\s)(?:-e|--env)[ =]+['"]?(UNIFI_API_KEYS?)=([^\s]*)""", re.M)
+
+
+def _cases() -> dict[str, dict]:
+    return {c["id"]: c for c in extraction.extract_cases()}
+
+
+def _shipped_install_docs() -> list[Path]:
+    root = SCRIPTS.parent
+    return [root / "README.md", *sorted(p for p in (root / "docs").glob("*.md"))]
+
+
+def test_no_install_example_passes_the_key_on_a_command_line():
+    """A setting that names the key in argv is only allowed as the unexpanded reference."""
+    offenders = [
+        f"{doc.name}: {match.group(0).strip()}"
+        for doc in _shipped_install_docs()
+        if not doc.name.startswith("MIGRATING")
+        for match in _ARGV_KEY.finditer(doc.read_text(encoding="utf-8"))
+        if match.group(2).rstrip("'\"") != "${UNIFI_API_KEY}"
+    ]
+    assert offenders == []
+
+
+def test_codex_toml_forwards_the_key_from_the_environment():
+    server = tomllib.loads(_cases()["readme-install-12"]["body"])["mcp_servers"]["unifi-fabric"]
+    assert "UNIFI_API_KEY" in server["env_vars"]
+    assert "UNIFI_API_KEY" not in server.get("env", {})
+
+
+@pytest.mark.parametrize(
+    "case_id, mode",
+    [
+        ("readme-install-14", "cli"),
+        ("readme-install-32", "cli"),
+        ("readme-install-18", "antigravity"),
+        ("readme-install-34", "antigravity"),
+    ],
+)
+def test_codex_and_antigravity_one_liners_register_only_a_key_file(case_id, mode):
+    case = _cases()[case_id]
+    assert case["mode"] == mode
+    assert f'UNIFI_API_KEY_FILE="{KEY_FILE}"' in case["body"]
+    assert "UNIFI_API_KEY=" not in case["body"]
+    assert "umask 077" in case["body"]
+
+
+def test_a_key_file_case_runs_with_real_private_key_files(tmp_path):
+    target = {
+        "good_env": {"A": "1", "UNIFI_API_KEY": "good"},
+        "wrong_env": {"UNIFI_API_KEY": "bad"},
+    }
+    moved = smoke.with_key_files(target, tmp_path / "keys")
+    for name, value in (("good_env", "good"), ("wrong_env", "bad")):
+        path = Path(moved[name]["UNIFI_API_KEY_FILE"])
+        assert "UNIFI_API_KEY" not in moved[name]
+        assert path.read_text() == value + "\n"
+        assert path.stat().st_mode & 0o777 == 0o600
+    assert moved["good_env"]["A"] == "1"
+
+
+def test_antigravity_registration_refuses_the_key_on_the_command_line(tmp_path):
+    body = (
+        'agy mcp add --env UNIFI_API_KEY="$UNIFI_API_KEY" unifi-fabric -- uvx --from '
+        "unifi-fabric-mcp-server==0.6.4 unifi-fabric-mcp\n"
+    )
+    case = {"mode": "antigravity", "body": body}
+    with pytest.raises(ValueError, match="key file"):
         smoke.prepare(case, tmp_path / "l.whl", tmp_path / "x.tar.gz", "0.6.4", tmp_path, "pipx")

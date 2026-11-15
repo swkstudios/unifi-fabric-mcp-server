@@ -215,8 +215,12 @@ async def _runtime_tools() -> list[Any]:
     # The reference documents every domain tool regardless of the caller's settings.
     sys.path.insert(0, str(SRC))
     with complete_catalog_env():
+        from unifi_fabric.catalog.deferred import load_all
         from unifi_fabric.server import mcp
 
+        # Every deferred step is loaded first: the reference reads each tool's return type
+        # (public #41).
+        load_all(mcp)
         return sorted(await mcp.list_tools(), key=_tool_name)
 
 

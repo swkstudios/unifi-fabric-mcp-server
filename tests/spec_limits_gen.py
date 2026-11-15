@@ -44,7 +44,13 @@ from urllib.parse import parse_qsl
 
 from tests import test_spec_conformance as sc
 
-TABLE_PATH = Path(__file__).resolve().parents[1] / "src" / "unifi_fabric" / "_spec_limits_table.py"
+TABLE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "unifi_fabric"
+    / "generated_api_facts"
+    / "_spec_limits_table.py"
+)
 
 #: These logical requested-count arguments have a positive local domain even though
 #: their upstream limit schemas permit zero. Preserve those upstream schema facts.

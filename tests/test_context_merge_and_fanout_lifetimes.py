@@ -243,17 +243,34 @@ def test_every_fan_out_site_is_covered():
     """Every concurrent fan-out in the owned modules goes through gather_or_cancel (the
     cancellation-draining helper); a bare asyncio.gather would let a sibling outlive a child
     that is cancelled on its own."""
+    import importlib
     import inspect
+    from pathlib import Path
 
     from unifi_fabric import registry as registry_module
+    from unifi_fabric.catalog.loaders import LOADERS
 
-    for module in (_keys, aggregation, site_manager, registry_module):
+    # The query_isp_metrics wrapper (the step indexed under site_manager, wherever a family
+    # move put it) was outside this guard in server.py before the move; it alone keeps its
+    # bare gather. Helpers a move took to the common package are fan-out sites too.
+    step = next(e for e in LOADERS if e.family == "site_manager" and e.origin == "site_manager")
+    wrapper_module = importlib.import_module(step.module_path)
+    site_manager_register = getattr(wrapper_module, step.function)
+    shared = [
+        importlib.import_module(f"unifi_fabric.shared_shapes.{p.stem}")
+        for p in sorted(
+            (Path(__file__).resolve().parents[1] / "src/unifi_fabric/shared_shapes").glob(
+                "_*_shared.py"
+            )
+        )
+    ]
+    modules = {m.__name__: m for m in (_keys, aggregation, site_manager, registry_module, *shared)}
+    modules[wrapper_module.__name__] = wrapper_module
+    for module in modules.values():
         source = inspect.getsource(module)
-        # The moved query_isp_metrics wrapper (tools/site_manager.register) was outside
-        # this guard in server.py before the move; it alone keeps its bare gather.
-        allowed = 1 if module is site_manager else 0
+        allowed = 1 if module is wrapper_module else 0
         assert source.count("asyncio.gather(") == allowed, module.__name__
-    register_source = inspect.getsource(site_manager.register)
+    register_source = inspect.getsource(site_manager_register)
     assert register_source.count("asyncio.gather(") == 1
     assert "async def query_isp_metrics" in register_source
 

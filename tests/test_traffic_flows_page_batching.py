@@ -20,6 +20,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.families.network import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import registrar as network_registrar
 
 MAX = nc.TRAFFIC_FLOWS_MAX_PAGE_SIZE
 REJECT_TEXT = '{"errorCode":400,"message":"Validation failed for argument [1]"}'
@@ -202,7 +203,7 @@ def test_non_integer_page_sizes_are_forwarded_unchanged(size: Any) -> None:
 
 
 def test_the_documented_maximum_is_the_constant() -> None:
-    source = inspect.getsource(nc.register)
+    source = inspect.getsource(network_registrar.register_3)
     assert source.count(f"pageSize above {MAX}") == 2
     assert f"is sent as pageSize {MAX}" in source  # export_traffic_flows
     assert f"is sent as {MAX} per page" in source  # query_traffic_flows

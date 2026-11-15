@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from urllib.parse import urlsplit
@@ -12,6 +13,7 @@ import respx
 
 from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig, Settings
+from unifi_fabric.redaction import REDACTION_MASK, mask_error_text
 
 # Assert diagnostics after process completion, independent of runner startup speed.
 
@@ -177,3 +179,46 @@ async def test_oauth_discovery_and_verifier_preserve_configured_issuer(auth_http
         assert provider.token_verifier._validate_issuer(issuer)  # noqa: SLF001
         alternate = issuer[:-1] if issuer.endswith("/") else issuer + "/"
         assert not provider.token_verifier._validate_issuer(alternate)  # noqa: SLF001
+
+
+@pytest.mark.parametrize("multi", [False, True], ids=["single-key", "labelled-keys"])
+@respx.mock
+async def test_403_hint_survives_redaction_while_a_secret_in_the_body_is_masked(multi):
+    """Under UNIFI_REDACT_SECRETS=1 the hint still names the key and the fix."""
+    secret = "synthetic-shared-secret-945"
+    body = json.dumps({"error": "forbidden", "x_passphrase": secret})
+    respx.get("https://api.ui.com/ea/hosts").mock(return_value=httpx.Response(403, text=body))
+    settings = (
+        Settings(api_keys=[APIKeyConfig(label="main", key="synthetic-only")], redact_secrets=True)
+        if multi
+        else Settings(api_key="synthetic-only", redact_secrets=True)
+    )
+    client = UniFiClient(settings)
+    try:
+        with pytest.raises(UniFiConnectionError) as err:
+            await client.get("/ea/hosts")
+    finally:
+        await client.close()
+    rendered = mask_error_text(str(err.value))
+    assert secret not in rendered
+    assert REDACTION_MASK in rendered
+    assert "UNIFI_API_KEYS" in rendered if multi else "UNIFI_API_KEY" in rendered
+    assert "check the key's permissions, API scopes, and allowed sites" in rendered
+    assert _hostnames(rendered) >= {"unifi.ui.com"}
+    assert "Hint: ***REDACTED***" not in rendered
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "UNIFI_API_KEY",
+        "the UNIFI_API_KEYS entry labelled 'password'",
+        "the X-UniFi-Api-Key header labelled 'k'",
+    ],
+)
+def test_hint_wording_is_not_read_as_a_credential_pair(source):
+    hint = (
+        f"HTTP 403 from GET /x: {{}}\nHint: the key came from {source}, so check the key's "
+        "permissions, API scopes, and allowed sites. Create or check keys at https://unifi.ui.com"
+    )
+    assert mask_error_text(hint) == hint

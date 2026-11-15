@@ -39,6 +39,336 @@ SPEC_LIMITS: dict[str, dict[str, dict[str, Any]]] = {
         "service_address": {"maxLength": 1024},
         "subscriber_number": {"minLength": 1, "maxLength": 32},
     },
+    "create_external_arm_profile": {
+        "settings": {
+            "properties": {
+                "title": {"minLength": 1},
+                "activation_delay": {"minimum": 0, "maximum": 3600},
+                "deactivation_delay": {"minimum": 0, "maximum": 3600},
+                "schedule": {
+                    "properties": {
+                        "sun": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "mon": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "tue": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "wed": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "thu": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "fri": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                        "sat": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "type": {"enum": ["intervals"]},
+                                        "entries": {
+                                            "minItems": 1,
+                                            "items": {
+                                                "properties": {
+                                                    "start": {
+                                                        "properties": {
+                                                            "hour": {"minimum": 0, "maximum": 23},
+                                                            "minute": {"minimum": 0, "maximum": 59},
+                                                        }
+                                                    },
+                                                    "end": {
+                                                        "anyOf": [
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 23,
+                                                                    },
+                                                                    "minute": {
+                                                                        "minimum": 0,
+                                                                        "maximum": 59,
+                                                                    },
+                                                                }
+                                                            },
+                                                            {
+                                                                "properties": {
+                                                                    "hour": {"enum": [24]},
+                                                                    "minute": {"enum": [0]},
+                                                                }
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            },
+                                        },
+                                    }
+                                },
+                                {"properties": {"type": {"enum": ["all_day"]}}},
+                            ]
+                        },
+                    }
+                },
+                "alarm_ids": {"items": {"minLength": 1}},
+            }
+        },
+        "title": {"minLength": 1},
+    },
     "create_firewall_policy": {
         "policy": {
             "properties": {
@@ -284,6 +614,7 @@ SPEC_LIMITS: dict[str, dict[str, dict[str, Any]]] = {
                         "slowShutter",
                         "lprReflex",
                         "lprNoneReflex",
+                        "antiFlicker",
                     ]
                 },
                 "hdrType": {"enum": ["auto", "on", "off"]},
@@ -341,6 +672,7 @@ SPEC_LIMITS: dict[str, dict[str, dict[str, Any]]] = {
             }
         }
     },
+    "update_external_arm_profile": {"settings": {"properties": {"title": {"minLength": 1}}}},
     "update_firewall_policy": {
         "policy": {
             "properties": {

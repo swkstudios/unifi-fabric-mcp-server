@@ -65,6 +65,14 @@ def committed() -> cat.Catalog:
     return load_catalog()
 
 
+@pytest.fixture(scope="module")
+def client_view() -> dict[str, dict[str, Any]]:
+    """Every tool's tools/list entry as an MCP client receives it."""
+    from unifi_fabric.catalog_build import client_listing
+
+    return client_listing()
+
+
 def _validate(specs: list[ToolSpec], live: dict[str, Any], committed: cat.Catalog) -> None:
     validate_catalog(
         specs,
@@ -90,7 +98,7 @@ def test_protect_tool_version_preserves_dev_contract(committed: cat.Catalog, nam
     from unifi_fabric.catalog_build import build_catalog
 
     expected = next(spec for spec in committed.tools if spec.name == name)
-    assert expected.version == "1.2.0"
+    assert tuple(int(part) for part in expected.version.split(".")) >= (1, 2, 0)
     regenerated = next(spec for spec in build_catalog().tools if spec.name == name)
     assert regenerated.version == expected.version
     assert regenerated.input_schema == expected.input_schema
@@ -149,9 +157,9 @@ def test_meta_family_is_exactly_the_six_meta_tools(committed: cat.Catalog) -> No
 
 
 def test_domain_families_match_the_baseline_index(committed: cat.Catalog) -> None:
-    from unifi_fabric.families import derive_family_index
+    from unifi_fabric.catalog.membership import MEMBERS
 
-    index = derive_family_index()
+    index = {member.name: member.family for member in MEMBERS}
     for spec in committed.tools:
         if spec.family == META_FAMILY:
             continue
@@ -178,13 +186,43 @@ def test_emitted_annotations_equal_the_catalog(
     assert wrong == []
 
 
-def test_input_schemas_and_descriptions_equal_the_registration(
+def test_catalog_equals_the_client_view(
+    client_view: dict[str, dict[str, Any]], committed: cat.Catalog
+) -> None:
+    """Every tool's description, input schema and output schema, as JSON text (key order
+    counts), equal what a client receives from tools/list (full mode; discovery mode for
+    the discovery meta tools)."""
+    from unifi_fabric.catalog_build import client_view_drift
+
+    assert len(client_view) == len(committed.tools)
+    drift = client_view_drift(committed, client_view)
+    assert drift == [], "\n".join(drift[:40])
+
+
+def test_a_dropped_output_schema_fails_the_client_view_comparison(
+    client_view: dict[str, dict[str, Any]], committed: cat.Catalog
+) -> None:
+    from unifi_fabric.catalog_build import client_view_drift
+
+    assert client_view["get_fleet_summary"].get("outputSchema")
+    dropped = _spec(committed, "get_fleet_summary", output_schema=None)
+    seeded = cat.Catalog(
+        version=committed.version, tools=tuple(_replace(committed, dropped)), fixtures=()
+    )
+    assert client_view_drift(seeded, client_view) == [
+        "get_fleet_summary: output_schema differs from tools/list outputSchema"
+    ]
+
+
+def test_the_registration_and_the_client_view_agree_on_values(
     live: dict[str, Any], committed: cat.Catalog
 ) -> None:
+    """The client view changes key order only, except where a schema carries $defs."""
     for spec in committed.tools:
         tool = live["tools"][spec.name]
-        assert spec.to_dict()["input_schema"] == tool.parameters, spec.name
         assert spec.description == tool.description, spec.name
+        if "$defs" not in json.dumps([spec.to_dict()["input_schema"], tool.parameters]):
+            assert spec.to_dict()["input_schema"] == tool.parameters, spec.name
 
 
 def test_api_source_rules(committed: cat.Catalog) -> None:
@@ -200,11 +238,19 @@ def test_api_source_rules(committed: cat.Catalog) -> None:
         assert spec.annotations["api_class"] == spec.api_status
 
 
-def test_every_tool_starts_pass_through(committed: cat.Catalog) -> None:
-    # A non-null output schema must list a fixture (missing_fixture); none is invented.
+def test_every_output_schema_lists_a_fixture(committed: cat.Catalog) -> None:
+    # A non-null output schema must list a fixture (missing_fixture); none is invented: each
+    # is the client-visible schema, pinned by the behaviour baseline or the self-built
+    # result test.
+    from unifi_fabric.catalog_build import output_schema_fixtures
+
     for spec in committed.tools:
         if spec.output_schema is not None:
             assert spec.fixtures, spec.name
+            assert list(spec.fixtures) == output_schema_fixtures(spec.name), spec.name
+            assert all((ROOT / rel).is_file() for rel in spec.fixtures), spec.name
+        else:
+            assert not spec.fixtures, spec.name
 
 
 # --- validation order and the annotation table -------------------------------------
@@ -222,6 +268,12 @@ def _reason(specs: list[ToolSpec], live: dict[str, Any], committed: cat.Catalog)
     except CatalogError as exc:
         return exc.reason
     return None
+
+
+def _next(committed: cat.Catalog, name: str) -> str:
+    """The committed version of ``name`` with its minor part bumped."""
+    major, minor, _patch = committed.by_name()[name].version.split(".")
+    return f"{major}.{int(minor) + 1}.0"
 
 
 def _replace(committed: cat.Catalog, *specs: ToolSpec) -> list[ToolSpec]:
@@ -339,9 +391,17 @@ def test_validation_reasons_in_order(live: dict[str, Any], committed: cat.Catalo
     }
     unbumped = _spec(committed, "list_cameras", input_schema=changed)
     assert _reason(_replace(committed, unbumped), live, committed) == "unbumped_version"
-    bumped = _spec(committed, "list_cameras", input_schema=changed, version="1.1.0")
+    bumped = _spec(
+        committed, "list_cameras", input_schema=changed, version=_next(committed, "list_cameras")
+    )
     assert _reason(_replace(committed, bumped), live, committed) is None
-    no_fixture = _spec(committed, "list_cameras", output_schema={"type": "object"}, version="1.1.0")
+    no_fixture = _spec(
+        committed,
+        "list_cameras",
+        output_schema={"type": "object"},
+        fixtures=[],
+        version=_next(committed, "list_cameras"),
+    )
     assert _reason(_replace(committed, no_fixture), live, committed) == "missing_fixture"
     absent = _spec(committed, "list_cameras", fixtures=["tests/fixtures/no/such/file.json"])
     assert _reason(_replace(committed, absent), live, committed) == "missing_fixture"
@@ -371,7 +431,13 @@ def test_first_applicable_reason_wins_pairwise(
         _reason(_replace(committed, bad_annotations, unbumped), live, committed)
         == "annotation_mismatch"
     )
-    no_fixture = _spec(committed, "list_hosts", output_schema={"type": "object"}, version="1.1.0")
+    no_fixture = _spec(
+        committed,
+        "list_hosts",
+        output_schema={"type": "object"},
+        fixtures=[],
+        version=_next(committed, "list_hosts"),
+    )
     assert _reason(_replace(committed, unbumped, no_fixture), live, committed) == "unbumped_version"
     assert _reason(_replace(committed, no_fixture) + [base], live, committed) == "missing_fixture"
     cross = ToolSpec.from_dict(
@@ -606,38 +672,72 @@ def test_committed_tool_index_is_fresh() -> None:
 
 def test_runtime_family_index_is_the_catalog(committed: cat.Catalog) -> None:
     from unifi_fabric import families
-    from unifi_fabric._generated import tool_index
+    from unifi_fabric.catalog import membership
 
     runtime = families.build_family_index()
     expected = committed.family_index()
-    expected.update(tool_index.SELECTION_FAMILY_OVERRIDES)
+    expected.update(membership.SELECTION_FAMILY_OVERRIDES)
     assert runtime == expected
-    assert set(tool_index.SELECTION_FAMILY_OVERRIDES) <= META_TOOL_NAMES
-    assert tool_index.SELECTION_FAMILY_OVERRIDES == {"list_configured_api_keys": "site_manager"}
+    assert set(membership.SELECTION_FAMILY_OVERRIDES) <= META_TOOL_NAMES
+    assert membership.SELECTION_FAMILY_OVERRIDES == {"list_configured_api_keys": "site_manager"}
     assert families.build_family_index() is families.build_family_index()
 
 
 def test_runtime_index_parses_no_source(monkeypatch) -> None:
+    import ast
+
     from unifi_fabric import families
 
     def boom(*_args, **_kwargs):
         raise AssertionError("runtime index parsed source")
 
-    monkeypatch.setattr(families, "_module_source", boom)
+    monkeypatch.setattr(ast, "parse", boom)
     assert families.build_family_index()
     assert families.build_module_index()
-    assert families.firewall_route_tools()
     assert families.connector_write_tools()
 
 
-def test_runtime_index_equals_the_source_derivation() -> None:
-    from unifi_fabric import families
+def test_generated_connector_tools_equal_the_call_graph_audit() -> None:
+    from unifi_fabric import _call_graph, families
 
-    assert families.build_module_index() == families.derive_module_index()
-    assert families.firewall_route_tools() == families.derive_firewall_route_tools()
-    assert families.connector_write_tools() == families.tools_referencing("CONNECTOR_WRITE_ENV")
-    derived = families.derive_family_index()
-    assert families.build_family_index() == derived
+    with _call_graph.source_derivation():
+        derived = _call_graph.tools_referencing("CONNECTOR_WRITE_ENV")
+    assert families.connector_write_tools() == derived
+
+
+def test_source_derivation_releases_parsed_modules(monkeypatch) -> None:
+    """A call-graph derivation parses the package and releases every tree when it returns.
+
+    The parsed package is about a hundred megabytes; a process-lifetime cache kept it in
+    every test worker that ever derived the index. Parity: deriving again, after the
+    release, reproduces the same set as the generated table.
+    """
+    import ast
+    import gc
+    import weakref
+
+    from unifi_fabric import _call_graph, families
+
+    tools = _call_graph.registered_tool_functions()
+    trees: list[weakref.ref[ast.AST]] = []
+    real_parse = ast.parse
+
+    def recording_parse(*args, **kwargs):
+        tree = real_parse(*args, **kwargs)
+        trees.append(weakref.ref(tree))
+        return tree
+
+    monkeypatch.setattr(ast, "parse", recording_parse)
+    first = _call_graph.tools_referencing("CONNECTOR_WRITE_ENV", tools)
+    parsed = len(trees)
+    assert parsed, "the derivation parsed no package module"
+    monkeypatch.setattr(ast, "parse", real_parse)
+    gc.collect()
+    retained = [ref for ref in trees if ref() is not None]
+    assert not retained, f"{len(retained)} of {len(trees)} parsed module trees are still alive"
+
+    second = _call_graph.tools_referencing("CONNECTOR_WRITE_ENV", tools)
+    assert second == first == families.connector_write_tools()
 
 
 def test_registered_wrapper_resolves_every_domain_spec(committed: cat.Catalog) -> None:

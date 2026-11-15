@@ -39,12 +39,12 @@ async def test_httpx_info_does_not_expose_query(caplog):
 async def test_lookup_exception_does_not_forward_tool_call(kind, monkeypatch):
     server = SimpleNamespace(get_tool=AsyncMock(side_effect=RuntimeError("lookup failed")))
     next_call = AsyncMock()
-    from unifi_fabric.families.connector import connector
+    from unifi_fabric import relay_policy
     from unifi_fabric.read_only_tools import AreaOptOutMiddleware, ReadOnlyToolMiddleware
     from unifi_fabric.write_body import EmptyUpdateMiddleware
 
     monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
-    monkeypatch.setattr(connector, "area_write_refusal", lambda family: "area disabled")
+    monkeypatch.setattr(relay_policy, "area_write_refusal", lambda family: "area disabled")
     middleware = {
         "scope": lambda: WriteScopeMiddleware(server, lambda: "write"),
         "read_only": lambda: ReadOnlyToolMiddleware(server),

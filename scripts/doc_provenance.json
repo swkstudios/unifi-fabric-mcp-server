@@ -5,9 +5,8 @@
       "file": "docs/TOOLS.md",
       "section": "Enabling / disabling connector writes",
       "body_sha256": "b5ff21524067f22d80e8393b59a62483b5b8b972092aa1c1fb9655ec16228e71",
-      "source": "file:scripts/gen_tools_doc.py@sha256:65d549bd337ecd9a51b984ba5985890b4eceef5368bb941d4759fc23dac7d524",
-      "support": "0.7.0",
-      "citation": "file:scripts/gen_tools_doc.py@sha256:65d549bd337ecd9a51b984ba5985890b4eceef5368bb941d4759fc23dac7d524"
+      "source": "file:scripts/gen_tools_doc.py@sha256:8934576def4442337d8eb6eb2a0c7d3d89c9b6f90225ed4f406f659786f7f670",
+      "citation": "file:scripts/gen_tools_doc.py@sha256:8934576def4442337d8eb6eb2a0c7d3d89c9b6f90225ed4f406f659786f7f670"
     }
   ]
 }

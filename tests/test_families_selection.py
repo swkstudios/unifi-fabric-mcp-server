@@ -13,7 +13,7 @@ import pytest
 from fastmcp import Client, FastMCP
 
 from tests.test_discovery import clone_app
-from unifi_fabric import families, server
+from unifi_fabric import _call_graph, server
 from unifi_fabric._read_only_audit import _called_package_functions
 from unifi_fabric.api_sources import APPS as API_SOURCE_APPS
 from unifi_fabric.discovery import apply_tool_mode
@@ -143,7 +143,7 @@ def _runtime_route_literals(fn) -> set[str]:
             source = textwrap.dedent(inspect.getsource(inspect.unwrap(current)))
         except (OSError, TypeError):
             continue
-        literals |= families._route_literals(ast.parse(source))
+        literals |= _call_graph._route_literals(ast.parse(source))
         stack.extend(_called_package_functions(current))
     return literals
 
@@ -155,9 +155,9 @@ async def test_firewall_is_split_by_route():
     runtime = {
         name
         for name, tool in tools.items()
-        if any(families.is_firewall_route(lit) for lit in _runtime_route_literals(tool.fn))
+        if any(_call_graph.is_firewall_route(lit) for lit in _runtime_route_literals(tool.fn))
     }
-    # The static source index and the runtime call graph agree on every tool.
+    # The explicit inventory and the runtime call graph agree on every tool.
     assert firewall == runtime
     named = {n for n in tools if re.search(r"(^|_)(firewall|acl)(_|$)", n)}
     assert named <= firewall
@@ -169,16 +169,16 @@ async def test_firewall_is_split_by_route():
         "batch_delete_firewall_zones",
     } <= firewall
     for literal in ("/sites/1/firewall/policies", "acl-rules", "/firewallrule", "firewall/zone"):
-        assert families.is_firewall_route(literal)
+        assert _call_graph.is_firewall_route(literal)
     for literal in ("update_firewall_policy", "/traffic-rules", "/rest/portconf"):
-        assert not families.is_firewall_route(literal)
+        assert not _call_graph.is_firewall_route(literal)
 
 
 async def test_connector_switch_scope_is_derived():
     tools = {tool.name: tool for tool in await server.mcp.list_tools()}
     derived = {
         n
-        for n in families.tools_referencing("CONNECTOR_WRITE_ENV")
+        for n in _call_graph.tools_referencing("CONNECTOR_WRITE_ENV")
         if not tools[n].annotations.read_only_hint
     }
     text = (ROOT / "docs" / "CONFIGURATION.md").read_text()
@@ -336,3 +336,19 @@ def test_crud_groups_share_a_family():
         if resource not in separate_apis and len(set(members.values())) > 1
     }
     assert not split, split
+
+
+def test_the_call_graph_audit_locates_every_tool_and_raises_on_one_it_cannot() -> None:
+    """Every registered tool function is located; an unlocatable one raises
+    instead of being silently left out of CONNECTOR_WRITE_TOOLS."""
+    functions = _call_graph.registered_tool_functions()
+    assert functions
+    assert [n for n, fn in functions.items() if _call_graph._tool_node(fn) is None] == []
+
+    def outside() -> None:
+        """Defined in the test-suite, outside the package."""
+
+    with pytest.raises(LookupError, match="'ghost_tool' cannot be located"):
+        _call_graph.tools_referencing("CONNECTOR_WRITE_ENV", {"ghost_tool": outside})
+    with pytest.raises(LookupError, match="cannot be located"):
+        _call_graph.route_literals_of(outside)

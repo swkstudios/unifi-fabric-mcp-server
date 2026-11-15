@@ -12,7 +12,7 @@ Protect 7.3.74 serves different routes from the ones these tools called, so six 
 | --- | --- |
 | `get_camera_adoption_qr` | no replacement; Protect 7.3.74 has no QR route |
 | `calibrate_door_lock`, `set_door_lock_auto_close` | no replacement; Protect 7.3.74 has no matching route |
-| `get_protect_case_asset_snapshot` | `list_protect_case_assets`, then `get_thumbnail` with the asset's snapshot thumbnail id (`snapshot` on a presentation asset, `thumbnail` on a clip). Not identical: Protect 7.x has no snapshot asset type, so this returns that asset's thumbnail image |
+| `get_protect_case_asset_snapshot` | `list_protect_case_assets`, then `get_thumbnail` with the asset's snapshot thumbnail id (`snapshot` on a presentation asset, `thumbnail` on a clip). Not identical: Protect 7.2 and later has no snapshot asset type, so this returns that asset's thumbnail image |
 | `reboot_nvr` | `reboot_unifi_os_console` |
 | `update_protect_user_notifications` | no direct replacement. Protect 7.x keeps notification channels per automation and changes only the calling user's (`PATCH /automations/{id}/system-notifications/receivers`); no tool sends that per-automation route. `set_protect_notification_receivers` sends the batch form, `PATCH /automations/system-notifications/receivers`, which also changes only the calling user's receivers, never another user's. `set_protect_notifications_muted` still mutes or unmutes notifications |
 
@@ -33,3 +33,7 @@ The Network application answers HTTP 501 `api.err.NotImplemented` when a traffic
 ## The 0.7.1 settings migration kit is removed
 
 0.7.2 no longer ships the 0.7.1 settings migrator or its guide. To upgrade from 0.7.0, first follow the guide and run the migrator at the [v0.7.1 tag](https://github.com/swkstudios/unifi-fabric-mcp-server/blob/v0.7.1/docs/MIGRATING-0.7.1.md), then upgrade to 0.7.2. The server still refuses to start with a retired 0.7.0 setting and links that guide.
+
+## Trace export
+
+An operator whose environment already sets `OTEL_EXPORTER_OTLP_ENDPOINT` (for example through an OpenTelemetry Operator) and has the SDK installed starts exporting traces after upgrading, with no other change. Image users see one `trace export is off` line instead, because the release image has no SDK. To keep export off, set `OTEL_TRACES_EXPORTER=none`.

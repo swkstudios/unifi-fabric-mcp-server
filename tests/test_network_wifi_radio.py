@@ -13,6 +13,7 @@ import pytest
 from tests import upstream_harness as uh
 from unifi_fabric import server
 from unifi_fabric.families.network import network_wifi_radio as radio
+from unifi_fabric.families.network import registrar as network_registrar
 from unifi_fabric.read_only import ReadOnlyModeError
 
 HOST = "my-console"
@@ -265,7 +266,7 @@ async def test_quick_scan_status_optional_band_and_upstream_validation(registry)
     live = AsyncMock()
     live.get = AsyncMock(side_effect=upstream)
     mcp = FastMCP("wifi-radio")
-    radio.register(mcp, lambda: (live, registry))
+    network_registrar.register_2(mcp, lambda: (live, registry))
     tool = {t.name: t for t in await mcp.list_tools()}["get_wifi_quick_scan_status"]
     assert "radio_band" not in tool.parameters["required"]
     assert {b["type"] for b in tool.parameters["properties"]["radio_band"]["anyOf"]} == {

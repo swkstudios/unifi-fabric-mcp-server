@@ -39,6 +39,7 @@ def test_text_metadata_collisions_use_completed_line_scrub(
             return datetime(2026, 10, 28, tzinfo=UTC)
 
     monkeypatch.setattr(audit, "datetime", FixedDatetime)
+    monkeypatch.setattr(audit, "audit_ref", lambda: "c" * 32)
     log = tmp_path / "audit.log"
     sink = AuditSink(path=str(log), fmt="text", secrets=(secret,))
     expected = []
@@ -54,8 +55,9 @@ def test_text_metadata_collisions_use_completed_line_scrub(
         expected.append(
             scrub(
                 f"{scrub('2026-10-28T00:00:00+00:00', (secret,))} method=PATCH "
-                f"path=/proxy/x outcome=refused status={status} "
-                "tool=update_x reason=UNIFI_WRITE_POLICY",
+                f"path=/proxy/*** outcome=refused status={status} "
+                "tool=update_x reason=UNIFI_WRITE_POLICY "
+                f"ref={'c' * 32}",
                 (secret,),
             )
         )

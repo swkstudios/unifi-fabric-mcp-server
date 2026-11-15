@@ -245,6 +245,48 @@ def fetch_pinned_schema_keywords(baseline: SpecSnapshot) -> set[str]:
     return keywords
 
 
+def spec_coverage_lines(
+    tool_sources: dict[str, tuple[str, ...]] | None = None,
+) -> list[str]:
+    """Say honestly which tool routes this check can compare with a published spec.
+
+    Derived from the generated API-source table (never typed): a tool whose pairs are all
+    official is checked against the published specs; a tool that also calls a private route
+    (``private`` or ``private.<sub>``) has that part unchecked here, because no published spec
+    describes it. Server-local tools and the generic relays are named separately. The private
+    routes are watched separately, by private-route baselines kept outside this script.
+    """
+    from unifi_fabric.api_sources import is_private
+
+    if tool_sources is None:
+        from unifi_fabric.generated_api_facts._api_source_table import TOOL_API_SOURCES
+
+        tool_sources = TOOL_API_SOURCES
+    published = private = neither = 0
+    by_pair: dict[str, int] = {}
+    for pairs in tool_sources.values():
+        private_pairs = [p for p in pairs if is_private(p.split("/", 1)[1])]
+        if private_pairs:
+            private += 1
+            for pair in private_pairs:
+                by_pair[pair] = by_pair.get(pair, 0) + 1
+        elif any(p.endswith("/official") for p in pairs):
+            published += 1
+        else:
+            neither += 1
+    breakdown = ", ".join(f"{pair}={count}" for pair, count in sorted(by_pair.items()))
+    return [
+        f"spec coverage ({len(tool_sources)} tools, by the routes each calls):",
+        f"  {published} reach only published routes: compared with the published specs here",
+        f"  {private} reach at least one private route: that part is NOT compared here "
+        "(no published spec describes it)",
+        f"    private routes by source (tools): {breakdown}",
+        f"  {neither} call no published or private route (server-local tools, generic relays)",
+        "  private routes are watched separately by route baselines kept outside this script; "
+        "response shapes and behaviour are not covered by either check",
+    ]
+
+
 def _emit(baseline: SpecSnapshot) -> int:
     print(f"baseline captured_at: {baseline.captured_at}")
     print(f"known published services: {len(baseline.services)}")
@@ -268,6 +310,7 @@ def _emit(baseline: SpecSnapshot) -> int:
         else:
             count = len(baseline.services[name].endpoints)
             print(f"  coverage [{name}]: all {count} published endpoints implemented")
+    print("\n".join(spec_coverage_lines()))
     return 0
 
 
@@ -356,6 +399,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     report = diff_snapshot(baseline, current)
     print(report.summary())
+    print("\n".join(spec_coverage_lines()))
 
     if args.update_baseline:
         removed = set(baseline.services) - set(current.services)

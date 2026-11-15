@@ -63,7 +63,7 @@ jobs:
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository != 'swkstudios/unifi-fabric-mcp-server') ||
       (github.event.repository.private && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) ||
       (github.event.repository.private && github.event_name == 'create' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-'))
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER_OCI || '"ubuntu-latest"') }}
     permissions:
       contents: read
       packages: write
@@ -113,7 +113,7 @@ jobs:
           driver-opts: network=host
           buildkitd-flags: --allow-insecure-entitlement network.host
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -151,7 +151,13 @@ jobs:
           RUNNER_ARCH_NAME: ${{ runner.arch }}
           RUNNER_NAME_LABEL: ${{ runner.name }}
         run: |
-          if [[ "$RUNNER_ARCH_NAME" == "ARM64" ]]; then MODE=native; else MODE=fallback; fi
+          # The arm64 leg runs natively on a hosted arm64 runner or not at all: there is no
+          # substitute runner and no emulation.
+          if [[ "$RUNNER_ARCH_NAME" != "ARM64" ]]; then
+            echo "::error::the arm64 leg ran on ${RUNNER_ARCH_NAME}; it must run on a native ARM64 runner"
+            exit 1
+          fi
+          MODE=native
           mkdir -p "${RUNNER_TEMP}/arm64-runner-record"
           jq -n --arg arch "$RUNNER_ARCH_NAME" --arg name "$RUNNER_NAME_LABEL" --arg mode "$MODE" \
             '{leg: "arm64", runner_arch: $arch, runner_name: $name, mode: $mode}' \
@@ -197,7 +203,7 @@ jobs:
     # It never runs for a pre-release tag, and it runs natively on the hosted arm64 runner.
     if: >-
       (!github.event.repository.private && github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') && github.repository != 'swkstudios/unifi-fabric-mcp-server')
+      (github.event_name == 'push' && !github.event.repository.private && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') && github.repository != 'swkstudios/unifi-fabric-mcp-server')
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -248,7 +254,7 @@ jobs:
           driver-opts: network=host
           buildkitd-flags: --allow-insecure-entitlement network.host
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -286,7 +292,13 @@ jobs:
           RUNNER_ARCH_NAME: ${{ runner.arch }}
           RUNNER_NAME_LABEL: ${{ runner.name }}
         run: |
-          if [[ "$RUNNER_ARCH_NAME" == "ARM64" ]]; then MODE=native; else MODE=fallback; fi
+          # The arm64 leg runs natively on a hosted arm64 runner or not at all: there is no
+          # substitute runner and no emulation.
+          if [[ "$RUNNER_ARCH_NAME" != "ARM64" ]]; then
+            echo "::error::the arm64 leg ran on ${RUNNER_ARCH_NAME}; it must run on a native ARM64 runner"
+            exit 1
+          fi
+          MODE=native
           mkdir -p "${RUNNER_TEMP}/arm64-runner-record"
           jq -n --arg arch "$RUNNER_ARCH_NAME" --arg name "$RUNNER_NAME_LABEL" --arg mode "$MODE" \
             '{leg: "arm64", runner_arch: $arch, runner_name: $name, mode: $mode}' \
@@ -336,7 +348,7 @@ jobs:
       (needs.build-arm64.result == 'success' ||
        (needs.build-arm64.result == 'skipped' &&
         (github.event_name == 'workflow_run' || contains(github.ref, '-'))))
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER_OCI || '"ubuntu-latest"') }}
     permissions:
       contents: read
       packages: write
@@ -358,7 +370,7 @@ jobs:
           driver-opts: network=host
           buildkitd-flags: --allow-insecure-entitlement network.host
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -412,7 +424,7 @@ jobs:
       # public Sigstore logs, which must never happen for the private image.
       - name: Install Cosign
         if: github.event.repository.visibility == 'public'
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Generate SPDX SBOM
         if: github.event.repository.visibility == 'public'
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3

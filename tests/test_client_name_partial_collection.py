@@ -159,3 +159,27 @@ async def test_classic_permission_login_and_other_errors_propagate(monkeypatch, 
     assert code in str(exc.value)
     assert "not found by _id or MAC" not in str(exc.value)
     assert up.writes() == []
+
+
+@pytest.mark.parametrize("client", ["000000000000000000000000", "not-a-real-client"])
+async def test_unknown_id_as_the_console_answered_it_live_is_not_found_with_no_write(
+    monkeypatch, client
+):
+    """Network 11.1.47 (development console, 2026-11-11): GET rest/user/{unknown} answered
+    HTTP 200 {"meta": {"rc": "ok"}, "data": []} for a well-formed unknown id and for a
+    non-id string; it never answered HTTP 400 api.err.InvalidObject."""
+    up = _Upstream(collection=_others(5), single=None)
+    with pytest.raises(ToolError, match="not found by _id or MAC"):
+        await _rename(monkeypatch, up, client)
+    [read] = up.gets(f"/rest/user/{client}")
+    assert read.status == 200 and read.body == {"meta": {"rc": "ok"}, "data": []}
+    assert up.writes() == []
+
+
+async def test_invalid_object_answer_is_not_absence_and_propagates(monkeypatch):
+    """Not observed live, but if a console ever answers HTTP 400 api.err.InvalidObject it is
+    reported as that error, not as a missing client."""
+    up = _Upstream(collection=_others(5), single="api.err.InvalidObject")
+    with pytest.raises(ToolError, match="api.err.InvalidObject"):
+        await _rename(monkeypatch, up, TARGET)
+    assert up.writes() == []

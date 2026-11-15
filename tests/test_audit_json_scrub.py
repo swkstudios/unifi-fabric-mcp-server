@@ -41,7 +41,7 @@ def test_text_audit_line_scrubs_values_and_colliding_field_name(tmp_path: Path):
     text = log.read_text()
     assert "hunter2-credential" not in text
     assert "status" not in text
-    assert " outcome=refused ***=- reason=x" in text
+    assert " outcome=refused ***=- reason=other" in text
 
 
 @pytest.mark.parametrize("secret", ['pa"ss\\word-credential', "hunter2-credential"])

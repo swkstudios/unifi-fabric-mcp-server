@@ -519,7 +519,12 @@ async def test_ap_write_response_survives_every_read_after_failure(
     assert out["readAfterError"]
     assert out["_noOp"] is out["_verified"] is out["noOp"] is None
     if failure == "429":
-        assert len([s for s in radio_upstream.served if s.status == 429]) == 6
+        from unifi_fabric.pacing import attempts_on_unannounced_429
+
+        # a connector read answered 429 with no Retry-After: one 60 s window per retry
+        assert len([s for s in radio_upstream.served if s.status == 429]) == (
+            attempts_on_unannounced_429()
+        )
     await c.close()
 
 

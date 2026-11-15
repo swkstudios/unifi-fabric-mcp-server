@@ -19,6 +19,7 @@ from fastmcp import FastMCP
 from tests import upstream_harness as uh
 from unifi_fabric.client import DRY_RUN_MESSAGE, ClassicApiError, UniFiConnectionError
 from unifi_fabric.families.network import network_proav_sandbox as sandbox
+from unifi_fabric.families.network import registrar as network_registrar
 
 HOST = "console-a"
 SITE = "Default"
@@ -527,7 +528,7 @@ async def test_registers_eighteen_typed_documented_tools_with_derived_access() -
     from unifi_fabric._read_only_audit import derive_write_tools
 
     mcp = FastMCP("proav-sandbox")
-    sandbox.register(mcp, lambda: (Client(), Registry()))
+    network_registrar.register_15(mcp, lambda: (Client(), Registry()))
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     assert set(tools) == TOOL_NAMES
     assert derive_write_tools(list(tools.values())) == WRITES

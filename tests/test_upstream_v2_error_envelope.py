@@ -370,3 +370,105 @@ async def test_a_relay_audits_the_refused_write_as_a_failure(monkeypatch, tmp_pa
     outcomes = {r["outcome"] for r in records if r.get("event") == "audit"}
     assert "upstream_error_body" in outcomes, records
     assert "success" not in outcomes, records
+
+
+# ====================================== the 2xx errors Ubiquiti's own code does send (207, 202)
+ROLLUPGRADE = f"{CONSOLE}/network/v2/api/site/default/device/upgrade/rollupgrade/eligible-devices"
+UCORE_UPDATE = f"{CONSOLE}/network/v2/api/ucore/devices/update"
+PARTIAL = {
+    "success": [{"id": "dev-ok"}],
+    "errors": [{"code": "api.err.DeviceBusy", "message": "busy", "device": "dev-bad"}],
+}
+PARTIAL_TEXT = json.dumps(PARTIAL, separators=(",", ":"))
+CLASSIC_2FA = {
+    "meta": {"rc": "error", "msg": "api.err.WaitingForUiVerifyAuthenticator"},
+    "data": [],
+}
+CLASSIC_2FA_TEXT = json.dumps(CLASSIC_2FA, separators=(",", ":"))
+
+
+def test_b_the_detector_flags_a_207_partial_failure_only():
+    for path in (ROLLUPGRADE, UCORE_UPDATE, V2):
+        reason = v2_error_envelope(path, 207, PARTIAL)
+        assert reason is not None and "HTTP 207" in reason and "1 entries in errors" in reason
+    # The same body with another 2xx status is a record, not Ubiquiti's partial failure.
+    assert v2_error_envelope(ROLLUPGRADE, 200, PARTIAL) is None
+    assert v2_error_envelope(ROLLUPGRADE, 202, PARTIAL) is None
+    # A 207 with every device done, or any other 207 shape, passes through.
+    for body in (
+        {"success": [{"id": "a"}], "errors": []},
+        {"success": [], "errors": []},
+        {"errors": [{"code": "x"}]},
+        {"success": [{"id": "a"}]},
+        {"success": "x", "errors": [{"code": "x"}]},
+        {"success": [], "errors": "x"},
+        [PARTIAL],
+        "text",
+        None,
+    ):
+        assert v2_error_envelope(ROLLUPGRADE, 207, body) is None, body
+    # Another surface answering the same 207 body is not matched.
+    assert v2_error_envelope(CLASSIC, 207, PARTIAL) is None
+    assert v2_error_envelope(INTEGRATION, 207, PARTIAL) is None
+
+
+@respx.mock
+async def test_b_a_client_raises_on_a_207_partial_failure_with_the_body_verbatim(tmp_path):
+    for method, path in (("POST", UCORE_UPDATE), ("GET", ROLLUPGRADE), ("PUT", V2)):
+        audit = tmp_path / f"{method}.jsonl"
+        client = _client(audit_log=str(audit), audit_log_format="json")
+        respx.route(method=method, url=BASE + path).mock(return_value=_json(207, PARTIAL))
+        with pytest.raises(UpstreamErrorBodyError) as exc:
+            await client.request(method, path, json={"ids": ["dev-bad"]})
+        assert PARTIAL_TEXT in str(exc.value)  # verbatim
+        assert str(exc.value).startswith(f"Upstream error body from {method} {path}: HTTP 207")
+        if method != "GET":
+            rec = json.loads(audit.read_text().strip())
+            assert rec["outcome"] == "upstream_error_body" and rec["status"] == 207, rec
+        # The relay (raise_on_error=False) gets the 207 response back, body untouched.
+        resp = await client.request(method, path, json={"ids": []}, raise_on_error=False)
+        assert resp.status_code == 207 and resp.json() == PARTIAL
+
+
+@respx.mock
+async def test_b_a_207_with_nothing_failed_is_still_a_success(tmp_path):
+    audit = tmp_path / "audit.jsonl"
+    client = _client(audit_log=str(audit), audit_log_format="json")
+    clean = {"success": [{"id": "a"}, {"id": "b"}], "errors": []}
+    respx.post(BASE + UCORE_UPDATE).mock(return_value=_json(207, clean))
+    resp = await client.request("POST", UCORE_UPDATE, json={"ids": ["a", "b"]})
+    assert resp.status_code == 207 and resp.json() == clean
+    assert json.loads(audit.read_text().strip())["outcome"] == "success"
+
+
+@respx.mock
+async def test_b_a_classic_202_with_meta_rc_error_is_an_error_not_a_success(tmp_path):
+    """The pending two-factor check: HTTP 202, meta.rc "error" (Ubiquiti's ApiServlet)."""
+    path = f"{CONSOLE}/network/api/s/default/cmd/sitemgr"
+    audit = tmp_path / "audit.jsonl"
+    client = _client(audit_log=str(audit), audit_log_format="json")
+    respx.post(BASE + path).mock(return_value=_json(202, CLASSIC_2FA))
+    with pytest.raises(UniFiConnectionError) as exc:
+        await client.request("POST", path, json={"cmd": "get-admins"})
+    assert CLASSIC_2FA_TEXT in str(exc.value)
+    assert "HTTP 202 with meta.rc 'error'" in str(exc.value)
+    assert "api.err.WaitingForUiVerifyAuthenticator" in str(exc.value)
+    assert json.loads(audit.read_text().strip())["outcome"] == "classic_rc_error"
+    resp = await client.request("POST", path, json={"cmd": "get-admins"}, raise_on_error=False)
+    assert resp.status_code == 202 and resp.json() == CLASSIC_2FA
+
+
+def test_b_the_relay_marks_a_207_partial_failure_and_a_classic_202_error():
+    from unifi_fabric.families.connector import connector
+
+    assert connector._classic_rc_marker(UCORE_UPDATE, 207, PARTIAL).keys() == {
+        connector.UPSTREAM_ERROR_KEY
+    }
+    assert "HTTP 207" in connector._classic_rc_marker(ROLLUPGRADE, 207, PARTIAL)["_upstreamError"]
+    path = f"{CONSOLE}/network/api/s/default/cmd/sitemgr"
+    marker = connector._classic_rc_marker(path, 202, CLASSIC_2FA)
+    assert marker.keys() == {connector.CLASSIC_RC_ERROR_KEY}
+    assert "HTTP 202 with meta.rc 'error'" in marker["_classicRcError"]
+    # A clean 207 or 200 carries no marker.
+    assert connector._classic_rc_marker(UCORE_UPDATE, 207, {"success": [], "errors": []}) == {}
+    assert connector._classic_rc_marker(UCORE_UPDATE, 200, PARTIAL) == {}

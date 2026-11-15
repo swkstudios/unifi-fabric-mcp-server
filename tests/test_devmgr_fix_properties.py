@@ -12,6 +12,7 @@ from unifi_fabric.client import UniFiClient, UniFiConnectionError
 from unifi_fabric.config import Settings
 from unifi_fabric.families.devices import device_commands as commands
 from unifi_fabric.families.devices import device_mgmt, scheduled_tasks
+from unifi_fabric.families.devices import registrar as devices_registrar
 from unifi_fabric.families.network import network_services_proxy
 
 MAC = "02:00:5e:00:00:01"
@@ -320,7 +321,7 @@ async def test_scheduled_registered_docs_describe_actual_preview():
     from fastmcp import FastMCP
 
     mcp = FastMCP("scheduled-preview-docs")
-    scheduled_tasks.register(mcp, dependencies)
+    devices_registrar.register_3(mcp, dependencies)
     tools = await mcp.list_tools()
     assert {tool.name for tool in tools} == {
         "create_scheduled_task",

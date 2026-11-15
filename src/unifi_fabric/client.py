@@ -6,12 +6,15 @@ import asyncio
 import codecs
 import inspect
 import json
+import logging
 import math
 import mimetypes
 import random
 import re
 import time
-from collections.abc import Awaitable
+from collections.abc import AsyncIterator, Awaitable, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
 from email.utils import parsedate_to_datetime
 from typing import Any, Final
 from urllib.parse import parse_qs, quote, unquote, urlsplit
@@ -20,11 +23,13 @@ import httpx
 from fastmcp.exceptions import ToolError
 
 from . import fingerprint as _fingerprint
-from . import route_secrets
+from . import pacing, route_secrets
 from ._paging_identity import PageHistory, page_is_repeat, page_stop, unique_page_rows
-from .audit import AuditStream, close_audit_stream, configure_audit_stream
+from .audit import AuditStream, audit_ref, close_audit_stream, configure_audit_stream
+from .audit_vocabulary import MASKED_BODY, UNSAFE_PATH
 from .config import APIKeyConfig, Settings
 from .header_credentials import CredentialCache, header_mode_enabled, request_key_configs
+from .lane import current_lane
 from .policy import note_upstream_call
 from .read_only import (
     AreaOptOutError,
@@ -37,9 +42,11 @@ from .read_only import (
     state_changing_get_route,
 )
 from .redaction import (
+    REDACTION_MASK,
     drop_and_note_masked_fields,
     mask_error_text,
     redact_credentials,
+    unnote_dropped_fields,
     write_redaction_enabled,
     write_redaction_scope,
 )
@@ -63,6 +70,11 @@ from .secret_scrub import (
 from .selector_args import unknown_key_label_problem
 from .switches import READ_ONLY_ENV, dry_run_active
 from .write_body import require_unmasked_fields
+
+_logger = logging.getLogger(__name__)
+
+#: How much of an upstream error body the write-error log line keeps.
+_UPSTREAM_ERROR_LOG_MAX = 2048
 
 #: Gateway statuses after which a sent write may or may not have been applied. 408 is the
 #: Fabric connector terminating a proxied request that it had already forwarded (the Site
@@ -205,7 +217,8 @@ def log_reason(exc: BaseException) -> str:
     """A bounded reason code for a log line about a failed upstream call.
 
     The exception text carries the complete upstream body for the caller; a log line
-    never does (``UNIFI_LOG_LEVEL``: request/response bodies are never logged). This is
+    never does (``UNIFI_LOG_LEVEL``: request/response bodies are not logged; the one
+    exception is the audited write-error line, :meth:`UniFiClient._audit_write`). This is
     ``HTTP <status>`` for an upstream error answer (also when a wrapping error chains
     it as its cause), else the exception type name.
     """
@@ -246,6 +259,32 @@ class ClassicApiError(UniFiConnectionError):
 #: ``{"meta": {"rc": ...}, "data": [...]}`` envelope. ``network/v2/api`` and
 #: ``network/integration`` are different surfaces (no ``meta.rc``) and do not match.
 CLASSIC_ROUTE_RE = re.compile(r"^/v1/connector/consoles/[^/]+/proxy/network/api(?:/|\Z)")
+
+
+#: True inside :func:`unmasked_read`: the read-before of a read-merge-write.
+_UNMASKED_READ: ContextVar[bool] = ContextVar("unifi_unmasked_read", default=False)
+
+
+@contextmanager
+def unmasked_read() -> Iterator[None]:
+    """The internal read-before of a read-merge-write, exempt from the response mask.
+
+    A whole-record write (read the stored record, lay the caller's change over it, send
+    the record back) must send the stored secrets back as they are. Under
+    ``UNIFI_REDACT_SECRETS`` a masked read puts ``***REDACTED***`` in their place, the
+    write path drops every masked field, and the record would be sent without its secret,
+    which a replace-semantics route clears. Inside this scope a successful GET is returned
+    unmasked (neither route-masked nor scrubbed of the call's bound values; configured
+    server secrets are still scrubbed); its values are still bound into the call's scrub
+    scope, so no log, audit line or error shows them, and a dry-run preview masks the
+    request body. Wrap only the read whose record is merged and written; mask a record
+    the caller also sees with :func:`masked_read`.
+    """
+    token = _UNMASKED_READ.set(True)
+    try:
+        yield
+    finally:
+        _UNMASKED_READ.reset(token)
 
 
 def is_classic_route(path: Any) -> bool:
@@ -314,17 +353,38 @@ def is_v2_route(path: Any) -> bool:
     return isinstance(path, str) and V2_ROUTE_RE.match(path.split("?", 1)[0]) is not None
 
 
+def _bulk_partial_failure(body: Any) -> str | None:
+    """Why an HTTP 207 body is a partial failure, or ``None``.
+
+    Ubiquiti's v2 API answers a bulk operation that failed for some devices (the rolling-upgrade
+    eligibility and time-estimate routes, ``ucore/devices/update``) with HTTP 207 and
+    ``{"success": [...], "errors": [...]}``. A non-empty ``errors`` list means the console did
+    not report full success; an empty one, or any other 207 shape, is passed through.
+    """
+    if not isinstance(body, dict):
+        return None
+    success, errors = body.get("success"), body.get("errors")
+    if not isinstance(success, list) or not isinstance(errors, list) or not errors:
+        return None
+    return (
+        f"HTTP 207 with {len(errors)} entries in errors ({len(success)} in success): "
+        "the console did not report full success"
+    )
+
+
 def v2_error_envelope(path: Any, status: Any, body: Any) -> str | None:
     """Why a Network v2 response is an error answered with HTTP 2xx, or ``None``.
 
     The one rule for the whole server (typed tools through :meth:`UniFiClient.request`,
-    the generic relay through its ``_upstreamError`` marker). It matches exactly one
-    shape: a v2 route, a 2xx status, and a decoded body that is a JSON object whose ONLY
-    member is ``error``, itself an object carrying a ``code`` (a number or a string) and a
-    string ``message``. Anything else is passed through as a success body: a record or
-    list, an object with ``data`` or any other member beside ``error`` (``{"data": [...],
-    "error": {}}``), a string ``error``, an ``error`` nested deeper, a non-v2 route, a
-    non-2xx status (already an HTTP error).
+    the generic relay through its ``_upstreamError`` marker). It matches two shapes on a v2
+    route. (1) A 2xx status and a decoded body that is a JSON object whose ONLY member is
+    ``error``, itself an object carrying a ``code`` (a number or a string) and a string
+    ``message``. (2) HTTP 207 with ``{"success": [...], "errors": [non-empty]}``, Ubiquiti's
+    bulk partial failure (:func:`_bulk_partial_failure`). Anything else is passed through as a
+    success body: a record or list, an object with ``data`` or any other member beside
+    ``error`` (``{"data": [...], "error": {}}``), a string ``error``, an ``error`` nested
+    deeper, a 207 whose ``errors`` is empty, a non-v2 route, a non-2xx status (already an HTTP
+    error).
 
     ``body`` is the decoded body (:func:`decode_body`); the caller attaches it verbatim.
     """
@@ -332,6 +392,8 @@ def v2_error_envelope(path: Any, status: Any, body: Any) -> str | None:
         return None
     if not isinstance(status, int) or isinstance(status, bool) or not 200 <= status < 300:
         return None
+    if status == 207:
+        return _bulk_partial_failure(body)
     if not isinstance(body, dict) or set(body) != {"error"}:
         return None
     error = body["error"]
@@ -394,8 +456,10 @@ _V2_STATS_ROUTE_RE = re.compile(r"/proxy/network/v2/api/stats(?:/|\Z)")
 
 _HINT_STATS_404 = (
     "an HTML 404 from the Network v2 statistics routes (/v2/api/stats/*) means this "
-    "console's Network application does not serve that statistics route "
-    "(check the version with get_network_application_info)."
+    "console's Network application does not serve that statistics route. The route family is "
+    "in Ubiquiti's Network 10.6.109 and 11.0.99 server packages, so the Network version alone "
+    "does not explain it (check the version and that the application is running with "
+    "get_network_application_info)."
 )
 
 
@@ -807,6 +871,251 @@ def _error_redaction(client: Any) -> bool:
     return write_redaction_enabled() if enabled is None else bool(enabled)
 
 
+def masked_read(client: Any, path: str, body: Any) -> Any:
+    """``body`` as a masked GET of ``path`` returns it (unchanged with redaction off).
+
+    For a record read inside :func:`unmasked_read` that the caller also sees.
+    """
+    return mask_response_body("GET", path, body, redact_secrets=_error_redaction(client))
+
+
+_ABSENT = object()
+
+
+def _is_mask(value: Any) -> bool:
+    return isinstance(value, str) and value == REDACTION_MASK
+
+
+def _holds_mask(value: Any) -> bool:
+    if _is_mask(value):
+        return True
+    if isinstance(value, dict):
+        return any(_holds_mask(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_holds_mask(item) for item in value)
+    return False
+
+
+def _mask_paths(value: Any, path: str) -> list[str]:
+    """The paths of every mask leaf in ``value`` (key names and indices only, no values)."""
+    if _is_mask(value):
+        return [path]
+    if isinstance(value, dict):
+        return [
+            p for k, v in value.items() for p in _mask_paths(v, f"{path}.{k}" if path else str(k))
+        ]
+    if isinstance(value, list):
+        return [p for i, v in enumerate(value) for p in _mask_paths(v, f"{path}[{i}]")]
+    return []
+
+
+def _list_element_masks(value: Any, path: str) -> list[str]:
+    """Every mask inside a list element of ``value`` (scalar or object element): used where
+    something of another type is stored, so no element can be matched (a masked object
+    field outside any list is dropped by the write path and reported)."""
+    if isinstance(value, dict):
+        return [
+            p
+            for k, v in value.items()
+            for p in _list_element_masks(v, f"{path}.{k}" if path else str(k))
+        ]
+    if isinstance(value, list):
+        return [p for i, v in enumerate(value) for p in _mask_paths(v, f"{path}[{i}]")]
+    return []
+
+
+def _unsendable_masks(value: Any, path: str) -> list[str]:
+    """Masks the write path cannot drop: a mask that is itself a list element (the write
+    path drops masked object fields at any depth, never list elements)."""
+    if isinstance(value, dict):
+        return [
+            p
+            for k, v in value.items()
+            for p in _unsendable_masks(v, f"{path}.{k}" if path else str(k))
+        ]
+    if isinstance(value, list):
+        return [
+            p
+            for i, v in enumerate(value)
+            for p in ([f"{path}[{i}]"] if _is_mask(v) else _unsendable_masks(v, f"{path}[{i}]"))
+        ]
+    return []
+
+
+def _only_masks(value: Any) -> bool:
+    """True for the mask, or a non-empty object or list whose every leaf is the mask."""
+    if _is_mask(value):
+        return True
+    if isinstance(value, dict):
+        return bool(value) and all(_only_masks(item) for item in value.values())
+    if isinstance(value, list):
+        return bool(value) and all(_only_masks(item) for item in value)
+    return False
+
+
+def _same_except_masks(asked: Any, stored: Any) -> bool:
+    """True when ``asked`` without its masks equals ``stored`` at the same paths.
+
+    Identity is the non-mask projection: a key whose value holds only masks takes no part,
+    whether or not ``stored`` has it. Every other key must be in ``stored`` and equal (an
+    empty object or list is a real value).
+    """
+    if _is_mask(asked):
+        return True
+    if isinstance(asked, (dict, list)) and not asked:
+        return asked == stored  # an empty object or list is a real value
+    if isinstance(asked, dict):
+        return isinstance(stored, dict) and all(
+            _only_masks(value) or (key in stored and _same_except_masks(value, stored[key]))
+            for key, value in asked.items()
+        )
+    if isinstance(asked, list):
+        return (
+            isinstance(stored, list)
+            and len(asked) == len(stored)
+            and all(_same_except_masks(a, b) for a, b in zip(asked, stored, strict=True))
+        )
+    return asked == stored and isinstance(asked, bool) == isinstance(stored, bool)
+
+
+def _field(element: Any, key: str) -> Any:
+    """``element[key]``, or ``_ABSENT`` (a non-object element has no id and never matches)."""
+    return element.get(key, _ABSENT) if isinstance(element, dict) else _ABSENT
+
+
+def _stored_element(asked: Any, stored: list[Any]) -> Any:
+    """The ONE stored element ``asked`` is, else ``_ABSENT``.
+
+    By its ``id`` or ``_id`` when it carries one (not masked); otherwise the stored element
+    whose fields equal all of ``asked``'s non-mask fields. Two candidates are no match.
+    """
+    if isinstance(asked, dict):
+        for key in ("id", "_id"):
+            if key in asked and not _is_mask(asked[key]):
+                hits = [s for s in stored if _field(s, key) == asked[key]]
+                return hits[0] if len(hits) == 1 else _ABSENT
+    hits = [s for s in stored if _same_except_masks(asked, s)]
+    return hits[0] if len(hits) == 1 else _ABSENT
+
+
+def keep_stored_secrets(client: Any, body: Any, stored: Any, requested: Any) -> Any:
+    """``body`` with the stored value wherever the caller passed the redaction mask.
+
+    For the whole-record writes that read the stored record (inside :func:`unmasked_read`),
+    lay the caller's change over it and send the record back. Under
+    ``UNIFI_REDACT_SECRETS`` a caller that passes a redacted read back holds
+    ``***REDACTED***`` where a secret is: every such leaf of ``requested`` (the caller's
+    value as given) is sent as the value stored at the same place of the SAME record, and
+    withdrawn from the call's ``_redactedFieldsNotSent`` report. A value is never invented
+    or moved:
+
+    * in an object, the same key. A masked object field with no stored value at that place
+      (in an object, in a matched list element, or in an element of a list where nothing
+      is stored: the list is absent, ``null`` or ``[]``) is left to the write path, which
+      drops and reports it, as for any write: no stored secret is there to move or clear;
+    * in a list, the same element: matched by its ``id``/``_id``, else by its non-mask
+      projection (every key whose value is not only masks must be stored and equal; a key
+      holding only masks takes no part). The match must be unique and one to one. Elements
+      without a mask are sent as the caller gave them.
+
+    The write is refused (``ValueError`` naming the mask paths, raised before the write is
+    sent; the message holds no value) when a masked list element matches no single element
+    of a stored list that holds elements (removed, reordered and edited, ambiguous, or
+    claimed twice: it may be an edited existing element, whose secret a drop would clear),
+    when a masked list element sits where something of another type is stored, or when a
+    mask is itself a list element left unrestored, including where nothing is stored there
+    and where the stored list itself holds the literal mask string: the write path drops
+    masked object fields, never list elements, so a mask string never reaches the upstream.
+
+    With redaction off a mask is a literal value and is sent as given.
+    """
+    if not _error_redaction(client):
+        return body
+    restored: list[str] = []
+    unmatched: list[str] = []
+
+    def walk(asked: Any, kept: Any, sent: Any, path: str) -> Any:
+        if isinstance(asked, str) and asked == REDACTION_MASK:
+            if kept is _ABSENT or (isinstance(kept, str) and kept == REDACTION_MASK):
+                return sent
+            restored.append(path)
+            return kept
+        if isinstance(asked, dict) and isinstance(kept, dict):
+            if sent is _ABSENT:
+                sent = {}
+            if not isinstance(sent, dict):
+                return sent
+            out = dict(sent)
+            for key, value in asked.items():
+                if key not in kept:
+                    # Nothing stored, so no stored secret to move or clear: a masked object
+                    # field (inside a list element too) is dropped by the write path and
+                    # reported. A mask that is itself a list element cannot be dropped:
+                    # the backstop below refuses it.
+                    continue
+                child = walk(
+                    value, kept[key], out.get(key, _ABSENT), f"{path}.{key}" if path else str(key)
+                )
+                if child is not _ABSENT:
+                    out[key] = child
+            return out
+        if isinstance(asked, dict):
+            if kept is not None:  # stored value of another type: nothing to match
+                unmatched.extend(_list_element_masks(asked, path))
+            return sent  # null: nothing stored, as for an absent key
+        if isinstance(asked, list):
+            if kept is None or (isinstance(kept, list) and not kept):
+                # Nothing is stored at this list (null or empty; an absent key is skipped
+                # above): no stored secret can be moved or cleared, so each masked object
+                # field is left to the write path (dropped and reported) and the write is
+                # sent. A mask that is itself a list element is refused by the backstop.
+                return sent
+            out_list = list(sent) if isinstance(sent, list) else None
+            masked = [(i, v) for i, v in enumerate(asked) if _holds_mask(v)]  # others: as given
+            matches = {
+                i: _stored_element(v, kept) if isinstance(kept, list) else _ABSENT
+                for i, v in masked
+            }
+            # One-to-one: a stored element two passed-back elements claim is no match.
+            claimed = [id(m) for m in matches.values() if m is not _ABSENT]
+            for index, value in masked:
+                element = f"{path}[{index}]"
+                match = matches[index]
+                if (
+                    match is _ABSENT
+                    or claimed.count(id(match)) > 1
+                    or out_list is None
+                    or index >= len(out_list)
+                ):
+                    unmatched.extend(_mask_paths(value, element))
+                    continue
+                out_list[index] = walk(value, match, out_list[index], element)
+            return out_list if out_list is not None else sent
+        return sent
+
+    result = walk(requested, stored, body, "")
+    # Backstop: whatever the shapes, no mask may stay inside a list element of the body.
+    unmatched.extend(p for p in _unsendable_masks(result, "") if p not in unmatched)
+    if unmatched:
+        # The paths come last, after the whole sentence. A mask path ends in a credential
+        # field's name, and "<name>: <text>" is a credential pair to the error-text mask
+        # every tool error passes (redaction.mask_error_text), which would then withhold
+        # the reason, the remedy and "No write was sent" from the caller. The mask string
+        # itself is not quoted: where the caller passed it in a credential field it is a
+        # value bound to the call, and the boundary would show it as "***".
+        raise ValueError(
+            "Write refused: the redaction mask passed back in a list element "
+            "matches no single stored element (none is stored there, or the element is not "
+            "identified by its id or _id, or else by all its non-mask fields), so the stored "
+            "value cannot be kept and the mask must not be sent. Send the real value at each "
+            "mask path, or pass the element back unchanged from the read. No write was sent. "
+            f"Mask paths: {upstream_error_value(', '.join(unmatched), client)}"
+        )
+    if restored:
+        unnote_dropped_fields(restored)
+    return result
+
+
 def upstream_error_text(body: Any, client: Any = None) -> str:
     """Format upstream evidence for errors without changing evidence used for comparisons."""
     redact = _error_redaction(client)
@@ -1027,6 +1336,10 @@ def validate_spec_id(
 #: The longest wait a read sleeps on its own: the top of the fixed backoff (32 s plus up
 #: to 32 s of jitter). A longer ``Retry-After`` is raised to the caller, not slept.
 RETRY_AFTER_CEILING_SECONDS: Final = 64.0
+
+
+#: The total a paced GET waits across its 429 retries, as the error text names it.
+_PACED_TOTAL_WAIT: Final = f"{pacing.MAX_WAIT_TOTAL_SECONDS:g} s"
 
 
 def _retry_after_note(resp: httpx.Response) -> str:
@@ -1345,7 +1658,7 @@ class UniFiClient:
             # Server-configured values are scrubbed at every status even when this route
             # has no registered caller credential.
             return self._scrubbed_response(resp, key, extra=extra)
-        if not self._settings.redact_secrets:
+        if not self._settings.redact_secrets or (method == "GET" and _UNMASKED_READ.get()):
             return resp
         codec = declared_text_codec(resp.headers.get("content-type")) or "utf-8"
         try:
@@ -1385,6 +1698,34 @@ class UniFiClient:
             request=resp.request,
             extensions=resp.extensions,
         )
+
+    @asynccontextmanager
+    async def _paced_slot(
+        self, limiter: pacing.ConsoleLimiter | None, *, write: bool
+    ) -> AsyncIterator[None]:
+        """Hold a global concurrency slot with the console's send admitted at send time.
+
+        The console's budget is reserved BEFORE a slot is taken, so a wait for one
+        console's budget (up to a minute) never holds a slot that Site Manager routes and
+        every other console need. With the slot held, the reservation is re-stamped, so the
+        send counts from the moment it leaves (a slow tail cannot push more than the cap
+        into one 60 s window). A reservation that outlived the window while queued, or that
+        a 429 since then no longer admits (the hold or the lowered cap), gives the slot
+        back, is admitted again outside it (counted once) and queues again.
+        """
+        stamp = (
+            await limiter.reserve(write=write, lane=current_lane()) if limiter is not None else None
+        )
+        while True:
+            await self._semaphore.acquire()
+            if limiter is None or stamp is None or limiter.restamp(stamp, write=write):
+                break
+            self._semaphore.release()
+            stamp = await limiter.reserve(write=write, lane=current_lane(), tally=False)
+        try:
+            yield
+        finally:
+            self._semaphore.release()
 
     def _key_configs(self) -> list[APIKeyConfig]:
         """The keys a call may use: the request's keys in header mode (none outside a
@@ -1475,8 +1816,12 @@ class UniFiClient:
         """Make an HTTP request; a read via GET retries HTTP 429 with backoff + jitter.
 
         The retry rule is one rule for the whole server, set here: a read via ``GET`` retries HTTP
-        429 (Too Many Requests) with exponential backoff and jitter (5 retries, 6
-        attempts); a state-changing GET and every other method (``POST``, ``PUT``, ``PATCH``,
+        429 (Too Many Requests) up to 5 times (6 attempts). On a Site Manager route the wait is
+        the upstream ``Retry-After`` (up to 64 s) or exponential backoff with jitter. On a Fabric
+        connector route (``/v1/connector/consoles/{id}/...``) the wait is the ``Retry-After``
+        exactly, or one 60 s window when none was sent, within 120 s per call, and a request
+        is never re-sent before the time the connector asked for (see ``pacing``); a
+        state-changing GET and every other method (``POST``, ``PUT``, ``PATCH``,
         ``DELETE``, the read-POST queries included) is sent ONCE and a 429 is raised with its body.
         A 429 does not prove the request was not acted on, so an automatic retry could
         apply a write, an action or a physical actuation twice; the caller decides
@@ -1543,11 +1888,9 @@ class UniFiClient:
         if reason is not None:
             message = f"Unsafe API path {path!r}: {reason}"
             if is_write:
-                # The audited reason never quotes the path (a query or fragment, raw or
-                # percent-encoded, can carry credentials): the record's ``path`` field
-                # holds the cut path, and the raised message is the caller's own input.
-                audited = f"Unsafe API path: {reason}"
-                self._audit_write(method, path, "refused", None, reason=audited, body=json)
+                # The audited reason is a closed code: the record's ``path`` field holds
+                # the cut path, and the raised message is the caller's own input.
+                self._audit_write(method, path, "refused", None, reason=UNSAFE_PATH, body=json)
             raise ValueError(message)
         # Global read-only switch (UNIFI_WRITE_POLICY=deny, opt-in/default-off): refuse every
         # mutating upstream call before it is sent. This is the single central
@@ -1600,8 +1943,8 @@ class UniFiClient:
             # A non-empty body of nothing but masked values would be sent as {}: refused.
             try:
                 require_unmasked_fields(json, f"{verb} body")
-            except ValueError as exc:
-                self._audit_write(method, path, "refused", None, reason=str(exc), body=json)
+            except ValueError:
+                self._audit_write(method, path, "refused", None, reason=MASKED_BODY, body=json)
                 raise
             json = drop_and_note_masked_fields(json)
         from .request_policy import request_dry_run_active
@@ -1615,10 +1958,22 @@ class UniFiClient:
             return self._dry_run_response(method, path, json, params, files, key=preview_key)
         key = key or self._default_key()
         client = await self._get_client(key)
+        # A Fabric connector route draws on its console's send budget (100 per minute per
+        # console on the connector; this client sends at most UNIFI_CONNECTOR_MAX_RPM).
+        console = pacing.console_id(path)
+        limiter = (
+            pacing.limiter_for(console, self._settings.connector_max_rpm)
+            if console is not None
+            else None
+        )
+        slept = 0.0
 
         for attempt in range(max_retries + 1):
             try:
-                async with self._semaphore:
+                # The console's budget is reserved BEFORE a global slot is taken: a wait for
+                # one console's budget (up to a minute) holding a slot would stall Site
+                # Manager routes and every other console behind it.
+                async with self._paced_slot(limiter, write=is_write):
                     note_upstream_call()  # counted for the policy.refusal record
                     resp = await client.request(
                         method,
@@ -1703,6 +2058,7 @@ class UniFiClient:
                         else _outcome_label(resp.status_code),
                         resp.status_code,
                         body=json,
+                        upstream_error=resp.text if not resp.is_success else None,
                     )
                 if 300 <= resp.status_code < 400 and raise_on_error:
                     # A 3xx is never success and is never followed (a write must not be
@@ -1761,17 +2117,24 @@ class UniFiClient:
                         )
                     )
                 # Always scrub configured server secrets. Bound route/call values are
-                # scrubbed only when the operator opted in to redaction, at every status.
+                # scrubbed only when the operator opted in to redaction, at every status,
+                # except from the 2xx read-before of a read-merge-write (unmasked_read):
+                # its stored secrets are written back, never shown.
+                internal = verb == "GET" and resp.is_success and _UNMASKED_READ.get()
                 response = self._scrubbed_response(
                     resp,
                     key,
-                    extra=call_secret_values() if self._settings.redact_secrets else (),
+                    extra=call_secret_values()
+                    if self._settings.redact_secrets and not internal
+                    else (),
                 )
                 hint = self._response_hint(resp, key, path, is_write)
                 if hint:
                     response.extensions["unifi_auth_hint"] = self._scrub(hint.lstrip("; "), key)
                 return response
 
+            if limiter is not None:
+                limiter.note_429()
             if attempt == max_retries:
                 if is_write:
                     self._audit_write(method, path, "rate_limited", 429, body=json)
@@ -1790,7 +2153,7 @@ class UniFiClient:
             # fixed backoff when it sent a usable one, up to this client's own backoff
             # ceiling; a longer ask is surfaced to the caller instead of slept.
             wait = parse_retry_after(resp.headers.get("retry-after"))
-            if wait is not None and wait > RETRY_AFTER_CEILING_SECONDS:
+            if limiter is None and wait is not None and wait > RETRY_AFTER_CEILING_SECONDS:
                 body = error_body_text(
                     resp.text, redact_secrets=bool(self._settings.redact_secrets)
                 )
@@ -1803,9 +2166,36 @@ class UniFiClient:
                         key,
                     )
                 )
-            if wait is None:
+            if limiter is not None:
+                # Retry-After exactly, or one window with no Retry-After (see
+                # ConsoleLimiter.read_retry_wait). None: stop without re-sending.
+                paced = limiter.read_retry_wait(wait, waited_total=slept, attempt=attempt)
+                if paced is None:
+                    body = error_body_text(
+                        resp.text, redact_secrets=bool(self._settings.redact_secrets)
+                    )
+                    reason = (
+                        f"The Retry-After exceeds the {_PACED_TOTAL_WAIT} this client waits in "
+                        "total; retry after it."
+                        if wait is not None
+                        else f"The console stayed throttled past the {_PACED_TOTAL_WAIT} this "
+                        "client waits in total; retry later."
+                    )
+                    raise RateLimitError(
+                        self._scrub(
+                            f"Rate limited on {verb} {path}: HTTP 429: {body}"
+                            + connector_rate_hint(path)
+                            + "\n"
+                            + reason
+                            + _retry_after_note(resp),
+                            key,
+                        )
+                    )
+                wait = paced
+            elif wait is None:
                 base_delay = min(2**attempt, 32)
                 wait = base_delay + _secure_random.uniform(0, base_delay)
+            slept += wait
             await asyncio.sleep(wait)
 
         raise RateLimitError("Unreachable")  # pragma: no cover
@@ -1831,10 +2221,10 @@ class UniFiClient:
         if status not in (401, 403):
             return ""
         if header_mode_enabled():
-            source = f"X-UniFi-Api-Key label {key.label!r}"
+            source = f"the X-UniFi-Api-Key header labelled {key.label!r}"
         else:
             source = (
-                f"UNIFI_API_KEYS key label {key.label!r}"
+                f"the UNIFI_API_KEYS entry labelled {key.label!r}"
                 if self._settings.api_keys
                 else "UNIFI_API_KEY"
             )
@@ -1843,8 +2233,10 @@ class UniFiClient:
             if status == 401
             else "check the key's permissions, API scopes, and allowed sites"
         )
+        # Worded with no ``<field>: value`` shape: the error mask (UNIFI_REDACT_SECRETS)
+        # reads ``UNIFI_API_KEY:`` as a credential pair and would mask the hint.
         return (
-            f"\nHint: {source}: {action}. Create or check keys at "
+            f"\nHint: the key came from {source}, so {action}. Create or check keys at "
             "https://unifi.ui.com (Site Manager > API Keys); "
             "see README#1-join-your-fabric-and-create-an-api-key."
         )
@@ -1858,14 +2250,29 @@ class UniFiClient:
         *,
         reason: str | None = None,
         body: Any = None,
+        upstream_error: str | None = None,
     ) -> None:
         """Record a write attempt to the opt-in audit stream (no-op when unconfigured).
 
         Records method, resolved path, outcome and status (and, for a refused attempt,
         the gate as ``reason``). The request ``body`` is written only at
         ``UNIFI_AUDIT_LEVEL=debug``, credential fields masked and secrets scrubbed.
+        ``upstream_error`` never reaches the record: while the stream writes records (not
+        at ``UNIFI_AUDIT_LEVEL=off``) it goes to the server log, tagged with the record's
+        ``ref``, with configured secrets and the call's bound values scrubbed and credential
+        fields masked whatever ``UNIFI_REDACT_SECRETS`` says (the log is the server's own
+        output, not a response), then cut to its first 2,048 characters. Scrubbing and
+        masking see the whole text before the cut, so a value straddling it leaves no prefix.
         """
         if self._audit_sink is not None:
+            if upstream_error and self._audit_sink.enabled:
+                secrets = configured_secrets(self._settings)  # call-bound values included
+                _logger.warning(
+                    "upstream write error ref=%s status=%s: %s",
+                    audit_ref(),
+                    status,
+                    mask_error_text(scrub(upstream_error, secrets))[:_UPSTREAM_ERROR_LOG_MAX],
+                )
             self._audit_sink.record(
                 method=self._scrub(method.upper()),
                 path=self._scrub(decoded_path(path)),

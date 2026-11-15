@@ -189,6 +189,7 @@ from tests import upstream_harness as uh
 from tests._tool_catalog import LazyCatalog, lazy_parametrize, tools_by_name
 from tests._tool_classes import class_axis, tool_batches
 from unifi_fabric import families, read_only, refusals, route_secrets, server
+from unifi_fabric.audit_vocabulary import mask_path
 from unifi_fabric.client import is_dry_run_preview
 from unifi_fabric.config import APIKeyConfig
 from unifi_fabric.families.carrier import carrier_fabric as _carrier_fabric
@@ -273,6 +274,12 @@ DERIVED = {
         "documented closed incident-evidence document built from the Protect event feed"
     ),
     "read_recent_events": "documented buffer/listener state; upstream calls only resolve host/site",
+    "diagnose_wifi": (
+        "documented read-only Wi-Fi report composed from stat/device, stat/sta and the Wi-Fi "
+        "statistics, connectivity, neighbour, WLAN, channel and spectrum reads; it returns "
+        "only the fields its rules use, never an upstream body or key material "
+        "(tests/test_wifi_diagnosis.py)"
+    ),
 }
 
 #: The two evidence collectors share one contract check (``_evidence_problems``) and are
@@ -290,6 +297,7 @@ MULTI_SOURCE_COMPOSITE = {"list_site_warnings"}
 SELECT = {
     "update_device_radio": "selects one AP and exposes its post-write operating radio fields",
     "get_arm_profile": "picks the profile with arm_profile_id out of the arm-profile list",
+    "get_port_automation": "picks the automation with automation_id out of the list",
     "get_vpn_server": "picks the server with server_id out of the drained VPN server list",
     "get_radius_profile": "picks the profile with profile_id out of the drained RADIUS list",
     "get_wlan_group": "picks the group with group_id out of the Classic wlangroup list",
@@ -905,6 +913,31 @@ def _derived_problems(name: str, payload: Any, up: uh.FakeUpstream) -> list[str]
             shown = sum(1 for t in nodes if t.get("display_name"))
             if shown + sum(withheld.values()) < named:
                 p.append(f"{kind}: {named - shown} names dropped without a _withheld count")
+    elif name == "diagnose_wifi":
+        summary = payload.get("summary") if isinstance(payload, dict) else None
+        if not isinstance(summary, dict) or payload.get("readOnly") is not True:
+            return [f"no diagnosis document: {str(payload)[:160]}"]
+        devices = [d for d in _served_once(up, "/stat/device") if isinstance(d, dict)]
+        access_points = [d for d in devices if isinstance(d.get("radio_table_stats"), list)]
+        if summary["accessPointsChecked"] + summary["accessPointsNotAssessed"] != len(
+            access_points
+        ):
+            p.append(
+                f"{summary['accessPointsChecked']} checked + "
+                f"{summary['accessPointsNotAssessed']} not assessed != "
+                f"{len(access_points)} APs served"
+            )
+        wireless = [
+            c
+            for c in _served_once(up, "/stat/sta")
+            if isinstance(c, dict) and c.get("is_wired") is False
+        ]
+        if summary["wirelessClientsChecked"] != len(wireless):
+            p.append(
+                f"wirelessClientsChecked {summary['wirelessClientsChecked']} != {len(wireless)}"
+            )
+        if summary["findingCount"] != len(payload["findings"]):
+            p.append("findingCount does not match the findings list")
     elif name == "read_recent_events":
         # No product stream is supported: the documented answer is the unsupported state,
         # never an empty event list that could pass for a quiet stream. Fail closed: when any
@@ -956,31 +989,29 @@ async def test_every_derived_write_tool_is_exercised_by_the_write_safety_propert
     from tests import test_invariants_delta15_write_outcomes as l15
 
     derived_writes = sorted(set(DERIVED) & set(_lz_WRITE_TOOLS()))
-    # The Network collector is a read since its system-log POST was allowlisted, so no
-    # DERIVED member is a write today; the loop keeps any future one fully exercised.
     assert "collect_network_incident_evidence" not in derived_writes, derived_writes
     # (w) and (n) select from the write set; (l15) from the whole catalog
     assert set(derived_writes) <= set(_lz_W_WRITE_TOOLS())
     assert set(derived_writes) <= set(_lz_TOOLS())
     for name in derived_writes:
         reached = uh.FakeUpstream()
-        await _call(monkeypatch, name, reached)
+        payload = uh.result_payload(await _call(monkeypatch, name, reached))
         assert reached.writes(), f"{name}: no write reached the upstream (property vacuous)"
+        # the count check runs on the real payload: the read-only properties never reach a write
+        problems = _derived_problems(name, payload, reached)
+        assert problems == [], f"{name}: " + "; ".join(problems[:4])
         for status in (500, 502, 503, 504):
             failing = uh.FakeUpstream(write_status=status, error_body='{"code":"boom"}')
             with pytest.raises(ToolError, match=str(status)):
                 await _call(monkeypatch, name, failing)
             assert len(failing.writes()) == 1, f"{name}: HTTP {status} write sent twice"
         for failure in l15.FAILURES:
-            up = l15.UncertainUpstream(failure)
+            up = l15.UncertainUpstream(failure, spare_read_posts=True)
             with pytest.raises(ToolError) as raised:
                 await _call(monkeypatch, name, up)
             assert l15.WARNING in str(raised.value), f"{name}: {failure} outcome hidden"
-            sent = [
-                e
-                for e in up.served
-                if e.method != "GET" or uh.is_write_request(e.method, e.path, e.sent_json)
-            ]
+            # read-POSTs are served (spare_read_posts); the write is what must be sent once
+            sent = [e for e in up.served if uh.is_write_request(e.method, e.path, e.sent_json)]
             assert len(sent) == 1, f"{name}: {failure} sent {len(sent)} requests"
 
 
@@ -1837,6 +1868,7 @@ async def test_h_page_cap_is_explicit(monkeypatch, name):
 # filter a list and return every match, so a capped drain must flag the result).
 SELECT_BY_ID = {
     "get_arm_profile": "arm_profile_id",
+    "get_port_automation": "automation_id",
     "get_vpn_server": "server_id",
     "get_radius_profile": "profile_id",
     "get_wlan_group": "group_id",
@@ -2693,7 +2725,7 @@ async def test_n_transport_error_names_method_and_path(monkeypatch, tmp_path, na
         )
         for f in failed:
             if is_write_request(f.method, f.path, f.sent_json):
-                audited = scrub(f.path, secrets)
+                audited = mask_path(scrub(f.path, secrets))
                 assert any(f"path={audited}" in ln for ln in _audit_lines(log)), (
                     f"{name}: write that failed at the transport was not audited"
                 )
@@ -5323,6 +5355,12 @@ def _aa_extra_contracts() -> dict[str, tuple[str, str | None, str | None, str]]:
     return {
         "bulk_delete_hotspot_vouchers": (integration + "/hotspot/vouchers", None, None, "id"),
         "delete_acl_rule": (integration + "/acl-rules/{id}", "rule_id", None, "id"),
+        "delete_external_arm_profile": (
+            protect + "/external/arm-profiles/{id}",
+            "arm_profile_id",
+            None,
+            "id",
+        ),
         "delete_arm_profile": (
             protect + "/arm-profiles/{id}",
             "arm_profile_id",
@@ -5444,6 +5482,12 @@ def _aa_extra_contracts() -> dict[str, tuple[str, str | None, str | None, str]]:
             v2 + "/object-oriented-network-config/{rule_id}",
             None,
             None,
+            "id",
+        ),
+        "delete_port_automation": (
+            v2 + "/port-automations/{id}",
+            "automation_id",
+            v2 + "/port-automations",
             "id",
         ),
         "delete_power_supervisor": (
@@ -5652,7 +5696,7 @@ def _lz_DELETION_TOOLS():
 
 def test_aa_every_delete_family_description_states_the_canonical_result_shape():
     """Every delete/remove/revoke result description names its exact public shape."""
-    assert len(_lz_DELETION_TOOLS()) == 72
+    assert len(_lz_DELETION_TOOLS()) == 74
     missing = [
         name
         for name in _lz_DELETION_TOOLS()
@@ -6666,9 +6710,12 @@ async def test_bq_unknown_mac_fails_listing_choices_before_any_write(monkeypatch
         )
         return
     # No error: only a write addressed upstream by the MAC itself may proceed, sending the
-    # MAC as given (the controller knows clients that no list shows, e.g. blocked ones).
+    # MAC as given, in the body or in the route (the controller knows clients that no list shows,
+    # e.g. blocked ones).
     writes = up.writes()
-    assert len(writes) == 1 and _carries(writes[0].sent_json, _OFFLINE_MAC), (
+    assert len(writes) == 1 and (
+        _carries(writes[0].sent_json, _OFFLINE_MAC) or _OFFLINE_MAC in writes[0].path.lower()
+    ), (
         f"{name}: an unknown MAC neither failed nor was sent as the write's address: "
         f"{[(w.method, w.path, w.sent_json) for w in writes]}"
     )

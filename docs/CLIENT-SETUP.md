@@ -1,6 +1,6 @@
 # Client setup
 
-The package commands in this guide install the published 0.7.2 release, and the guide describes 0.7.2 source.
+The package commands in this guide install the published 0.7.3 release, and the guide describes 0.7.3 source.
 Upgrading from an earlier release? See the [migration guides](../README.md#more-info) before changing settings.
 
 Choose your MCP client below. Local setups run the server on your machine with your own UniFi API key; the ChatGPT option uses a self-hosted remote server. Your AI client may use its own services. Local stdio setups use [uv](https://docs.astral.sh/uv/); Docker deployments need Docker instead.
@@ -12,7 +12,7 @@ The [`plugins/claude/`](../plugins/claude/) folder is a Claude Code plugin. It r
 Install it from this repository's marketplace (Claude Code 2.1.275 or later installs in one step):
 
 <!-- install-case: readme-install-09 mode=plugin -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-09 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-09 -->
 ```text
 /plugin marketplace add swkstudios/unifi-fabric-mcp-server
 /plugin install unifi-fabric@unifi-fabric
@@ -21,7 +21,7 @@ Install it from this repository's marketplace (Claude Code 2.1.275 or later inst
 Claude Code asks for your API key, Write policy (`allow` by default; set it to `deny` for read-only) and Tool mode (discovery by default) when you enable it. Or try it for one session from a checkout:
 
 <!-- install-case: readme-install-10 mode=plugin -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-10 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-10 -->
 ```bash
 claude --plugin-dir ./plugins/claude
 ```
@@ -36,13 +36,13 @@ Claude Desktop chat runs local MCP servers from its config file (macOS and Windo
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 <!-- install-case: readme-install-11 mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-11 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-11 -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "/absolute/path/to/uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
@@ -60,41 +60,42 @@ The Codex CLI, the Codex IDE extension and the ChatGPT desktop app share `~/.cod
 **Recommended: forward the key from your environment (nothing stored).** Add this to `~/.codex/config.toml`:
 
 <!-- install-case: readme-install-12 mode=codex -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-12 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-12 -->
 ```toml
 [mcp_servers.unifi-fabric]
 command = "uvx"
-args = ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"]
+args = ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"]
 env_vars = ["UNIFI_API_KEY", "UNIFI_WRITE_POLICY"]   # forwarded from the environment Codex starts in
 ```
 
 Then start Codex from a shell that has the key (the `read` keeps it out of your shell history):
 
 <!-- install-case: readme-install-13 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-13 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-13 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
 export UNIFI_WRITE_POLICY=deny   # optional: read-only mode
 codex
 ```
 
-**One-liner (stores the key in `config.toml` in plain text):**
+**One-liner (stores only the path of a key file):** this also works for an app started from the Dock or Finder, which does not see exported variables:
 
 <!-- install-case: readme-install-14 mode=cli -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-14 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-14 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo
-codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+(umask 077; mkdir -p "$HOME/.config/unifi-fabric"; printf '%s\n' "$UNIFI_API_KEY" > "$HOME/.config/unifi-fabric/api-key"); unset UNIFI_API_KEY
+codex mcp add unifi-fabric --env UNIFI_API_KEY_FILE="$HOME/.config/unifi-fabric/api-key" -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
 Add `--env UNIFI_WRITE_POLICY=deny` for read-only mode. `codex mcp list` shows the server.
 
-**ChatGPT desktop app:** it reads the same `config.toml`, and its servers are listed under **Settings > MCP servers** (**Add server** for a new one, then **Restart**). An app started from the Dock or Finder does not see variables exported in a terminal, so `env_vars` forwarding only works when Codex starts from a shell; for the desktop app, give the key with the one-liner above (or an `env = { UNIFI_API_KEY = "your-api-key-here" }` line in the `[mcp_servers.unifi-fabric]` table).
+**ChatGPT desktop app:** it reads the same `config.toml`, and its servers are listed under **Settings > MCP servers** (**Add server** for a new one, then **Restart**). An app started from the Dock or Finder does not see variables exported in a terminal, so `env_vars` forwarding only works when Codex starts from a shell; for the desktop app, use the key-file one-liner above.
 
 **Codex plugin:** this repository is also a Codex plugin marketplace ([`plugins/codex/`](../plugins/codex/)). The plugin stores no key; it forwards `UNIFI_API_KEY`, `UNIFI_WRITE_POLICY` and `UNIFI_TOOL_MODE` from the environment Codex starts in:
 
 <!-- install-case: readme-install-15 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-15 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-15 -->
 ```bash
 codex plugin marketplace add swkstudios/unifi-fabric-mcp-server
 codex plugin add unifi-fabric@unifi-fabric
@@ -107,28 +108,30 @@ With no key in the environment the server exits at startup and Codex lists no un
 Antigravity starts local servers with the environment of the shell that started `agy`, and it does not expand `${VAR}` in `env` values. Keep the key out of config files by exporting it before you start `agy`:
 
 <!-- install-case: readme-install-16 mode=antigravity -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-16 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-16 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
 export UNIFI_WRITE_POLICY=deny   # optional: read-only mode
-agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 agy
 ```
 
 Or install the plugin from a checkout of this repository; it uses the same exported key:
 
 <!-- install-case: readme-install-17 mode=antigravity -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-17 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-17 -->
 ```bash
 agy plugin install ./plugins/antigravity
 ```
 
-Antigravity 2.0 and the Antigravity IDE read the same `~/.gemini/config`, but when started from the Dock they do not see variables exported in a terminal. For them, store the key in the config instead (in plain text, in `~/.gemini/config/mcp_config.json`):
+Antigravity 2.0 and the Antigravity IDE read the same `~/.gemini/config`, but when started from the Dock they do not see variables exported in a terminal, and Antigravity does not expand `${VAR}` in `env` values. For them, save the key to a file only you can read and register its path:
 
 <!-- install-case: readme-install-18 mode=antigravity -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-18 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-18 -->
 ```bash
-agy mcp add --env UNIFI_API_KEY="$UNIFI_API_KEY" unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo
+(umask 077; mkdir -p "$HOME/.config/unifi-fabric"; printf '%s\n' "$UNIFI_API_KEY" > "$HOME/.config/unifi-fabric/api-key"); unset UNIFI_API_KEY
+agy mcp add --env UNIFI_API_KEY_FILE="$HOME/.config/unifi-fabric/api-key" unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
 Without a key the server exits at startup and Antigravity lists no unifi-fabric tools; a wrong key returns the upstream `HTTP 401` on the first tool call. See the [plugin README](../plugins/antigravity/README.md).
@@ -138,7 +141,7 @@ Without a key the server exits at startup and Antigravity lists no unifi-fabric 
 Google replaced the consumer Gemini CLI with Antigravity; Gemini CLI remains available to Enterprise and API-key users. This repository's root [`gemini-extension.json`](../gemini-extension.json) makes it a Gemini CLI extension that prompts at install time for your API key (stored in the system keychain) and the optional Write policy (enter `allow`, `dry-run` or `deny`; a blank value stops the server from starting) and Tool mode settings:
 
 <!-- install-case: readme-install-19 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-19 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-19 -->
 ```bash
 gemini extensions install https://github.com/swkstudios/unifi-fabric-mcp-server
 ```
@@ -156,43 +159,43 @@ A listing in the ChatGPT app directory would need a hosted service run by us. We
 Install from PyPI and run the server locally. The MCP client launches it as a subprocess over stdio. **Requires Python 3.12+** (or [uv](https://docs.astral.sh/uv/), which fetches a suitable Python for you).
 
 <!-- install-case: readme-install-20 mode=uvx -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-20 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-20 -->
 <!-- docs-fact: run -->
 ```bash
 export UNIFI_API_KEY="your-api-key-here"
-uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
 Or install it once in an isolated environment:
 
 <!-- install-case: readme-install-21 mode=pipx -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-21 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-21 -->
 <!-- docs-fact: run -->
 ```bash
-pipx install unifi-fabric-mcp-server==0.7.2
+pipx install unifi-fabric-mcp-server==0.7.3
 unifi-fabric-mcp
 ```
 
 Or use a virtual environment you manage:
 
 <!-- install-case: readme-install-22 mode=pip -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-22 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-22 -->
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install unifi-fabric-mcp-server==0.7.2
+.venv/bin/python -m pip install unifi-fabric-mcp-server==0.7.3
 .venv/bin/unifi-fabric-mcp
 ```
 
-For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use). To register the server for all your projects, use `claude mcp add --scope user unifi-fabric -e UNIFI_API_KEY=… -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp`; Claude Code stores that configuration in `~/.claude.json`. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp).
+For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use). To register the server for all your projects, use `claude mcp add --scope user unifi-fabric -e 'UNIFI_API_KEY=${UNIFI_API_KEY}' -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp`; Claude Code stores that configuration in `~/.claude.json`, with the reference and not the key, so keep `UNIFI_API_KEY` exported wherever you start Claude Code. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp).
 
 <!-- install-case: readme-install-23 mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-23 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-23 -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
@@ -201,9 +204,9 @@ For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks 
 
 If you installed with `pipx` or `pip` instead, use `"command": "unifi-fabric-mcp"` and omit `args`.
 
-> **PATH note:** A bare `"command": "unifi-fabric-mcp"` only resolves if it is on the MCP client's `PATH`. Many MCP clients do not inherit the shell's virtual environment. Use `uvx` as above, the absolute path to the installed binary (for example `/path/to/.venv/bin/unifi-fabric-mcp`), or install globally with `pipx install unifi-fabric-mcp-server==0.7.2` or `uv tool install unifi-fabric-mcp-server==0.7.2`.
+> **PATH note:** A bare `"command": "unifi-fabric-mcp"` only resolves if it is on the MCP client's `PATH`. Many MCP clients do not inherit the shell's virtual environment. Use `uvx` as above, the absolute path to the installed binary (for example `/path/to/.venv/bin/unifi-fabric-mcp`), or install globally with `pipx install unifi-fabric-mcp-server==0.7.3` or `uv tool install unifi-fabric-mcp-server==0.7.3`.
 
-**Homebrew:** a Homebrew formula is planned, but there is no tap yet; follow [issue #24](https://github.com/swkstudios/unifi-fabric-mcp-server/issues/24).
+**Homebrew:** `brew install swkstudios/tap/unifi-fabric-mcp-server` installs the server from the `swkstudios/homebrew-tap` tap. The formula builds the release source with its pinned Python dependencies, so the first install compiles several of them (about 12 minutes on an 18-core Apple silicon Mac in our test). Set the MCP client's `"command"` to the installed binary, `$(brew --prefix)/bin/unifi-fabric-mcp` (a client usually does not inherit your shell `PATH`), and put `UNIFI_API_KEY` in the client's `env` as in the examples above.
 
 **Verify it works:** When launched by the client the server exits immediately if `UNIFI_API_KEY` is absent or empty; an incorrect key will not prevent startup but will cause tool calls to fail with an authentication error. A successful start produces no output on stdio (the client communicates over stdin/stdout).
 
@@ -216,7 +219,7 @@ See [Docker HTTP setup and verification](DOCKER.md#track-b-docker-http).
 ### Track C — From source (development)
 
 <!-- install-case: readme-install-28 mode=source -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-28 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-28 -->
 ```bash
 git clone https://github.com/swkstudios/unifi-fabric-mcp-server.git
 cd unifi-fabric-mcp-server
@@ -233,12 +236,12 @@ See [setup](../AGENTS.md#setup) and [verification](../AGENTS.md#verify-without-c
 ### Common Setup Issues
 
 **"ModuleNotFoundError: No module named 'unifi_fabric'"**
-- Ensure the package is installed in the active environment: `pip install unifi-fabric-mcp-server==0.7.2` (or `pip install -e .` in a source checkout)
+- Ensure the package is installed in the active environment: `pip install unifi-fabric-mcp-server==0.7.3` (or `pip install -e .` in a source checkout)
 - Verify your Python version is 3.12+: `python3 --version`
 - Try `pip install --upgrade pip` and reinstall if using an older pip version
 
 **"command not found: unifi-fabric-mcp"**
-- The entry point is only available after installation: `pipx install unifi-fabric-mcp-server==0.7.2` (or `pip install -e .` in a source checkout), or run it on demand with `uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp`
+- The entry point is only available after installation: `pipx install unifi-fabric-mcp-server==0.7.3` (or `pip install -e .` in a source checkout), or run it on demand with `uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp`
 - For local development, install the source checkout first: `python3 -m pip install -e .`, then run `unifi-fabric-mcp`
 - Check that your virtual environment is activated: `source .venv/bin/activate`
 

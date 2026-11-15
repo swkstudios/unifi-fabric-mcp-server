@@ -31,8 +31,18 @@ def test_required_scope_list_rejects_empty_tokens(scopes):
 
 
 @pytest.mark.parametrize("audience", [" audience", "audience ", " audience ", "two words"])
-def test_oauth_audience_preserves_opaque_whitespace(audience):
-    assert MCPTransportSettings(oauth_audience=audience).oauth_audience == audience
+def test_oauth_audience_preserves_opaque_whitespace(monkeypatch, audience):
+    # The audience is an OAuth setting: it applies only in oauth mode, with the complete
+    # descriptor (outside it, startup is refused by design).
+    monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
+    settings = MCPTransportSettings(
+        auth_mode="oauth",
+        oauth_issuer="https://idp.example.com/",
+        oauth_jwks_uri="https://idp.example.com/jwks",
+        oauth_base_url="https://mcp.example.com",
+        oauth_audience=audience,
+    )
+    assert settings.oauth_audience == audience
 
 
 def test_settings_reference_documents_every_field():

@@ -24,6 +24,7 @@ __all__ = [
     "create_scheduled_task",
     "delete_device_tag",
     "delete_scheduled_task",
+    "diagnose_wifi",
     "execute_device_action",
     "execute_port_action",
     "export_site",
@@ -136,6 +137,15 @@ async def delete_scheduled_task(
 ) -> Any:
     """Adapter of ``delete_scheduled_task``."""
     return await registered_wrapper("delete_scheduled_task")(**validated_arguments)
+
+
+async def diagnose_wifi(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``diagnose_wifi``."""
+    return await registered_wrapper("diagnose_wifi")(**validated_arguments)
 
 
 async def execute_device_action(

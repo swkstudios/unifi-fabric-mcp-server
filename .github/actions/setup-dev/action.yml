@@ -25,7 +25,7 @@ outputs:
 runs:
   using: composite
   steps:
-    # The venv is cached on the exact interpreter, pyproject.toml and requirements.lock,
+    # The venv is cached on the exact interpreter and requirements.lock (the only input of the install),
     # plus the ISO week. Dependencies are installed from the hash-locked requirements on
     # cache misses. On a hit only the project itself is re-installed (editable,
     # --no-deps) so the import path points at this checkout.
@@ -34,11 +34,11 @@ runs:
       shell: bash
       env:
         PYTHON_VERSION: ${{ inputs.python-version }}
-        PROJECT_HASH: ${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+        PROJECT_HASH: ${{ hashFiles('requirements.lock') }}
       run: |
         : "${DEV_VENV:?DEV_VENV must name the shared venv path}"
         : "${PYTHON_VERSION:?python-version is required}"
-        : "${PROJECT_HASH:?pyproject.toml and requirements.lock must exist}"
+        : "${PROJECT_HASH:?requirements.lock must exist}"
         week="$(date -u +%G-W%V)"
         {
           echo "week=${week}"

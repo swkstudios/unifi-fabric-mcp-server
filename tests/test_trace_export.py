@@ -36,6 +36,7 @@ from opentelemetry.trace import SpanKind, StatusCode
 
 from tests import test_cross_tool_invariants as cti
 from tests import upstream_harness as uh
+from tests._synthetic_secrets import build_corpus
 from unifi_fabric import tracing
 from unifi_fabric.config import APIKeyConfig
 
@@ -575,12 +576,13 @@ async def _exercise_real_server(monkeypatch, collector: Any):
 
     from unifi_fabric import server
 
+    corpus = build_corpus()
     secrets = {
-        "uri": _synthetic("uri"),
-        "tool": _synthetic("tool"),
-        "prompt": _synthetic("prompt"),
-        "method": _synthetic("method"),
-        "tracestate": _synthetic("tracestate"),
+        "uri": corpus["resource_uri"],
+        "tool": corpus["unknown_tool"],
+        "prompt": corpus["unknown_prompt"],
+        "method": corpus["unknown_method"],
+        "tracestate": corpus["tracestate"],
     }
     memory = InMemorySpanExporter()
     provider = TracerProvider()
@@ -1061,3 +1063,77 @@ async def test_server_starts_and_serves_without_optional_packages(tmp_path, http
     assert "unifi-fabric-mcp-server[otel]" in stderr
     assert "Traceback" not in stderr
     assert http_collector.requests == []
+
+
+def test_otlp_credential_headers_are_configured_secrets(monkeypatch):
+    """FU1: the collector credential in the OTLP headers joins the configured secrets."""
+    from unifi_fabric.secret_scrub import configured_secrets
+
+    secret = "synthotlptoken0123456789"
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", f"authorization=Bearer%20{secret},x=gzip")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", f"x-api-key={secret}2")
+    values = configured_secrets()
+    assert secret in values and f"{secret}2" in values and "gzip" not in values
+
+
+@pytest.mark.parametrize(
+    "header", ["x-honeycomb-team", "uptrace-dsn", "signoz-ingestion-key", "DD-API-KEY"]
+)
+def test_vendor_key_headers_are_configured_secrets(monkeypatch, header):
+    """Vendor key headers whose names carry no generic credential word."""
+    from unifi_fabric.secret_scrub import configured_secrets
+
+    secret = build_corpus()["key_beta"]
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_HEADERS", f"{header}={secret},x-honeycomb-dataset=lab-traces"
+    )
+    values = configured_secrets()
+    assert secret in values
+    assert "lab-traces" not in values
+
+
+async def test_a_tenant_header_value_leaves_upstream_bodies_unchanged(monkeypatch):
+    """Strict pass-through: only credential-bearing headers may become scrub secrets."""
+    import httpx
+
+    from unifi_fabric.client import UniFiClient
+    from unifi_fabric.config import APIKeyConfig, Settings
+    from unifi_fabric.secret_scrub import configured_secrets, scrub
+
+    secret = "synthotlptoken0123456789"
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_HEADERS",
+        f"x-scope-orgid=production,x-honeycomb-dataset=lab-traces,authorization=Bearer%20{secret}",
+    )
+    body = '{"data":[{"name":"production","desc":"production VLAN","set":"lab-traces"}]}'
+    client = UniFiClient(Settings(api_key="synthetic-only"))
+    response = httpx.Response(200, text=body, headers={"content-type": "application/json"})
+    out = client._scrubbed_response(response, APIKeyConfig(label="k", key="synthetic-only"))  # noqa: SLF001
+    await client.close()
+    assert out.text == body
+    assert secret not in scrub(f"log line {secret}", configured_secrets())
+
+
+def test_export_handoff_failure_does_not_reach_the_request():
+    """FU2: ``on_end`` swallows an exporter fault like a copy fault."""
+
+    class Raising:
+        def on_start(self, span, parent_context=None):
+            pass
+
+        def on_end(self, span):
+            raise RuntimeError("exporter down")
+
+        def shutdown(self):
+            pass
+
+        def force_flush(self, timeout_millis=30000):
+            return True
+
+    from opentelemetry.sdk.trace import TracerProvider
+
+    provider = TracerProvider()
+    provider.add_span_processor(tracing.safe_span_processor(Raising()))
+    tracer = provider.get_tracer("t")
+    with tracer.start_as_current_span("x"):
+        pass  # exiting the span runs on_end; a raised fault would surface here

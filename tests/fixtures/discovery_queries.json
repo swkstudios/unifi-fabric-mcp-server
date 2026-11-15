@@ -17,6 +17,7 @@
     "apply_recognized_image",
     "apply_test_config",
     "approve_pending_device",
+    "arm_external_arm_profile",
     "assign_carrier_subscriber_plan",
     "assign_detections_to_recognition_group",
     "assign_sensor_to_bridge",
@@ -71,6 +72,7 @@
     "create_dns_policy",
     "create_dynamic_dns",
     "create_energy_saving_policy",
+    "create_external_arm_profile",
     "create_firewall_policy",
     "create_firewall_rule",
     "create_firewall_zone_proxy",
@@ -85,6 +87,7 @@
     "create_network_members_group",
     "create_ospf_router",
     "create_policy_engine_rule",
+    "create_port_automation",
     "create_port_forward",
     "create_port_profile",
     "create_power_supervisor",
@@ -135,6 +138,7 @@
     "delete_doorbell_credential",
     "delete_dynamic_dns",
     "delete_energy_saving_policy",
+    "delete_external_arm_profile",
     "delete_firewall_policy",
     "delete_firewall_zone_proxy",
     "delete_guest_portal_file",
@@ -148,6 +152,7 @@
     "delete_network_members_group",
     "delete_ospf_router",
     "delete_policy_engine_rule",
+    "delete_port_automation",
     "delete_port_forward",
     "delete_port_profile",
     "delete_power_supervisor",
@@ -187,9 +192,11 @@
     "delete_wireguard_users",
     "detach_carrier_subscriber_host",
     "detach_from_orchestration",
+    "diagnose_wifi",
     "disable_arm",
     "disable_camera_mic_permanently",
     "disable_camera_share_link",
+    "disarm_external_arm_profile",
     "disconnect_cloud_archive_provider",
     "disconnect_remote_vpn_user",
     "enable_arm",
@@ -265,6 +272,7 @@
     "get_dynamic_dns",
     "get_enriched_configuration",
     "get_event_stream_status",
+    "get_external_arm_profile",
     "get_firewall_group",
     "get_firewall_policy",
     "get_firewall_policy_ordering",
@@ -277,6 +285,7 @@
     "get_global_network_config",
     "get_historical_stats",
     "get_host",
+    "get_hotspot_guest_webhook_delivery",
     "get_hotspot_package",
     "get_hotspot_settings",
     "get_hotspot_voucher",
@@ -319,6 +328,7 @@
     "get_packet_capture_status",
     "get_ping_test_results",
     "get_poe_info",
+    "get_port_automation",
     "get_port_forward_statistics",
     "get_port_history",
     "get_port_profile",
@@ -452,6 +462,7 @@
     "list_dpi_categories",
     "list_dynamic_dns",
     "list_energy_saving_policies",
+    "list_external_arm_profiles",
     "list_firewall_app_blocks",
     "list_firewall_groups",
     "list_firewall_policies",
@@ -497,6 +508,7 @@
     "list_pending_devices",
     "list_policy_engine_rules",
     "list_port_anomalies",
+    "list_port_automations",
     "list_port_forwards",
     "list_port_profiles",
     "list_power_supervisors",
@@ -680,6 +692,7 @@
     "start_spectrum_scan",
     "start_talkback_session",
     "start_wifi_quick_scan",
+    "stop_speaker_siren",
     "stop_speaker_stream",
     "suggest_network_settings",
     "suggest_service_port",
@@ -716,6 +729,7 @@
     "update_dynamic_dns",
     "update_edge_recording_settings",
     "update_energy_saving_policy",
+    "update_external_arm_profile",
     "update_firewall_policy",
     "update_firewall_zone_proxy",
     "update_fob",
@@ -743,6 +757,7 @@
     "update_nvr",
     "update_ospf_router",
     "update_policy_engine_rule",
+    "update_port_automation",
     "update_port_forward",
     "update_port_profile",
     "update_power_supervisor",
@@ -798,7 +813,8 @@
     "upload_innerspace_plan_asset",
     "upload_protect_file",
     "upload_ringtone",
-    "verify_sim_pin"
+    "verify_sim_pin",
+    "wake_client"
   ],
   "queries": [
     {
@@ -812,12 +828,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to mark ONE critical system-log alert as read (acknowledge it). Unverified route",
+      "query": "I need to mark ONE critical system-log alert as read (acknowledge it). Not run on a console",
       "expected": "acknowledge_critical_alert",
       "kind": "purpose"
     },
     {
-      "query": "Help me mark ONE critical system-log alert as read (acknowledge it). Unverified route",
+      "query": "Help me mark ONE critical system-log alert as read (acknowledge it). Not run on a console",
       "expected": "acknowledge_critical_alert",
       "kind": "operation"
     },
@@ -862,12 +878,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to adopt an available Protect device using its native id. Adoption changes management and",
+      "query": "I need to adopt an available Protect device using its native id. Adoption changes management and may interrupt service. Returns the relay status and unchanged upstream adoption result; no automatic retry. An unknown id may return a per-device error in an HTTP 200 response",
       "expected": "adopt_protect_device",
       "kind": "purpose"
     },
     {
-      "query": "Help me adopt an available Protect device using its native id. Adoption changes management and",
+      "query": "Help me adopt an available Protect device using its native id. Adoption changes management and may interrupt service. Returns the relay status and unchanged upstream adoption result; no automatic retry. An unknown id may return a per-device error in an HTTP 200 response",
       "expected": "adopt_protect_device",
       "kind": "operation"
     },
@@ -902,12 +918,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to allow (un-exclude) a VLAN network on a switch port profile",
+      "query": "I need to allow (un-exclude) a VLAN network on a switch port profile: the remediation for create_network's D12_AUTO_EXCLUSION warning (run it on every profile named there). Validates network_id, fresh-reads the profile, removes the network from excluded_networkconf_ids and PUTs",
       "expected": "allow_network_on_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me allow (un-exclude) a VLAN network on a switch port profile",
+      "query": "Help me allow (un-exclude) a VLAN network on a switch port profile: the remediation for create_network's D12_AUTO_EXCLUSION warning (run it on every profile named there). Validates network_id, fresh-reads the profile, removes the network from excluded_networkconf_ids and PUTs",
       "expected": "allow_network_on_port_profile",
       "kind": "operation"
     },
@@ -962,6 +978,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to arm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/arm)",
+      "expected": "arm_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me arm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/arm)",
+      "expected": "arm_external_arm_profile",
+      "kind": "operation"
+    },
+    {
       "query": "I need to assign a service plan to a subscriber (PUT .../subscribers/{id}/plan). Guarded write",
       "expected": "assign_carrier_subscriber_plan",
       "kind": "purpose"
@@ -1002,12 +1028,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to authorize a guest client on the guest portal (let it onto the network now)",
+      "query": "I need to authorize a guest client on the guest portal (onto the network now). Undo with revoke_guest_access",
       "expected": "authorize_guest",
       "kind": "purpose"
     },
     {
-      "query": "Help me authorize a guest client on the guest portal (let it onto the network now)",
+      "query": "Help me authorize a guest client on the guest portal (onto the network now). Undo with revoke_guest_access",
       "expected": "authorize_guest",
       "kind": "operation"
     },
@@ -1022,32 +1048,32 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this task (v2 POST acl-rules/batch-delete, one call)",
+      "query": "I need to this task (v2 POST acl-rules/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}",
       "expected": "batch_delete_acl_rules",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task (v2 POST acl-rules/batch-delete, one call)",
+      "query": "Help me this task (v2 POST acl-rules/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}",
       "expected": "batch_delete_acl_rules",
       "kind": "operation"
     },
     {
-      "query": "I need to this task (DELETE firewall/policies/{id} per id, then read back)",
+      "query": "I need to this task (DELETE firewall/policies/{id} per id, then read back). Consequence: permanently removes every listed record; there is no undo. The v2 batch route cannot be addressed with Integration ids, so each id goes to the Integration DELETE, then each id is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. With several differing bodies response is the list of them in id order. When a read-back still finds an id, deleted is false and message names it; when the read-back failed, readAfterError says why. A failing DELETE raises, naming the ids already deleted. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}} (a list of them for several ids)",
       "expected": "batch_delete_firewall_policies",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task (DELETE firewall/policies/{id} per id, then read back)",
+      "query": "Help me this task (DELETE firewall/policies/{id} per id, then read back). Consequence: permanently removes every listed record; there is no undo. The v2 batch route cannot be addressed with Integration ids, so each id goes to the Integration DELETE, then each id is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. With several differing bodies response is the list of them in id order. When a read-back still finds an id, deleted is false and message names it; when the read-back failed, readAfterError says why. A failing DELETE raises, naming the ids already deleted. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}} (a list of them for several ids)",
       "expected": "batch_delete_firewall_policies",
       "kind": "operation"
     },
     {
-      "query": "I need to this task (v2 POST firewall/zone/batch-delete, one call)",
+      "query": "I need to this task (v2 POST firewall/zone/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}",
       "expected": "batch_delete_firewall_zones",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task (v2 POST firewall/zone/batch-delete, one call)",
+      "query": "Help me this task (v2 POST firewall/zone/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: \"dry_run\", deleted: false, message, response}, where response is {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}",
       "expected": "batch_delete_firewall_zones",
       "kind": "operation"
     },
@@ -1162,12 +1188,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to clear a sensor's latched tamper flag once. Returns the relay status and unchanged",
+      "query": "I need to clear a sensor's latched tamper flag once. Returns the relay status and unchanged response; _readAfter reports current sensor state without claiming success from HTTP alone. Failed read-back preserves the response with readAfterError and null _verified/_noOp verdicts. No automatic retry",
       "expected": "clear_sensor_tamper",
       "kind": "purpose"
     },
     {
-      "query": "Help me clear a sensor's latched tamper flag once. Returns the relay status and unchanged",
+      "query": "Help me clear a sensor's latched tamper flag once. Returns the relay status and unchanged response; _readAfter reports current sensor state without claiming success from HTTP alone. Failed read-back preserves the response with readAfterError and null _verified/_noOp verdicts. No automatic retry",
       "expected": "clear_sensor_tamper",
       "kind": "operation"
     },
@@ -1202,32 +1228,32 @@
       "kind": "operation"
     },
     {
-      "query": "I need to collect Protect device add/remove/modify changes by polling every device family for",
+      "query": "I need to collect Protect device add/remove/modify changes by polling every device family for poll_count complete snapshots. The WebSocket subscription is unavailable through Fabric; this read-only, stateless tool is its REST equivalent",
       "expected": "collect_protect_device_changes",
       "kind": "purpose"
     },
     {
-      "query": "Help me collect Protect device add/remove/modify changes by polling every device family for",
+      "query": "Help me collect Protect device add/remove/modify changes by polling every device family for poll_count complete snapshots. The WebSocket subscription is unavailable through Fabric; this read-only, stateless tool is its REST equivalent",
       "expected": "collect_protect_device_changes",
       "kind": "operation"
     },
     {
-      "query": "I need to this task over a bounded polling window (live-feed stand-in)",
+      "query": "I need to this task over a bounded polling window (live-feed stand-in; read-only, stateless, no cursor between calls). The window is bounded by poll count complete polls, never by elapsed time. The /v1/subscribe/events WebSocket is not reachable over the Fabric connector (an upgrade GET returns 404, never 101), so this polls the historical-events path and returns every distinct event seen",
       "expected": "collect_protect_events",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task over a bounded polling window (live-feed stand-in)",
+      "query": "Help me this task over a bounded polling window (live-feed stand-in; read-only, stateless, no cursor between calls). The window is bounded by poll count complete polls, never by elapsed time. The /v1/subscribe/events WebSocket is not reachable over the Fabric connector (an upgrade GET returns 404, never 101), so this polls the historical-events path and returns every distinct event seen",
       "expected": "collect_protect_events",
       "kind": "operation"
     },
     {
-      "query": "I need to collect normalized incident evidence from Protect events for one window",
+      "query": "I need to collect normalized incident evidence from Protect events for one window (a plain read). Reads the private GET protect/api/events route (as list_protect_events) over [start, end), draining every page, and returns one versioned document (schema_name \"unifi-fabric-incident-evidence\", schema_version 1) instead of native events; use list_protect_events or get_protect_event for the verbatim event. Each record keeps the native id (provenance.record_id)",
       "expected": "collect_protect_incident_evidence",
       "kind": "purpose"
     },
     {
-      "query": "Help me collect normalized incident evidence from Protect events for one window",
+      "query": "Help me collect normalized incident evidence from Protect events for one window (a plain read). Reads the private GET protect/api/events route (as list_protect_events) over [start, end), draining every page, and returns one versioned document (schema_name \"unifi-fabric-incident-evidence\", schema_version 1) instead of native events; use list_protect_events or get_protect_event for the verbatim event. Each record keeps the native id (provenance.record_id)",
       "expected": "collect_protect_incident_evidence",
       "kind": "operation"
     },
@@ -1392,12 +1418,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to generate a one-off controller backup file and return its console download path; no",
+      "query": "I need to generate a one-off controller backup file and return its console download path; no stored backup is added. Backups may contain secrets; this command never downloads one",
       "expected": "create_backup",
       "kind": "purpose"
     },
     {
-      "query": "Help me generate a one-off controller backup file and return its console download path; no",
+      "query": "Help me generate a one-off controller backup file and return its console download path; no stored backup is added. Backups may contain secrets; this command never downloads one",
       "expected": "create_backup",
       "kind": "operation"
     },
@@ -1432,12 +1458,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a known-client record for a MAC the controller has not seen yet, to",
+      "query": "I need to create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect",
       "expected": "create_client_reservation",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a known-client record for a MAC the controller has not seen yet, to",
+      "query": "Help me create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect",
       "expected": "create_client_reservation",
       "kind": "operation"
     },
@@ -1452,12 +1478,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a device tag on a site. This is a write operation that modifies live config",
+      "query": "I need to create a device tag on a site (groups devices by MAC in the UniFi UI). Write: modifies live config",
       "expected": "create_device_tag",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a device tag on a site. This is a write operation that modifies live config",
+      "query": "Help me create a device tag on a site (groups devices by MAC in the UniFi UI). Write: modifies live config",
       "expected": "create_device_tag",
       "kind": "operation"
     },
@@ -1502,12 +1528,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a new firewall policy on a site",
+      "query": "I need to create an external arm profile (POST /v1/external/arm-profiles)",
+      "expected": "create_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me create an external arm profile (POST /v1/external/arm-profiles)",
+      "expected": "create_external_arm_profile",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to create a new firewall policy on a site. Returns the created policy object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_firewall_policy",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a new firewall policy on a site",
+      "query": "Help me create a new firewall policy on a site. Returns the created policy object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_firewall_policy",
       "kind": "operation"
     },
@@ -1602,12 +1638,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a new network/VLAN on a site",
+      "query": "I need to create a new network/VLAN on a site. Returns the created network object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_network",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a new network/VLAN on a site",
+      "query": "Help me create a new network/VLAN on a site. Returns the created network object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_network",
       "kind": "operation"
     },
@@ -1642,22 +1678,32 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a port forwarding rule via the Classic REST API",
+      "query": "I need to create a port automation (Network 11.1 v2 route)",
+      "expected": "create_port_automation",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me create a port automation (Network 11.1 v2 route)",
+      "expected": "create_port_automation",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to create a port forwarding rule via the Classic REST API. Returns the controller's envelope {meta: {rc}, data: [...]} verbatim (meta relayed, never interpreted). Under dry-run policy nothing is sent: the bare preview",
       "expected": "create_port_forward",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a port forwarding rule via the Classic REST API",
+      "query": "Help me create a port forwarding rule via the Classic REST API. Returns the controller's envelope {meta: {rc}, data: [...]} verbatim (meta relayed, never interpreted). Under dry-run policy nothing is sent: the bare preview",
       "expected": "create_port_forward",
       "kind": "operation"
     },
     {
-      "query": "I need to create a switch port profile via Classic REST POST rest/portconf (the UI's route)",
+      "query": "I need to create a switch port profile via Classic POST rest/portconf (the UI's route). The body is sent verbatim (additive _ keys from a read are dropped): name, tagged_vlan_mgmt (auto, block_all, custom) with the matching forward (all, native, customize), native_networkconf_id, voice_networkconf_id, excluded_networkconf_ids, poe_mode and the other portconf fields list_port_profiles shows. Networkconf id fields accept a Classic _id or the Integration id from list_networks, converted before the POST; an unknown value fails listing every network, nothing sent",
       "expected": "create_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a switch port profile via Classic REST POST rest/portconf (the UI's route)",
+      "query": "Help me create a switch port profile via Classic POST rest/portconf (the UI's route). The body is sent verbatim (additive _ keys from a read are dropped): name, tagged_vlan_mgmt (auto, block_all, custom) with the matching forward (all, native, customize), native_networkconf_id, voice_networkconf_id, excluded_networkconf_ids, poe_mode and the other portconf fields list_port_profiles shows. Networkconf id fields accept a Classic _id or the Integration id from list_networks, converted before the POST; an unknown value fails listing every network, nothing sent",
       "expected": "create_port_profile",
       "kind": "operation"
     },
@@ -1842,12 +1888,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a site-to-site VPN tunnel. This is a write operation that modifies live config",
+      "query": "I need to create a site-to-site VPN tunnel. Write: modifies live config",
       "expected": "create_site_to_site_tunnel",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a site-to-site VPN tunnel. This is a write operation that modifies live config",
+      "query": "Help me create a site-to-site VPN tunnel. Write: modifies live config",
       "expected": "create_site_to_site_tunnel",
       "kind": "operation"
     },
@@ -1932,12 +1978,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create a traffic route on a site (policy-based routing / WAN load-balancing)",
+      "query": "I need to create a traffic route on a site (policy-based routing / WAN load-balancing). Returns the created route verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_traffic_route",
       "kind": "purpose"
     },
     {
-      "query": "Help me create a traffic route on a site (policy-based routing / WAN load-balancing)",
+      "query": "Help me create a traffic route on a site (policy-based routing / WAN load-balancing). Returns the created route verbatim (under dry-run policy, the dry-run preview)",
       "expected": "create_traffic_route",
       "kind": "operation"
     },
@@ -2052,12 +2098,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete a content-filtering profile (Network v2 route). Consequence: permanently",
+      "query": "I need to delete a content-filtering profile (Network v2 route). Consequence: permanently removes the profile and stops its blocking",
       "expected": "delete_content_filter",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a content-filtering profile (Network v2 route). Consequence: permanently",
+      "query": "Help me delete a content-filtering profile (Network v2 route). Consequence: permanently removes the profile and stops its blocking",
       "expected": "delete_content_filter",
       "kind": "operation"
     },
@@ -2072,12 +2118,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete a device tag. This permanently removes the tag from the site",
+      "query": "I need to delete a device tag. Permanently removes the tag from the site",
       "expected": "delete_device_tag",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a device tag. This permanently removes the tag from the site",
+      "query": "Help me delete a device tag. Permanently removes the tag from the site",
       "expected": "delete_device_tag",
       "kind": "operation"
     },
@@ -2139,6 +2185,16 @@
     {
       "query": "Help me delete an energy-saving policy (Network v2 route)",
       "expected": "delete_energy_saving_policy",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to delete an external arm profile (DELETE /v1/external/arm-profiles/{id}). Irreversible",
+      "expected": "delete_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me delete an external arm profile (DELETE /v1/external/arm-profiles/{id}). Irreversible",
+      "expected": "delete_external_arm_profile",
       "kind": "operation"
     },
     {
@@ -2272,6 +2328,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to delete a port automation (Network 11.1 v2 route)",
+      "expected": "delete_port_automation",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me delete a port automation (Network 11.1 v2 route)",
+      "expected": "delete_port_automation",
+      "kind": "operation"
+    },
+    {
       "query": "I need to delete a port forwarding rule by ID",
       "expected": "delete_port_forward",
       "kind": "purpose"
@@ -2332,12 +2398,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete one stored Protect backup permanently",
+      "query": "I need to delete one stored Protect backup permanently. Lists backups to check backup_id (unknown ids fail listing the valid ones, before any write), sends DELETE protect/api/backup/{backup_id} (the singular route; Protect 7.3 answers 404 on the plural), then lists again",
       "expected": "delete_protect_backup",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete one stored Protect backup permanently",
+      "query": "Help me delete one stored Protect backup permanently. Lists backups to check backup_id (unknown ids fail listing the valid ones, before any write), sends DELETE protect/api/backup/{backup_id} (the singular route; Protect 7.3 answers 404 on the plural), then lists again",
       "expected": "delete_protect_backup",
       "kind": "operation"
     },
@@ -2402,12 +2468,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this tasks (Network v2 batch-delete route). Consequence: permanently removes",
+      "query": "I need to this tasks (Network v2 batch-delete route). Consequence: permanently removes the rules",
       "expected": "delete_qos_rule",
       "kind": "purpose"
     },
     {
-      "query": "Help me this tasks (Network v2 batch-delete route). Consequence: permanently removes",
+      "query": "Help me this tasks (Network v2 batch-delete route). Consequence: permanently removes the rules",
       "expected": "delete_qos_rule",
       "kind": "operation"
     },
@@ -2462,12 +2528,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete an RTSPS stream for a Protect camera",
+      "query": "I need to delete an RTSPS stream for a Protect camera. Consequence: the RTSPS URL of each deleted quality stops working for every consumer; there is no undo",
       "expected": "delete_rtsps_stream",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete an RTSPS stream for a Protect camera",
+      "query": "Help me delete an RTSPS stream for a Protect camera. Consequence: the RTSPS URL of each deleted quality stops working for every consumer; there is no undo",
       "expected": "delete_rtsps_stream",
       "kind": "operation"
     },
@@ -2482,22 +2548,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete a Network site and everything configured in it",
+      "query": "I need to delete a Network site and everything configured in it. Consequence: the site and its configuration (networks, WiFi, firewall rules, client records, device settings) are removed; move its devices to another site first. There is no undo",
       "expected": "delete_site",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a Network site and everything configured in it",
+      "query": "Help me delete a Network site and everything configured in it. Consequence: the site and its configuration (networks, WiFi, firewall rules, client records, device settings) are removed; move its devices to another site first. There is no undo",
       "expected": "delete_site",
       "kind": "operation"
     },
     {
-      "query": "I need to delete a site-to-site VPN tunnel by ID. This permanently removes the tunnel config",
+      "query": "I need to delete a site-to-site VPN tunnel by ID. Permanently removes the tunnel config",
       "expected": "delete_site_to_site_tunnel",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a site-to-site VPN tunnel by ID. This permanently removes the tunnel config",
+      "query": "Help me delete a site-to-site VPN tunnel by ID. Permanently removes the tunnel config",
       "expected": "delete_site_to_site_tunnel",
       "kind": "operation"
     },
@@ -2592,22 +2658,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to delete a VPN client connection by id. This permanently removes its configuration",
+      "query": "I need to delete a VPN client connection by id. Permanently removes its configuration",
       "expected": "delete_vpn_client",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a VPN client connection by id. This permanently removes its configuration",
+      "query": "Help me delete a VPN client connection by id. Permanently removes its configuration",
       "expected": "delete_vpn_client",
       "kind": "operation"
     },
     {
-      "query": "I need to delete a VPN server by ID. WARNING: Permanently removes VPN server",
+      "query": "I need to delete a VPN server by ID. WARNING: permanently removes the VPN server",
       "expected": "delete_vpn_server",
       "kind": "purpose"
     },
     {
-      "query": "Help me delete a VPN server by ID. WARNING: Permanently removes VPN server",
+      "query": "Help me delete a VPN server by ID. WARNING: permanently removes the VPN server",
       "expected": "delete_vpn_server",
       "kind": "operation"
     },
@@ -2662,6 +2728,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to diagnose a site's Wi-Fi from live AP, client and statistics reads; read-only",
+      "expected": "diagnose_wifi",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me diagnose a site's Wi-Fi from live AP, client and statistics reads; read-only",
+      "expected": "diagnose_wifi",
+      "kind": "operation"
+    },
+    {
       "query": "I need to disable the arm alarm (POST /v1/arm-profiles/disable). Disarms the system",
       "expected": "disable_arm",
       "kind": "purpose"
@@ -2689,6 +2765,16 @@
     {
       "query": "Help me disable a camera's livestream share link, revoking public viewing access",
       "expected": "disable_camera_share_link",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to disarm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/disarm)",
+      "expected": "disarm_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me disarm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/disarm)",
+      "expected": "disarm_external_arm_profile",
       "kind": "operation"
     },
     {
@@ -2742,52 +2828,52 @@
       "kind": "operation"
     },
     {
-      "query": "I need to enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user",
+      "query": "I need to enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user. credential_type is nfc or fingerprint. step enroll (POST cameras/{camera_id}/{credential_type}/enroll) puts the doorbell into enrollment mode (present the card or finger); step assign (POST .../assign) assigns the read credential to a user: body is fields plus fingerprintId and ulpId when given (NFC body not published: pass its keys in fields); step cancel (POST .../cancel) leaves enrollment mode. fingerprint_id, ulp_id and fields apply to assign only (with another step they fail before any request)",
       "expected": "enroll_doorbell_credential",
       "kind": "purpose"
     },
     {
-      "query": "Help me enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user",
+      "query": "Help me enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user. credential_type is nfc or fingerprint. step enroll (POST cameras/{camera_id}/{credential_type}/enroll) puts the doorbell into enrollment mode (present the card or finger); step assign (POST .../assign) assigns the read credential to a user: body is fields plus fingerprintId and ulpId when given (NFC body not published: pass its keys in fields); step cancel (POST .../cancel) leaves enrollment mode. fingerprint_id, ulp_id and fields apply to assign only (with another step they fail before any request)",
       "expected": "enroll_doorbell_credential",
       "kind": "operation"
     },
     {
-      "query": "I need to exclude (untag) a VLAN network from a switch port profile",
+      "query": "I need to exclude (untag) a VLAN network from a switch port profile; inverse of allow_network_on_port_profile. Validates network_id, fresh-reads the profile, adds the network's _id to excluded_networkconf_ids and PUTs",
       "expected": "exclude_network_on_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me exclude (untag) a VLAN network from a switch port profile",
+      "query": "Help me exclude (untag) a VLAN network from a switch port profile; inverse of allow_network_on_port_profile. Validates network_id, fresh-reads the profile, adds the network's _id to excluded_networkconf_ids and PUTs",
       "expected": "exclude_network_on_port_profile",
       "kind": "operation"
     },
     {
-      "query": "I need to execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or",
+      "query": "I need to execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client",
       "expected": "execute_client_action",
       "kind": "purpose"
     },
     {
-      "query": "Help me execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or",
+      "query": "Help me execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client",
       "expected": "execute_client_action",
       "kind": "operation"
     },
     {
-      "query": "I need to execute an action on an adopted device via the Network Integration actions route",
+      "query": "I need to execute an action on an adopted device via the Network Integration actions route (POST /v1/sites/{siteId}/devices/{deviceId}/actions, Network 11.0.97)",
       "expected": "execute_device_action",
       "kind": "purpose"
     },
     {
-      "query": "Help me execute an action on an adopted device via the Network Integration actions route",
+      "query": "Help me execute an action on an adopted device via the Network Integration actions route (POST /v1/sites/{siteId}/devices/{deviceId}/actions, Network 11.0.97)",
       "expected": "execute_device_action",
       "kind": "operation"
     },
     {
-      "query": "I need to execute a device port action",
+      "query": "I need to execute a device port action (POST /v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions, Network 11.0.97)",
       "expected": "execute_port_action",
       "kind": "purpose"
     },
     {
-      "query": "Help me execute a device port action",
+      "query": "Help me execute a device port action (POST /v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions, Network 11.0.97)",
       "expected": "execute_port_action",
       "kind": "operation"
     },
@@ -2842,72 +2928,72 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this task (Network v2 route; a read-type POST, classed as a write)",
+      "query": "I need to this task (Network v2 route; a read-type POST, classed as a write). Consequence: none intended (an export); classed as a write because the POST is not on the read-POST allowlist",
       "expected": "export_traffic_flows",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task (Network v2 route; a read-type POST, classed as a write)",
+      "query": "Help me this task (Network v2 route; a read-type POST, classed as a write). Consequence: none intended (an export); classed as a write because the POST is not on the read-POST allowlist",
       "expected": "export_traffic_flows",
       "kind": "operation"
     },
     {
-      "query": "I need to extend a guest authorization (the UI's \"Extend\" on a guest)",
+      "query": "I need to extend a guest authorization (the UI's \"Extend\")",
       "expected": "extend_guest",
       "kind": "purpose"
     },
     {
-      "query": "Help me extend a guest authorization (the UI's \"Extend\" on a guest)",
+      "query": "Help me extend a guest authorization (the UI's \"Extend\")",
       "expected": "extend_guest",
       "kind": "operation"
     },
     {
-      "query": "I need to relay a DELETE through the Fabric connector. Irreversible write to the controller",
+      "query": "I need to relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too",
       "expected": "fabric_connector_delete",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a DELETE through the Fabric connector. Irreversible write to the controller",
+      "query": "Help me relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too",
       "expected": "fabric_connector_delete",
       "kind": "operation"
     },
     {
-      "query": "I need to relay a GET through the Fabric connector to any console /proxy/{path} route",
+      "query": "I need to relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too",
       "expected": "fabric_connector_get",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a GET through the Fabric connector to any console /proxy/{path} route",
+      "query": "Help me relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too",
       "expected": "fabric_connector_get",
       "kind": "operation"
     },
     {
-      "query": "I need to relay a PATCH (partial update) through the Fabric connector. Writes upstream",
+      "query": "I need to relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too",
       "expected": "fabric_connector_patch",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a PATCH (partial update) through the Fabric connector. Writes upstream",
+      "query": "Help me relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too",
       "expected": "fabric_connector_patch",
       "kind": "operation"
     },
     {
-      "query": "I need to relay a POST (create/command) through the Fabric connector. Writes to the controller",
+      "query": "I need to relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too",
       "expected": "fabric_connector_post",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a POST (create/command) through the Fabric connector. Writes to the controller",
+      "query": "Help me relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too",
       "expected": "fabric_connector_post",
       "kind": "operation"
     },
     {
-      "query": "I need to relay a PUT (full replace) through the Fabric connector. Writes upstream",
+      "query": "I need to relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too",
       "expected": "fabric_connector_put",
       "kind": "purpose"
     },
     {
-      "query": "Help me relay a PUT (full replace) through the Fabric connector. Writes upstream",
+      "query": "Help me relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too",
       "expected": "fabric_connector_put",
       "kind": "operation"
     },
@@ -3202,12 +3288,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to get first-class per-client link/policy diagnostics for one or more clients",
+      "query": "I need to get per-client link/policy diagnostics for one or more clients. Read-only and Fabric-only: reads the Classic /stat/sta payload (as list_active_clients_stats) and selects the requested client(s) in memory",
       "expected": "get_client_link_diagnostics",
       "kind": "purpose"
     },
     {
-      "query": "Help me get first-class per-client link/policy diagnostics for one or more clients",
+      "query": "Help me get per-client link/policy diagnostics for one or more clients. Read-only and Fabric-only: reads the Classic /stat/sta payload (as list_active_clients_stats) and selects the requested client(s) in memory",
       "expected": "get_client_link_diagnostics",
       "kind": "operation"
     },
@@ -3252,12 +3338,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to query the controller's time-series statistics service, as the web app's graphs do",
+      "query": "I need to query the controller's time-series statistics service, as the web app's graphs do. Returns the upstream body verbatim. View recent_series (GET /v2/api/stats/recent/series) answers an array of {siteId, deviceMac?, series: [...]}; it needs schema and exactly one of period or start (end optional), else the console may return 400. View series (GET /v2/api/stats/series) reads history over an explicit window: schema, bucket, start, end and filter (a missing one adds a hint to the console's error). View source answers the statistics backend (\"MODERN\" or \"LEGACY\"). start and end are sent exactly as given; negative or millisecond-like values add _warnings (an array result becomes {result, _warnings}). Only passed arguments are sent. filter uses the service's own grammar: a one-term and(...) is rejected (400 InvalidStatQuery); a single term without and(...) or and(...) with two or three terms works (Network 11.0.81)",
       "expected": "get_controller_stats",
       "kind": "purpose"
     },
     {
-      "query": "Help me query the controller's time-series statistics service, as the web app's graphs do",
+      "query": "Help me query the controller's time-series statistics service, as the web app's graphs do. Returns the upstream body verbatim. View recent_series (GET /v2/api/stats/recent/series) answers an array of {siteId, deviceMac?, series: [...]}; it needs schema and exactly one of period or start (end optional), else the console may return 400. View series (GET /v2/api/stats/series) reads history over an explicit window: schema, bucket, start, end and filter (a missing one adds a hint to the console's error). View source answers the statistics backend (\"MODERN\" or \"LEGACY\"). start and end are sent exactly as given; negative or millisecond-like values add _warnings (an array result becomes {result, _warnings}). Only passed arguments are sent. filter uses the service's own grammar: a one-term and(...) is rejected (400 InvalidStatQuery); a single term without and(...) or and(...) with two or three terms works (Network 11.0.81)",
       "expected": "get_controller_stats",
       "kind": "operation"
     },
@@ -3362,12 +3448,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to get per-device STP/RSTP state and per-port STP role/state/path-cost",
+      "query": "I need to get per-device STP/RSTP state and per-port STP role/state/path-cost. Read-only: reads the Classic /stat/device payload (as list_device_stats) and projects the selected device's STP fields",
       "expected": "get_device_stp_state",
       "kind": "purpose"
     },
     {
-      "query": "Help me get per-device STP/RSTP state and per-port STP role/state/path-cost",
+      "query": "Help me get per-device STP/RSTP state and per-port STP role/state/path-cost. Read-only: reads the Classic /stat/device payload (as list_device_stats) and projects the selected device's STP fields",
       "expected": "get_device_stp_state",
       "kind": "operation"
     },
@@ -3432,13 +3518,23 @@
       "kind": "operation"
     },
     {
-      "query": "I need to report whether live Network and Protect event streams are available, and listener health",
+      "query": "I need to report whether live Network and Protect event streams are available, and listener health. Reads this server's own state only; no console request. Both products publish live events only over WebSocket, which the Fabric connector (a request/response relay) does not carry, so both report state \"unsupported\", supported false, and use_instead names polling tools (list_network_events, get_system_log, list_ips_events; list_protect_events, collect_protect_events, collect_protect_device_changes). Nothing subscribes the MCP client to notifications",
       "expected": "get_event_stream_status",
       "kind": "purpose"
     },
     {
-      "query": "Help me report whether live Network and Protect event streams are available, and listener health",
+      "query": "Help me report whether live Network and Protect event streams are available, and listener health. Reads this server's own state only; no console request. Both products publish live events only over WebSocket, which the Fabric connector (a request/response relay) does not carry, so both report state \"unsupported\", supported false, and use_instead names polling tools (list_network_events, get_system_log, list_ips_events; list_protect_events, collect_protect_events, collect_protect_device_changes). Nothing subscribes the MCP client to notifications",
       "expected": "get_event_stream_status",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to get one external arm profile (GET /v1/external/arm-profiles/{id})",
+      "expected": "get_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get one external arm profile (GET /v1/external/arm-profiles/{id})",
+      "expected": "get_external_arm_profile",
       "kind": "operation"
     },
     {
@@ -3512,12 +3608,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to get a high-level fleet summary: host, site, and device counts with status breakdowns",
+      "query": "I need to get a high-level fleet summary: host, site and device counts with status breakdowns. Covers every configured API key unless key_label names one (per-key failures under errors); a console visible to more than one key is counted once, under the first key in configuration order (as list_all_clients does)",
       "expected": "get_fleet_summary",
       "kind": "purpose"
     },
     {
-      "query": "Help me get a high-level fleet summary: host, site, and device counts with status breakdowns",
+      "query": "Help me get a high-level fleet summary: host, site and device counts with status breakdowns. Covers every configured API key unless key_label names one (per-key failures under errors); a console visible to more than one key is counted once, under the first key in configuration order (as list_all_clients does)",
       "expected": "get_fleet_summary",
       "kind": "operation"
     },
@@ -3559,6 +3655,16 @@
     {
       "query": "Help me get details for a single UniFi console by name or ID",
       "expected": "get_host",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to get the last delivery attempt of the hotspot guest-data webhook",
+      "expected": "get_hotspot_guest_webhook_delivery",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get the last delivery attempt of the hotspot guest-data webhook",
+      "expected": "get_hotspot_guest_webhook_delivery",
       "kind": "operation"
     },
     {
@@ -3612,12 +3718,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to download a floor-plan asset (image) from a console's InnerSpace project",
+      "query": "I need to download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here)",
       "expected": "get_innerspace_asset",
       "kind": "purpose"
     },
     {
-      "query": "Help me download a floor-plan asset (image) from a console's InnerSpace project",
+      "query": "Help me download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here)",
       "expected": "get_innerspace_asset",
       "kind": "operation"
     },
@@ -3702,12 +3808,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to get WAN health metrics (speed, latency, packet loss, uptime)",
+      "query": "I need to get WAN health metrics (speed, latency, packet loss, uptime). Unscoped variant (every site the key sees); interval ('5m' or '1h') is the bucket size; duration, or begin_timestamp/end_timestamp, bound the range. To scope by console/site use query_isp_metrics",
       "expected": "get_isp_metrics",
       "kind": "purpose"
     },
     {
-      "query": "Help me get WAN health metrics (speed, latency, packet loss, uptime)",
+      "query": "Help me get WAN health metrics (speed, latency, packet loss, uptime). Unscoped variant (every site the key sees); interval ('5m' or '1h') is the bucket size; duration, or begin_timestamp/end_timestamp, bound the range. To scope by console/site use query_isp_metrics",
       "expected": "get_isp_metrics",
       "kind": "operation"
     },
@@ -3979,6 +4085,16 @@
     {
       "query": "Help me read the site's PoE budget and per-port power information (Network v2 route)",
       "expected": "get_poe_info",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to get one port automation (Network 11.1 v2 route)",
+      "expected": "get_port_automation",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me get one port automation (Network 11.1 v2 route)",
+      "expected": "get_port_automation",
       "kind": "operation"
     },
     {
@@ -4262,12 +4378,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to read the Network system log for one device, client connection, admin-activity record",
+      "query": "I need to read the Network system log for one device, client connection, admin-activity record or external id (a plain GET, no drain)",
       "expected": "get_scoped_system_log",
       "kind": "purpose"
     },
     {
-      "query": "Help me read the Network system log for one device, client connection, admin-activity record",
+      "query": "Help me read the Network system log for one device, client connection, admin-activity record or external id (a plain GET, no drain)",
       "expected": "get_scoped_system_log",
       "kind": "operation"
     },
@@ -4332,12 +4448,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to build a sanitized diagnostic bundle about this MCP server, for a bug report",
+      "query": "I need to build a sanitized diagnostic bundle about this MCP server, for a bug report (not a controller support file; see generate_support_file). Returns {bundle, schemaVersion, generatedAt, review, collection, sections, neverCollected, sanitization}. collection.mode is \"local\" or \"local+live\"; collection.upstreamRequests counts requests sent (0 by default). sections: server (versions, OS family), configuration (modes, key count, cache, paging, log/audit settings as enums, booleans, numbers), policy (effective write and exposure policy and digest), transport, cache, runtime (tool count) and liveProbes; each has a status (complete, partial, failed, unavailable) and a source; a failed section gives an exception type name only",
       "expected": "get_server_diagnostic_bundle",
       "kind": "purpose"
     },
     {
-      "query": "Help me build a sanitized diagnostic bundle about this MCP server, for a bug report",
+      "query": "Help me build a sanitized diagnostic bundle about this MCP server, for a bug report (not a controller support file; see generate_support_file). Returns {bundle, schemaVersion, generatedAt, review, collection, sections, neverCollected, sanitization}. collection.mode is \"local\" or \"local+live\"; collection.upstreamRequests counts requests sent (0 by default). sections: server (versions, OS family), configuration (modes, key count, cache, paging, log/audit settings as enums, booleans, numbers), policy (effective write and exposure policy and digest), transport, cache, runtime (tool count) and liveProbes; each has a status (complete, partial, failed, unavailable) and a source; a failed section gives an exception type name only",
       "expected": "get_server_diagnostic_bundle",
       "kind": "operation"
     },
@@ -4612,12 +4728,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to return a bounded, read-only UniFi topology and placement projection",
+      "query": "I need to return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract",
       "expected": "get_unifi_placement_snapshot",
       "kind": "purpose"
     },
     {
-      "query": "Help me return a bounded, read-only UniFi topology and placement projection",
+      "query": "Help me return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract",
       "expected": "get_unifi_placement_snapshot",
       "kind": "operation"
     },
@@ -4952,22 +5068,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list all connected clients across all sites",
+      "query": "I need to list all connected clients across all sites. Fans out to every site (every configured API key unless key_label names one; a console visible to more than one key is queried once, under the first key in configuration order), drains each site's client list and aggregates it",
       "expected": "list_all_clients",
       "kind": "purpose"
     },
     {
-      "query": "Help me list all connected clients across all sites",
+      "query": "Help me list all connected clients across all sites. Fans out to every site (every configured API key unless key_label names one; a console visible to more than one key is queried once, under the first key in configuration order), drains each site's client list and aggregates it",
       "expected": "list_all_clients",
       "kind": "operation"
     },
     {
-      "query": "I need to this task across the entire fleet",
+      "query": "I need to this task across the entire fleet (every configured API key unless key_label names one; per-key failures under errors). A console visible to more than one key is listed once, under the first key in configuration order (as list_all_clients does)",
       "expected": "list_all_devices",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task across the entire fleet",
+      "query": "Help me this task across the entire fleet (every configured API key unless key_label names one; per-key failures under errors). A console visible to more than one key is listed once, under the first key in configuration order (as list_all_clients does)",
       "expected": "list_all_devices",
       "kind": "operation"
     },
@@ -5092,12 +5208,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list connected clients for a site",
+      "query": "I need to list connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients)",
       "expected": "list_clients",
       "kind": "purpose"
     },
     {
-      "query": "Help me list connected clients for a site",
+      "query": "Help me list connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients)",
       "expected": "list_clients",
       "kind": "operation"
     },
@@ -5192,12 +5308,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list all devices across the fleet with status, firmware, and model",
+      "query": "I need to list all devices across the fleet with status, firmware and model. Returns {data, _count, _consoleCount} plus upstream envelope fields. data holds console wrappers {hostId, hostName, devices: [...]} unchanged; _count counts their devices, _consoleCount the wrappers; null/missing/empty devices count as 0",
       "expected": "list_devices",
       "kind": "purpose"
     },
     {
-      "query": "Help me list all devices across the fleet with status, firmware, and model",
+      "query": "Help me list all devices across the fleet with status, firmware and model. Returns {data, _count, _consoleCount} plus upstream envelope fields. data holds console wrappers {hostId, hostName, devices: [...]} unchanged; _count counts their devices, _consoleCount the wrappers; null/missing/empty devices count as 0",
       "expected": "list_devices",
       "kind": "operation"
     },
@@ -5312,6 +5428,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to list the arm profiles of the external alarm manager (GET /v1/external/arm-profiles)",
+      "expected": "list_external_arm_profiles",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list the arm profiles of the external alarm manager (GET /v1/external/arm-profiles)",
+      "expected": "list_external_arm_profiles",
+      "kind": "operation"
+    },
+    {
       "query": "I need to read application blocks. Returns the complete application-block array verbatim",
       "expected": "list_firewall_app_blocks",
       "kind": "purpose"
@@ -5332,12 +5458,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this task for a site",
+      "query": "I need to this task for a site. Returns {data, totalCount}: every page is drained; data holds the policy records verbatim, totalCount is the upstream total (null if none reported), the first page's other envelope fields are kept, and incomplete/incompleteReason mark a capped drain. Offset alone fetches one page (totalCount surfaced so you can advance). limit requests a total, gathered in batches up to 200; _pageSize reports requested, sent, effective and returned sizes. filter is a Network Integration API filter expression forwarded unchanged (e.g. name.like('*guest*'), metadata.origin.eq('USER_DEFINED')); omitted when unset",
       "expected": "list_firewall_policies",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task for a site",
+      "query": "Help me this task for a site. Returns {data, totalCount}: every page is drained; data holds the policy records verbatim, totalCount is the upstream total (null if none reported), the first page's other envelope fields are kept, and incomplete/incompleteReason mark a capped drain. Offset alone fetches one page (totalCount surfaced so you can advance). limit requests a total, gathered in batches up to 200; _pageSize reports requested, sent, effective and returned sizes. filter is a Network Integration API filter expression forwarded unchanged (e.g. name.like('*guest*'), metadata.origin.eq('USER_DEFINED')); omitted when unset",
       "expected": "list_firewall_policies",
       "kind": "operation"
     },
@@ -5392,12 +5518,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list all UniFi consoles (hosts) with firmware, WAN IP, and status",
+      "query": "I need to list all UniFi consoles (hosts) with firmware, WAN IP and status. Returns {data: [host\u2026], _count} with upstream envelope fields, including GPS coordinates. data[].id is the long composite id; reportedState.hostname/name is the short name. Either identifies host arguments case-insensitively; ambiguous names return the matching consoles so the caller can choose an id",
       "expected": "list_hosts",
       "kind": "purpose"
     },
     {
-      "query": "Help me list all UniFi consoles (hosts) with firmware, WAN IP, and status",
+      "query": "Help me list all UniFi consoles (hosts) with firmware, WAN IP and status. Returns {data: [host\u2026], _count} with upstream envelope fields, including GPS coordinates. data[].id is the long composite id; reportedState.hostname/name is the short name. Either identifies host arguments case-insensitively; ambiguous names return the matching consoles so the caller can choose an id",
       "expected": "list_hosts",
       "kind": "operation"
     },
@@ -5552,12 +5678,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list the full per-site client roster incl. offline history (Classic REST /stat/alluser)",
+      "query": "I need to list the full per-site client roster including offline history (Classic REST /stat/alluser). Unlike list_active_clients_stats (connected only) it includes clients seen historically, typically far more entries; not the fleet-wide list_all_clients aggregation. This endpoint accepts GET",
       "expected": "list_known_clients",
       "kind": "purpose"
     },
     {
-      "query": "Help me list the full per-site client roster incl. offline history (Classic REST /stat/alluser)",
+      "query": "Help me list the full per-site client roster including offline history (Classic REST /stat/alluser). Unlike list_active_clients_stats (connected only) it includes clients seen historically, typically far more entries; not the fleet-wide list_all_clients aggregation. This endpoint accepts GET",
       "expected": "list_known_clients",
       "kind": "operation"
     },
@@ -5762,6 +5888,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to list a site's port automations (Network 11.1 v2 route)",
+      "expected": "list_port_automations",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me list a site's port automations (Network 11.1 v2 route)",
+      "expected": "list_port_automations",
+      "kind": "operation"
+    },
+    {
       "query": "I need to list all port forwarding rules for a site",
       "expected": "list_port_forwards",
       "kind": "purpose"
@@ -5842,12 +5978,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to query historical Protect events via private /proxy/protect/api/events; the official",
+      "query": "I need to query historical Protect events via private /proxy/protect/api/events; the official Integration events endpoint is WebSocket-only",
       "expected": "list_protect_events",
       "kind": "purpose"
     },
     {
-      "query": "Help me query historical Protect events via private /proxy/protect/api/events; the official",
+      "query": "Help me query historical Protect events via private /proxy/protect/api/events; the official Integration events endpoint is WebSocket-only",
       "expected": "list_protect_events",
       "kind": "operation"
     },
@@ -6062,12 +6198,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to list all sites with device/client counts and ISP info",
+      "query": "I need to list all sites with device/client counts and ISP info. Returns {data: [site\u2026], _count} plus upstream envelope fields. siteId is the Site Manager Fabric ObjectId, distinct from per-site proxy UUIDs; pass site names such as \"Default\" to tools and the server resolves the id",
       "expected": "list_sites",
       "kind": "purpose"
     },
     {
-      "query": "Help me list all sites with device/client counts and ISP info",
+      "query": "Help me list all sites with device/client counts and ISP info. Returns {data: [site\u2026], _count} plus upstream envelope fields. siteId is the Site Manager Fabric ObjectId, distinct from per-site proxy UUIDs; pass site names such as \"Default\" to tools and the server resolves the id",
       "expected": "list_sites",
       "kind": "operation"
     },
@@ -6462,12 +6598,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to create, update or delete an MC-LAG switch group (Network v2 route)",
+      "query": "I need to create, update or delete an MC-LAG switch group (Network v2 route). Consequence: changes switch link aggregation; links can drop. Never auto-retried",
       "expected": "manage_mclag_group",
       "kind": "purpose"
     },
     {
-      "query": "Help me create, update or delete an MC-LAG switch group (Network v2 route)",
+      "query": "Help me create, update or delete an MC-LAG switch group (Network v2 route). Consequence: changes switch link aggregation; links can drop. Never auto-retried",
       "expected": "manage_mclag_group",
       "kind": "operation"
     },
@@ -6562,12 +6698,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to ingest a POS transaction overlay onto camera footage",
+      "query": "I need to ingest a POS transaction overlay onto camera footage (POST /v1/pos/cameras/{id}/transactions via the Fabric proxy). Consequence: the transaction is overlaid on the camera's recorded footage. WARNING: creates a footage overlay event with no documented rollback; validated locally with an idempotency key; never auto-retried",
       "expected": "pos_ingest_transaction",
       "kind": "purpose"
     },
     {
-      "query": "Help me ingest a POS transaction overlay onto camera footage",
+      "query": "Help me ingest a POS transaction overlay onto camera footage (POST /v1/pos/cameras/{id}/transactions via the Fabric proxy). Consequence: the transaction is overlaid on the camera's recorded footage. WARNING: creates a footage overlay event with no documented rollback; validated locally with an idempotency key; never auto-retried",
       "expected": "pos_ingest_transaction",
       "kind": "operation"
     },
@@ -6662,12 +6798,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to query filtered ISP metrics for one or more scoped sites (via sites, or host+site)",
+      "query": "I need to query filtered ISP metrics for scoped sites: sites, or host+site (both is an error). The filtered variant of get_isp_metrics: start_time/end_time bound the window; for a quick unscoped read use get_isp_metrics",
       "expected": "query_isp_metrics",
       "kind": "purpose"
     },
     {
-      "query": "Help me query filtered ISP metrics for one or more scoped sites (via sites, or host+site)",
+      "query": "Help me query filtered ISP metrics for scoped sites: sites, or host+site (both is an error). The filtered variant of get_isp_metrics: start_time/end_time bound the window; for a quick unscoped read use get_isp_metrics",
       "expected": "query_isp_metrics",
       "kind": "operation"
     },
@@ -6712,12 +6848,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to this task: a Network v2 read-POST, available in read-only and dry-run modes",
+      "query": "I need to this task: a Network v2 read-POST allowlisted by live read evidence (2026-10-26, 50+ calls, configuration unchanged), so it works in read-only and dry-run modes. POST /proxy/network/v2/api/site/{site}/traffic-flows. Body keys override typed selectors; the window becomes epoch-ms timestampFrom/timestampTo; direction, action, risk and threat_signature become lists. Without pageSize, every page reported by has_next/total_page_count is drained from pageNumber (default 0). A body pageSize above 5000 is sent as 5000 per page (larger causes HTTP 400); at or below, as given; each integer pageSize returns that many records or fewer at the end, from pageNumber * pageSize. Upstream errors pass through. No window or page-count cap applies (not even UNIFI_PAGINATE_MAX_PAGES); large queries can use substantial controller memory and time. _nextPage {offset, pageSize} resumes at the first unreturned record: pass it as body.pageNumber, optionally with a new body.pageSize. _pageSize {requested, sent, effective, returned} reports sizes",
       "expected": "query_traffic_flows",
       "kind": "purpose"
     },
     {
-      "query": "Help me this task: a Network v2 read-POST, available in read-only and dry-run modes",
+      "query": "Help me this task: a Network v2 read-POST allowlisted by live read evidence (2026-10-26, 50+ calls, configuration unchanged), so it works in read-only and dry-run modes. POST /proxy/network/v2/api/site/{site}/traffic-flows. Body keys override typed selectors; the window becomes epoch-ms timestampFrom/timestampTo; direction, action, risk and threat_signature become lists. Without pageSize, every page reported by has_next/total_page_count is drained from pageNumber (default 0). A body pageSize above 5000 is sent as 5000 per page (larger causes HTTP 400); at or below, as given; each integer pageSize returns that many records or fewer at the end, from pageNumber * pageSize. Upstream errors pass through. No window or page-count cap applies (not even UNIFI_PAGINATE_MAX_PAGES); large queries can use substantial controller memory and time. _nextPage {offset, pageSize} resumes at the first unreturned record: pass it as body.pageNumber, optionally with a new body.pageSize. _pageSize {requested, sent, effective, returned} reports sizes",
       "expected": "query_traffic_flows",
       "kind": "operation"
     },
@@ -6742,22 +6878,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to reboot a Protect device once. Camera recording and live view are interrupted while it",
+      "query": "I need to reboot a Protect device once. Camera recording and live view are interrupted while it restarts. No automatic retry; a timeout means outcome unknown, read back before retrying",
       "expected": "reboot_protect_device",
       "kind": "purpose"
     },
     {
-      "query": "Help me reboot a Protect device once. Camera recording and live view are interrupted while it",
+      "query": "Help me reboot a Protect device once. Camera recording and live view are interrupted while it restarts. No automatic retry; a timeout means outcome unknown, read back before retrying",
       "expected": "reboot_protect_device",
       "kind": "operation"
     },
     {
-      "query": "I need to reboot a UniFi OS console (POST /api/system/reboot)",
+      "query": "I need to ask the Network application to reboot a UniFi OS console (POST /proxy/network/api/system/reboot)",
       "expected": "reboot_unifi_os_console",
       "kind": "purpose"
     },
     {
-      "query": "Help me reboot a UniFi OS console (POST /api/system/reboot)",
+      "query": "Help me ask the Network application to reboot a UniFi OS console (POST /proxy/network/api/system/reboot)",
       "expected": "reboot_unifi_os_console",
       "kind": "operation"
     },
@@ -6832,12 +6968,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to remove a known client's fixed-IP (DHCP) reservation",
+      "query": "I need to remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease",
       "expected": "remove_client_fixed_ip",
       "kind": "purpose"
     },
     {
-      "query": "Help me remove a known client's fixed-IP (DHCP) reservation",
+      "query": "Help me remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease",
       "expected": "remove_client_fixed_ip",
       "kind": "operation"
     },
@@ -7082,12 +7218,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to revoke a guest's portal authorization (the guest is disconnected)",
+      "query": "I need to revoke a guest's portal authorization (the guest is disconnected). Consequence: the guest loses network access at once and must pass the portal again (or be re-authorized with authorize_guest)",
       "expected": "revoke_guest_access",
       "kind": "purpose"
     },
     {
-      "query": "Help me revoke a guest's portal authorization (the guest is disconnected)",
+      "query": "Help me revoke a guest's portal authorization (the guest is disconnected). Consequence: the guest loses network access at once and must pass the portal again (or be re-authorized with authorize_guest)",
       "expected": "revoke_guest_access",
       "kind": "operation"
     },
@@ -7232,12 +7368,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to override (or restore) the device type the controller detected for a client",
+      "query": "I need to override (or restore) the device type the controller detected for a client. Consequence: the controller reports the overridden type in place of its fingerprint detection until the override is removed",
       "expected": "set_client_fingerprint_override",
       "kind": "purpose"
     },
     {
-      "query": "Help me override (or restore) the device type the controller detected for a client",
+      "query": "Help me override (or restore) the device type the controller detected for a client. Consequence: the controller reports the overridden type in place of its fingerprint detection until the override is removed",
       "expected": "set_client_fingerprint_override",
       "kind": "operation"
     },
@@ -7252,12 +7388,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to set or remove the custom (AI-generated) icon of a client or a Matter node",
+      "query": "I need to set or remove the custom (AI-generated) icon of a client or Matter node. Consequence: changes only the icon the UI shows (removal restores the default); connectivity is unaffected",
       "expected": "set_client_icon",
       "kind": "purpose"
     },
     {
-      "query": "Help me set or remove the custom (AI-generated) icon of a client or a Matter node",
+      "query": "Help me set or remove the custom (AI-generated) icon of a client or Matter node. Consequence: changes only the icon the UI shows (removal restores the default); connectivity is unaffected",
       "expected": "set_client_icon",
       "kind": "operation"
     },
@@ -7592,6 +7728,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to stop a siren playing on a Protect speaker (POST /v1/speakers/{id}/stop-siren)",
+      "expected": "stop_speaker_siren",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me stop a siren playing on a Protect speaker (POST /v1/speakers/{id}/stop-siren)",
+      "expected": "stop_speaker_siren",
+      "kind": "operation"
+    },
+    {
       "query": "I need to stop whatever audio a Protect speaker is playing now",
       "expected": "stop_speaker_stream",
       "kind": "purpose"
@@ -7702,12 +7848,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to unadopt and remove a Protect device from management. This deletes its managed-device",
+      "query": "I need to unadopt and remove a Protect device from management. This deletes its managed-device configuration and interrupts recording; re-adoption may be required. Returns the unchanged upstream body under body; no automatic retry",
       "expected": "unadopt_protect_device",
       "kind": "purpose"
     },
     {
-      "query": "Help me unadopt and remove a Protect device from management. This deletes its managed-device",
+      "query": "Help me unadopt and remove a Protect device from management. This deletes its managed-device configuration and interrupts recording; re-adoption may be required. Returns the unchanged upstream body under body; no automatic retry",
       "expected": "unadopt_protect_device",
       "kind": "operation"
     },
@@ -7802,22 +7948,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode,",
+      "query": "I need to update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode, HDR, smart detection)",
       "expected": "update_camera",
       "kind": "purpose"
     },
     {
-      "query": "Help me update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode,",
+      "query": "Help me update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode, HDR, smart detection)",
       "expected": "update_camera",
       "kind": "operation"
     },
     {
-      "query": "I need to change camera recording, zones, image, IR, lux index, audio, motion detection and",
+      "query": "I need to change camera recording, zones, image, IR, lux index, audio, motion detection and tracking by read-merge-PATCH (nested siblings kept; zone arrays replace in full, so retain every wanted zone)",
       "expected": "update_camera_private",
       "kind": "purpose"
     },
     {
-      "query": "Help me change camera recording, zones, image, IR, lux index, audio, motion detection and",
+      "query": "Help me change camera recording, zones, image, IR, lux index, audio, motion detection and tracking by read-merge-PATCH (nested siblings kept; zone arrays replace in full, so retain every wanted zone)",
       "expected": "update_camera_private",
       "kind": "operation"
     },
@@ -7852,12 +7998,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update a content-filtering profile (Network v2 route). Consequence: changes",
+      "query": "I need to update a content-filtering profile (Network v2 route). Consequence: changes which web categories are blocked",
       "expected": "update_content_filter",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a content-filtering profile (Network v2 route). Consequence: changes",
+      "query": "Help me update a content-filtering profile (Network v2 route). Consequence: changes which web categories are blocked",
       "expected": "update_content_filter",
       "kind": "operation"
     },
@@ -7952,12 +8098,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to full-replace a firewall policy by ID",
+      "query": "I need to update an external arm profile (PATCH /v1/external/arm-profiles/{id})",
+      "expected": "update_external_arm_profile",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me update an external arm profile (PATCH /v1/external/arm-profiles/{id})",
+      "expected": "update_external_arm_profile",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to full-replace a firewall policy by ID: get_firewall_policy, edit, send the entire object; omitted optional fields are cleared. Returns the replaced policy object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "update_firewall_policy",
       "kind": "purpose"
     },
     {
-      "query": "Help me full-replace a firewall policy by ID",
+      "query": "Help me full-replace a firewall policy by ID: get_firewall_policy, edit, send the entire object; omitted optional fields are cleared. Returns the replaced policy object verbatim (under dry-run policy, the dry-run preview)",
       "expected": "update_firewall_policy",
       "kind": "operation"
     },
@@ -8022,12 +8178,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update an InnerSpace floor plan (PATCH .../api/project/plan/{planId})",
+      "query": "I need to update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request",
       "expected": "update_innerspace_plan",
       "kind": "purpose"
     },
     {
-      "query": "Help me update an InnerSpace floor plan (PATCH .../api/project/plan/{planId})",
+      "query": "Help me update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request",
       "expected": "update_innerspace_plan",
       "kind": "operation"
     },
@@ -8102,12 +8258,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update a liveview on a Protect console",
+      "query": "I need to update a liveview on a Protect console (PATCH /v1/liveviews/{id}). The spec lists id, modelKey, name, isDefault, isGlobal, owner, layout, slots as required but this tool does not check them: partial settings are sent as given",
       "expected": "update_liveview",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a liveview on a Protect console",
+      "query": "Help me update a liveview on a Protect console (PATCH /v1/liveviews/{id}). The spec lists id, modelKey, name, isDefault, isGlobal, owner, layout, slots as required but this tool does not check them: partial settings are sent as given",
       "expected": "update_liveview",
       "kind": "operation"
     },
@@ -8122,32 +8278,32 @@
       "kind": "operation"
     },
     {
-      "query": "I need to rename a UMR device (guarded write). WARNING: mutates live device config",
+      "query": "I need to rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {\"name\": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op (\"no_op\" when already named this), write, read-after",
       "expected": "update_mobility_device_name",
       "kind": "purpose"
     },
     {
-      "query": "Help me rename a UMR device (guarded write). WARNING: mutates live device config",
+      "query": "Help me rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {\"name\": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op (\"no_op\" when already named this), write, read-after",
       "expected": "update_mobility_device_name",
       "kind": "operation"
     },
     {
-      "query": "I need to update a UMR device's LAN / DHCP settings (guarded write). Mutates live config",
+      "query": "I need to update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}",
       "expected": "update_mobility_device_network",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a UMR device's LAN / DHCP settings (guarded write). Mutates live config",
+      "query": "Help me update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}",
       "expected": "update_mobility_device_network",
       "kind": "operation"
     },
     {
-      "query": "I need to update a UMR device's WiFi SSID + password (guarded write). Mutates live config",
+      "query": "I need to update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless",
       "expected": "update_mobility_device_wireless",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a UMR device's WiFi SSID + password (guarded write). Mutates live config",
+      "query": "Help me update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless",
       "expected": "update_mobility_device_wireless",
       "kind": "operation"
     },
@@ -8192,12 +8348,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to change NVR doorbell custom messages, insights, analytics and retention. Nested objects",
+      "query": "I need to change NVR doorbell custom messages, insights, analytics and retention (nested objects merge; arrays replace in full). DANGER: shortening recording retention can make the NVR permanently delete older footage; retention coupling is controller-dependent and needs live testing",
       "expected": "update_nvr",
       "kind": "purpose"
     },
     {
-      "query": "Help me change NVR doorbell custom messages, insights, analytics and retention. Nested objects",
+      "query": "Help me change NVR doorbell custom messages, insights, analytics and retention (nested objects merge; arrays replace in full). DANGER: shortening recording retention can make the NVR permanently delete older footage; retention coupling is controller-dependent and needs live testing",
       "expected": "update_nvr",
       "kind": "operation"
     },
@@ -8222,6 +8378,16 @@
       "kind": "operation"
     },
     {
+      "query": "I need to update a port automation (Network 11.1 v2 route)",
+      "expected": "update_port_automation",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me update a port automation (Network 11.1 v2 route)",
+      "expected": "update_port_automation",
+      "kind": "operation"
+    },
+    {
       "query": "I need to update a port forwarding rule by ID",
       "expected": "update_port_forward",
       "kind": "purpose"
@@ -8232,12 +8398,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update a switch port profile by ID",
+      "query": "I need to update a switch port profile by ID. WARNING -- SHARED PROFILE, WIDE BLAST RADIUS: this edits a shared Ethernet Port Profile (Classic /rest/portconf), not one switch or port. One write changes STP/PoE/storm-control/VLAN for EVERY port on EVERY switch using it; never present it as a per-port or per-device STP-priority or PoE-mode writer (no such route exists via this API). Check the profile's assignments and blast radius before writing",
       "expected": "update_port_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a switch port profile by ID",
+      "query": "Help me update a switch port profile by ID. WARNING -- SHARED PROFILE, WIDE BLAST RADIUS: this edits a shared Ethernet Port Profile (Classic /rest/portconf), not one switch or port. One write changes STP/PoE/storm-control/VLAN for EVERY port on EVERY switch using it; never present it as a per-port or per-device STP-priority or PoE-mode writer (no such route exists via this API). Check the profile's assignments and blast radius before writing",
       "expected": "update_port_profile",
       "kind": "operation"
     },
@@ -8402,12 +8568,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id}",
+      "query": "I need to update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id} (the UI's route; the Integration API is GET-only)",
       "expected": "update_radius_profile",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id}",
+      "query": "Help me update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id} (the UI's route; the Integration API is GET-only)",
       "expected": "update_radius_profile",
       "kind": "operation"
     },
@@ -8452,22 +8618,22 @@
       "kind": "operation"
     },
     {
-      "query": "I need to change sensor mount type and status light via read-merge-PATCH, preserving nested",
+      "query": "I need to change sensor mount type and status light by read-merge-PATCH, preserving nested siblings. Consequence: persistently changes the sensor's stored settings; mount type and status light are reversible by restoring readBefore values; other controller fields may have other effects",
       "expected": "update_sensor_private",
       "kind": "purpose"
     },
     {
-      "query": "Help me change sensor mount type and status light via read-merge-PATCH, preserving nested",
+      "query": "Help me change sensor mount type and status light by read-merge-PATCH, preserving nested siblings. Consequence: persistently changes the sensor's stored settings; mount type and status light are reversible by restoring readBefore values; other controller fields may have other effects",
       "expected": "update_sensor_private",
       "kind": "operation"
     },
     {
-      "query": "I need to update a controller setting group by key",
+      "query": "I need to update a controller setting group by key. Call get_setting(setting_key) first: it lists every settable field and its valid value",
       "expected": "update_setting",
       "kind": "purpose"
     },
     {
-      "query": "Help me update a controller setting group by key",
+      "query": "Help me update a controller setting group by key. Call get_setting(setting_key) first: it lists every settable field and its valid value",
       "expected": "update_setting",
       "kind": "operation"
     },
@@ -8752,12 +8918,12 @@
       "kind": "operation"
     },
     {
-      "query": "I need to upload a Protect device asset file. WARNING: Uploads asset file to NVR storage",
+      "query": "I need to upload a Protect device asset file. WARNING: Uploads asset file to NVR storage. Overwriting system files may not be reversible",
       "expected": "upload_protect_file",
       "kind": "purpose"
     },
     {
-      "query": "Help me upload a Protect device asset file. WARNING: Uploads asset file to NVR storage",
+      "query": "Help me upload a Protect device asset file. WARNING: Uploads asset file to NVR storage. Overwriting system files may not be reversible",
       "expected": "upload_protect_file",
       "kind": "operation"
     },
@@ -8779,6 +8945,16 @@
     {
       "query": "Help me unlock a PIN-locked SIM card by sending its PIN",
       "expected": "verify_sim_pin",
+      "kind": "operation"
+    },
+    {
+      "query": "I need to wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later)",
+      "expected": "wake_client",
+      "kind": "purpose"
+    },
+    {
+      "query": "Help me wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later)",
+      "expected": "wake_client",
       "kind": "operation"
     },
     {

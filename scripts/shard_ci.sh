@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# CI steps of the sharded full suites (the ci.yml test-*, test-locked-* and scrub-oracle-*
-# jobs).
+# CI steps of the sharded full suites (the ci.yml test-* and scrub-oracle-* jobs).
 #
 #   scripts/shard_ci.sh plan N
 #       Print the GITHUB_OUTPUT lines shards=N and list=[1,...,N]. N is 1..256 (the
@@ -8,11 +7,11 @@
 #   scripts/shard_ci.sh record
 #       Print where this job runs: runner name, CPUs, memory, load, CPU model and the
 #       names (never the values) of its environment variables.
-#   scripts/shard_ci.sh anchor PYTHON [--locked]
+#   scripts/shard_ci.sh anchor PYTHON
 #       The prep job's plain collection through scripts/run_full_suite.sh --collect-only:
 #       the anchor list (what an unsharded run executes) goes to $RUNNER_TEMP/anchor/anchor.txt
 #       and the behaviour-derived selection it computes stays in the selection cache for the
-#       shards. --locked also records the environment identity (anchor-identity.json).
+#       shards.
 #   scripts/shard_ci.sh selection PYTHON
 #       Print the selection cache entries this job holds (tests/_selection_cache.py) and a
 #       digest of each part of the fingerprint (interpreter, distributions, each environment
@@ -23,16 +22,15 @@
 #   scripts/shard_ci.sh check K N JOB_TOTAL
 #       Fail unless the matrix has exactly N jobs (strategy.job-total) and 1 <= K <= N;
 #       then create $RUNNER_TEMP/shard-out for the shard's report and coverage data.
-#   scripts/shard_ci.sh aggregate SUITE PYTHON N PLANNED [--locked]
-#       The aggregate job of SUITE (test, test-locked). N comes from the TEST_SHARDS
+#   scripts/shard_ci.sh aggregate SUITE PYTHON N PLANNED
+#       The aggregate job of SUITE (test). N comes from the TEST_SHARDS
 #       constant (or the dispatch input), never from the shards; PLANNED is the count the
 #       suite's prep job gave the matrix, and must equal N. It reads the prep job's anchor
 #       from $RUNNER_TEMP/anchor, keeps this run's newest artifact
 #       per shard (shard_partition.py select-artifacts), proves the shards against the
 #       anchor (shard_partition.py verify, with the jobs' results from $SHARD_NEEDS), then
 #       combines the coverage data and applies the one threshold (run_full_suite.sh
-#       --combine). --locked requires every shard to carry the anchor's environment
-#       identity, equal to the lock. Artifacts are read from $RUNNER_TEMP/shards; the proof,
+#       --combine). Artifacts are read from $RUNNER_TEMP/shards; the proof,
 #       anchor and coverage summary go to $RUNNER_TEMP/proof.
 #   scripts/shard_ci.sh scrub-aggregate PYTHON N PLANNED
 #       The scrub-oracle aggregate. N comes from the SCRUB_ORACLE_SHARDS constant; PLANNED
@@ -46,7 +44,7 @@
 set -euo pipefail
 
 usage() {
-  sed -n '2,45p' "$0" >&2
+  sed -n "2,43p" "$0" >&2
   exit 2
 }
 
@@ -82,15 +80,11 @@ case "$command" in
     fi
     ;;
   anchor)
-    [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+    [ "$#" -eq 1 ] || usage
     python="$1"
     out="${RUNNER_TEMP:?}/anchor"
     mkdir -p "$out"
     collect=(bash scripts/run_full_suite.sh "$python" --collect-only)
-    if [ "$#" -eq 2 ]; then
-      [ "$2" = "--locked" ] || usage
-      collect+=(--identity-out "$out/anchor-identity.json")
-    fi
     cd "$root"
     start=$SECONDS
     "${collect[@]}" > "$out/anchor.txt"
@@ -140,14 +134,9 @@ PY
     echo "shard $k of $n"
     ;;
   aggregate)
-    [ "$#" -ge 4 ] && [ "$#" -le 5 ] || usage
+    [ "$#" -eq 4 ] || usage
     suite="$1" python="$2" n="$3" planned="$4"
-    locked=false
-    if [ "$#" -eq 5 ]; then
-      [ "$5" = "--locked" ] || usage
-      locked=true
-    fi
-    case "$suite" in test | test-locked) ;; *) usage ;; esac
+    case "$suite" in test) ;; *) usage ;; esac
     if ! is_count "$n"; then
       echo "shard_ci: shard count '$n' is not a positive integer" >&2
       exit 1
@@ -168,23 +157,13 @@ PY
     anchor="$RUNNER_TEMP/anchor"
     [ -s "$anchor/anchor.txt" ] || { echo "shard_ci: no anchor list from $suite-prep" >&2; exit 1; }
     cp "$anchor/anchor.txt" "$proof/anchor.txt"
-    verify_locked=()
-    if [ "$locked" = true ]; then
-      [ -s "$anchor/anchor-identity.json" ] || {
-        echo "shard_ci: no anchor identity from $suite-prep" >&2
-        exit 1
-      }
-      cp "$anchor/anchor-identity.json" "$proof/anchor-identity.json"
-      verify_locked=(--locked --anchor-identity "$proof/anchor-identity.json")
-    fi
     "$python" scripts/shard_partition.py select-artifacts --root "$RUNNER_TEMP/shards" \
       --prefix "$suite-shard" --run-id "$GITHUB_RUN_ID" --shards "$n" --out "$selected"
     status=0
     "$python" scripts/shard_partition.py verify --anchor "$proof/anchor.txt" \
       --reports "$selected" --shards "$n" --suite "$suite" --run-id "$GITHUB_RUN_ID" \
       --commit "$GITHUB_SHA" --coverage "$selected" --needs "$proof/needs.json" \
-      --require "$SHARD_REQUIRE" --proof "$proof/proof.json" \
-      ${verify_locked[@]+"${verify_locked[@]}"} || status=$?
+      --require "$SHARD_REQUIRE" --proof "$proof/proof.json" || status=$?
     if [ "$status" -eq 0 ]; then
       bash scripts/run_full_suite.sh "$python" --combine "$selected" --shards "$n" \
         --summary "$proof/coverage.json" || status=$?

@@ -1,4 +1,4 @@
-"""Network device operations (GS3 lane N03).
+"""Network device operations.
 
 Every tool is exercised against the real ``UniFiClient`` with only the HTTP transport
 mocked: routes, bodies and query parameters sent, verbatim pass-through, device
@@ -23,12 +23,14 @@ import httpx
 import pytest
 from fastmcp import FastMCP
 
+from tests._family_steps import register_module
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import refusals, route_secrets, server
 from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import ClassicApiError, RateLimitError, UniFiClient, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.network import network_device_operations as ndo
+from unifi_fabric.families.network import registrar as network_registrar
 from unifi_fabric.redaction import REDACTION_MASK
 
 HOST = "console-n03"
@@ -682,7 +684,7 @@ async def test_multikey_beta_owned_host_rides_the_beta_key(
 
 def _registered() -> dict[str, Any]:
     mcp = FastMCP("n03-test")
-    ndo.register(mcp, lambda: (None, None))
+    network_registrar.register_17(mcp, lambda: (None, None))
     res = mcp.list_tools()
     tools = asyncio.run(res) if inspect.isawaitable(res) else res
     return {t.name: t for t in tools}
@@ -731,7 +733,7 @@ async def test_confirm_is_accepted_and_ignored():
     up = Upstream({("POST", DEVMGR): OK})
     c = client(up)
     mcp = FastMCP("n03-confirm")
-    ndo.register(mcp, lambda: (c, registry()))
+    network_registrar.register_17(mcp, lambda: (c, registry()))
     try:
         for confirm in (True, False):
             await mcp.call_tool(
@@ -811,7 +813,7 @@ async def test_legacy_reset_preserves_precedence_and_optional_body(kwargs):
     up = Upstream({("POST", route): response})
     c = client(up)
     mcp = FastMCP("legacy-reset")
-    ndo.register(mcp, lambda: (c, registry()))
+    network_registrar.register_17(mcp, lambda: (c, registry()))
     tool = await mcp.get_tool("reset_switch_port")
     try:
         assert await tool.fn(HOST, SITE, **kwargs) == response
@@ -827,7 +829,7 @@ async def test_legacy_reset_preserves_object_body(selector):
     up = Upstream({("POST", f"{V2S}/ports/{SWITCH_MAC}/reset"): {}})
     c = client(up)
     mcp = FastMCP("legacy-reset")
-    ndo.register(mcp, lambda: (c, registry()))
+    network_registrar.register_17(mcp, lambda: (c, registry()))
     tool = await mcp.get_tool("reset_switch_port")
     try:
         await tool.fn(HOST, SITE, body={"port_idx": 3}, **selector)
@@ -846,7 +848,6 @@ async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypat
     )
 
     names = {
-        "get_system_log",
         "query_power_supervisor_logs",
         "query_switch_mac_tables",
         "query_port_system_logs",
@@ -864,7 +865,7 @@ async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypat
             client_records,
             network_proav_sandbox,
         ):
-            module.register(app, lambda: (None, None))
+            register_module(app, module, lambda: (None, None))
         return app
 
     app = app_with_tools()
@@ -879,9 +880,6 @@ async def test_read_post_and_mixed_tools_hidden_by_both_write_policies(monkeypat
 @pytest.mark.parametrize(
     "module_name,tool_name",
     [
-        ("system_log", "get_system_log"),
-        ("system_log", "list_network_events"),
-        ("system_log", "list_ips_events"),
         ("network_switching_power", "query_power_supervisor_logs"),
         ("network_switching_power", "query_switch_mac_tables"),
         ("network_switching_power", "query_port_system_logs"),
@@ -894,7 +892,7 @@ async def test_read_post_description_explains_area_opt_out(module_name, tool_nam
 
     module = import_module(tool_module_name(module_name))
     app = FastMCP("read-post-guidance")
-    module.register(app, lambda: (None, None))
+    register_module(app, module, lambda: (None, None))
     tool = await app.get_tool(tool_name)
     assert "family:network=deny" in tool.description
     assert "UNIFI_WRITE_POLICY" in tool.description
@@ -915,7 +913,7 @@ async def test_mixed_action_description_explains_whole_tool_filter(module_name, 
 
     module = import_module(tool_module_name(module_name))
     app = FastMCP("mixed-action-guidance")
-    module.register(app, lambda: (None, None))
+    register_module(app, module, lambda: (None, None))
     tool = await app.get_tool(tool_name)
     assert "whole tool" in tool.description
     assert "UNIFI_WRITE_POLICY" in tool.description

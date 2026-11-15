@@ -160,7 +160,7 @@ async def test_registration_annotations_match_verbs(deps):
     from fastmcp import FastMCP
 
     from unifi_fabric._read_only_audit import classify_tool_verbs
-    from unifi_fabric.families.devices.scheduled_tasks import register
+    from unifi_fabric.families.devices.registrar import register_3 as register
 
     mcp = FastMCP("scheduled-tests")
     register(mcp, lambda: deps)

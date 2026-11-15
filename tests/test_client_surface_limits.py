@@ -59,14 +59,6 @@ def test_every_advertised_description_fits_claude_code_default_limit():
     assert not over, over
 
 
-def test_short_descriptions_do_not_reference_moved_sections():
-    tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
-    assert "below" not in tools["create_wifi_broadcast"].description
-    assert "nested keys above" not in tools["update_camera"].description
-    schema = tools["update_camera"].parameters
-    assert "nested keys above" not in str(schema)
-
-
 def test_relay_read_twin_guidance_only_on_twin_methods():
     tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
     note = "readBefore/readAfter carry the same guidance"

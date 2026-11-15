@@ -16,6 +16,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import route_secrets as rs
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
 from unifi_fabric.families.network import network_routing_topology as rt
+from unifi_fabric.families.network import registrar as network_registrar
 
 HOST = "console-a"
 SITE = "Default"
@@ -398,7 +399,7 @@ def test_bgp_and_ospf_secret_routes_are_registered_unverified() -> None:
 
 async def test_registers_twenty_one_typed_documented_tools_with_derived_access() -> None:
     mcp = FastMCP("routing-topology")
-    rt.register(mcp, lambda: (Client(), Registry()))
+    network_registrar.register_7(mcp, lambda: (Client(), Registry()))
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     assert set(tools) == TOOL_NAMES
     for name, tool in tools.items():
@@ -416,7 +417,7 @@ async def test_registers_twenty_one_typed_documented_tools_with_derived_access()
 async def test_registered_tools_call_through_the_typed_wrappers() -> None:
     mcp = FastMCP("routing-topology")
     client = Client()
-    rt.register(mcp, lambda: (client, Registry()))
+    network_registrar.register_7(mcp, lambda: (client, Registry()))
     calls: dict[str, dict[str, Any]] = {
         "get_bgp_status": {},
         "create_bgp_config": {"config": {"a": 1}},

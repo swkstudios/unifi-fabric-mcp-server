@@ -1,6 +1,9 @@
-"""Network VPN and DNS tools: static DNS records, DoH servers, IPsec settings, VPN users
-and connections, the OpenVPN client configuration, WireGuard users, Teleport invitations
-and site VPNs.
+"""Network VPN tools: IPsec settings, VPN users and connections, the OpenVPN client
+configuration, WireGuard users, Teleport invitations and site VPNs.
+
+The vpn family's DNS tools (static DNS records, DoH server names) live in the family-owned
+layout (public #42): ``handlers.py``, ``schemas.py`` and ``registrar.py`` beside this
+module. Their handlers stay importable from here.
 
 Route choice: the official published API when it can do the job, else the newer v2 API,
 else the Classic API. No published Network spec (11.0.97) has a route for any operation
@@ -34,10 +37,7 @@ from logs and the audit log.
 from __future__ import annotations
 
 import base64
-from collections.abc import Callable
-from typing import Any, Literal, cast
-
-from fastmcp import FastMCP
+from typing import Any, cast
 
 from ...argument_values import require_finite
 from ...client import (
@@ -46,19 +46,18 @@ from ...client import (
     decode_body,
     describe_shape,
     is_dry_run_preview,
+    keep_stored_secrets,
+    unmasked_read,
     upstream_error_value,
     validate_id,
 )
 from ...config import APIKeyConfig
-from ...redaction import drop_and_note_masked_fields
 from ...registry import Registry
 from ...selector_args import check_selector
 from ...shared_shapes._classic_cmd import classic_command_for_site
 from ...shared_shapes._classic_objects import (
     listed_record_id,
-    require_listed_record,
     resolve_networkconf,
-    resolve_site_slug,
     v2_site,
 )
 from ...shared_shapes._keys import with_context
@@ -72,20 +71,29 @@ from ...shared_shapes._results import (
     safe_read_after,
     with_read_after_error,
 )
-from ...tool_annotations import READ_ONLY, WRITE
-from ...write_body import IDENTITY_FIELDS, require_unmasked_fields, require_update_fields
+from ...write_body import require_unmasked_fields
+from ._v2_records import merge_leaves as _merge
+from ._v2_records import site_slug as _site
+from ._v2_records import update_leaves as _update_body
+from ._v2_records import v2_get as _v2_get
+from ._v2_records import with_verdict as _with_verdict
+
+# The DNS handlers moved to the family layout (handlers.py); their import path here stays.
+from .handlers import (  # noqa: F401  (re-exported: families and tests import them here)
+    create_static_dns_record,
+    delete_static_dns_record,
+    list_doh_servers,
+    list_static_dns_records,
+    update_static_dns_record,
+)
+from .schemas import (  # the family's shapes (family-owned layout)
+    _SITE_VPN_ACTIONS,
+    _TEXT_TYPES,
+    SiteVpnAction,
+)
 
 #: Classic networkconf purpose of a VPN server (OpenVPN, WireGuard, L2TP).
 _VPN_SERVER = "remote-user-vpn"
-#: The v2 static DNS record collection.
-_STATIC_DNS = "/static-dns"
-#: Site VPN actions on Classic ``cmd/sitemgr`` (``<action>-site-vpn``).
-SiteVpnAction = Literal["enable", "disable", "rebuild"]
-_SITE_VPN_ACTIONS = ("enable", "disable", "rebuild")
-
-_TEXT_TYPES = ("text/", "application/json", "application/x-openvpn-profile")
-
-
 # --------------------------------------------------------------------------- helpers
 
 
@@ -98,45 +106,6 @@ def _require_items(items: Any, arg: str) -> list[Any]:
             "(create, update) or user _id (delete)"
         )
     return cast(list[Any], items)
-
-
-def _update_body(value: Any, what: str) -> dict[str, Any]:
-    """The requested update leaves (masked and identity fields dropped), or raise."""
-    clean = require_update_fields(drop_and_note_masked_fields(value), what)
-    return {key: item for key, item in clean.items() if key not in IDENTITY_FIELDS}
-
-
-def _merge(current: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
-    """Recursively lay only the requested leaves over the current upstream record."""
-    merged = dict(current)
-    for key, value in changes.items():
-        prior = merged.get(key)
-        merged[key] = (
-            _merge(prior, value) if isinstance(prior, dict) and isinstance(value, dict) else value
-        )
-    return merged
-
-
-def _with_verdict(response: Any, after: Any, verified: bool | None, error: str | None) -> Any:
-    """The write response verbatim plus ``_verified`` / ``_readAfter`` (additive keys).
-
-    A non-object write body is kept whole under ``response`` so the verdict keys are never dropped.
-    """
-    if not isinstance(response, dict):
-        response = {"response": response}
-    result = with_context(response, {"_verified": verified, "_readAfter": after})
-    return with_read_after_error(result, error, additive=True)
-
-
-async def _site(registry: Registry, host: str, site: str) -> tuple[APIKeyConfig | None, str, str]:
-    check_selector("host", host)
-    check_selector("site", site)
-    return await resolve_site_slug(registry, host, site)
-
-
-async def _v2_get(client: UniFiClient, registry: Registry, host: str, site: str, route: str) -> Any:
-    key, host_id, slug = await _site(registry, host, site)
-    return await client.get(v2_site(host_id, slug, route), key=key)
 
 
 async def _vpn_server(
@@ -159,88 +128,7 @@ async def _vpn_server(
     )
 
 
-# --------------------------------------------------------------------------- static DNS
-
-
-async def list_static_dns_records(
-    client: UniFiClient, registry: Registry, host: str, site: str
-) -> Any:
-    """GET v2 ``static-dns``: every static DNS record of the site, verbatim."""
-    return await _v2_get(client, registry, host, site, _STATIC_DNS)
-
-
-async def create_static_dns_record(
-    client: UniFiClient, registry: Registry, host: str, site: str, record: dict[str, Any], /
-) -> Any:
-    """POST v2 ``static-dns`` with the caller's record, verbatim."""
-    require_finite(record, "record")
-    key, host_id, slug = await _site(registry, host, site)
-    return await client.post(v2_site(host_id, slug, _STATIC_DNS), key=key, json=record)
-
-
-async def update_static_dns_record(
-    client: UniFiClient,
-    registry: Registry,
-    host: str,
-    site: str,
-    record_id: str,
-    record: dict[str, Any],
-    /,
-) -> Any:
-    """Read-merge-write PUT v2 ``static-dns/{_id}``, then verify the requested leaves."""
-    validate_id(record_id, "record_id")
-    changes = _update_body(record, "update_static_dns_record record")
-    key, host_id, slug = await _site(registry, host, site)
-    collection = v2_site(host_id, slug, _STATIC_DNS)
-
-    async def listed(wanted: str) -> dict[str, Any]:
-        return await require_listed_record(
-            client,
-            collection,
-            wanted,
-            key=key,
-            kind="Static DNS record",
-            list_tool="list_static_dns_records",
-            label_fields=("key", "name"),
-        )
-
-    current = await listed(record_id)
-    resolved = listed_record_id(current, "record_id")
-    response = await client.put(f"{collection}/{resolved}", key=key, json=_merge(current, changes))
-    if is_dry_run_preview(response):
-        return response
-    after, error = await safe_read_after(lambda: listed(resolved))
-    verified, error = requested_leaves_verdict(changes, after, error)
-    return _with_verdict(response, after, verified, error)
-
-
-async def delete_static_dns_record(
-    client: UniFiClient, registry: Registry, host: str, site: str, record_id: str
-) -> Any:
-    """Resolve ``record_id`` in v2 ``static-dns``, then DELETE ``static-dns/{_id}``."""
-    validate_id(record_id, "record_id")
-    key, host_id, slug = await _site(registry, host, site)
-    collection = v2_site(host_id, slug, _STATIC_DNS)
-    current = await require_listed_record(
-        client,
-        collection,
-        record_id,
-        key=key,
-        kind="Static DNS record",
-        list_tool="list_static_dns_records",
-        label_fields=("key", "name"),
-    )
-    resolved = listed_record_id(current, "record_id")
-    response = await client.delete(f"{collection}/{resolved}", key=key)
-    return deletion_result(f"Static DNS record {resolved} deleted.", response)
-
-
-# --------------------------------------------------------------------------- DoH / IPsec
-
-
-async def list_doh_servers(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
-    """GET v2 ``settings/doh/available-server-names``: DNS-over-HTTPS server names."""
-    return await _v2_get(client, registry, host, site, "/settings/doh/available-server-names")
+# --------------------------------------------------------------------------- IPsec
 
 
 async def get_ipsec_settings(client: UniFiClient, registry: Registry, host: str, site: str) -> Any:
@@ -255,13 +143,15 @@ async def update_ipsec_settings(
     changes = _update_body(fields, "update_ipsec_settings fields")
     key, host_id, slug = await _site(registry, host, site)
     path = v2_site(host_id, slug, "/settings/ipsec")
-    current = await client.get(path, key=key)
+    with unmasked_read():  # the stored PSK is written back as stored
+        current = await client.get(path, key=key)
     if not isinstance(current, dict):
         raise UniFiConnectionError(
             f"Unexpected response shape from GET {path}: expected an object, got "
             f"{describe_shape(current)}. No write was sent."
         )
-    response = await client.post(path, key=key, json=_merge(current, changes))
+    body = keep_stored_secrets(client, _merge(current, changes), current, fields)
+    response = await client.post(path, key=key, json=body)
     if is_dry_run_preview(response):
         return response
     after, error = await safe_read_after(lambda: client.get(path, key=key))
@@ -447,9 +337,14 @@ async def update_wireguard_users(
     ]
     key, host_id, slug, classic_id = await _vpn_server(client, registry, host, site, server_id)
     list_path = v2_site(host_id, slug, f"/wireguard/{classic_id}/users")
-    current = _select_users(await client.get(list_path, key=key), list_path, refs, client)
+    with unmasked_read():  # each user's stored keys are written back as stored
+        listed = await client.get(list_path, key=key)
+    current = _select_users(listed, list_path, refs, client)
     ids = [listed_record_id(record, "users._id") for record in current]
-    merged = [_merge(record, change) for record, change in zip(current, changes, strict=True)]
+    merged = [
+        keep_stored_secrets(client, _merge(record, change), record, asked)
+        for record, change, asked in zip(current, changes, users, strict=True)
+    ]
     response = await client.put(f"{list_path}/batch", key=key, json=cast(Any, merged))
     if is_dry_run_preview(response):
         return response
@@ -702,629 +597,3 @@ async def control_site_vpn(
 
 
 # --------------------------------------------------------------------------- registration
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the N07 VPN and DNS tools as typed FastMCP functions."""
-
-    def deps() -> tuple[UniFiClient, Registry]:
-        return cast(tuple[UniFiClient, Registry], deps_fn())
-
-    @mcp.tool(name="list_static_dns_records", annotations=READ_ONLY)
-    async def _list_static_dns_records(host: str, site: str) -> Any:
-        """List the site's static DNS records (v2 static-dns, the web app's DNS records).
-
-        Required: host and site. Route: v2 GET static-dns (no published route serves this
-        collection; the published dns/policies route is list_dns_policies). Returns the upstream
-        body verbatim (a JSON array or object, as sent); each record's _id is the record_id of the
-        other static DNS record tools.
-
-        Example call (list_static_dns_records):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_static_dns_records(*deps(), host, site)
-
-    @mcp.tool(name="create_static_dns_record", annotations=WRITE)
-    async def _create_static_dns_record(
-        host: str, site: str, record: dict[str, Any], confirm: bool = False
-    ) -> Any:
-        """Create a static DNS record (v2 POST static-dns).
-
-        Required: host, site and record. Request body: no published schema; record is
-        free-form and sent verbatim, named as list_static_dns_records returns records
-        (for example key, value, record_type and enabled). An empty record fails before
-        any request. Returns the upstream body verbatim. Dry-run (dry-run policy) returns a
-        dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}}; nothing is sent.
-
-        Example call (create_static_dns_record):
-            {"host": "my-console", "site": "Default", "record": {"key": "nas.example.com",
-             "value": "192.0.2.20", "record_type": "A", "enabled": true}}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            record: Free-form record object, e.g. {"key": "nas.example.com", "value": "192.0.2.20"}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await create_static_dns_record(*deps(), host, site, record)
-
-    @mcp.tool(name="update_static_dns_record", annotations=WRITE)
-    async def _update_static_dns_record(
-        host: str, site: str, record_id: str, record: dict[str, Any], confirm: bool = False
-    ) -> Any:
-        """Update a static DNS record (v2 PUT static-dns/{_id}, read-merge-write).
-
-        Required: host, site, record_id and record. record_id is resolved in
-        list_static_dns_records first; an unknown id fails listing every record and
-        nothing is sent. record holds only the fields to change (free-form, no published
-        schema); they are laid leaf by leaf over the listed record and the whole record is
-        PUT. An empty update fails before any request. Returns the upstream body verbatim
-        plus _verified (type-strict comparison of every requested leaf in a read-after)
-        and _readAfter, or _readAfterError; a non-object write body is returned whole under
-        response with those keys beside it. Dry-run (dry-run policy) returns a dry-run
-        preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-        params, body}}; nothing is sent.
-
-        Example call (update_static_dns_record):
-            {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107",
-             "record": {"value": "192.0.2.21"}}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            record_id: Record _id from list_static_dns_records, e.g. "000000000000000000000107".
-            record: Fields to change, e.g. {"value": "192.0.2.21"}. Free-form object.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await update_static_dns_record(*deps(), host, site, record_id, record)
-
-    @mcp.tool(name="delete_static_dns_record", annotations=WRITE)
-    async def _delete_static_dns_record(
-        host: str, site: str, record_id: str, confirm: bool = False
-    ) -> Any:
-        """Delete a static DNS record (v2 DELETE static-dns/{_id}).
-
-        Consequence: the name stops resolving through the gateway; there is no undo.
-        Required: host, site and record_id. record_id is resolved in
-        list_static_dns_records first; an unknown id fails listing every record and
-        nothing is deleted. Returns {deleted, message, response} with the upstream body
-        verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false,
-        message, response}, where response is the dry-run preview {status: "dry_run",
-        dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
-
-        Example call (delete_static_dns_record):
-            {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            record_id: Record _id from list_static_dns_records, e.g. "000000000000000000000107".
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await delete_static_dns_record(*deps(), host, site, record_id)
-
-    @mcp.tool(name="list_doh_servers", annotations=READ_ONLY)
-    async def _list_doh_servers(host: str, site: str) -> Any:
-        """List the DNS-over-HTTPS server names the gateway offers (v2 settings/doh).
-
-        Required: host and site. Route: v2 GET settings/doh/available-server-names (no
-        published route). Returns the upstream body verbatim (a JSON array or object, as sent).
-
-        Example call (list_doh_servers):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_doh_servers(*deps(), host, site)
-
-    @mcp.tool(name="get_ipsec_settings", annotations=READ_ONLY)
-    async def _get_ipsec_settings(host: str, site: str) -> Any:
-        """Get the site's IPsec settings (v2 settings/ipsec).
-
-        Required: host and site. Route: v2 GET settings/ipsec (no published route).
-        Returns the upstream object verbatim; a pre-shared key in it is masked only under
-        UNIFI_REDACT_SECRETS. Change it with update_ipsec_settings.
-
-        Example call (get_ipsec_settings):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await get_ipsec_settings(*deps(), host, site)
-
-    @mcp.tool(name="update_ipsec_settings", annotations=WRITE)
-    async def _update_ipsec_settings(
-        host: str, site: str, fields: dict[str, Any], confirm: bool = False
-    ) -> Any:
-        """Update the site's IPsec settings (v2 POST settings/ipsec, read-merge-write).
-
-        Consequence: IPsec tunnels and remote IPsec users may reconnect.
-        Required: host, site and fields. Request body: no published schema; fields is
-        free-form and holds only the keys to change, named as get_ipsec_settings returns
-        them. The current settings are read, your fields laid over them leaf by leaf and
-        the whole object POSTed. An empty update fails before any request. Returns the
-        upstream body verbatim plus _verified (type-strict leaf comparison of a
-        read-after) and _readAfter, or _readAfterError (a non-object write body is returned
-        whole under response with those keys beside it). Dry-run (dry-run policy) returns a
-        dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}}; nothing is sent.
-
-        Example call (update_ipsec_settings):
-            {"host": "my-console", "site": "Default", "fields": {"enabled": true}}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            fields: Free-form settings to change, e.g. {"enabled": true}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await update_ipsec_settings(*deps(), host, site, fields)
-
-    @mcp.tool(name="list_vpn_users", annotations=READ_ONLY)
-    async def _list_vpn_users(host: str, site: str) -> Any:
-        """List the site's remote-access VPN users (v2 vpn/users).
-
-        Required: host and site. Route: v2 GET vpn/users (no published route). Returns the upstream
-        body verbatim (a JSON array or object, as sent).
-
-        Example call (list_vpn_users):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_vpn_users(*deps(), host, site)
-
-    @mcp.tool(name="list_vpn_connections", annotations=READ_ONLY)
-    async def _list_vpn_connections(host: str, site: str) -> Any:
-        """List the site's VPN connections (v2 vpn/connections).
-
-        Required: host and site. Route: v2 GET vpn/connections (no published route).
-        Returns the upstream body verbatim (a JSON array or object, as sent).
-
-        Example call (list_vpn_connections):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_vpn_connections(*deps(), host, site)
-
-    @mcp.tool(name="get_openvpn_client_config", annotations=READ_ONLY)
-    async def _get_openvpn_client_config(host: str, site: str, server_id: str) -> Any:
-        """Get an OpenVPN server's client configuration (v2 vpn/openvpn/{_id}/configuration).
-
-        Required: host, site and server_id. The configuration is a credential (certificate and
-        private key): it is returned as received and masked only under UNIFI_REDACT_SECRETS.
-        server_id is resolved among the site's VPN servers first; an unknown id fails listing every
-        server. An upstream 404 adds a hint to check for an OpenVPN server on this site.
-        Returns the upstream body verbatim (a JSON array or object, as sent) (JSON or text);
-        a binary body comes back as {bodyBase64, contentType, sizeBytes}.
-
-        Example call (get_openvpn_client_config):
-            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: VPN server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-        """
-        return await get_openvpn_client_config(*deps(), host, site, server_id)
-
-    @mcp.tool(name="restart_vpn_server", annotations=WRITE)
-    async def _restart_vpn_server(
-        host: str, site: str, server_id: str, confirm: bool = False
-    ) -> Any:
-        """Restart one VPN server (v2 POST vpn/{_id}/restart, cmd restart-vpn).
-
-        Consequence: every user connected to this VPN server is disconnected.
-        Required: host, site and server_id. Sent once, never retried automatically.
-        server_id is resolved among the site's VPN servers first; an unknown id fails
-        listing every server and nothing is sent. Returns the upstream body verbatim.
-        Dry-run (dry-run policy) returns a dry-run preview {status: "dry_run", dryRun: true, sent:
-        false, message, preview: {method, path, params, body}}; nothing is sent.
-
-        Example call (restart_vpn_server):
-            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: VPN server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await restart_vpn_server(*deps(), host, site, server_id)
-
-    @mcp.tool(name="list_wireguard_users", annotations=READ_ONLY)
-    async def _list_wireguard_users(host: str, site: str, server_id: str | None = None) -> Any:
-        """List WireGuard VPN users (v2 wireguard/users or wireguard/{_id}/users).
-
-        Required: host and site. Without server_id every WireGuard server's users are listed; with
-        it only that server's (resolved among the site's VPN servers first; an unknown id fails
-        listing every server). Returns the upstream body verbatim (a JSON array or object, as sent);
-        key fields are masked only under UNIFI_REDACT_SECRETS.
-
-        Example call (list_wireguard_users):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: Optional WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-        """
-        return await list_wireguard_users(*deps(), host, site, server_id)
-
-    @mcp.tool(name="list_wireguard_used_subnets", annotations=READ_ONLY)
-    async def _list_wireguard_used_subnets(host: str, site: str) -> Any:
-        """List the subnets WireGuard users already use (v2 wireguard/users/existing-subnets).
-
-        Required: host and site. Route: v2 GET (no published route). Returns the upstream body
-        verbatim (a JSON array or object, as sent).
-
-        Example call (list_wireguard_used_subnets):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_wireguard_used_subnets(*deps(), host, site)
-
-    @mcp.tool(name="create_wireguard_users", annotations=WRITE)
-    async def _create_wireguard_users(
-        host: str,
-        site: str,
-        server_id: str,
-        users: list[dict[str, Any]],
-        confirm: bool = False,
-    ) -> Any:
-        """Create WireGuard users on one server (v2 POST wireguard/{_id}/users/batch).
-
-        Consequence: issues VPN credentials; each new peer can reach the network. Required: host,
-        site, server_id and users. Request body: no published schema; users is a free-form JSON
-        array of user objects sent verbatim (the web app's batch body), named as
-        list_wireguard_users returns users. Keys are passed through and masked only under
-        UNIFI_REDACT_SECRETS. server_id is resolved among the site's VPN servers first. Returns the
-        upstream body verbatim. Dry-run (dry-run policy) returns a dry-run preview {status:
-        "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}};
-        nothing is sent.
-
-        Example call (create_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
-             "users": [{"name": "laptop-01", "interface_ip": "192.0.2.10"}]}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-            users: Non-empty free-form array of user objects (an empty list fails before any
-                request), e.g. [{"name": "laptop-01"}].
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await create_wireguard_users(*deps(), host, site, server_id, users)
-
-    @mcp.tool(name="update_wireguard_users", annotations=WRITE)
-    async def _update_wireguard_users(
-        host: str,
-        site: str,
-        server_id: str,
-        users: list[dict[str, Any]],
-        confirm: bool = False,
-    ) -> Any:
-        """Update WireGuard users on one server (v2 PUT wireguard/{_id}/users/batch).
-
-        Consequence: changed keys or addresses disconnect the affected peers.
-        Required: host, site, server_id and users. Each users item names a user by _id
-        (from list_wireguard_users) plus only the fields to change (free-form; no
-        published schema). Every _id is resolved in the server's user list first; an
-        unknown _id fails listing every user and nothing is sent; an item with nothing to
-        change fails before any request. Each listed record with your fields laid over it
-        leaf by leaf is PUT as one array. Returns the upstream body verbatim plus
-        _verified (type-strict, every requested leaf of every user) and _readAfter, or
-        _readAfterError (a non-object write body is returned whole under response with those
-        keys beside it). Dry-run (dry-run policy) returns a dry-run preview {status:
-        "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
-
-        Example call (update_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
-             "users": [{"_id": "000000000000000000000108", "name": "laptop-02"}]}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-            users: Non-empty array of _id plus fields to change (an empty list fails before any
-                request), e.g. [{"_id": "000000000000000000000108", "name": "laptop-02"}].
-                Shape: {_id:string,...}[]; the other keys of each entry are the fields to change
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await update_wireguard_users(*deps(), host, site, server_id, users)
-
-    @mcp.tool(name="delete_wireguard_users", annotations=WRITE)
-    async def _delete_wireguard_users(
-        host: str,
-        site: str,
-        server_id: str,
-        users: list[str | dict[str, Any]],
-        confirm: bool = False,
-    ) -> Any:
-        """Delete WireGuard users from one server (v2 POST wireguard/{_id}/users/batch_delete).
-
-        Consequence: the peers lose VPN access at once; there is no undo.
-        Required: host, site, server_id and users. users is the batch_delete array sent
-        verbatim (no published schema): user _id strings or user objects carrying _id,
-        from list_wireguard_users. Every _id is resolved in the server's user list first;
-        an unknown _id fails listing every user and nothing is deleted. Returns {deleted,
-        message, response} with the upstream body verbatim. Dry-run (dry-run policy)
-        returns {status: "dry_run", deleted: false, message, response}, where response is
-        the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
-        path, params, body}}; nothing is sent.
-
-        Example call (delete_wireguard_users):
-            {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
-             "users": ["000000000000000000000108"]}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            server_id: WireGuard server id from list_vpn_servers or its Classic _id,
-                e.g. "000000000000000000000107".
-            users: Non-empty list of user _ids or objects with _id (an empty list fails before
-                any request), e.g. ["000000000000000000000108"].
-                Shape: (string|{_id:string,...})[]; each entry is sent as given
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await delete_wireguard_users(*deps(), host, site, server_id, list(users))
-
-    @mcp.tool(name="create_teleport_invitation", annotations=WRITE)
-    async def _create_teleport_invitation(
-        host: str, site: str, body: dict[str, Any] | None = None, confirm: bool = False
-    ) -> Any:
-        """Create a Teleport invitation (v2 POST teleport/token).
-
-        Consequence: issues a credential; whoever holds the link can join the network
-        through Teleport until it is used or revoked (revoke_teleport_invitation).
-        Required: host and site. The web app sends no body; body is optional, free-form
-        and sent verbatim when given. Returns the upstream body verbatim (the token and
-        invitation link, masked only under UNIFI_REDACT_SECRETS). Dry-run (dry-run policy)
-        returns a dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}}; nothing is sent.
-
-        Example call (create_teleport_invitation):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            body: Optional free-form request body, e.g. {"name": "guest-laptop"}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await create_teleport_invitation(*deps(), host, site, body)
-
-    @mcp.tool(name="revoke_teleport_invitation", annotations=WRITE)
-    async def _revoke_teleport_invitation(
-        host: str, site: str, invitation_id: str, confirm: bool = False
-    ) -> Any:
-        """Revoke a Teleport invitation (v2 DELETE teleport/token/{id}).
-
-        Consequence: the invitation link stops working; there is no undo.
-        Required: host, site and invitation_id (from query_teleport_invitations). No GET
-        route lists invitations by id, so the id is sent as given and the controller
-        judges it. Returns {deleted, message, response} with the upstream body verbatim.
-        Dry-run (dry-run policy) returns {status: "dry_run", deleted: false, message,
-        response}, where response is the dry-run preview {status: "dry_run", dryRun, sent: false,
-        message, preview: {method, path, params, body}}; nothing is sent.
-
-        Example call (revoke_teleport_invitation):
-            {"host": "my-console", "site": "Default", "invitation_id": "000000000000000000000107"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            invitation_id: Invitation id from query_teleport_invitations,
-                e.g. "000000000000000000000107".
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await revoke_teleport_invitation(*deps(), host, site, invitation_id)
-
-    @mcp.tool(name="query_teleport_invitations", annotations=WRITE)
-    async def _query_teleport_invitations(
-        host: str,
-        site: str,
-        page_number: int | None = None,
-        page_size: int | None = None,
-        confirm: bool = False,
-    ) -> Any:
-        """List Teleport invitation history (v2 POST teleport/invitation-history).
-
-        Required: host and site. A read sent as POST (Consequence: none intended; it only
-        reads the history): it is not on the read-POST allowlist, so it is classed as a
-        write: UNIFI_WRITE_POLICY=deny refuses it, and under dry-run policy it returns a dry-run
-        preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-        params, body}} of the first page and sends nothing.
-        Without a requested total every page is read (pageNumber 0, 1, ... to the end)
-        and the records are joined under data, adding _count and _pages; a stopped drain
-        (page cap, repeated page, a later page without records) adds incomplete: true and
-        incompleteReason. Returns that joined object. An empty first page is returned
-        verbatim; a first page without a data array is returned verbatim plus _pages and
-        _drainNote. page_number alone returns that page verbatim. page_size alone is window
-        0: exactly page_size records from record 0; _nextPage counts page_size windows, so
-        resume with page_number=_nextPage and the same page_size. page_number with page_size
-        returns that window. Omit both to drain every record.
-        _pageSize reports the requested count, sent (every pageSize sent, in request order),
-        the effective console page size and the returned count. _nextPage is absent when no
-        record follows the window or the call stopped incomplete.
-
-        Example call (query_teleport_invitations):
-            {"host": "my-console", "site": "Default"}
-
-        Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-        the whole tool and discovery mode runs it through call_write_tool.
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            page_number: Zero-based page. With page_size, returns exactly page_size records
-                starting at record page_number * page_size, gathered across console pages
-                whatever the console page size; resume with _nextPage and the same page_size.
-                Without page_size, one request returns that console page verbatim. Example: 0.
-            page_size: Number of invitations. Alone, window 0 (the first page_size records,
-                fewer only at the end); with page_number, the size of the window. Omit to
-                drain all. Example: `100`.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await query_teleport_invitations(*deps(), host, site, page_number, page_size)
-
-    @mcp.tool(name="remove_teleport_client", annotations=WRITE)
-    async def _remove_teleport_client(
-        host: str,
-        site: str,
-        client_id: str,
-        body: dict[str, Any] | None = None,
-        confirm: bool = False,
-    ) -> Any:
-        """Remove a Teleport client (v2 DELETE teleport/client/{id}).
-
-        Consequence: the client loses Teleport access and must be invited again.
-        Required: host, site and client_id. No GET route lists Teleport clients by id, so
-        the id is sent as given and the controller judges it. body is optional and
-        free-form (the web app builds one; its shape is not published) and is sent
-        verbatim when given. Returns {deleted, message, response} with the upstream body
-        verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false,
-        message, response}, where response is the dry-run preview {status: "dry_run",
-        dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
-
-        Example call (remove_teleport_client):
-            {"host": "my-console", "site": "Default", "client_id": "000000000000000000000107"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            client_id: Teleport client id from list_vpn_connections,
-                e.g. "000000000000000000000107".
-            body: Optional free-form request body, e.g. {"name": "guest-laptop"}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await remove_teleport_client(*deps(), host, site, client_id, body)
-
-    @mcp.tool(name="list_magic_site_vpn", annotations=READ_ONLY)
-    async def _list_magic_site_vpn(host: str, site: str) -> Any:
-        """List Site Magic site-to-site VPN configurations (v2 magicsitetositevpn/configs).
-
-        Required: host and site. Route: v2 GET (GET-only; change site VPNs with create_site_vpn,
-        control_site_vpn and delete_site_vpn). Returns the upstream body verbatim (a JSON array or
-        object, as sent).
-
-        Example call (list_magic_site_vpn):
-            {"host": "my-console", "site": "Default"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-        """
-        return await list_magic_site_vpn(*deps(), host, site)
-
-    @mcp.tool(name="create_site_vpn", annotations=WRITE)
-    async def _create_site_vpn(
-        host: str, site: str, params: dict[str, Any], confirm: bool = False
-    ) -> Any:
-        """Create a site VPN (Classic POST cmd/sitemgr, cmd add-site-vpn).
-
-        Consequence: builds a VPN between controller sites; routing between them changes.
-        Required: host, site and params. Request body: no published schema and no
-        captured body; params is free-form and sent verbatim beside cmd. Success requires
-        meta.rc ok; any other answer raises with the full upstream body. Returns the
-        Classic {meta, data} envelope verbatim. Dry-run (dry-run policy) returns a dry-run
-        preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-        params, body}}; nothing is sent.
-
-        Example call (create_site_vpn):
-            {"host": "my-console", "site": "Default", "params": {"site": "branch-1"}}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            params: Free-form add-site-vpn parameters, e.g. {"site": "branch-1"}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await create_site_vpn(*deps(), host, site, params)
-
-    @mcp.tool(name="delete_site_vpn", annotations=WRITE)
-    async def _delete_site_vpn(
-        host: str, site: str, name: str, vpn_site: str, confirm: bool = False
-    ) -> Any:
-        """Delete a site VPN (Classic POST cmd/sitemgr, cmd delete-site-vpn).
-
-        Consequence: the VPN between the sites is torn down; there is no undo.
-        Required: host, site, name and vpn_site. Sends {cmd: delete-site-vpn, name, site:
-        vpn_site} as the web app does; the controller judges both values. Success
-        requires meta.rc ok; any other answer raises with the full upstream body. Returns
-        {deleted, message, response} with the envelope verbatim. Dry-run (dry-run policy)
-        returns {status: "dry_run", deleted: false, message, response}, where response is
-        the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
-        path, params, body}}; nothing is sent.
-
-        Example call (delete_site_vpn):
-            {"host": "my-console", "site": "Default", "name": "branch-vpn",
-             "vpn_site": "branch-1"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            name: Site VPN name, e.g. "branch-vpn".
-            vpn_site: The peer site sent as the body's site, e.g. "branch-1".
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await delete_site_vpn(*deps(), host, site, name, vpn_site)
-
-    @mcp.tool(name="control_site_vpn", annotations=WRITE)
-    async def _control_site_vpn(
-        host: str,
-        site: str,
-        action: SiteVpnAction,
-        name: str | None = None,
-        vpn_site: str | None = None,
-        params: dict[str, Any] | None = None,
-        confirm: bool = False,
-    ) -> Any:
-        """Enable, disable or rebuild a site VPN (Classic POST cmd/sitemgr).
-
-        Consequence: disable and rebuild interrupt traffic between the sites.
-        Required: host, site and action. Sends cmd enable-site-vpn, disable-site-vpn or
-        rebuild-site-vpn with name and site (vpn_site) when given (the web app's
-        enable/disable body) plus any free-form params (rebuild has no captured body).
-        Success requires meta.rc ok; any other answer raises with the full upstream body.
-        Returns the Classic {meta, data} envelope verbatim. Dry-run (dry-run policy) returns
-        a dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-        path, params, body}}; nothing is sent.
-
-        Example call (control_site_vpn):
-            {"host": "my-console", "site": "Default", "action": "disable",
-             "name": "branch-vpn", "vpn_site": "branch-1"}
-
-        Args:
-            host: Console name or id (list_hosts), e.g. "my-console".
-            site: Network site name or UUID, e.g. "Default".
-            action: One of enable, disable, rebuild, e.g. "disable".
-            name: Site VPN name, e.g. "branch-vpn".
-            vpn_site: The peer site sent as the body's site, e.g. "branch-1".
-            params: Optional free-form extra parameters, e.g. {"name": "branch-vpn"}.
-            confirm: Ignored; accepted for compatibility. The call executes when made.
-        """
-        return await control_site_vpn(*deps(), host, site, action, name, vpn_site, params)

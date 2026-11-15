@@ -20,17 +20,27 @@ from tests.test_cross_tool_invariants import (
 )
 from unifi_fabric.config import APIKeyConfig
 from unifi_fabric.families.protect import protect_private as pp
+from unifi_fabric.families.protect import registrar
+
+
+def _named(fn, name):
+    """A name in ``fn``: its own global, or a ``protect_private`` attribute a wrapper calls."""
+    return fn.__globals__.get(name) or getattr(pp, name, None)
 
 
 def _verifies(fn, seen=None):
     seen = set() if seen is None else seen
     fn = inspect.unwrap(fn)
-    if not inspect.isfunction(fn) or fn in seen or fn.__module__ != pp.__name__:
+    if (
+        not inspect.isfunction(fn)
+        or fn in seen
+        or fn.__module__ not in {pp.__name__, registrar.__name__}
+    ):
         return False
     seen.add(fn)
     if "_verified" in fn.__code__.co_consts:
         return True
-    return any(_verifies(fn.__globals__.get(name), seen) for name in fn.__code__.co_names)
+    return any(_verifies(_named(fn, name), seen) for name in fn.__code__.co_names)
 
 
 @functools.cache
@@ -90,18 +100,24 @@ async def test_private_failed_read_after_preserves_write_evidence(monkeypatch, n
         assert payload["noOp"] is None
     if fault == "rate_limit":
         failed_reads = [r for r in up.served if r.method == "GET" and r.status == 429]
-        assert len(failed_reads) == 6, (name, failed_reads)
+        from unifi_fabric.pacing import attempts_on_unannounced_429
+
+        assert len(failed_reads) == attempts_on_unannounced_429(), (name, failed_reads)
 
 
 def _reaches(fn, target, seen=None):
     seen = set() if seen is None else seen
     fn = inspect.unwrap(fn)
-    if not inspect.isfunction(fn) or fn in seen or fn.__module__ != pp.__name__:
+    if (
+        not inspect.isfunction(fn)
+        or fn in seen
+        or fn.__module__ not in {pp.__name__, registrar.__name__}
+    ):
         return False
     seen.add(fn)
     if fn is target:
         return True
-    return any(_reaches(fn.__globals__.get(name), target, seen) for name in fn.__code__.co_names)
+    return any(_reaches(_named(fn, name), target, seen) for name in fn.__code__.co_names)
 
 
 @functools.cache

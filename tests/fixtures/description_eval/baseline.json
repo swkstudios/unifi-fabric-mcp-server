@@ -1,0 +1,725 @@
+{
+  "model": "claude-haiku-5-5",
+  "runs": 3,
+  "tasks": 120,
+  "hard_tasks": 62,
+  "tasks_sha256": "2478907676e4e93ce6f9f1b833418d70f3ea826aee7972960c1c3cdc193b3225",
+  "catalog_tools": 798,
+  "selection": {
+    "overall": {
+      "tasks": 120,
+      "top1": 55,
+      "top5": 99,
+      "top1_rate": 0.4583,
+      "top5_rate": 0.825
+    },
+    "near_duplicate_pairs": {
+      "tasks": 44,
+      "top1": 25,
+      "top5": 38,
+      "top1_rate": 0.5682,
+      "top5_rate": 0.8636
+    },
+    "other_tasks": {
+      "tasks": 76,
+      "top1": 30,
+      "top5": 61,
+      "top1_rate": 0.3947,
+      "top5_rate": 0.8026
+    },
+    "hard_tasks": {
+      "tasks": 62,
+      "top1": 33,
+      "top5": 52,
+      "top1_rate": 0.5323,
+      "top5_rate": 0.8387
+    },
+    "by_family": {
+      "carrier": {
+        "tasks": 2,
+        "top1": 0,
+        "top5": 2,
+        "top1_rate": 0.0,
+        "top5_rate": 1.0
+      },
+      "clients": {
+        "tasks": 2,
+        "top1": 2,
+        "top5": 2,
+        "top1_rate": 1.0,
+        "top5_rate": 1.0
+      },
+      "connector": {
+        "tasks": 1,
+        "top1": 0,
+        "top5": 1,
+        "top1_rate": 0.0,
+        "top5_rate": 1.0
+      },
+      "devices": {
+        "tasks": 6,
+        "top1": 3,
+        "top5": 6,
+        "top1_rate": 0.5,
+        "top5_rate": 1.0
+      },
+      "firewall": {
+        "tasks": 5,
+        "top1": 3,
+        "top5": 5,
+        "top1_rate": 0.6,
+        "top5_rate": 1.0
+      },
+      "hotspot": {
+        "tasks": 1,
+        "top1": 1,
+        "top5": 1,
+        "top1_rate": 1.0,
+        "top5_rate": 1.0
+      },
+      "innerspace": {
+        "tasks": 5,
+        "top1": 3,
+        "top5": 4,
+        "top1_rate": 0.6,
+        "top5_rate": 0.8
+      },
+      "mobility": {
+        "tasks": 1,
+        "top1": 0,
+        "top5": 1,
+        "top1_rate": 0.0,
+        "top5_rate": 1.0
+      },
+      "network": {
+        "tasks": 52,
+        "top1": 26,
+        "top5": 45,
+        "top1_rate": 0.5,
+        "top5_rate": 0.8654
+      },
+      "protect": {
+        "tasks": 33,
+        "top1": 10,
+        "top5": 24,
+        "top1_rate": 0.303,
+        "top5_rate": 0.7273
+      },
+      "site_manager": {
+        "tasks": 3,
+        "top1": 1,
+        "top5": 1,
+        "top1_rate": 0.3333,
+        "top5_rate": 0.3333
+      },
+      "statistics": {
+        "tasks": 3,
+        "top1": 3,
+        "top5": 3,
+        "top1_rate": 1.0,
+        "top5_rate": 1.0
+      },
+      "vpn": {
+        "tasks": 6,
+        "top1": 3,
+        "top5": 4,
+        "top1_rate": 0.5,
+        "top5_rate": 0.6667
+      }
+    },
+    "top5_misses": [
+      "t003",
+      "t012",
+      "t021",
+      "t031",
+      "t032",
+      "t044",
+      "t047",
+      "t058",
+      "t062",
+      "t068",
+      "t077",
+      "t081",
+      "t083",
+      "t085",
+      "t093",
+      "t094",
+      "t098",
+      "t102",
+      "t106",
+      "t107",
+      "t112"
+    ]
+  },
+  "search_mode": {
+    "selection_accuracy": {
+      "mean": 0.825,
+      "min": 0.825,
+      "max": 0.825,
+      "range": 0.0,
+      "stdev": 0.0
+    },
+    "argument_accuracy_end_to_end": {
+      "mean": 0.8194,
+      "min": 0.8167,
+      "max": 0.825,
+      "range": 0.0083,
+      "stdev": 0.0039
+    },
+    "argument_accuracy_given_right_tool": {
+      "mean": 0.9933,
+      "min": 0.9899,
+      "max": 1.0,
+      "range": 0.0101,
+      "stdev": 0.0048
+    },
+    "near_duplicate_pairs": {
+      "selection": {
+        "mean": 0.8636,
+        "min": 0.8636,
+        "max": 0.8636,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 0.8485,
+        "min": 0.8409,
+        "max": 0.8636,
+        "range": 0.0227,
+        "stdev": 0.0107
+      }
+    },
+    "hard_tasks": {
+      "selection": {
+        "mean": 0.8387,
+        "min": 0.8387,
+        "max": 0.8387,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 0.828,
+        "min": 0.8226,
+        "max": 0.8387,
+        "range": 0.0161,
+        "stdev": 0.0076
+      }
+    },
+    "easy_tasks": {
+      "selection": {
+        "mean": 0.8103,
+        "min": 0.8103,
+        "max": 0.8103,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 0.8103,
+        "min": 0.8103,
+        "max": 0.8103,
+        "range": 0.0,
+        "stdev": 0.0
+      }
+    },
+    "by_hard_category": {
+      "body_shape": {
+        "mean": 0.8824,
+        "min": 0.8824,
+        "max": 0.8824,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "enum_words": {
+        "mean": 0.8571,
+        "min": 0.8571,
+        "max": 0.8571,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "implied": {
+        "mean": 0.7778,
+        "min": 0.7778,
+        "max": 0.7778,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "similar_params": {
+        "mean": 0.7273,
+        "min": 0.7273,
+        "max": 0.7273,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "unit": {
+        "mean": 0.8485,
+        "min": 0.8182,
+        "max": 0.9091,
+        "range": 0.0909,
+        "stdev": 0.0429
+      }
+    },
+    "per_run_selection": [
+      0.825,
+      0.825,
+      0.825
+    ],
+    "per_run_arguments": [
+      0.8167,
+      0.8167,
+      0.825
+    ],
+    "tasks_that_flip_between_runs": [
+      "t024"
+    ],
+    "tasks_wrong_in_every_run": [
+      "t003",
+      "t012",
+      "t021",
+      "t031",
+      "t032",
+      "t044",
+      "t047",
+      "t058",
+      "t062",
+      "t068",
+      "t077",
+      "t081",
+      "t083",
+      "t085",
+      "t093",
+      "t094",
+      "t098",
+      "t102",
+      "t106",
+      "t107",
+      "t112"
+    ],
+    "calls_without_an_answer": 0
+  },
+  "full_mode": {
+    "selection_accuracy": {
+      "mean": 0.9917,
+      "min": 0.9917,
+      "max": 0.9917,
+      "range": 0.0,
+      "stdev": 0.0
+    },
+    "argument_accuracy_end_to_end": {
+      "mean": 0.9917,
+      "min": 0.9917,
+      "max": 0.9917,
+      "range": 0.0,
+      "stdev": 0.0
+    },
+    "argument_accuracy_given_right_tool": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0,
+      "range": 0.0,
+      "stdev": 0.0
+    },
+    "near_duplicate_pairs": {
+      "selection": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      }
+    },
+    "hard_tasks": {
+      "selection": {
+        "mean": 0.9839,
+        "min": 0.9839,
+        "max": 0.9839,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 0.9839,
+        "min": 0.9839,
+        "max": 0.9839,
+        "range": 0.0,
+        "stdev": 0.0
+      }
+    },
+    "easy_tasks": {
+      "selection": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "arguments": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      }
+    },
+    "by_hard_category": {
+      "body_shape": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "enum_words": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "implied": {
+        "mean": 0.8889,
+        "min": 0.8889,
+        "max": 0.8889,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "similar_params": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "unit": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0,
+        "stdev": 0.0
+      }
+    },
+    "per_run_selection": [
+      0.9917,
+      0.9917,
+      0.9917
+    ],
+    "per_run_arguments": [
+      0.9917,
+      0.9917,
+      0.9917
+    ],
+    "tasks_that_flip_between_runs": [],
+    "tasks_wrong_in_every_run": [
+      "t098"
+    ],
+    "calls_without_an_answer": 0
+  },
+  "tokens": {
+    "total": 2891451,
+    "search_mode": 1188662,
+    "full_mode": 1702789,
+    "budget": 3000000
+  },
+  "measured_on": "b34d7b7562e1226dd406eb44bdec9985445c5c8e",
+  "measured_at": "2026-11-10",
+  "sensitivity_degraded_descriptions": {
+    "what": "same tasks and protocol, but every tool shows only the first sentence of its description and no parameter descriptions",
+    "runs": 1,
+    "tokens": 289613,
+    "search_mode": {
+      "selection_accuracy": {
+        "mean": 0.825,
+        "min": 0.825,
+        "max": 0.825,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "argument_accuracy_end_to_end": {
+        "mean": 0.7083,
+        "min": 0.7083,
+        "max": 0.7083,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "argument_accuracy_given_right_tool": {
+        "mean": 0.8586,
+        "min": 0.8586,
+        "max": 0.8586,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "near_duplicate_pairs": {
+        "selection": {
+          "mean": 0.8636,
+          "min": 0.8636,
+          "max": 0.8636,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 0.75,
+          "min": 0.75,
+          "max": 0.75,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "hard_tasks": {
+        "selection": {
+          "mean": 0.8387,
+          "min": 0.8387,
+          "max": 0.8387,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 0.6129,
+          "min": 0.6129,
+          "max": 0.6129,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "easy_tasks": {
+        "selection": {
+          "mean": 0.8103,
+          "min": 0.8103,
+          "max": 0.8103,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 0.8103,
+          "min": 0.8103,
+          "max": 0.8103,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "by_hard_category": {
+        "body_shape": {
+          "mean": 0.7059,
+          "min": 0.7059,
+          "max": 0.7059,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "enum_words": {
+          "mean": 0.4286,
+          "min": 0.4286,
+          "max": 0.4286,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "implied": {
+          "mean": 0.6667,
+          "min": 0.6667,
+          "max": 0.6667,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "similar_params": {
+          "mean": 0.7273,
+          "min": 0.7273,
+          "max": 0.7273,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "unit": {
+          "mean": 0.5455,
+          "min": 0.5455,
+          "max": 0.5455,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "per_run_selection": [
+        0.825
+      ],
+      "per_run_arguments": [
+        0.7083
+      ],
+      "tasks_that_flip_between_runs": [],
+      "tasks_wrong_in_every_run": [
+        "t003",
+        "t005",
+        "t006",
+        "t012",
+        "t021",
+        "t024",
+        "t029",
+        "t031",
+        "t032",
+        "t037",
+        "t044",
+        "t045",
+        "t047",
+        "t057",
+        "t058",
+        "t062",
+        "t064",
+        "t068",
+        "t071",
+        "t076",
+        "t077",
+        "t079",
+        "t080",
+        "t081",
+        "t083",
+        "t085",
+        "t087",
+        "t093",
+        "t094",
+        "t098",
+        "t102",
+        "t106",
+        "t107",
+        "t112",
+        "t113"
+      ],
+      "calls_without_an_answer": 0
+    },
+    "full_mode": {
+      "selection_accuracy": {
+        "mean": 0.9833,
+        "min": 0.9833,
+        "max": 0.9833,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "argument_accuracy_end_to_end": {
+        "mean": 0.8417,
+        "min": 0.8417,
+        "max": 0.8417,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "argument_accuracy_given_right_tool": {
+        "mean": 0.8559,
+        "min": 0.8559,
+        "max": 0.8559,
+        "range": 0.0,
+        "stdev": 0.0
+      },
+      "near_duplicate_pairs": {
+        "selection": {
+          "mean": 0.9773,
+          "min": 0.9773,
+          "max": 0.9773,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 0.8636,
+          "min": 0.8636,
+          "max": 0.8636,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "hard_tasks": {
+        "selection": {
+          "mean": 0.9677,
+          "min": 0.9677,
+          "max": 0.9677,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 0.6935,
+          "min": 0.6935,
+          "max": 0.6935,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "easy_tasks": {
+        "selection": {
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "arguments": {
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "by_hard_category": {
+        "body_shape": {
+          "mean": 0.7647,
+          "min": 0.7647,
+          "max": 0.7647,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "enum_words": {
+          "mean": 0.4286,
+          "min": 0.4286,
+          "max": 0.4286,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "implied": {
+          "mean": 0.7778,
+          "min": 0.7778,
+          "max": 0.7778,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "similar_params": {
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0,
+          "range": 0.0,
+          "stdev": 0.0
+        },
+        "unit": {
+          "mean": 0.5455,
+          "min": 0.5455,
+          "max": 0.5455,
+          "range": 0.0,
+          "stdev": 0.0
+        }
+      },
+      "per_run_selection": [
+        0.9833
+      ],
+      "per_run_arguments": [
+        0.8417
+      ],
+      "tasks_that_flip_between_runs": [],
+      "tasks_wrong_in_every_run": [
+        "t005",
+        "t006",
+        "t012",
+        "t024",
+        "t029",
+        "t037",
+        "t045",
+        "t057",
+        "t062",
+        "t064",
+        "t069",
+        "t071",
+        "t076",
+        "t079",
+        "t080",
+        "t085",
+        "t087",
+        "t098",
+        "t113"
+      ],
+      "calls_without_an_answer": 0
+    }
+  }
+}

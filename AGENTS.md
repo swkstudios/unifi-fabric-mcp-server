@@ -14,7 +14,7 @@ is [llms.txt](llms.txt); the tool-change recipe is [docs/AI-CHANGES.md](docs/AI-
 - Do not push until `scripts/prepush.sh` prints its pass line for the exact head ([push gate](#priority-and-workflow-rules)).
 - Never print or commit a credential value.
 
-Official-only catalog: with `UNIFI_EXCLUDE=unofficial,source:relay` 194 tools remain and 604 are excluded. `unofficial` removes every tool whose primary API source is private; `source:relay` removes the generic `fabric_connector_*` relays, which `unofficial` alone keeps and which can reach private routes ([official-only catalog](docs/CONFIGURATION.md#official-only-catalog)).
+Official-only catalog: with `UNIFI_EXCLUDE=unofficial,source:relay` 202 tools remain and 612 are excluded. `unofficial` removes every tool whose primary API source is private; `source:relay` removes the generic `fabric_connector_*` relays, which `unofficial` alone keeps and which can reach private routes ([official-only catalog](docs/CONFIGURATION.md#official-only-catalog)).
 
 Tools using console-internal paths depend on routes Ubiquiti can restrict without notice. `UNIFI_EXCLUDE=unofficial` alone excludes those tools but retains generic relays; use `UNIFI_EXCLUDE=unofficial,source:relay` for the official-only API profile.
 
@@ -121,12 +121,14 @@ lists them per tool.
 
 ```
 src/unifi_fabric/
-  server.py       : FastMCP app, lifespan setup, the core @mcp.tool() definitions and the registration of every tools/ module
+  server.py       : composition only: FastMCP app, transport and lifespan, the shared policy middleware, and registration of every family through the explicit loader map; it defines no tool
+  catalog/        : loaders.py (the explicit loader map, one step per register function, in tools/list order), membership.py (the explicit inventory: each tool's family and step), the typed catalog and its inventory check
+  families/       : one directory per family (handlers.py, schemas.py, registrar.py in the #42 layout); families/__init__.py reads the family and module indexes from catalog/membership.py
   client.py       : UniFiClient: async HTTP client (httpx) for api.ui.com; the single chokepoint for every upstream call (read-only, area opt-outs, dry-run, audit)
   config.py       : Settings (pydantic-settings, UNIFI_*) and MCPTransportSettings (MCP_*), env var loading and validation
   registry.py      — Lazy-load host/site cache with per-key TTL (MSP support)
   discovery.py    : discovery mode: the five meta-tools and the search index
-  families.py, api_sources.py: tool families and API-source selectors (UNIFI_FAMILY_ALLOW, UNIFI_EXCLUDE)
+  api_sources.py, policy.py: API-source selectors and the exposure grammar (UNIFI_FAMILY_ALLOW, UNIFI_EXCLUDE)
   read_only.py, read_only_tools.py, switches.py: UNIFI_WRITE_POLICY and UNIFI_WRITE_EXCEPTIONS
   secret_scrub.py, redaction.py: the server's own secret scrub and the opt-in UNIFI_REDACT_SECRETS masking
   audit.py, audit_chain.py: the audit stream and its opt-in tamper-evident hash chain (UNIFI_AUDIT_CHAIN)
@@ -153,7 +155,7 @@ src/unifi_fabric/
 tests/            : pytest + respx tests, one or more test files per tool module
 Dockerfile         — Production container (python:3.12-slim-bookworm, digest-pinned)
 requirements-runtime.lock — Runtime-only locked dependencies with hashes (the image, the Homebrew formula)
-requirements.lock  — Development lock (runtime plus the `dev` extra): CI, test-locked and the dev venv
+requirements.lock  — Development lock (runtime plus the `dev` extra): CI's install-proof job and the dev venv
 pyproject.toml     — Hatchling build, deps, ruff + pytest config
 ```
 
@@ -176,7 +178,7 @@ per-tool `deny` or `dry-run` entries; the strictest applies), `UNIFI_TOOL_MODE`,
 
 ## Key conventions
 
-- Tools are registered with `@mcp.tool()` decorators, in `server.py` or inside a `tools/` module's `register(mcp, deps_fn)`.
+- Tools are registered with `@mcp.tool()` decorators inside a family module's `register(mcp, deps_fn)`; the server runs every such function through the explicit loader map (`catalog/loaders.py`).
 - Tool logic that needs HTTP calls uses helper functions from the `tools/` modules, receiving `client` and `registry` from `_require()`.
 - The registry resolves host/site names to IDs so tools accept human-readable names.
 - Multi-key MSP support: each API key gets independent cache entries in the registry.
@@ -347,8 +349,8 @@ Drop all other parenthetical `(#NNN)` references — let the description stand o
   push, and push only when it prints `Pre-push: scripts/prepush.sh pass (head <sha7>)` with
   that commit's short SHA. Cite that line in the pull request body (Self-review section);
   the SHA must equal the head you pushed. A new commit needs a new run.
-- `scripts/prepush.sh` runs CI's fast jobs. The full suite runs in CI's `test` and
-  `test-locked` jobs on `main`, not in the default local run.
+- `scripts/prepush.sh` runs CI's fast jobs. The full suite runs in CI's `test` job (and
+  `install-proof` proves the locked install) on `main`, not in the default local run.
 - The full suite is CI's gate for `main`: the `test` check runs all of it with the coverage gate on
   every pull request into `main` and every push to `main` (no subset). It is a merge rule even where
   branch protection does not list `test` as required.

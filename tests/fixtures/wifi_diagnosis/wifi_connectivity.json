@@ -1,0 +1,322 @@
+{
+ "attempts": {
+  "association_ratio": 100,
+  "authentication_ratio": 92,
+  "dhcp_ratio": 88,
+  "dns_ratio": 88,
+  "failed_client_connections": 3,
+  "success_ratio": 88,
+  "total_attempts": 120
+ },
+ "event_groups": [
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a1",
+    "02:00:5e:00:00:a2"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:1e",
+    "name": "Client A",
+    "wlanconf_id": "wlan-4353"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "SUCCESS",
+     "latency": 140000,
+     "start_time": 1794365652000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a2",
+     "failure_reason": "SUCCESS",
+     "latency": 1480000,
+     "start_time": 1794351625000
+    }
+   ],
+   "failure_stage": "SUCCESS",
+   "start_time": 1794365652000
+  },
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a1",
+    "02:00:5e:00:00:a2"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:1f",
+    "name": "Game Room AC",
+    "wlanconf_id": "wlan-0889"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365305000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365306000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365307000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365308000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365309000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365310000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365311000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365312000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365313000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365314000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365315000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365316000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365317000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365318000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365319000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365320000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365321000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794365322000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a2",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794303459000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a2",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 30000,
+     "start_time": 1794300764000
+    }
+   ],
+   "failure_stage": "AUTHENTICATION",
+   "start_time": 1794365305000
+  },
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a1"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:1f",
+    "name": "Game Room AC",
+    "wlanconf_id": "wlan-0889"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "DHCP_TIMEOUT",
+     "latency": 400000,
+     "start_time": 1794362732000
+    }
+   ],
+   "failure_stage": "DHCP",
+   "start_time": 1794362732000
+  },
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a1",
+    "02:00:5e:00:00:a2"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:29",
+    "name": "Net AC",
+    "wlanconf_id": "wlan-0889"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360380000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360381000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360382000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360383000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360384000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360385000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360386000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360387000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794360388000
+    },
+    {
+     "ap_mac": "02:00:5e:00:00:a2",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "latency": 10000,
+     "start_time": 1794324861000
+    }
+   ],
+   "failure_stage": "AUTHENTICATION",
+   "start_time": 1794360380000
+  },
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a2"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:12",
+    "name": "Phone B",
+    "wlanconf_id": "wlan-a79c"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a2",
+     "failure_reason": "AUTHENTICATION_FAILURE",
+     "start_time": 1794335978000
+    }
+   ],
+   "failure_stage": "AUTHENTICATION",
+   "start_time": 1794335978000
+  },
+  {
+   "ap_macs": [
+    "02:00:5e:00:00:a1"
+   ],
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:2a",
+    "name": "Console",
+    "wlanconf_id": "wlan-0889"
+   },
+   "events": [
+    {
+     "ap_mac": "02:00:5e:00:00:a1",
+     "failure_reason": "WPA_AUTHENTICATION_FAILURE",
+     "start_time": 1794303301000
+    }
+   ],
+   "failure_stage": "AUTHENTICATION",
+   "start_time": 1794303301000
+  }
+ ],
+ "latencies": {
+  "association_latency": 22130,
+  "authentication_latency": 94079,
+  "dhcp_latency": 531702,
+  "total_latency": 925542,
+  "traffic_latency": 348936
+ },
+ "total_clients": 25
+}

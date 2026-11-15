@@ -476,7 +476,7 @@ def test_a_stray_version_holder_stops_the_render(tree: Path) -> None:
     """A generator that embeds the release instead of reading it fails the bump, naming
     the file and line, and nothing is written."""
     stray = tree / "scripts" / "stray_generator.sh"
-    stray.write_text(f"#!/bin/sh\necho '<!-- support={_published()} -->'\n")
+    stray.write_text(f"#!/bin/sh\necho 'release {_published()}'\n")
     before = _snapshot(tree)
     with pytest.raises(pr.PrepareError, match=r"scripts/stray_generator\.sh:2"):
         pr.plan(tree, NEXT)
@@ -486,6 +486,77 @@ def test_a_stray_version_holder_stops_the_render(tree: Path) -> None:
     # A line that says it is historical keeps its version and is not a holder.
     stray.write_text(f"#!/bin/sh\n# docs-currency: historical: added in {_published()}\n")
     assert pr.plan(tree, NEXT).changes
+
+
+def test_a_bare_release_next_to_a_patterned_pin_stops_the_render(tree: Path) -> None:
+    """A line holding a pip pin and also the release in plain words is not rendered away:
+    the pin moves, the words would stay stale. The bump must refuse, naming the line."""
+    published = _published()
+    page = tree / "docs" / "DOCKER.md"
+    original = page.read_text()
+    pin = f"`pip install unifi-fabric-mcp-server=={published}`"
+    page.write_text(original + f"Install with {pin} (see the {published} notes).\n")
+    line = len(page.read_text().splitlines())
+    assert any(f"docs/DOCKER.md:{line}:" in s for s in pr.pin_file_holders(tree, {published}))
+    before = _snapshot(tree)
+    with pytest.raises(pr.PrepareError, match=rf"docs/DOCKER\.md:{line}"):
+        pr.plan(tree, NEXT, published=True)
+    assert pr.main([NEXT, "--published", "--write", "--root", str(tree)]) == 2
+    assert _snapshot(tree) == before, "a refused render writes nothing"
+    # The same line with only the pin is rendered away; a historical line keeps its notes.
+    marker = "<!-- docs-currency: historical -->"
+    page.write_text(
+        original
+        + f"Install with {pin}.\n"
+        + f"Upgrading from {published}? See the {published} notes. {marker}\n"
+    )
+    assert pr.pin_file_holders(tree, {published}) == []
+    assert pr.plan(tree, NEXT, published=True).changes
+
+
+@pytest.mark.parametrize(
+    ("rel", "marker"),
+    [
+        ("docs/CLIENT-SETUP.md", "the guide describes "),
+        ("README.md", "> describes "),
+    ],
+)
+def test_a_plain_mention_beside_a_version_field_stops_the_render(
+    tree: Path, rel: str, marker: str
+) -> None:
+    """A release statement line ("describes X.Y.Z source") that also says "See the X.Y.Z
+    notes." keeps that second mention through a bump: the field moves, the words stay stale.
+    The bump must refuse and name the line."""
+    page = tree / rel
+    lines = page.read_text().splitlines(keepends=True)
+    index = next(n for n, text in enumerate(lines) if marker in text and "source." in text)
+    assert pr.pin_file_holders(tree, {CURRENT}) == []
+    lines[index] = lines[index].rstrip("\n") + f" See the {CURRENT} notes.\n"
+    page.write_text("".join(lines))
+    assert any(f"{rel}:{index + 1}:" in s for s in pr.pin_file_holders(tree, {CURRENT}))
+    before = _snapshot(tree)
+    with pytest.raises(pr.PrepareError, match=rf"{re.escape(rel)}:{index + 1}"):
+        pr.plan(tree, NEXT)
+    assert pr.main([NEXT, "--write", "--root", str(tree)]) == 2
+    assert _snapshot(tree) == before, "a refused render writes nothing"
+    lines[index] = lines[index].rstrip("\n") + " <!-- docs-currency: historical -->\n"
+    page.write_text("".join(lines))
+    assert pr.pin_file_holders(tree, {CURRENT}) == []
+
+
+def test_a_version_field_may_share_a_line_with_a_pin() -> None:
+    """The setup guide's opening line names the published pin and the described source."""
+    line = (
+        "The package commands in this guide install the published 0.7.2 release, "
+        "and the guide describes 0.7.3 source."
+    )
+    assert pr._pin_rendered("docs/CLIENT-SETUP.md", line, "0.7.2")
+    assert pr._pin_rendered("docs/CLIENT-SETUP.md", line, "0.7.3")
+    assert not pr._pin_rendered("docs/CLIENT-SETUP.md", line + " See the 0.7.3 notes.", "0.7.3")
+    assert not pr._pin_rendered("docs/CLIENT-SETUP.md", line + " See the 0.7.2 notes.", "0.7.2")
+    assert not pr._pin_rendered("docs/OTHER.md", line, "0.7.3"), (
+        "only a field's own file is excused"
+    )
 
 
 def test_excused_holders_are_exact_and_still_needed() -> None:

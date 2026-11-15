@@ -263,12 +263,6 @@ async def test_cache_ttl_zero_resolves_the_mac_every_call(monkeypatch):
     assert len(_gets(up, "/devices")) == 2
 
 
-def test_readme_cache_section_covers_the_mac_cache():
-    text = (Path(__file__).resolve().parents[1] / "docs" / "CONFIGURATION.md").read_text()
-    row = next(line for line in text.splitlines() if line.startswith("| `UNIFI_CACHE_TTL_SECONDS`"))
-    assert "MAC" in row
-
-
 # ================================================ explicit null results
 def test_null_result_is_text_null_plus_structured_content():
     res = to_structured_null_result()

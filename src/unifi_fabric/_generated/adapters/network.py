@@ -50,6 +50,7 @@ __all__ = [
     "create_network_members_group",
     "create_ospf_router",
     "create_policy_engine_rule",
+    "create_port_automation",
     "create_port_forward",
     "create_port_profile",
     "create_power_supervisor",
@@ -84,6 +85,7 @@ __all__ = [
     "delete_network_members_group",
     "delete_ospf_router",
     "delete_policy_engine_rule",
+    "delete_port_automation",
     "delete_port_forward",
     "delete_port_profile",
     "delete_power_supervisor",
@@ -130,6 +132,7 @@ __all__ = [
     "get_enriched_configuration",
     "get_first_system_event",
     "get_global_network_config",
+    "get_hotspot_guest_webhook_delivery",
     "get_hotspot_package",
     "get_hotspot_settings",
     "get_hotspot_voucher",
@@ -156,6 +159,7 @@ __all__ = [
     "get_packet_capture_status",
     "get_ping_test_results",
     "get_poe_info",
+    "get_port_automation",
     "get_port_forward_statistics",
     "get_port_history",
     "get_port_profile",
@@ -234,6 +238,7 @@ __all__ = [
     "list_networks",
     "list_policy_engine_rules",
     "list_port_anomalies",
+    "list_port_automations",
     "list_port_forwards",
     "list_port_profiles",
     "list_power_supervisors",
@@ -337,6 +342,7 @@ __all__ = [
     "update_network_members_group",
     "update_ospf_router",
     "update_policy_engine_rule",
+    "update_port_automation",
     "update_port_forward",
     "update_port_profile",
     "update_power_supervisor",
@@ -678,6 +684,15 @@ async def create_policy_engine_rule(
     return await registered_wrapper("create_policy_engine_rule")(**validated_arguments)
 
 
+async def create_port_automation(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``create_port_automation``."""
+    return await registered_wrapper("create_port_automation")(**validated_arguments)
+
+
 async def create_port_forward(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -982,6 +997,15 @@ async def delete_policy_engine_rule(
 ) -> Any:
     """Adapter of ``delete_policy_engine_rule``."""
     return await registered_wrapper("delete_policy_engine_rule")(**validated_arguments)
+
+
+async def delete_port_automation(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``delete_port_automation``."""
+    return await registered_wrapper("delete_port_automation")(**validated_arguments)
 
 
 async def delete_port_forward(
@@ -1398,6 +1422,15 @@ async def get_global_network_config(
     return await registered_wrapper("get_global_network_config")(**validated_arguments)
 
 
+async def get_hotspot_guest_webhook_delivery(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_hotspot_guest_webhook_delivery``."""
+    return await registered_wrapper("get_hotspot_guest_webhook_delivery")(**validated_arguments)
+
+
 async def get_hotspot_package(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -1630,6 +1663,15 @@ async def get_poe_info(
 ) -> Any:
     """Adapter of ``get_poe_info``."""
     return await registered_wrapper("get_poe_info")(**validated_arguments)
+
+
+async def get_port_automation(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_port_automation``."""
+    return await registered_wrapper("get_port_automation")(**validated_arguments)
 
 
 async def get_port_forward_statistics(
@@ -2332,6 +2374,15 @@ async def list_port_anomalies(
 ) -> Any:
     """Adapter of ``list_port_anomalies``."""
     return await registered_wrapper("list_port_anomalies")(**validated_arguments)
+
+
+async def list_port_automations(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``list_port_automations``."""
+    return await registered_wrapper("list_port_automations")(**validated_arguments)
 
 
 async def list_port_forwards(
@@ -3259,6 +3310,15 @@ async def update_policy_engine_rule(
 ) -> Any:
     """Adapter of ``update_policy_engine_rule``."""
     return await registered_wrapper("update_policy_engine_rule")(**validated_arguments)
+
+
+async def update_port_automation(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``update_port_automation``."""
+    return await registered_wrapper("update_port_automation")(**validated_arguments)
 
 
 async def update_port_forward(

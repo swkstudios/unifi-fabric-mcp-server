@@ -17,6 +17,7 @@ from fastmcp import FastMCP
 from tests import upstream_harness as uh
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
 from unifi_fabric.families.network import network_nat_qos_traffic as nc
+from unifi_fabric.families.network import registrar as network_registrar
 
 HOST = "console-a"
 SITE = "Default"
@@ -550,7 +551,7 @@ async def test_registers_typed_documented_tools_with_derived_access() -> None:
     from unifi_fabric._read_only_audit import derive_write_tools
 
     mcp = FastMCP("nat-qos-traffic")
-    nc.register(mcp, lambda: (Client(), Registry()))
+    network_registrar.register_3(mcp, lambda: (Client(), Registry()))
     listed = await mcp.list_tools()
     tools = {tool.name: tool for tool in listed}
     assert set(tools) == TOOL_NAMES
@@ -575,7 +576,7 @@ async def test_registers_typed_documented_tools_with_derived_access() -> None:
 async def test_tools_call_through_the_registered_wrappers() -> None:
     client = Client()
     mcp = FastMCP("nat-qos-traffic")
-    nc.register(mcp, lambda: (client, Registry()))
+    network_registrar.register_3(mcp, lambda: (client, Registry()))
     await mcp.call_tool("list_content_filter_categories", {"host": HOST, "site": SITE})
     await mcp.call_tool("get_topology_snapshot", {"host": HOST, "site": SITE, "view": "live"})
     await mcp.call_tool(
@@ -627,7 +628,7 @@ async def test_latest_flow_stats_default_and_documented_period_reach_a_served_qu
     """E2E 0.7.0 bug 14: the default call and the documented period "day" answered 400."""
     client = LiveNetworkUpstream()
     mcp = FastMCP("nat-qos-traffic")
-    nc.register(mcp, lambda: (client, Registry()))
+    network_registrar.register_3(mcp, lambda: (client, Registry()))
     default = await mcp.call_tool("get_latest_traffic_flow_stats", {"host": HOST, "site": SITE})
     assert default.structured_content == {"all_count_by_region": {"DE": 1234}}
     hour = await mcp.call_tool(
@@ -648,7 +649,7 @@ async def test_latest_flow_stats_default_and_documented_period_reach_a_served_qu
 async def test_traffic_stats_legacy_query_and_valid_window() -> None:
     client = LiveNetworkUpstream()
     mcp = FastMCP("nat-qos-traffic")
-    nc.register(mcp, lambda: (client, Registry()))
+    network_registrar.register_3(mcp, lambda: (client, Registry()))
     schema = {t.name: t for t in await mcp.list_tools()}["get_traffic_stats"]
     assert set(schema.parameters["required"]) == {"host", "site"}
     params = {"start": 1793188385000, "end": 1793191985000, "future": [1, 2]}
@@ -676,7 +677,7 @@ async def test_traffic_stats_legacy_query_and_valid_window() -> None:
 async def test_poe_info_legacy_query_and_valid_mac() -> None:
     client = LiveNetworkUpstream()
     mcp = FastMCP("nat-qos-traffic")
-    nc.register(mcp, lambda: (client, Registry()))
+    network_registrar.register_3(mcp, lambda: (client, Registry()))
     schema = {t.name: t for t in await mcp.list_tools()}["get_poe_info"]
     assert set(schema.parameters["required"]) == {"host", "site"}
     params = {"mac": "00:00:5e:00:53:01", "future": [1]}

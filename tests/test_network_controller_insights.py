@@ -1,4 +1,4 @@
-"""Network controller insights (GS3 lane N02).
+"""Network controller insights.
 
 Every tool is exercised against the real ``UniFiClient`` with only the HTTP transport
 mocked: routes, query parameters and bodies sent, verbatim pass-through, the affirmative
@@ -30,6 +30,7 @@ from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import ClassicApiError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.network import network_controller_insights as nci
+from unifi_fabric.families.network import registrar as network_registrar
 from unifi_fabric.redaction import REDACTION_MASK
 from unifi_fabric.shared_shapes._classic_cmd import ClassicCommandError
 
@@ -76,7 +77,7 @@ READ_TOOLS = {
 DPI_TOOLS = {"get_site_dpi_usage", "get_client_dpi_usage"}
 WRITE_TOOLS = {"get_sites_overview", "set_ups_pairing"}
 #: Tools with no recorded live fixture yet (the Stage L read sweep records them).
-SIMULATED_TOOLS = DPI_TOOLS | {"get_client_wifi_experience", "suggest_service_port"}
+SIMULATED_TOOLS = DPI_TOOLS | {"get_client_wifi_experience"}
 
 
 def registry(key: APIKeyConfig | None = None) -> AsyncMock:
@@ -896,7 +897,7 @@ async def test_multikey_data_requests_ride_the_owning_key(multikey_client, multi
 
 def _registered() -> dict[str, Any]:
     mcp = FastMCP("n02-test")
-    nci.register(mcp, lambda: (None, None))
+    network_registrar.register_12(mcp, lambda: (None, None))
     res = mcp.list_tools()
     tools = asyncio.run(res) if inspect.isawaitable(res) else res
     return {t.name: t for t in tools}
@@ -1238,7 +1239,7 @@ def test_review_ups_secret_is_registered_for_typed_and_relay_calls():
 
 
 def test_review_registration_derives_annotations():
-    source = inspect.getsource(nci.register)
+    source = inspect.getsource(network_registrar.register_12)
     assert "classify_tool_verbs" in source or "derive_write_tools" in source
     assert "annotations=READ_ONLY" not in source and "annotations=WRITE" not in source
 
@@ -1389,7 +1390,7 @@ async def test_review_tool_scope_resolution_error_respects_redaction_policy(reda
     )
     c, reg = cold_client(up, redact_secrets=redact)
     mcp = FastMCP("n02-review-tool-scope")
-    nci.register(mcp, lambda: (c, reg))
+    network_registrar.register_12(mcp, lambda: (c, reg))
     mcp.add_middleware(SecretScrubMiddleware())
 
     @mcp.tool(name="fabric_connector_post")

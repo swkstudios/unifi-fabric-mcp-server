@@ -5,7 +5,7 @@ reference the image by digest rather than a mutable tag to ensure reproducibilit
 and guard against tag mutation:
 
 <!-- install-case: readme-docker-01 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-docker-01 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-docker-01 -->
 ```bash
 # Pull by digest instead of :latest or a version tag
 docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
@@ -14,7 +14,7 @@ docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
 You can find the digest for a given release on the package page or via (the image must be present locally; run `docker pull` first):
 
 <!-- install-case: readme-docker-02 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-docker-02 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-docker-02 -->
 ```bash
 docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
 docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/swkstudios/unifi-fabric-mcp-server:latest
@@ -50,13 +50,13 @@ The release image is built in the public repository, after the release is approv
 Run the server as a container. The MCP client connects over HTTP to the `/mcp` endpoint and sends a bearer token, so only clients that hold the token can use your UniFi key.
 
 <!-- install-case: readme-install-24 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-24 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-24 -->
 ```bash
 # Generate a random token once and keep it: the server checks it and your MCP client sends it.
 export MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
 docker run -e UNIFI_API_KEY -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN \
-  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 The third line prompts for your UniFi key without echoing it or saving it in your shell history. `-e UNIFI_API_KEY` and `-e MCP_BEARER_TOKEN` with no `=value` pass both variables from your shell, so neither the key nor the token is written into the command. `-p 127.0.0.1:3000:3000` publishes the port on this machine only; use `-p 3000:3000` to serve other machines, and add TLS for anything beyond a trusted LAN ([AUTH-TLS.md](AUTH-TLS.md)).
@@ -66,7 +66,7 @@ The third line prompts for your UniFi key without echoing it or saving it in you
 For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks you to approve it on first use, and expands `${MCP_BEARER_TOKEN}` from the environment it starts in). For all projects, use the user-scoped configuration supported by your client, keeping the token in the environment rather than passing its value as a command argument. Supported locations are documented by [Claude Code](https://code.claude.com/docs/en/mcp). The entry holds no credential value: `${MCP_BEARER_TOKEN}` is read from your environment, and the UniFi API key stays in the container's environment (`-e UNIFI_API_KEY`), never in the client entry. The server listens at `/mcp` on the published port, and the entry's `type` is `http`. Other clients take the same `Authorization` header in their HTTP server entry.
 
 <!-- install-case: readme-install-25 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-25 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-25 -->
 ```json
 {
   "mcpServers": {
@@ -82,7 +82,7 @@ For Claude Code, put this in `.mcp.json` at your project root (Claude Code asks 
 **Verify it works:**
 
 <!-- install-case: readme-install-26 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-26 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-26 -->
 ```bash
 curl -s -w "\nHTTP:%{http_code}\n" \
   -X POST -H "Content-Type: application/json" \
@@ -103,15 +103,32 @@ A browser page on another site cannot drive the server: a request whose `Origin`
 Without `MCP_AUTH_MODE` and `MCP_BEARER_TOKEN` the server accepts every request: anyone who can reach the port can call every tool, writes included, with your UniFi key. Use it only on loopback or on a network where every host is trusted. When it serves HTTP on a non-loopback address with no auth (the image binds `0.0.0.0`), the server prints a startup `WARNING` naming the fix.
 
 <!-- install-case: readme-install-27 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-27 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-27 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
-docker run -e UNIFI_API_KEY -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+docker run -e UNIFI_API_KEY -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 The client entry is the one above without `headers`, and the `curl` check without the `Authorization` line.
 
 > **Network deployments:** By default the MCP server listens on plain HTTP. For non-localhost deployments, run it behind a TLS-terminating reverse proxy (e.g., Traefik, Caddy, nginx) or turn on in-server TLS with `MCP_TLS_MODE=https` or `mtls` ([AUTH-TLS.md](AUTH-TLS.md)).
+
+### Trace export in a container
+
+The release image does not include the OpenTelemetry packages, because the feature serves only operators who run a collector. Build a derived image that adds the `otel` extra (HTTP/protobuf, no `grpcio`) in a build stage and copies it next to the server's packages:
+
+<!-- install-case: docker-otel-image mode=non-executable reason=deployment-or-client-interaction -->
+<!-- doc-provenance: source=file:Dockerfile@sha256:b45a3154f75d941518f335e51ac3e504d128ad03146859f9fbb97a782cded9e2 citation=file:Dockerfile@sha256:b45a3154f75d941518f335e51ac3e504d128ad03146859f9fbb97a782cded9e2 -->
+```dockerfile
+FROM python:3.12-slim-bookworm AS otel
+RUN pip install --no-cache-dir --target /otel \
+    "opentelemetry-sdk>=1.30" "opentelemetry-exporter-otlp-proto-http>=1.30"
+
+FROM ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
+COPY --from=otel /otel /venv/lib/python3.12/site-packages
+```
+
+Use the Python version the release image was built with for the `FROM` line and the `site-packages` path. Set `OTEL_EXPORTER_OTLP_ENDPOINT` as described in [Trace export](CONFIGURATION.md#trace-export-otlp).
 
 ### Reverse proxies and sidecars
 

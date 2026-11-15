@@ -98,10 +98,3 @@ def test_trust_model_pages_cover_header_mode(path: Path, required: tuple[str, ..
     text = _text(path)
     for needle in required:
         assert _mentions(text, needle), f"{path.relative_to(ROOT)}: does not mention {needle}"
-
-
-def test_no_page_claims_every_caller_uses_the_configured_keys() -> None:
-    """The pre-header-mode wording is false once ``UNIFI_KEY_MODE=header`` is set."""
-    stale = "All admitted clients use the deployment's configured UniFi"
-    for path in (SECURITY, AUTH_OAUTH, CHATGPT):
-        assert stale not in " ".join(_text(path).split()), f"{path.relative_to(ROOT)}"

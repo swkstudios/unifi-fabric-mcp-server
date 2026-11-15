@@ -172,3 +172,20 @@ def test_depends_on_block_is_generated(monkeypatch, tmp_path) -> None:
     assert gen.main(["--check", "--formula", str(formula)]) == 1
     assert gen.main(["--formula", str(formula)]) == 0
     assert formula.read_text() == FORMULA.read_text()
+
+
+def test_install_works_around_superenv_breaking_aws_lc_sys() -> None:
+    # Found by `brew install --build-from-source` on macOS 26: superenv strips the -O0
+    # that aws-lc-sys needs for its CPU jitter RNG, so pydantic-monty-client failed to build.
+    text = FORMULA.read_text()
+    assert 'ENV["AWS_LC_SYS_NO_JITTER_ENTROPY"] = "1"' in text
+    assert text.index("AWS_LC_SYS_NO_JITTER_ENTROPY") < text.index(
+        "virtualenv_install_with_resources"
+    )
+
+
+def test_formula_header_is_true_in_the_published_tap() -> None:
+    # The header is copied to the tap verbatim: it must not call the file an unpublished template.
+    head = FORMULA.read_text().split("class UnifiFabricMcpServer", 1)[0]
+    assert "IN-REPO TEMPLATE ONLY" not in head and "NOT published" not in head
+    assert "brew install swkstudios/tap/unifi-fabric-mcp-server" in head

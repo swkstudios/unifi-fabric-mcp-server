@@ -1,0 +1,51 @@
+{
+ "data": [
+  {
+   "_id": "setting-radio-ai",
+   "auto_enabled": false,
+   "channels_ng": [
+    "1",
+    "6",
+    "11"
+   ],
+   "enabled": true,
+   "ht_modes_na": [
+    "20",
+    "40"
+   ],
+   "ht_modes_ng": [
+    "20"
+   ],
+   "key": "radio_ai",
+   "optimize": [
+    "channel"
+   ],
+   "radios": [
+    "ng",
+    "na",
+    "6e"
+   ],
+   "radios_configuration": [
+    {
+     "channel_width": 160,
+     "dfs": true,
+     "radio": "na"
+    },
+    {
+     "channel_width": 20,
+     "dfs": false,
+     "radio": "ng"
+    },
+    {
+     "channel_width": 320,
+     "dfs": false,
+     "radio": "6e"
+    }
+   ],
+   "setting_preference": "auto"
+  }
+ ],
+ "meta": {
+  "rc": "ok"
+ }
+}

@@ -2,9 +2,24 @@
   "manifest_version": "0.3",
   "name": "unifi-fabric",
   "display_name": "UniFi Fabric MCP",
-  "version": "0.7.2",
+  "icon": "icon.png",
+  "icons": [
+    { "src": "icon-16.png", "size": "16x16", "theme": "dark" },
+    { "src": "icon-32.png", "size": "32x32", "theme": "dark" },
+    { "src": "icon-64.png", "size": "64x64", "theme": "dark" },
+    { "src": "icon-128.png", "size": "128x128", "theme": "dark" },
+    { "src": "icon-256.png", "size": "256x256", "theme": "dark" },
+    { "src": "icon.png", "size": "512x512", "theme": "dark" },
+    { "src": "icon-light-16.png", "size": "16x16", "theme": "light" },
+    { "src": "icon-light-32.png", "size": "32x32", "theme": "light" },
+    { "src": "icon-light-64.png", "size": "64x64", "theme": "light" },
+    { "src": "icon-light-128.png", "size": "128x128", "theme": "light" },
+    { "src": "icon-light-256.png", "size": "256x256", "theme": "light" },
+    { "src": "icon-light.png", "size": "512x512", "theme": "light" }
+  ],
+  "version": "0.7.3",
   "description": "Run the open-source UniFi Fabric MCP server on your own Mac or Windows PC with your own UniFi Site Manager API key.",
-  "long_description": "Launches `uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` on your machine with the UniFi Site Manager API key you enter at install time. Claude can then read and manage your UniFi sites, devices, clients, Wi-Fi, firewall, VPN and Protect cameras through the UniFi Fabric API in Ubiquiti's cloud (api.ui.com). Writes are on by default; set the Write policy option to deny to hide and refuse every write and action tool. Requires uv (https://docs.astral.sh/uv/). Not affiliated with Ubiquiti Inc.",
+  "long_description": "Launches `uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp` on your machine with the UniFi Site Manager API key you enter at install time. Claude can then read and manage your UniFi sites, devices, clients, Wi-Fi, firewall, VPN and Protect cameras through the UniFi Fabric API in Ubiquiti's cloud (api.ui.com). Writes are on by default; set the Write policy option to deny to hide and refuse every write and action tool. Requires uv (https://docs.astral.sh/uv/). Not affiliated with Ubiquiti Inc.",
   "author": {
     "name": "SWK Studios",
     "url": "https://github.com/swkstudios"
@@ -23,7 +38,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "unifi-fabric-mcp-server==0.7.2",
+        "unifi-fabric-mcp-server==0.7.3",
         "unifi-fabric-mcp"
       ],
       "env": {

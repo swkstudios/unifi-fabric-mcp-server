@@ -16,10 +16,7 @@ does not list fails with the valid locks named. Every response is passed through
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from typing import Any, cast
-
-from fastmcp import FastMCP
 
 from ...client import UniFiClient, UniFiConnectionError, path_segment, upstream_error_value
 from ...config import APIKeyConfig
@@ -34,16 +31,11 @@ from ...shared_shapes._pagination import (
     validate_pagination,
 )
 from ...shared_shapes._payload import with_upstream_hint
-from ...tool_annotations import READ_ONLY
 from .protect import _as_list, _private, _require_object, _resolve
-
-#: The Protect 7.3.74 route table caps the unlock-events page size at 100 (default 50).
-UNLOCK_EVENTS_PAGE_SIZE = 100
-#: The offset the console accepts is 0 to 10000.
-UNLOCK_EVENTS_MAX_OFFSET = 10000
-_LOCKS_HINT = (
-    "Door lock reads use the Protect 7.x /locks routes; a console older than Protect 7.x "
-    "does not serve them."
+from .schemas import (  # the family's shapes (family-owned layout)
+    _LOCKS_HINT,
+    UNLOCK_EVENTS_MAX_OFFSET,
+    UNLOCK_EVENTS_PAGE_SIZE,
 )
 
 
@@ -221,65 +213,3 @@ async def list_door_lock_unlock_events(
 # Module-level aliases: the registered tools below shadow these names inside register().
 _get_door_lock = get_door_lock
 _list_door_lock_unlock_events = list_door_lock_unlock_events
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register this module's tools on ``mcp`` (called once by the server)."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_door_lock(host: str, lock_id: str) -> dict[str, Any]:
-        """Get one door lock that Protect 7.x manages under /locks.
-
-        Reads GET /locks/{lock_id} on the private Protect API (the Protect 7.x Thread lock
-        model; the official API has no door-lock route). Returns the lock object verbatim.
-        The id is checked first against GET /locks: an id the console does not list fails
-        before the per-lock request with an error naming the valid locks (id and name).
-        Consoles older than Protect 7.x do not serve this route. Upstream failures retain
-        their body and include availability guidance.
-
-        Required arguments: host, lock_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts (reportedState.hostname or name,
-                case-insensitive, or the long data[].id); for example "my-console".
-            lock_id: Lock id from GET /locks (the Protect lock list or bootstrap); for example
-                "000000000000000000000701".
-        """
-        client, registry = deps_fn()
-        return await _get_door_lock(client, registry, host, lock_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_door_lock_unlock_events(
-        host: str,
-        lock_id: str,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> Any:
-        """List the remote unlock requests made to a Protect 7.x door lock, newest first.
-
-        Reads GET /locks/{lock_id}/unlock/events on the private Protect API (no official
-        route); each request is returned verbatim. An unlisted lock_id fails naming the
-        valid locks. Returns {result, _count} by default (drained in pages of 100);
-        {data, _count, _pageSize} for a limit; for an offset (0 to 10000), one native page
-        as the bare array sent. A drain that stops early (UNIFI_PAGINATE_MAX_PAGES,
-        the 10000 offset limit or a repeated page) is marked incomplete=true with an
-        incompleteReason. Consoles older than Protect 7.x do not serve this route.
-
-        Required arguments: host, lock_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts (reportedState.hostname or name,
-                case-insensitive, or the long data[].id); for example "my-console".
-            lock_id: Lock id from GET /locks (the Protect lock list or bootstrap); for example
-                "000000000000000000000701".
-            offset: Optional zero-based number of newest requests to skip; alone, fetch one
-                page manually. Example: `25`.
-            limit: Without offset, the number of newest requests to gather in pages of at
-                most 100; fewer only when the lock has no more. With offset, limit is sent
-                unchanged as one page. The console clamps that page to 100, so fewer can
-                return while more exist. Page size 1 to 100. Example: `25`.
-        """
-        client, registry = deps_fn()
-        return await _list_door_lock_unlock_events(
-            client, registry, host, lock_id, offset=offset, limit=limit
-        )

@@ -33,7 +33,7 @@ def build(tmp_path: Path, n: int = 6, key: bytes | None = None) -> tuple[Path, b
     stream.startup("0.0.0-test")
     stream.policy_record(POLICY_LINE)
     for i in range(n):
-        stream.record(method="POST", path=f"/r/{i}", outcome="success", status=200)
+        stream.record(method="POST", path=f"/sites/{i}", outcome="success", status=200)
     return log, key
 
 
@@ -59,7 +59,7 @@ def test_untouched_file_is_clean(tmp_path):
 
 def test_edit_a_field(tmp_path):
     log, key = build(tmp_path)
-    log.write_bytes(log.read_bytes().replace(b'"/r/2"', b'"/r/X"'))
+    log.write_bytes(log.read_bytes().replace(b'"/sites/2"', b'"/sites/X"'))
     assert codes(verify([log], key)) == ["BAD_MAC"]
 
 
@@ -315,7 +315,7 @@ def test_link_target_changed(tmp_path):
     second.record(method="POST", path="/second", outcome="success", status=200)
     lines = raw_lines(log)
     target = len(lines) - 3  # the record the second chain links to
-    lines[target] = lines[target].replace(b'"/r/5"', b'"/r/Z"')
+    lines[target] = lines[target].replace(b'"/sites/5"', b'"/sites/Z"')
     write_lines(log, lines)
     assert codes(verify([log], key)) == ["BAD_MAC"]
 
@@ -421,7 +421,7 @@ def test_cli_exit_codes_and_key_file(tmp_path):
     kid = audit_verify.kid_of(audit_verify.subkey_of(key))
     assert f"kid={kid}" in clean.stdout  # the kid is the only key-derived value shown
     assert_no_key_material(clean, key, paths=(ring_file,))
-    log.write_bytes(log.read_bytes().replace(b'"/r/1"', b'"/r/9"'))
+    log.write_bytes(log.read_bytes().replace(b'"/sites/1"', b'"/sites/9"'))
     tampered = run_cli("--key-file", str(ring_file), str(log))
     assert tampered.returncode == 1
     assert "FINDING BAD_MAC" in tampered.stdout
@@ -438,7 +438,13 @@ def test_cli_key_from_the_environment(tmp_path):
 
 @pytest.mark.parametrize("flag", ["--key", "--chain-key", "-k", "--key-fil"])
 def test_cli_has_no_key_argument_and_never_echoes_arguments(tmp_path, flag):
-    log, key = build(tmp_path)
+    # The key text is passed as the flag value. A random key whose base64url text starts with "-"
+    # (1 in 64; "-h" alone is 1 in 4096) is read by argparse as an option ("-h" prints help and
+    # exits 0), so the test flaked. A leading zero byte makes the text start with "A", so the key
+    # can never look like an option; the rest stays random.
+    key = b"\x00" + os.urandom(31)
+    assert not key_text(key).startswith("-")
+    log, key = build(tmp_path, key=key)
     result = run_cli(flag, key_text(key), str(log), env_key=key)
     assert result.returncode == 2
     assert_no_key_material(result, key)
@@ -591,6 +597,30 @@ def test_a_genuine_fault_is_still_excused_by_its_recovered_record(tmp_path, monk
     report = verify([log], key)
     assert report.findings == []
     assert [w.code for w in report.warnings] == ["UNSEALED_POLICY_RECOVERED"]
+
+
+def test_strict_makes_a_recovered_warning_a_finding(tmp_path, monkeypatch):
+    log, key = _log_with_one_lost_seal(tmp_path, monkeypatch)
+    report = verify([log], key, strict=True)
+    assert [f.code for f in report.findings] == ["UNSEALED_POLICY_RECOVERED"]
+    assert report.warnings == []
+    assert report.exit_code == 1
+
+
+def test_a_forged_line_inside_the_recovered_budget_is_only_caught_by_strict(tmp_path, monkeypatch):
+    log, key = _log_with_one_lost_seal(tmp_path, monkeypatch)
+    lines = raw_lines(log)
+    at = index_of(lines, "audit.recovered")
+    # The genuine fault's own unsealed line is the excused one; a forged line replaces it.
+    write_lines(log, [*lines[: at - 1], POLICY_LINE.encode(), *lines[at:]])
+    assert verify([log], key).exit_code == 0
+    assert verify([log], key, strict=True).exit_code == 1
+
+
+def test_cli_strict_flag_exits_one_on_a_recovery(tmp_path, monkeypatch):
+    log, key = _log_with_one_lost_seal(tmp_path, monkeypatch)
+    assert run_cli(str(log), env_key=key).returncode == 0
+    assert run_cli("--strict", str(log), env_key=key).returncode == 1
 
 
 def test_forged_lines_before_a_genuine_recovery_are_findings(tmp_path, monkeypatch):

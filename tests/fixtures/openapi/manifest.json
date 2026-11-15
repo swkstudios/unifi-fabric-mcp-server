@@ -32,11 +32,11 @@
     "transform": "example/examples annotation keywords removed"
   },
   "protect": {
-    "version": "7.3.74",
-    "source_url": "https://developer.ui.com/protect/v7.3.74/openapi.json",
-    "source_sha256": "85caa3c70a5febd8ae2e4f90dbe31b8ad544fc9b74b6c02ca477c8af03d14dc6",
-    "file": "protect-7.3.74.json",
-    "file_sha256": "e58f4bcc969e49ce4efe5d8db47ea6c55f6938979818ef92dc77e091a3fc1d3c",
+    "version": "7.4.96",
+    "source_url": "https://developer.ui.com/protect/v7.4.96/openapi.json",
+    "source_sha256": "21e24ef35a13616accb6978d5b99af7ee139fee80b8f738c364a310f5821d96d",
+    "file": "protect-7.4.96.json",
+    "file_sha256": "ad48b59d6c997d2c4a1c52e13b10f81ca8820f440774d5867629bd62d94e8d41",
     "transform": "example/examples annotation keywords removed"
   },
   "site-manager": {

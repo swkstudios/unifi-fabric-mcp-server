@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ import tests.upstream_harness as uh
 from unifi_fabric import route_secrets, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiClient
 from unifi_fabric.config import Settings
+from unifi_fabric.families import tool_function_module
 from unifi_fabric.families.innerspace import innerspace_internal
 from unifi_fabric.redaction import REDACTION_MASK
 from unifi_fabric.registry import Registry
@@ -233,7 +235,8 @@ async def test_route_table_covers_every_module_tool():
     names = {
         tool.name
         for tool in await server_tools()
-        if tool.fn.__module__ == innerspace_internal.__name__
+        # The step's origin (the module its tools are indexed under), wherever a move put it.
+        if tool_function_module(inspect.unwrap(tool.fn)) == "innerspace_internal"
     }
     assert names == set(VALID_ARGS)
     assert len(names) == 23

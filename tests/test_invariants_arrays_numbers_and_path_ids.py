@@ -241,7 +241,7 @@ async def test_eb_pos_amount_non_finite_is_refused_in_the_tool_too(amount):
 
 # =========================================================================== (ec)
 def _spec_device_families() -> set[str]:
-    spec = json.loads((_OPENAPI / "protect-7.3.74.json").read_text())
+    spec = json.loads((_OPENAPI / "protect-7.4.96.json").read_text())
     out: set[str] = set()
     for route, ops in spec["paths"].items():
         get = ops.get("get")

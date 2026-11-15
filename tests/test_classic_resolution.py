@@ -19,6 +19,7 @@ from tests import tool_args
 from tests import upstream_harness as uh
 from tests._tool_classes import class_axis, tool_batches
 from tests.test_cross_tool_invariants import TOOLS, _call
+from unifi_fabric.catalog.loaders import LOADERS
 from unifi_fabric.families.vpn import vpn
 from unifi_fabric.shared_shapes import _classic_objects as classic
 from unifi_fabric.shared_shapes._classic_objects import listed_record_id
@@ -34,6 +35,24 @@ _REMOTE_USER_VPN_TOOLS = frozenset(
         "update_wireguard_users",
     }
 )
+
+
+def _registrar_origin(fn: Callable[..., Any]) -> str | None:
+    """The origin module stem of a family registrar wrapper (moved by scripts/move_family.py).
+
+    The move turns a wrapper's bare handler calls (``handler(...)``, followed by name) into
+    calls on its origin module (``origin.handler(...)``); followed here, they keep the
+    direct-call scope the bare calls had. A call on another module (``other.check(...)``,
+    such as a post-write advisory check) was an attribute delegate before the move too, and
+    stays outside.
+    """
+    if not str(getattr(fn, "__module__", "")).endswith(".registrar"):
+        return None
+    step = getattr(fn, "__qualname__", "").split(".", 1)[0]
+    return next(
+        (e.origin for e in LOADERS if e.module_path == fn.__module__ and e.function == step),
+        None,
+    )
 
 
 @cache
@@ -58,13 +77,18 @@ def _resolver_callees(fn: Callable[..., Any]) -> tuple[Callable[..., Any], ...]:
         obj = None
         if isinstance(node.func, ast.Name):
             obj = globals_.get(node.func.id)
-        elif (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.attr == fn.__name__
-        ):
+        elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
             base = globals_.get(node.func.value.id)
-            obj = getattr(base, node.func.attr, None) if base is not None else None
+            module = str(getattr(base, "__name__", ""))
+            origin = _registrar_origin(fn)
+            # In a registrar: the origin module's handlers, and the family's own handlers.py
+            # (the DNS pilot layout), are the wrapper's direct calls.
+            own = origin is not None and (
+                module.rsplit(".", 1)[-1] == origin
+                or module == fn.__module__.rsplit(".", 1)[0] + ".handlers"
+            )
+            if base is not None and (node.func.attr == fn.__name__ or own):
+                obj = getattr(base, node.func.attr, None)
         if callable(obj) and (getattr(obj, "__module__", "") or "").startswith("unifi_fabric"):
             callees.add(inspect.unwrap(obj))
     return tuple(callees)

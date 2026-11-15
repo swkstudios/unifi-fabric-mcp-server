@@ -221,62 +221,46 @@ _LIVE = (
 #     tools=frozenset({"recognize_image"}), evidence=(),
 #     sample=_SAMPLE_CONSOLE + "/protect/api/recognition/recognize-image",
 # )
-# pending live evidence system-log-device-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-device-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/device-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/device-alert",
-# )
-# pending live evidence system-log-client-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-client-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/client-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/client-alert",
-# )
-# pending live evidence system-log-admin-activity-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-admin-activity", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/admin-activity",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/admin-activity",
-# )
-# pending live evidence system-log-update-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-update-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/update-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/update-alert",
-# )
-# pending live evidence system-log-threat-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-threat-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/threat-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/threat-alert",
-# )
-# pending live evidence system-log-next-ai-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-next-ai-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/next-ai-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/next-ai-alert",
-# )
-# pending live evidence system-log-vpn-alert-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-vpn-alert", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/vpn-alert",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/vpn-alert",
-# )
-# pending live evidence system-log-critical-v1
-# ReadPostRoute(
-#     name="network-v2-system-log-critical", method="POST",
-#     template=_CONSOLE + "/network/v2/api/site/{site}/system-log/critical",
-#     tools=frozenset({"collect_network_incident_evidence"}), evidence=(),
-#     sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/critical",
-# )
+
+_SOURCE_SYSTEM_LOG = (
+    "Ubiquiti server code, Network 11.0.99-37236-1 (sha256 ebf4143e...a9d): the handler carries "
+    "Ubiquiti's own READ access-mode marker, reaches only find/count repository queries (the "
+    "read lock; no update, delete or save) and, like the live-proven all class, a query-only "
+    "call graph (private evidence record 2026-11-11-system-log-source-proof)"
+)
+
+#: The system-log classes other than ``all`` whose POST is a query, proven from Ubiquiti's own
+#: server code (no live evidence run: see ``_SOURCE_SYSTEM_LOG``). ``triggers``, ``count``,
+#: ``recent`` and the rest of the log routes stay writes until their own proof.
+_SYSTEM_LOG_SOURCE_PROVEN = (
+    "device-alert",
+    "client-alert",
+    "admin-activity",
+    "update-alert",
+    "threat-alert",
+    "next-ai-alert",
+    "vpn-alert",
+    "critical",
+)
+_SYSTEM_LOG_READERS = frozenset({"collect_network_incident_evidence", "get_system_log"})
+
+
+def _system_log_route(log_class: str) -> ReadPostRoute:
+    # The tools named are those the route table exercises: get_system_log (its log_class enum),
+    # the collector (all) and list_ips_events (threat-alert). list_network_events sends ``all``
+    # by default (its vpn_user_id example takes a GET) and any of the nine when it is named.
+    tools = frozenset(
+        {"get_system_log"} | ({"list_ips_events"} if log_class == "threat-alert" else set())
+    )
+    return ReadPostRoute(
+        name=f"network-v2-system-log-{log_class}",
+        method="POST",
+        template=_CONSOLE + f"/network/v2/api/site/{{site}}/system-log/{log_class}",
+        tools=tools,
+        evidence=(_SOURCE_SYSTEM_LOG,),
+        sample=_SAMPLE_CONSOLE + f"/network/v2/api/site/default/system-log/{log_class}",
+    )
+
 
 READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
     ReadPostRoute(
@@ -295,7 +279,7 @@ READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
         name="network-v2-system-log-all",
         method="POST",
         template=_CONSOLE + "/network/v2/api/site/{site}/system-log/all",
-        tools=frozenset({"collect_network_incident_evidence"}),
+        tools=_SYSTEM_LOG_READERS,
         evidence=(
             "live 2026-11-09 on a development controller, read-only process: HTTP 200, "
             "8/8 configuration collection digests unchanged; this route only, no other "
@@ -305,6 +289,7 @@ READ_POST_ROUTES: tuple[ReadPostRoute, ...] = (
         ),
         sample=_SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all",
     ),
+    *(_system_log_route(log_class) for log_class in _SYSTEM_LOG_SOURCE_PROVEN),
     ReadPostRoute(
         name="network-classic-stat-session",
         method="POST",
@@ -344,8 +329,8 @@ NOT_LISTED_SAMPLES: tuple[str, ...] = (
     _SAMPLE_CONSOLE + "/network/api/s/default/stat/session/extra",
     _SAMPLE_CONSOLE + "/network/api/s/default/cmd/stat",
     _SAMPLE_CONSOLE + "/network/v2/api/sites/overview",
-    # Only the all class is listed; every other system-log class stays a write.
-    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/critical",
+    # Only the nine proven classes are listed; every other system-log route stays a write.
+    _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/triggers",
     _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/all/extra",
     _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log",
     _SAMPLE_CONSOLE + "/network/v2/api/site/default/system-log/ALL",

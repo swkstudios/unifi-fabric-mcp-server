@@ -72,6 +72,13 @@ TYPED_CALLS: dict[str, list[tuple[str, str, Callable[[str], dict[str, Any]]]]] =
         ),
     ],
     "protect-share-link": [],
+    "external-arm-profile-pin": [
+        (
+            "create_external_arm_profile",
+            "POST",
+            lambda value: {"host": HOST, "title": "Night", "settings": {"pin_code": value}},
+        ),
+    ],
     "protect-camera-shortcut-webhook-secrets": [
         (
             "create_camera_shortcut",
@@ -137,6 +144,9 @@ ROWLESS_TYPED_TOOLS = frozenset(
         "set_cloud_access_registration",
         "set_ups_pairing",
         "update_dhcp_option",
+        # The update reads the profile first and skips an unchanged PIN-free body, so the
+        # fake upstream's echoed record decides whether a PATCH is sent: no wire row yet.
+        "update_external_arm_profile",
         "update_hotspot_package",
         "update_protect_device_password",
         "verify_sim_pin",
@@ -415,12 +425,18 @@ async def test_upstream_errors_echoing_request_fields_are_scrubbed(
 
         if status == 429:
             if method in {"PUT", "PATCH", "DELETE", "GET"} and tool not in TYPED_READS:
-                # Reads retry six times; writes with a read-before then mutate once.
-                expected_requests = ["GET"] * 6
+                # A connector read answered 429 with no Retry-After waits one 60 s window
+                # per retry (3 sends); a write with a read-before then mutates once.
+                from unifi_fabric.pacing import attempts_on_unannounced_429
+
+                expected_requests = ["GET"] * attempts_on_unannounced_429()
                 if method != "GET":
                     expected_requests.append(method)
                 assert requests == expected_requests, tool
-                assert retry_clock == [1.5, 3.0, 6.0, 12.0, 24.0], tool
+                # One 60 s window before each retry; the 120 s budget allows two.
+                assert retry_clock == [60.0] * (len(expected_requests) - (method != "GET") - 1), (
+                    tool
+                )
             else:
                 assert requests == [method], tool
                 assert retry_clock == [], tool

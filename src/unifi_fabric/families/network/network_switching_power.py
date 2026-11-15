@@ -18,10 +18,8 @@ site's short name (``default``), resolved from the caller's site name or UUID.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, TypeGuard
 
-from fastmcp import FastMCP
 from pydantic import Field
 
 from ...client import (
@@ -44,12 +42,13 @@ from ...shared_shapes._history_common import (
 )
 from ...shared_shapes._keys import with_context
 from ...shared_shapes._results import deletion_result, requested_leaves_verdict, safe_read_after
-from ...tool_annotations import READ_ONLY, WRITE
 from ...write_body import IDENTITY_FIELDS, require_update_fields
-
-_ENERGY = "/energy-saving-policies"
-_SUPERVISORS = "/power-supervisors"
-_LINKS = "/power-supervisors/links"
+from .schemas import (  # the family's shapes (family-owned layout)
+    _ENERGY,
+    _LINKS,
+    _PORT_AUTOMATIONS,
+    _SUPERVISORS,
+)
 
 
 def _update_body(tool: str, value: Any, name: str) -> dict[str, Any]:
@@ -235,6 +234,73 @@ async def delete_energy_saving_policy(
     key, host_id, slug = await resolve_site_slug(registry, host, site)
     return await _delete(
         client, v2_site(host_id, slug, _ENERGY), key, policy_id, "energy-saving policy"
+    )
+
+
+# --- Port automations (Network 11.1.47) ---
+
+
+async def list_port_automations(
+    client: UniFiClient, registry: Registry, host: str, site: str
+) -> Any:
+    """GET the site's port automations. Returns the upstream body verbatim."""
+    key, host_id, slug = await resolve_site_slug(registry, host, site)
+    return await client.get(v2_site(host_id, slug, _PORT_AUTOMATIONS), key=key)
+
+
+async def get_port_automation(
+    client: UniFiClient, registry: Registry, host: str, site: str, automation_id: str
+) -> Any:
+    """The listed port automation whose ``id`` is ``automation_id``, verbatim.
+
+    The controller serves no single-record route (the web app reads the collection), so
+    the record is picked from the list; an unknown id raises listing every valid id.
+    """
+    validate_id(automation_id, "automation_id")
+    key, host_id, slug = await resolve_site_slug(registry, host, site)
+    return await _listed_record(
+        client, v2_site(host_id, slug, _PORT_AUTOMATIONS), key, automation_id, "port automation"
+    )
+
+
+async def create_port_automation(
+    client: UniFiClient, registry: Registry, host: str, site: str, automation: dict[str, Any]
+) -> Any:
+    """POST ``automation`` verbatim to the site's port automations."""
+    key, host_id, slug = await resolve_site_slug(registry, host, site)
+    return await client.post(v2_site(host_id, slug, _PORT_AUTOMATIONS), key=key, json=automation)
+
+
+async def update_port_automation(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    automation_id: str,
+    automation: dict[str, Any],
+) -> Any:
+    """Merge ``automation`` into the listed port automation, PUT it and verify the leaves."""
+    validate_id(automation_id, "automation_id")
+    changes = _update_body("update_port_automation", automation, "automation")
+    key, host_id, slug = await resolve_site_slug(registry, host, site)
+    return await _verified_update(
+        client,
+        v2_site(host_id, slug, _PORT_AUTOMATIONS),
+        key,
+        automation_id,
+        changes,
+        "port automation",
+    )
+
+
+async def delete_port_automation(
+    client: UniFiClient, registry: Registry, host: str, site: str, automation_id: str
+) -> Any:
+    """Resolve ``automation_id`` in the list, then DELETE it."""
+    validate_id(automation_id, "automation_id")
+    key, host_id, slug = await resolve_site_slug(registry, host, site)
+    return await _delete(
+        client, v2_site(host_id, slug, _PORT_AUTOMATIONS), key, automation_id, "port automation"
     )
 
 
@@ -479,500 +545,3 @@ async def get_infrastructure_history(
 _QUERY_UNSET = object()
 # A factory omits a JSON default and preserves the legacy non-null object schema.
 _QUERY_DEFAULT: Any = Field(default_factory=lambda: _QUERY_UNSET)
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the 19 switching, power and infrastructure-history tools."""
-
-    @mcp.tool(name="list_energy_saving_policies", annotations=READ_ONLY)
-    async def list_energy_saving_policies_tool(host: str, site: str) -> Any:
-        """List a site's energy-saving policies (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/energy-saving-policies. Returns the upstream body
-        verbatim. The route takes no paging parameter.
-        A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
-        an object result is returned as sent.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await list_energy_saving_policies(client, registry, host, site)
-
-    @mcp.tool(name="create_energy_saving_policy", annotations=WRITE)
-    async def create_energy_saving_policy_tool(host: str, site: str, policy: dict[str, Any]) -> Any:
-        """Create an energy-saving policy (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/energy-saving-policies with policy sent
-        verbatim. Returns the upstream body verbatim. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, policy (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            policy: Policy object in the shape list_energy_saving_policies returns, e.g.
-                {"name": "night-saver", "enabled": false}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await create_energy_saving_policy(client, registry, host, site, policy)
-
-    @mcp.tool(name="update_energy_saving_policy", annotations=WRITE)
-    async def update_energy_saving_policy_tool(
-        host: str, site: str, policy_id: str, policy: dict[str, Any]
-    ) -> Any:
-        """Update an energy-saving policy (Network v2 route).
-
-        PUT /proxy/network/v2/api/site/{site}/energy-saving-policies/{id}.
-
-        Reads the record from its list, merges the given leaves into its writable fields, PUTs the
-        merged record and reads it back. Controller-generated list metadata is not copied into PUT.
-        Returns the upstream PUT body verbatim plus _verified (true only
-        when every requested leaf reads back equal, type-strict) and _readAfterError when the
-        read-back failed; a non-object body (array or scalar) is returned whole under response with
-        those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
-        else to change fails before any request. An unknown id fails listing every valid id.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, policy_id, policy (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            policy_id: Policy _id or id from list_energy_saving_policies, e.g.
-                "000000000000000000000107".
-            policy: Leaves to change, e.g. {"enabled": true}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await update_energy_saving_policy(client, registry, host, site, policy_id, policy)
-
-    @mcp.tool(name="delete_energy_saving_policy", annotations=WRITE)
-    async def delete_energy_saving_policy_tool(host: str, site: str, policy_id: str) -> Any:
-        """Delete an energy-saving policy (Network v2 route).
-
-        Consequence: the policy is permanently removed and the site's devices stop following
-        it; there is no undo.
-
-        Resolves the id in list_energy_saving_policies first (an unknown id fails listing every
-        valid id), then DELETE /proxy/network/v2/api/site/{site}/energy-saving-policies/{id}.
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty).
-
-        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-        deleted: false, message, response}, where response is the dry-run preview (status,
-        dryRun, sent: false, message and preview with method, path, params, body).
-
-        Required arguments: host, site, policy_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            policy_id: Policy _id or id from list_energy_saving_policies, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await delete_energy_saving_policy(client, registry, host, site, policy_id)
-
-    @mcp.tool(name="list_power_supervisors", annotations=READ_ONLY)
-    async def list_power_supervisors_tool(host: str, site: str) -> Any:
-        """List a site's PoE power supervisors (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/power-supervisors. Returns the upstream body
-        verbatim. The route takes no paging parameter.
-        A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
-        an object result is returned as sent.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await list_power_supervisors(client, registry, host, site)
-
-    @mcp.tool(name="create_power_supervisor", annotations=WRITE)
-    async def create_power_supervisor_tool(host: str, site: str, supervisor: dict[str, Any]) -> Any:
-        """Create a PoE power supervisor (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/power-supervisors with supervisor sent
-        verbatim. Returns the upstream body verbatim. An enabled supervisor can
-        power-cycle the PoE port it watches. Never auto-retried; on a timeout, list the
-        supervisors before retrying.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, supervisor (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            supervisor: Supervisor object, e.g. {"client_mac": "02:00:5e:00:00:a1",
-                "control_mode": "manual", "settings": {"enabled": false}}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await create_power_supervisor(client, registry, host, site, supervisor)
-
-    @mcp.tool(name="update_power_supervisor", annotations=WRITE)
-    async def update_power_supervisor_tool(
-        host: str, site: str, supervisor_id: str, supervisor: dict[str, Any]
-    ) -> Any:
-        """Update a PoE power supervisor (Network v2 route).
-
-        PUT /proxy/network/v2/api/site/{site}/power-supervisors/{id}. Never auto-retried.
-
-        Reads the record from its list, merges only the given leaves into it, PUTs the whole merged
-        record and reads it back. Returns the upstream PUT body verbatim plus _verified (true only
-        when every requested leaf reads back equal, type-strict) and _readAfterError when the
-        read-back failed; a non-object body (array or scalar) is returned whole under response with
-        those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
-        else to change fails before any request. An unknown id fails listing every valid id.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, supervisor_id, supervisor (see each parameter's
-        description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "000000000000000000000107".
-            supervisor: Leaves to change, e.g. {"control_mode": "manual"}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await update_power_supervisor(
-            client, registry, host, site, supervisor_id, supervisor
-        )
-
-    @mcp.tool(name="delete_power_supervisor", annotations=WRITE)
-    async def delete_power_supervisor_tool(host: str, site: str, supervisor_id: str) -> Any:
-        """Delete a PoE power supervisor (Network v2 route).
-
-        Consequence: the supervisor and its configuration are permanently removed and it no
-        longer manages the PoE power it supervised; there is no undo.
-
-        Resolves the id in list_power_supervisors first (an unknown id fails listing every valid
-        id), then DELETE /proxy/network/v2/api/site/{site}/power-supervisors/{id}.
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty).
-
-        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-        deleted: false, message, response}, where response is the dry-run preview (status,
-        dryRun, sent: false, message and preview with method, path, params, body).
-
-        Required arguments: host, site, supervisor_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await delete_power_supervisor(client, registry, host, site, supervisor_id)
-
-    @mcp.tool(name="create_power_supervisor_link", annotations=WRITE)
-    async def create_power_supervisor_link_tool(host: str, site: str, link: dict[str, Any]) -> Any:
-        """Create a power-supervisor link (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/power-supervisors/links with link sent
-        verbatim. Returns the upstream body verbatim. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, link (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link: Link object, e.g. {"supervisor_id": "000000000000000000000107",
-                "enabled": false}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await create_power_supervisor_link(client, registry, host, site, link)
-
-    @mcp.tool(name="update_power_supervisor_link", annotations=WRITE)
-    async def update_power_supervisor_link_tool(
-        host: str, site: str, link_id: str, link: dict[str, Any]
-    ) -> Any:
-        """Update a power-supervisor link (Network v2 route).
-
-        Reads the link from GET .../power-supervisors/links, then PUT
-        /proxy/network/v2/api/site/{site}/power-supervisors/links/{id}. Never auto-retried.
-
-        Reads the record from its list, merges only the given leaves into it, PUTs the whole merged
-        record and reads it back. Returns the upstream PUT body verbatim plus _verified (true only
-        when every requested leaf reads back equal, type-strict) and _readAfterError when the
-        read-back failed; a non-object body (array or scalar) is returned whole under response with
-        those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
-        else to change fails before any request. An unknown id fails listing every valid id.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, link_id, link (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link_id: Link _id or id from fabric_connector_get with path
-                network/v2/api/site/{site}/power-supervisors/links, e.g.
-                "000000000000000000000107".
-            link: Leaves to change, e.g. {"enabled": false}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await update_power_supervisor_link(client, registry, host, site, link_id, link)
-
-    @mcp.tool(name="delete_power_supervisor_link", annotations=WRITE)
-    async def delete_power_supervisor_link_tool(host: str, site: str, link_id: str) -> Any:
-        """Delete a power-supervisor link (Network v2 route).
-
-        Consequence: the link is permanently removed, so its supervisor no longer acts on
-        the linked port or device; there is no undo.
-
-        Resolves the id in GET .../power-supervisors/links first (an unknown id fails listing every
-        valid id), then DELETE /proxy/network/v2/api/site/{site}/power-supervisors/links/{id}.
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty).
-
-        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-        deleted: false, message, response}, where response is the dry-run preview (status,
-        dryRun, sent: false, message and preview with method, path, params, body).
-
-        Required arguments: host, site, link_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            link_id: Link _id or id from fabric_connector_get with path
-                network/v2/api/site/{site}/power-supervisors/links, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await delete_power_supervisor_link(client, registry, host, site, link_id)
-
-    @mcp.tool(name="query_power_supervisor_logs", annotations=WRITE)
-    async def query_power_supervisor_logs_tool(
-        host: str, site: str, supervisor_id: str, query: dict[str, Any]
-    ) -> Any:
-        """Query one PoE power supervisor's system logs (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/power-supervisors/{id}/system-logs with
-        query sent verbatim. Returns the upstream body verbatim. This POST is not on
-        the read-POST allowlist, so it is classified as a write (UNIFI_WRITE_POLICY=deny hides the
-        tool;
-        family:network=deny also hides the tool). Consequence: none intended
-        (a query); it only reads logs.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, supervisor_id, query (see each parameter's description).
-
-        Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-        the whole tool and discovery mode runs it through call_write_tool.
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            supervisor_id: Supervisor _id or id from list_power_supervisors, e.g.
-                "000000000000000000000107".
-            query: Query body, e.g. {"limit": 25}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await query_power_supervisor_logs(client, registry, host, site, supervisor_id, query)
-
-    @mcp.tool(name="get_port_history", annotations=READ_ONLY)
-    async def get_port_history_tool(
-        host: str, site: str, at: int, device_id: str | None = None
-    ) -> Any:
-        """Get the switch-port history snapshot at a time (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/ports/history/at/{at}, or
-        .../ports/history/{device_id}/at/{at} for one device. Returns the upstream body
-        verbatim. at is epoch SECONDS and is sent as epoch milliseconds (the route's
-        unit); _warnings is added when it is negative or looks like epoch milliseconds.
-
-        Required arguments: host, site, at (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            at: Epoch-seconds timestamp (sent as milliseconds), e.g. 1760000000.
-            device_id: Optional device id, e.g. "000000000000000000000107"; omit for every
-                device of the site.
-        """
-        client, registry = deps_fn()
-        return await get_port_history(client, registry, host, site, at, device_id)
-
-    @mcp.tool(name="query_switch_mac_tables", annotations=WRITE)
-    async def query_switch_mac_tables_tool(
-        host: str,
-        site: str,
-        query: dict[str, Any] = _QUERY_DEFAULT,
-        queries: list[dict[str, Any]] | None = None,
-    ) -> Any:
-        """Query the MAC tables of switch ports (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/ports/mac-tables with queries sent as
-        a JSON array, one {mac, ports} item per switch, as the web app sends it (an object
-        body answers HTTP 400). Use queries for the array body. The legacy query takes
-        precedence when present: a {mac, ports} object is sent as the one-item array
-        [query]; any other value is forwarded unchanged and the controller judges it.
-        An empty queries list or a non-object array item is refused
-        before any request. Returns the upstream body verbatim (per switch, each port's
-        mac_table). This POST is not on the read-POST allowlist, so it is classified as a
-        write (UNIFI_WRITE_POLICY=deny hides the tool;
-        family:network=deny also hides the tool).
-        Consequence: none intended (a query); it only reads the MAC tables.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, and either queries (UI array) or query (legacy object).
-
-        Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-        the whole tool and discovery mode runs it through call_write_tool.
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            query: Legacy free-form object, taking precedence over queries; a {mac, ports}
-                object is sent as [query]. Shape: {mac:string,ports:integer[]}, e.g.
-                {"mac": "02:00:5e:00:53:01", "ports": [1, 2]}. Use queries for the UI array.
-            queries: Shape: {mac:string,ports:integer[]}[]. One item per switch, with
-                free-form object keys forwarded, e.g.
-                [{"mac": "02:00:5e:00:53:01", "ports": [1, 2]}].
-        """
-        client, registry = deps_fn()
-        if query is not _QUERY_UNSET:
-            if _is_switch_query(query):
-                # The documented legacy object names one switch: the route deserializes a
-                # list, so it goes through the array path (sent as [query]).
-                return await query_switch_mac_tables(client, registry, host, site, query)
-            key, host_id, slug = await resolve_site_slug(registry, host, site)
-            return await client.post(
-                v2_site(host_id, slug, "/ports/mac-tables"), key=key, json=query
-            )
-        return await query_switch_mac_tables(client, registry, host, site, queries)
-
-    @mcp.tool(name="list_port_anomalies", annotations=READ_ONLY)
-    async def list_port_anomalies_tool(host: str, site: str) -> Any:
-        """List the site's switch-port anomalies (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/ports/port-anomalies. Returns the upstream body
-        verbatim. The route takes no paging parameter.
-        A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
-        an object result is returned as sent.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await list_port_anomalies(client, registry, host, site)
-
-    @mcp.tool(name="query_port_system_logs", annotations=WRITE)
-    async def query_port_system_logs_tool(host: str, site: str, query: dict[str, Any]) -> Any:
-        """Query the site's switch-port system logs (Network v2 route).
-
-        POST /proxy/network/v2/api/site/{site}/ports/system-logs with query sent verbatim.
-        Returns the upstream body verbatim. This POST is not on the read-POST
-        allowlist, so it is classified as a write (UNIFI_WRITE_POLICY=deny hides the tool;
-        family:network=deny also hides the tool).
-        Consequence: none intended (a query); it only reads logs.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, query (see each parameter's description).
-
-        Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-        the whole tool and discovery mode runs it through call_write_tool.
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            query: Query body, e.g. {"limit": 25}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await query_port_system_logs(client, registry, host, site, query)
-
-    @mcp.tool(name="list_wireless_links", annotations=READ_ONLY)
-    async def list_wireless_links_tool(host: str, site: str, device_id: str | None = None) -> Any:
-        """List wireless (mesh and bridge) links for the site or one device (Network v2).
-
-        GET /proxy/network/v2/api/site/{site}/device/wireless-links, or
-        .../device/{device_id}/wireless-links for one device. Returns the upstream body
-        verbatim.
-        A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
-        an object result is returned as sent.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device_id: Optional device id, e.g. "000000000000000000000107"; omit for every
-                device of the site.
-        """
-        client, registry = deps_fn()
-        return await list_wireless_links(client, registry, host, site, device_id)
-
-    @mcp.tool(name="get_device_tx_retries", annotations=READ_ONLY)
-    async def get_device_tx_retries_tool(
-        host: str, site: str, device_id: str, params: dict[str, Any] | None = None
-    ) -> Any:
-        """Get one device's 24-hour transmit retries (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/device/{device_id}/24hr-tx-retries with
-        params forwarded as the query string. Returns the upstream body verbatim.
-        A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
-        an object result is returned as sent.
-
-        Required arguments: host, site, device_id (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device_id: Device id, e.g. "000000000000000000000107".
-            params: Optional query parameters sent as given, e.g. {"radio": "na"}. Free-form object.
-        """
-        client, registry = deps_fn()
-        return await get_device_tx_retries(client, registry, host, site, device_id, params)
-
-    @mcp.tool(name="get_infrastructure_history", annotations=READ_ONLY)
-    async def get_infrastructure_history_tool(host: str, site: str, at: int) -> Any:
-        """Get the site's infrastructure history snapshot at a time (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/infrastructure/history/at/{at}. Returns
-        the upstream body verbatim. at is epoch SECONDS and is sent as epoch milliseconds
-        (the route's unit); _warnings is added when it is negative or looks like epoch
-        milliseconds.
-
-        Required arguments: host, site, at (see each parameter's description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            at: Epoch-seconds timestamp (sent as milliseconds), e.g. 1760000000.
-        """
-        client, registry = deps_fn()
-        return await get_infrastructure_history(client, registry, host, site, at)

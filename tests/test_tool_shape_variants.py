@@ -199,7 +199,7 @@ def test_every_spec_variant_required_property_and_enum_is_advertised() -> None:
         if any(absent.values()):
             missing[key] = absent
         checked += 1
-    assert checked == 40
+    assert checked == 42
     assert missing == {}, missing
 
 

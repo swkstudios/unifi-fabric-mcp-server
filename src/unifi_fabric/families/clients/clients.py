@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
-
-from fastmcp import FastMCP
 
 from ...client import (
     UniFiClient,
@@ -23,16 +20,26 @@ from ...matching import id_key
 from ...registry import Registry, _assert_uuid
 from ...resolution_state import note_incomplete_resolution
 from ...shared_shapes._classic_objects import v2_site
+from ...shared_shapes._clients_shared import (  # noqa: F401  (shared)
+    V2_CLIENT_FLAGS as V2_CLIENT_FLAGS,
+)
+from ...shared_shapes._clients_shared import (
+    _given as _given,
+)
+from ...shared_shapes._clients_shared import (
+    resolve_list_source as resolve_list_source,
+)
+from ...shared_shapes._clients_shared import (
+    v2_flag_params as v2_flag_params,
+)
+from ...shared_shapes._network_shared import _proxy
 from ...shared_shapes._pagination import collect_offset, offset_list_result, validate_pagination
-from ...tool_annotations import READ_ONLY, WRITE
-from ..network.network import _proxy
+from .schemas import (  # the family's shapes (family-owned layout)
+    _CLASSIC_CMD_BASE,
+    _CLIENT_ACTIONS,
+    CLIENT_TYPES,
+)
 
-_CLASSIC_CMD_BASE = "/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/cmd"
-
-#: Every connected-client type the published Network spec lists (Network 11.0.97
-#: "Client overview" / "Client details" discriminator on ``type``; pinned to the vendored
-#: spec by a test, so a type the spec adds fails until it is accepted here).
-CLIENT_TYPES = ("WIRED", "WIRELESS", "VPN", "TELEPORT")
 # Connected-client types the Integration API reports without a MAC.
 _MACLESS_CLIENT_TYPES = frozenset({"VPN", "TELEPORT"})
 
@@ -207,12 +214,6 @@ async def _stamgr_mac(
         ) from None
 
 
-# The actions the published executeConnectedClientAction operation accepts (Network
-# 11.0.97 "Client action request": a discriminator on ``action``). Block, unblock and
-# reconnect are NOT among them: they are block_client / unblock_client / reconnect_client.
-_CLIENT_ACTIONS = ("AUTHORIZE_GUEST_ACCESS", "UNAUTHORIZE_GUEST_ACCESS")
-
-
 def _check_client_action(action: Any) -> None:
     """Fail before any request when ``action`` is not a published client action."""
     name = action.get("action") if isinstance(action, dict) else None
@@ -261,75 +262,6 @@ def _resolve_client_filter(client_type: str | None, filter: str | None) -> str |
             "e.g. filter=\"type.eq('WIRED')\"."
         )
     return f"type.eq('{normalized}')"
-
-
-#: The v2 client-list query flags the Network 11.0.81 web UI sends on clients/active,
-#: clients/local and clients/history: {tool argument: upstream query key}.
-V2_CLIENT_FLAGS = {
-    "include_matter_thread_clients": "includeMatterThreadClients",
-    "include_traffic_usage": "includeTrafficUsage",
-    "include_unifi_devices": "includeUnifiDevices",
-}
-
-
-def v2_flag_params(flags: dict[str, bool | None]) -> dict[str, str]:
-    """The v2 query parameters for the boolean flags that were given (``"true"`` /
-    ``"false"``, the form the web UI sends); an omitted (``None``) flag sends nothing."""
-    return {
-        V2_CLIENT_FLAGS.get(name, name): "true" if value else "false"
-        for name, value in flags.items()
-        if value is not None
-    }
-
-
-def _given(value: Any) -> bool:
-    """An argument names something: not omitted and not a blank string."""
-    return value is not None and not (isinstance(value, str) and not value.strip())
-
-
-def resolve_list_source(
-    tool: str,
-    source: str | None,
-    choices: tuple[str, ...],
-    default: str,
-    newer: str,
-    *,
-    newer_args: dict[str, Any],
-    default_args: dict[str, Any],
-) -> str:
-    """The route a list tool reads, from its own ``source`` argument and the arguments
-    that belong to only one route.
-
-    A blank or omitted ``source`` keeps ``default`` unless an argument that only the
-    ``newer`` route takes was given (then ``newer`` is used: the argument names it). An
-    explicit ``source`` that contradicts the given arguments, or arguments of both routes
-    given together, raise before any request: they name two routes at once. A blank string
-    names nothing, so it never counts as given.
-    """
-    chosen = source.strip().lower() if isinstance(source, str) and source.strip() else None
-    if chosen is not None and chosen not in choices:
-        raise ValueError(f"{tool} source must be one of {', '.join(choices)} (got {source!r})")
-    given_newer = sorted(name for name, value in newer_args.items() if _given(value))
-    given_default = sorted(name for name, value in default_args.items() if _given(value))
-    if given_newer and given_default:
-        raise ValueError(
-            f"{tool} source conflict: {', '.join(given_newer)} apply only to source "
-            f"{newer!r} and {', '.join(given_default)} only to source {default!r}; "
-            "pass the arguments of one source."
-        )
-    if chosen is None:
-        return newer if given_newer else default
-    if chosen == default and given_newer:
-        raise ValueError(
-            f"{tool} source conflict: {', '.join(given_newer)} apply only to source "
-            f"{newer!r}, but source {default!r} was given; omit source or pass {newer!r}."
-        )
-    if chosen == newer and given_default:
-        raise ValueError(
-            f"{tool} source conflict: {', '.join(given_default)} apply only to source "
-            f"{default!r}, but source {newer!r} was given; omit them or omit source."
-        )
-    return chosen
 
 
 async def _list_active_clients(
@@ -497,346 +429,19 @@ async def _reconnect_client(
     )
 
 
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register all client management MCP tools."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_clients(
-        host: str,
-        site: str,
-        offset: int | None = None,
-        limit: int | None = None,
-        client_type: str | None = None,
-        filter: str | None = None,
-    ) -> Any:
-        """List connected clients for a site.
-
-        Returns {data, totalCount}: every page is drained; data holds the client records verbatim
-        and totalCount is the upstream total (null when none was reported). The first page's other
-        envelope fields are kept beside them, and incomplete / incompleteReason are added when a
-        capped drain stopped short. A limit without offset requests a total gathered in batches.
-        An explicit offset returns one upstream page with its envelope and page-size accounting.
-        This tool uses the published Network Integration API. For the controller's private v2
-        active-client route, use list_active_clients.
-
-        By default every page is drained and the complete client list is returned
-        as {data, totalCount}. Limit alone requests a total; offset selects one native page
-        with the API's totalCount surfaced so you can advance. client_type: convenience
-        shorthand — WIRED, WIRELESS, VPN, TELEPORT or ALL (default: all types) — translated into
-        the upstream `type.eq(...)` filter (the raw type query parameter is ignored
-        by the UniFi API, so this translation is what actually narrows the result).
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            offset: Optional zero-based offset for fetching one page manually. Omit both offset and
-                limit to drain every page and get the complete list.
-                Example: `25`.
-            limit: Without offset, the record count gathered from the start in pages of at
-                most 200; fewer only when the collection ends. With offset, limit is sent
-                unchanged as one page. The console clamps that page to 200, so fewer can
-                return while more exist (compare _pageSize requested and returned). Omit
-                offset and limit to drain all.
-                Example: `25`.
-            client_type: Optional shorthand WIRED, WIRELESS, VPN, TELEPORT (every type the spec
-                lists) or ALL (default: all types), translated into the upstream `type.eq(...)`
-                filter. Mutually exclusive with filter. An empty or whitespace value applies no
-                type filter (like ALL).
-            filter: optional Network Integration API filter expression, forwarded unchanged as the
-                upstream `filter` query parameter for server-side filtering (e.g.
-                `type.eq('WIRED')`, `macAddress.eq('aa:bb:cc:dd:ee:ff')`); omitted entirely when
-                unset. client_type and an explicit filter are mutually exclusive (the upstream
-                grammar has no conjunction operator to compose them); passing both raises an error
-                rather than silently returning wrong results. A capped drain returns the clients
-                gathered so far with incomplete=true rather than truncating silently.
-                Example: `type.eq('WIRED')`.
-        """
-        client, registry = deps_fn()
-        return await _list_clients(
-            client,
-            registry,
-            host,
-            site,
-            offset=offset,
-            limit=limit,
-            client_type=client_type,
-            filter=filter,
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_active_clients(
-        host: str,
-        site: str,
-        include_matter_thread_clients: bool | None = None,
-        include_traffic_usage: bool | None = None,
-        include_unifi_devices: bool | None = None,
-    ) -> Any:
-        """Retrieve the private v2 active-client roster and optional Matter/Thread rows.
-
-        Returns the upstream body verbatim from GET
-        network/v2/api/site/{site}/clients/active. FastMCP wraps a top-level array in
-        result for MCP clients. This is the private-route counterpart
-        to the official Integration API list_clients tool. Use it when the v2-specific
-        flags or Matter/Thread client rows are required.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or slug; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            include_matter_thread_clients: Optional v2 flag (query includeMatterThreadClients):
-                true also lists Matter/Thread clients. Example: `true`.
-            include_traffic_usage: Optional v2 flag (query includeTrafficUsage): true asks the
-                controller to include traffic usage. Example: `true`.
-            include_unifi_devices: Optional v2 flag (query includeUnifiDevices): true asks the
-                controller to include UniFi devices. Example: `false`.
-        """
-        client, registry = deps_fn()
-        return await _list_active_clients(
-            client,
-            registry,
-            host,
-            site,
-            {
-                "include_matter_thread_clients": include_matter_thread_clients,
-                "include_traffic_usage": include_traffic_usage,
-                "include_unifi_devices": include_unifi_devices,
-            },
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_client(
-        host: str,
-        site: str,
-        client_id: str,
-    ) -> Any:
-        """Get details for a single client.
-
-        Returns the upstream client object verbatim, exactly as the API answers it.
-
-        Example call (get_client):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);
-                a MAC is resolved to the client id with list_clients (macAddress filter), so the
-                client must be connected; an unknown MAC fails listing the connected clients.
-                Get it from list_clients (data[].id or data[].macAddress). Network-app id — not
-                a Protect id.
-        """
-        client, registry = deps_fn()
-        return await _get_client(client, registry, host, site, client_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def execute_client_action(
-        host: str,
-        site: str,
-        client_id: str,
-        action: dict[str, Any],
-        confirm: bool = False,
-    ) -> Any:
-        """Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or
-        UNAUTHORIZE_GUEST_ACCESS (the only actions the API accepts). To block, unblock or
-        reconnect a client use block_client, unblock_client or reconnect_client. Any other
-        action fails before a request is sent, listing the valid actions.
-
-        Consequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now;
-        UNAUTHORIZE_GUEST_ACCESS revokes the guest's access.
-
-        Returns the upstream response body verbatim: the action-result object the API answers with
-        (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-        message,
-        preview: {method, path, params (query parameters), body}} instead).
-
-        Request body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions
-        (executeConnectedClientAction); schema "Client action request") is passed in `action`.
-        Required keys — action.
-        - action: string, AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS
-        Variants by `action` — AUTHORIZE_GUEST_ACCESS requires action and takes the optional
-        integers timeLimitMinutes (1-1000000, how long the guest is authorized; omitted, the
-        site's default limit applies), dataUsageLimitMBytes (1-1048576, data usage limit in
-        MB), rxRateLimitKbps and txRateLimitKbps (2-100000, download / upload rate limit in
-        kbps); UNAUTHORIZE_GUEST_ACCESS requires action only (it revokes access and
-        disconnects the guest).
-
-        Example call (execute_client_action):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-              "action": {"action": "AUTHORIZE_GUEST_ACCESS", "timeLimitMinutes": 60}
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);
-                a MAC is resolved to the client id with list_clients (macAddress filter), so the
-                client must be connected; an unknown MAC fails listing the connected clients.
-                Get it from list_clients (data[].id or data[].macAddress). Network-app id — not
-                a Protect id.
-            action: Action body; spec Client action request. Required: action. 'action' selects
-                variant: AUTHORIZE_GUEST_ACCESS|UNAUTHORIZE_GUEST_ACCESS. AUTHORIZE_GUEST_ACCESS
-                optionally takes timeLimitMinutes, dataUsageLimitMBytes, rxRateLimitKbps and
-                txRateLimitKbps.
-            confirm: Ignored; accepted for backward compatibility. The call executes immediately
-                when made unless the operator opted in to dry-run policy (then nothing
-                is sent upstream and a preview of the request is returned).
-        """
-        client, registry = deps_fn()
-        return await _execute_client_action(client, registry, host, site, client_id, action)
-
-    @mcp.tool(annotations=WRITE)
-    async def block_client(
-        host: str,
-        site: str,
-        client_id: str,
-    ) -> Any:
-        """Block a client on a site: any client the controller knows, connected or not (an
-        offline client can be pre-blocked by its MAC).
-
-        Consequence: the client is disconnected and cannot rejoin the site until unblocked with
-        unblock_client.
-
-        Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-        preview: {method, path, params (query parameters), body}} instead).
-
-        Request body: none is passed by the caller. Tool sends
-        {"cmd": "block-sta", "mac": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to
-        classic cmd/stamgr (no published spec).
-
-        Example call (block_client):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC
-                may be that of any client the controller knows, connected or not: it is sent
-                to the controller as is (lowercase colon form) with no list lookup. A UUID is
-                resolved to the MAC with the client GET, which finds connected clients only;
-                an unknown UUID fails asking for the MAC. For a connected client,
-                get it from list_clients (data[].macAddress or data[].id); for any known client,
-                the mac from list_known_clients (includes offline and blocked clients).
-                Network-app id — not a Protect id.
-        """
-        client, registry = deps_fn()
-        return await _block_client(client, registry, host, site, client_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def unblock_client(
-        host: str,
-        site: str,
-        client_id: str,
-    ) -> Any:
-        """Unblock a previously blocked client on a site: any client the controller knows,
-        connected or not. A blocked client is offline and absent from list_clients: pass its
-        MAC (list_known_clients mac).
-
-        Consequence: the client may connect to the site again.
-
-        Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-        preview: {method, path, params (query parameters), body}} instead).
-
-        Request body: none is passed by the caller. Tool sends
-        {"cmd": "unblock-sta", "mac": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to
-        classic cmd/stamgr (no published spec).
-
-        Example call (unblock_client):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "client_id": "aa:bb:cc:dd:ee:ff"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC
-                may be that of any client the controller knows, connected or not: it is sent
-                to the controller as is (lowercase colon form) with no list lookup. A UUID is
-                resolved to the MAC with the client GET, which finds connected clients only;
-                an unknown UUID fails asking for the MAC. For a connected client,
-                get it from list_clients (data[].macAddress or data[].id); for any known client,
-                the mac from list_known_clients (includes offline and blocked clients).
-                Network-app id — not a Protect id.
-        """
-        client, registry = deps_fn()
-        return await _unblock_client(client, registry, host, site, client_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def reconnect_client(
-        host: str,
-        site: str,
-        client_id: str,
-    ) -> Any:
-        """Force a client to reconnect on a site (addressed by MAC; a MAC given is sent as
-        is, with no client list read).
-
-        Consequence: the client is disconnected and has to reconnect, briefly interrupting its
-        traffic.
-
-        Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-        preview: {method, path, params (query parameters), body}} instead).
-
-        Request body: none is passed by the caller. Tool sends
-        {"cmd": "kick-sta", "mac": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to
-        classic cmd/stamgr (no published spec).
-
-        Example call (reconnect_client):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC
-                may be that of any client the controller knows, connected or not: it is sent
-                to the controller as is (lowercase colon form) with no list lookup. A UUID is
-                resolved to the MAC with the client GET, which finds connected clients only;
-                an unknown UUID fails asking for the MAC. For a connected client,
-                get it from list_clients (data[].macAddress or data[].id); for any known client,
-                the mac from list_known_clients (includes offline and blocked clients).
-                Network-app id — not a Protect id.
-        """
-        client, registry = deps_fn()
-        return await _reconnect_client(client, registry, host, site, client_id)
+async def _wake_client(
+    client: UniFiClient,
+    registry: Registry,
+    host: str,
+    site: str,
+    client_id: str,
+) -> dict[str, Any]:
+    """Send a Wake-on-LAN packet to a client through the Network v2 wake-on-lan route."""
+    _validate_client_ref(client_id)
+    key = await registry.resolve_key_for_host(host)
+    host_id = await registry.resolve_host_id(host, key=key)
+    site_id = await registry.resolve_site_id(site, host_id, key=key)
+    _assert_uuid(site_id)
+    mac = await _stamgr_mac(client, host_id, site_id, client_id, key)
+    site_slug = await registry.resolve_site_slug(site, host_id, key=key)
+    return await client.post(v2_site(host_id, site_slug, f"/wake-on-lan/{mac}"), key=key, json={})

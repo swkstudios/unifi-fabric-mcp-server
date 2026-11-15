@@ -1,0 +1,605 @@
+{
+ "tools": [
+  {
+   "name": "list_hotspot_operators",
+   "description": "List hotspot operator accounts for captive portal management.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator…]}\nverbatim. To change one, edit its data[] entry and pass it as `fields` to\nupdate_hotspot_operator (operator_id = its _id).\n\nRequired arguments: host, site (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     }
+    },
+    "required": [
+     "host",
+     "site"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Hotspot Operators",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "create_hotspot_operator",
+   "description": "Create a hotspot operator account.\n\nRequest body: no published schema exists for POST network/api/s/{site}/rest/hotspotop\n(classic); the tool builds {name, x_password} plus note when you pass one.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]}\nverbatim; the new operator's _id is data[0]._id. Under dry-run policy nothing is sent:\n{status: \"dry_run\", response (the preview)}.\n\nExample call (create_hotspot_operator):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"name\": \"frontdesk\",\n      \"password\": \"change-me-123\"\n    }\n\nThe dry-run preview contains method, path, params (query parameters), and body.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "name": {
+      "type": "string",
+      "description": "Hotspot operator username (classic REST hotspotop.name)."
+     },
+     "password": {
+      "type": "string",
+      "description": "Operator password (sent as x_password)."
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional free-text note."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "name",
+     "password"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Create Hotspot Operator",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_hotspot_operator",
+   "description": "Update a hotspot operator by ID.\n\nThe id is resolved in list_hotspot_operators first: an unknown id fails listing every valid\n_id, and nothing is written.\n\nRequest body: no published schema exists for PUT network/api/s/{site}/rest/hotspotop/{id}\n(classic controller API). Pass the controller's native payload; read the current object\nfirst with list_hotspot_operators and send back the edited data[] entry. Empty strings\ninside list-valued fields are dropped before the write.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]} verbatim.\nUnder dry-run policy nothing is sent: {status: \"dry_run\", response (the preview)}.\n\nExample call (update_hotspot_operator):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"operator_id\": \"000000000000000000000107\",\n      \"fields\": {\"note\": \"Night shift\"}\n    }\n\nThe dry-run preview contains method, path, params (query parameters), and body.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "operator_id": {
+      "type": "string",
+      "description": "Hotspot operator _id (classic REST hotspotop). Get it from\nlist_hotspot_operators (_id)."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "spec: free-form (classic REST hotspotop). Fields to change: name, x_password,\nnote.\nFree-form JSON object; no fixed body shape is published."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "operator_id",
+     "fields"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Update Hotspot Operator",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "delete_hotspot_operator",
+   "description": "Delete a hotspot operator by ID.\n\nConsequence: the operator account can no longer sign in; there is no undo.\n\nThe id is resolved in list_hotspot_operators first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id and nothing is deleted. Under dry-run policy nothing is deleted; returns {status: \"dry_run\", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.\n\nExample call (delete_hotspot_operator):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"operator_id\": \"000000000000000000000107\"}\n\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "operator_id": {
+      "type": "string",
+      "description": "Hotspot operator _id (classic REST hotspotop). Get it from\nlist_hotspot_operators (_id)."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "operator_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Delete Hotspot Operator",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  }
+ ],
+ "describe": {
+  "list_hotspot_operators": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_hotspot_operators\",\"title\":\"List Hotspot Operators\",\"description\":\"List hotspot operator accounts for captive portal management.\\n\\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator…]}\\nverbatim. To change one, edit its data[] entry and pass it as `fields` to\\nupdate_hotspot_operator (operator_id = its _id).\\n\\nRequired arguments: host, site (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"}},\"required\":[\"host\",\"site\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_hotspot_operators",
+    "title": "List Hotspot Operators",
+    "description": "List hotspot operator accounts for captive portal management.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator…]}\nverbatim. To change one, edit its data[] entry and pass it as `fields` to\nupdate_hotspot_operator (operator_id = its _id).\n\nRequired arguments: host, site (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      }
+     },
+     "required": [
+      "host",
+      "site"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "create_hotspot_operator": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"create_hotspot_operator\",\"title\":\"Create Hotspot Operator\",\"description\":\"Create a hotspot operator account.\\n\\nRequest body: no published schema exists for POST network/api/s/{site}/rest/hotspotop\\n(classic); the tool builds {name, x_password} plus note when you pass one.\\n\\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]}\\nverbatim; the new operator's _id is data[0]._id. Under dry-run policy nothing is sent:\\n{status: \\\"dry_run\\\", response (the preview)}.\\n\\nExample call (create_hotspot_operator):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"name\\\": \\\"frontdesk\\\",\\n      \\\"password\\\": \\\"change-me-123\\\"\\n    }\\n\\nThe dry-run preview contains method, path, params (query parameters), and body.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"name\":{\"type\":\"string\",\"description\":\"Hotspot operator username (classic REST hotspotop.name).\"},\"password\":{\"type\":\"string\",\"description\":\"Operator password (sent as x_password).\"},\"note\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional free-text note.\"}},\"required\":[\"host\",\"site\",\"name\",\"password\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "create_hotspot_operator",
+    "title": "Create Hotspot Operator",
+    "description": "Create a hotspot operator account.\n\nRequest body: no published schema exists for POST network/api/s/{site}/rest/hotspotop\n(classic); the tool builds {name, x_password} plus note when you pass one.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]}\nverbatim; the new operator's _id is data[0]._id. Under dry-run policy nothing is sent:\n{status: \"dry_run\", response (the preview)}.\n\nExample call (create_hotspot_operator):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"name\": \"frontdesk\",\n      \"password\": \"change-me-123\"\n    }\n\nThe dry-run preview contains method, path, params (query parameters), and body.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "name": {
+       "type": "string",
+       "description": "Hotspot operator username (classic REST hotspotop.name)."
+      },
+      "password": {
+       "type": "string",
+       "description": "Operator password (sent as x_password)."
+      },
+      "note": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional free-text note."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "name",
+      "password"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_hotspot_operator": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_hotspot_operator\",\"title\":\"Update Hotspot Operator\",\"description\":\"Update a hotspot operator by ID.\\n\\nThe id is resolved in list_hotspot_operators first: an unknown id fails listing every valid\\n_id, and nothing is written.\\n\\nRequest body: no published schema exists for PUT network/api/s/{site}/rest/hotspotop/{id}\\n(classic controller API). Pass the controller's native payload; read the current object\\nfirst with list_hotspot_operators and send back the edited data[] entry. Empty strings\\ninside list-valued fields are dropped before the write.\\n\\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]} verbatim.\\nUnder dry-run policy nothing is sent: {status: \\\"dry_run\\\", response (the preview)}.\\n\\nExample call (update_hotspot_operator):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"operator_id\\\": \\\"000000000000000000000107\\\",\\n      \\\"fields\\\": {\\\"note\\\": \\\"Night shift\\\"}\\n    }\\n\\nThe dry-run preview contains method, path, params (query parameters), and body.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"operator_id\":{\"type\":\"string\",\"description\":\"Hotspot operator _id (classic REST hotspotop). Get it from\\nlist_hotspot_operators (_id).\"},\"fields\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"spec: free-form (classic REST hotspotop). Fields to change: name, x_password,\\nnote.\\nFree-form JSON object; no fixed body shape is published.\"}},\"required\":[\"host\",\"site\",\"operator_id\",\"fields\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_hotspot_operator",
+    "title": "Update Hotspot Operator",
+    "description": "Update a hotspot operator by ID.\n\nThe id is resolved in list_hotspot_operators first: an unknown id fails listing every valid\n_id, and nothing is written.\n\nRequest body: no published schema exists for PUT network/api/s/{site}/rest/hotspotop/{id}\n(classic controller API). Pass the controller's native payload; read the current object\nfirst with list_hotspot_operators and send back the edited data[] entry. Empty strings\ninside list-valued fields are dropped before the write.\n\nReturns: the controller's Classic REST envelope {meta: {rc}, data: [operator]} verbatim.\nUnder dry-run policy nothing is sent: {status: \"dry_run\", response (the preview)}.\n\nExample call (update_hotspot_operator):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"operator_id\": \"000000000000000000000107\",\n      \"fields\": {\"note\": \"Night shift\"}\n    }\n\nThe dry-run preview contains method, path, params (query parameters), and body.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "operator_id": {
+       "type": "string",
+       "description": "Hotspot operator _id (classic REST hotspotop). Get it from\nlist_hotspot_operators (_id)."
+      },
+      "fields": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "spec: free-form (classic REST hotspotop). Fields to change: name, x_password,\nnote.\nFree-form JSON object; no fixed body shape is published."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "operator_id",
+      "fields"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "delete_hotspot_operator": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"delete_hotspot_operator\",\"title\":\"Delete Hotspot Operator\",\"description\":\"Delete a hotspot operator by ID.\\n\\nConsequence: the operator account can no longer sign in; there is no undo.\\n\\nThe id is resolved in list_hotspot_operators first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id and nothing is deleted. Under dry-run policy nothing is deleted; returns {status: \\\"dry_run\\\", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.\\n\\nExample call (delete_hotspot_operator):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"operator_id\\\": \\\"000000000000000000000107\\\"}\\n\\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"operator_id\":{\"type\":\"string\",\"description\":\"Hotspot operator _id (classic REST hotspotop). Get it from\\nlist_hotspot_operators (_id).\"}},\"required\":[\"host\",\"site\",\"operator_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "delete_hotspot_operator",
+    "title": "Delete Hotspot Operator",
+    "description": "Delete a hotspot operator by ID.\n\nConsequence: the operator account can no longer sign in; there is no undo.\n\nThe id is resolved in list_hotspot_operators first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id and nothing is deleted. Under dry-run policy nothing is deleted; returns {status: \"dry_run\", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.\n\nExample call (delete_hotspot_operator):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"operator_id\": \"000000000000000000000107\"}\n\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "operator_id": {
+       "type": "string",
+       "description": "Hotspot operator _id (classic REST hotspotop). Get it from\nlist_hotspot_operators (_id)."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "operator_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  }
+ },
+ "calls": {
+  "read": {
+   "tool": "list_hotspot_operators",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default"
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"meta\":{\"rc\":\"ok\"},\"data\":[{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop#0\"}]}"
+     }
+    ],
+    "structuredContent": {
+     "meta": {
+      "rc": "ok"
+     },
+     "data": [
+      {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-object",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop#0"
+      }
+     ]
+    }
+   }
+  },
+  "write_dry_run": {
+   "tool": "delete_hotspot_operator",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "operator_id": "0000000000000000000000aa"
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "dry-run"
+   },
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"status\":\"dry_run\",\"deleted\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"response\":{\"status\":\"dry_run\",\"dryRun\":true,\"sent\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"preview\":{\"method\":\"DELETE\",\"path\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop/0000000000000000000000aa\",\"params\":null,\"body\":null,\"keyLabel\":\"default\"}}}"
+     }
+    ],
+    "structuredContent": {
+     "status": "dry_run",
+     "deleted": false,
+     "message": "DRY RUN - no upstream write was performed",
+     "response": {
+      "status": "dry_run",
+      "dryRun": true,
+      "sent": false,
+      "message": "DRY RUN - no upstream write was performed",
+      "preview": {
+       "method": "DELETE",
+       "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop/0000000000000000000000aa",
+       "params": null,
+       "body": null,
+       "keyLabel": "default"
+      }
+     }
+    }
+   }
+  },
+  "write_confirm": {
+   "tool": "delete_hotspot_operator",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "operator_id": "0000000000000000000000aa",
+    "confirm": true
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"deleted\":true,\"message\":\"Hotspot operator 0000000000000000000000aa deleted.\",\"response\":{\"meta\":{\"rc\":\"ok\"},\"data\":[{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"DELETE /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop/0000000000000000000000aa#0\"}]}}"
+     }
+    ],
+    "structuredContent": {
+     "deleted": true,
+     "message": "Hotspot operator 0000000000000000000000aa deleted.",
+     "response": {
+      "meta": {
+       "rc": "ok"
+      },
+      "data": [
+       {
+        "id": "00000000-0000-4000-8000-0000000000aa",
+        "_id": "0000000000000000000000aa",
+        "mac": "02:00:5e:00:00:aa",
+        "macAddress": "02:00:5e:00:00:aa",
+        "key": "probe-object",
+        "name": "probe-object",
+        "subsystem": "wan",
+        "hostId": "00000000-0000-4000-8000-0000000000aa",
+        "nested": {
+         "list": [
+          1,
+          "two",
+          {
+           "three": null
+          }
+         ],
+         "flag": false,
+         "ratio": 1.25
+        },
+        "probe": "DELETE /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/rest/hotspotop/0000000000000000000000aa#0"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "write_denied": {
+   "tool": "delete_hotspot_operator",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "operator_id": "0000000000000000000000aa"
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "deny"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"write_denied\", \"message\": \"delete_hotspot_operator refused: the server is in read-only mode because UNIFI_WRITE_POLICY=deny is set. Every write and action tool across all areas (Network create/update/delete, device/client actions, Protect, the connector relay, Carrier Fabric, Mobility, port-profiles, vouchers, etc.) is refused; read tools are unaffected. To allow writes, unset UNIFI_WRITE_POLICY (the default is allow) or set it to allow or dry-run where you set it: the server's `env` block in your MCP client's configuration (or set the plugin's Write policy option to allow), or the service's `environment:` block of the docker-compose file that deploys this server. Then restart the server (recreate the container for Docker). See Read-only mode in docs/CONFIGURATION.md#read-only-mode.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "validation_error": {
+   "tool": "list_hotspot_operators",
+   "arguments": {
+    "baseline_unknown_argument": 1
+   },
+   "env": {},
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "Invalid arguments for tool 'list_hotspot_operators':\n- host: missing required argument. Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\n- site: missing required argument. Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like \"Default\" work.\n- baseline_unknown_argument: not a parameter of this tool.\nValid parameters: host (required), site (required).\nCall shape (required arguments): {\"host\": \"STRING\", \"site\": \"STRING\"}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "tool_not_exposed": {
+   "tool": "list_hotspot_operators",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default"
+   },
+   "env": {
+    "UNIFI_EXCLUDE": "family:hotspot"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"tool_not_exposed\", \"message\": \"'list_hotspot_operators' is not exposed: the operator's UNIFI_FAMILY_ALLOW or UNIFI_EXCLUDE removes it. No request was sent. Use search_tools to list the exposed tools.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  }
+ }
+}

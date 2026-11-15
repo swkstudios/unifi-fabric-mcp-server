@@ -195,3 +195,41 @@ def test_markdown_link_followed_by_colon_is_discovered_once(project):
     url = "https://www.conventionalcommits.org/"
     (project / "CONTRIBUTING.md").write_text(f"See [conventions]({url}): details.\n")
     assert links.urls(project) == [url]
+
+
+def _redirect_server(status: int):
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/versioned":
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+            else:
+                self.send_response(status)
+                self.send_header("Location", "/versioned")
+                self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+@pytest.mark.parametrize("status, moved", [(307, False), (302, True), (301, True), (308, True)])
+def test_probe_accepts_307_and_still_reports_other_redirects(status, moved):
+    """developer.ui.com answers 307: the stable URL stays, so it is not reported as moved."""
+    server = _redirect_server(status)
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/stable"
+        result = links.probe(url)
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert result["ok"] is True and result["status"] == 200
+    assert result["moved"] is moved
+    assert result["destination"].endswith("/versioned")

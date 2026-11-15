@@ -8,6 +8,7 @@ import pytest
 
 from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.families.statistics import registrar as statistics_registrar
 from unifi_fabric.families.statistics.statistics import (
     _CLASSIC_STAT_BASE,
     _get_client_link_diagnostics,
@@ -255,11 +256,9 @@ class TestGetHistoricalStats:
     async def test_tool_level_call_sends_no_default_attrs(self, client, registry):
         from fastmcp import FastMCP
 
-        from unifi_fabric.families.statistics import statistics
-
         client.post.return_value = {"meta": {"rc": "ok"}, "data": []}
         mcp = FastMCP("test")
-        statistics.register(mcp, lambda: (client, registry))
+        statistics_registrar.register(mcp, lambda: (client, registry))
         await mcp.call_tool(
             "get_historical_stats",
             {

@@ -1,0 +1,1365 @@
+{
+ "tools": [
+  {
+   "name": "list_mobility_workspaces",
+   "description": "List UniFi Mobility workspaces visible to the authenticated API key.\n\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\n_count; incomplete / incompleteReason when total exceeds the rows returned. With several keys:\n{data, _count, _key_labels, byKey} plus errors.\n\nA workspace is a mobility \"cloud site\" (workspace_id, workspace_name, is_owner,\nstatus). Returned verbatim. Not query-paginated by the API. Mobility identity is\nworkspace-based and independent of the console host/site model.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to cover\nevery configured key: results are merged, each record carries an additive _keyLabel, and\na key that fails is reported under errors."
+     }
+    }
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Mobility Workspaces",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_mobility_admins",
+   "description": "List the admins of a Mobility workspace (mobility permissions only).\n\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\n_count; incomplete / incompleteReason when total exceeds the rows returned.\n\nEach admin carries name, email, status, is_owner and a permissions object\nexposing the umr (Mobile Routing) level (ALL/VIEW_ONLY/NONE); permissions is\nnull for a pending invite. Returned verbatim.\n\nExample call (list_mobility_admins):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     }
+    },
+    "required": [
+     "workspace_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Mobility Admins",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_mobility_devices",
+   "description": "List the UMR devices in a Mobility workspace.\n\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\ntraceId); total (the upstream total, never computed) only when the upstream sent an\ninteger one; incomplete / incompleteReason when the drain stopped short.\n\nEach device is the lightweight summary (id, name, model, state,\nfirmware_version, mac_address). Offset-paginated by the API (limit/offset, 200\nmax); every page is drained. Pass offset alone to fetch a single manual page (the\nupstream page body verbatim).\n\nExample call (list_mobility_devices):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}\n\nThe limit requests a total, gathered automatically in batches up to 200;\n_pageSize reports requested count, actual sent sizes per request,\nobserved effective size and returned count, without capping the total.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     },
+     "offset": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional zero-based starting record; alone, fetch one page manually.\nExample: `25`."
+     },
+     "limit": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is gathered\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\nall.\nExample: `25`."
+     }
+    },
+    "required": [
+     "workspace_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Mobility Devices",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_mobility_device",
+   "description": "Get full detail for one UMR device in a Mobility workspace.\n\nReturns the upstream response object verbatim: the complete DeviceDetail\n(WAN/cellular/WiFi/VPN/subscription/GPS, counts, and the summary fields) under data,\nbeside every other envelope field the API sends.\n\nExample call (get_mobility_device):\n    {\n      \"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     }
+    },
+    "required": [
+     "workspace_id",
+     "device_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get Mobility Device",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_mobility_clients",
+   "description": "List the clients associated with a UMR device.\n\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\ntraceId); total (the upstream total, never computed) only when the upstream sent an\ninteger one; incomplete / incompleteReason when the drain stopped short.\n\nEach client carries mac, name, type (WIRED/WIRELESS), connection_status,\nip_address, is_blocked and (wireless only) a wifi_experience score.\nOffset-paginated by the API (limit/offset, 200 max); every page is drained. Pass\noffset alone to fetch a single manual page (the upstream page body verbatim).\n\nExample call (list_mobility_clients):\n    {\n      \"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nThe limit requests a total, gathered automatically in batches up to 200;\n_pageSize reports requested count, actual sent sizes per request,\nobserved effective size and returned count, without capping the total.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     },
+     "offset": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional zero-based starting record; alone, fetch one page manually.\nExample: `25`."
+     },
+     "limit": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is gathered\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\nall.\nExample: `25`."
+     }
+    },
+    "required": [
+     "workspace_id",
+     "device_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Mobility Clients",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_mobility_device_name",
+   "description": "Rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {\"name\": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op (\"no_op\" when already named this), write, read-after.\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \"no_op\", reason, device}. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (update_mobility_device_name):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"name\": \"Van 12\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+     },
+     "name": {
+      "type": "string",
+      "description": "New device name, 1-32 chars (spec UpdateDeviceNameReq.name)."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored. The call runs when made; there is no confirmation step."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     }
+    },
+    "required": [
+     "workspace_id",
+     "device_id",
+     "name"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Update Mobility Device Name",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_mobility_device_network",
+   "description": "Update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}.\n\nPartial: only provided fields apply (WAN/IPv6/InternetSource are not configurable here); at least one is required. The Mobility docs differ on PUT semantics; if the console does full replacement, unsent LAN/DHCP fields can reset. dhcp_mode is 'dhcp' or 'none'; IPs must be dotted-quad IPv4 (a leading-zero octet is refused before any request); dhcp_lease_time is seconds (0 = infinite). explicit null is forwarded; omitted stays unchanged. Guarded, in order: family:mobility=deny refuses first (add it to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only), read-before, no-op on the observable host_address, write, read-after.\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \"no_op\", reason, device}. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nRequired arguments: workspace_id, device_id.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+     },
+     "host_address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional new LAN gateway IPv4 (spec UpdateNetworkReq)."
+     },
+     "dhcp_mode": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional 'dhcp' or 'none'."
+     },
+     "dhcp_range_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional DHCP pool start IPv4."
+     },
+     "dhcp_range_stop": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional DHCP pool end IPv4."
+     },
+     "dhcp_lease_time": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional lease seconds (>=0; 0 = infinite)."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored. The call runs when made; there is no confirmation step."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     }
+    },
+    "required": [
+     "workspace_id",
+     "device_id"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Update Mobility Device Network",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_mobility_device_wireless",
+   "description": "Update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless.\n\nBoth fields required (ssid 1-32 chars; password a WPA2-PSK secret of 8-63 chars). Guarded, in order: family:mobility=deny refuses first, read-before, write, read-after. No no-op short-circuit (the password is unobservable). The password is not echoed back; under dry-run policy the preview body shows it (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on).\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}; never no_op. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (update_mobility_device_wireless):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"ssid\": \"Fleet-WiFi\",\n     \"password\": \"correct-horse-9\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "workspace_id": {
+      "type": "string",
+      "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+     },
+     "ssid": {
+      "type": "string",
+      "description": "New SSID, 1-32 chars (spec UpdateWirelessReq.ssid)."
+     },
+     "password": {
+      "type": "string",
+      "description": "New WPA2-PSK, 8-63 chars (spec UpdateWirelessReq.password)."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored. The call runs when made; there is no confirmation step."
+     },
+     "key_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+     }
+    },
+    "required": [
+     "workspace_id",
+     "device_id",
+     "ssid",
+     "password"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Update Mobility Device Wireless",
+   "_meta": {
+    "unifi/apiSource": "mobility/official/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  }
+ ],
+ "describe": {
+  "list_mobility_workspaces": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_mobility_workspaces\",\"title\":\"List Mobility Workspaces\",\"description\":\"List UniFi Mobility workspaces visible to the authenticated API key.\\n\\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\\n_count; incomplete / incompleteReason when total exceeds the rows returned. With several keys:\\n{data, _count, _key_labels, byKey} plus errors.\\n\\nA workspace is a mobility \\\"cloud site\\\" (workspace_id, workspace_name, is_owner,\\nstatus). Returned verbatim. Not query-paginated by the API. Mobility identity is\\nworkspace-based and independent of the console host/site model.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to cover\\nevery configured key: results are merged, each record carries an additive _keyLabel, and\\na key that fails is reported under errors.\"}},\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_mobility_workspaces",
+    "title": "List Mobility Workspaces",
+    "description": "List UniFi Mobility workspaces visible to the authenticated API key.\n\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\n_count; incomplete / incompleteReason when total exceeds the rows returned. With several keys:\n{data, _count, _key_labels, byKey} plus errors.\n\nA workspace is a mobility \"cloud site\" (workspace_id, workspace_name, is_owner,\nstatus). Returned verbatim. Not query-paginated by the API. Mobility identity is\nworkspace-based and independent of the console host/site model.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to cover\nevery configured key: results are merged, each record carries an additive _keyLabel, and\na key that fails is reported under errors."
+      }
+     },
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_mobility_admins": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_mobility_admins\",\"title\":\"List Mobility Admins\",\"description\":\"List the admins of a Mobility workspace (mobility permissions only).\\n\\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\\n_count; incomplete / incompleteReason when total exceeds the rows returned.\\n\\nEach admin carries name, email, status, is_owner and a permissions object\\nexposing the umr (Mobile Routing) level (ALL/VIEW_ONLY/NONE); permissions is\\nnull for a pending invite. Returned verbatim.\\n\\nExample call (list_mobility_admins):\\n    {\\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"}},\"required\":[\"workspace_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_mobility_admins",
+    "title": "List Mobility Admins",
+    "description": "List the admins of a Mobility workspace (mobility permissions only).\n\nReturns the upstream body verbatim ({data, total, offset, limit, httpStatusCode, traceId}) plus\n_count; incomplete / incompleteReason when total exceeds the rows returned.\n\nEach admin carries name, email, status, is_owner and a permissions object\nexposing the umr (Mobile Routing) level (ALL/VIEW_ONLY/NONE); permissions is\nnull for a pending invite. Returned verbatim.\n\nExample call (list_mobility_admins):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      }
+     },
+     "required": [
+      "workspace_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_mobility_devices": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_mobility_devices\",\"title\":\"List Mobility Devices\",\"description\":\"List the UMR devices in a Mobility workspace.\\n\\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\\ntraceId); total (the upstream total, never computed) only when the upstream sent an\\ninteger one; incomplete / incompleteReason when the drain stopped short.\\n\\nEach device is the lightweight summary (id, name, model, state,\\nfirmware_version, mac_address). Offset-paginated by the API (limit/offset, 200\\nmax); every page is drained. Pass offset alone to fetch a single manual page (the\\nupstream page body verbatim).\\n\\nExample call (list_mobility_devices):\\n    {\\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"}\\n\\nThe limit requests a total, gathered automatically in batches up to 200;\\n_pageSize reports requested count, actual sent sizes per request,\\nobserved effective size and returned count, without capping the total.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"},\"offset\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional zero-based starting record; alone, fetch one page manually.\\nExample: `25`.\"},\"limit\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Without offset, the record count gathered from the start in pages of at\\nmost 200; fewer only when the collection ends. With offset, limit is gathered\\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\\nall.\\nExample: `25`.\"}},\"required\":[\"workspace_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_mobility_devices",
+    "title": "List Mobility Devices",
+    "description": "List the UMR devices in a Mobility workspace.\n\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\ntraceId); total (the upstream total, never computed) only when the upstream sent an\ninteger one; incomplete / incompleteReason when the drain stopped short.\n\nEach device is the lightweight summary (id, name, model, state,\nfirmware_version, mac_address). Offset-paginated by the API (limit/offset, 200\nmax); every page is drained. Pass offset alone to fetch a single manual page (the\nupstream page body verbatim).\n\nExample call (list_mobility_devices):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}\n\nThe limit requests a total, gathered automatically in batches up to 200;\n_pageSize reports requested count, actual sent sizes per request,\nobserved effective size and returned count, without capping the total.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      },
+      "offset": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional zero-based starting record; alone, fetch one page manually.\nExample: `25`."
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is gathered\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\nall.\nExample: `25`."
+      }
+     },
+     "required": [
+      "workspace_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_mobility_device": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_mobility_device\",\"title\":\"Get Mobility Device\",\"description\":\"Get full detail for one UMR device in a Mobility workspace.\\n\\nReturns the upstream response object verbatim: the complete DeviceDetail\\n(WAN/cellular/WiFi/VPN/subscription/GPS, counts, and the summary fields) under data,\\nbeside every other envelope field the API sends.\\n\\nExample call (get_mobility_device):\\n    {\\n      \\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n      \\\"device_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"\\n    }\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"device_id\":{\"type\":\"string\",\"description\":\"Mobility device UUID. Get it from list_mobility_devices (same workspace).\\nMobility id — not a Network device UUID.\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"}},\"required\":[\"workspace_id\",\"device_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_mobility_device",
+    "title": "Get Mobility Device",
+    "description": "Get full detail for one UMR device in a Mobility workspace.\n\nReturns the upstream response object verbatim: the complete DeviceDetail\n(WAN/cellular/WiFi/VPN/subscription/GPS, counts, and the summary fields) under data,\nbeside every other envelope field the API sends.\n\nExample call (get_mobility_device):\n    {\n      \"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "device_id": {
+       "type": "string",
+       "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      }
+     },
+     "required": [
+      "workspace_id",
+      "device_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_mobility_clients": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_mobility_clients\",\"title\":\"List Mobility Clients\",\"description\":\"List the clients associated with a UMR device.\\n\\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\\ntraceId); total (the upstream total, never computed) only when the upstream sent an\\ninteger one; incomplete / incompleteReason when the drain stopped short.\\n\\nEach client carries mac, name, type (WIRED/WIRELESS), connection_status,\\nip_address, is_blocked and (wireless only) a wifi_experience score.\\nOffset-paginated by the API (limit/offset, 200 max); every page is drained. Pass\\noffset alone to fetch a single manual page (the upstream page body verbatim).\\n\\nExample call (list_mobility_clients):\\n    {\\n      \\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n      \\\"device_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"\\n    }\\n\\nThe limit requests a total, gathered automatically in batches up to 200;\\n_pageSize reports requested count, actual sent sizes per request,\\nobserved effective size and returned count, without capping the total.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"device_id\":{\"type\":\"string\",\"description\":\"Mobility device UUID. Get it from list_mobility_devices (same workspace).\\nMobility id — not a Network device UUID.\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"},\"offset\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional zero-based starting record; alone, fetch one page manually.\\nExample: `25`.\"},\"limit\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Without offset, the record count gathered from the start in pages of at\\nmost 200; fewer only when the collection ends. With offset, limit is gathered\\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\\nall.\\nExample: `25`.\"}},\"required\":[\"workspace_id\",\"device_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_mobility_clients",
+    "title": "List Mobility Clients",
+    "description": "List the clients associated with a UMR device.\n\nReturns {data, _count} plus the first page's other envelope fields (httpStatusCode,\ntraceId); total (the upstream total, never computed) only when the upstream sent an\ninteger one; incomplete / incompleteReason when the drain stopped short.\n\nEach client carries mac, name, type (WIRED/WIRELESS), connection_status,\nip_address, is_blocked and (wireless only) a wifi_experience score.\nOffset-paginated by the API (limit/offset, 200 max); every page is drained. Pass\noffset alone to fetch a single manual page (the upstream page body verbatim).\n\nExample call (list_mobility_clients):\n    {\n      \"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nThe limit requests a total, gathered automatically in batches up to 200;\n_pageSize reports requested count, actual sent sizes per request,\nobserved effective size and returned count, without capping the total.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "device_id": {
+       "type": "string",
+       "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      },
+      "offset": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional zero-based starting record; alone, fetch one page manually.\nExample: `25`."
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is gathered\nacross pages of at most 200 starting at offset. Omit offset and limit to drain\nall.\nExample: `25`."
+      }
+     },
+     "required": [
+      "workspace_id",
+      "device_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_mobility_device_name": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_mobility_device_name\",\"title\":\"Update Mobility Device Name\",\"description\":\"Rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {\\\"name\\\": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op (\\\"no_op\\\" when already named this), write, read-after.\\n\\nReturns {status: \\\"updated\\\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \\\"no_op\\\", reason, device}. Under dry-run policy nothing is sent: {status: \\\"dry_run\\\", device (the body read first), response (the dry-run preview)}; no read-after.\\n\\nDry-run preview: {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nExample call (update_mobility_device_name):\\n    {\\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n     \\\"device_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\", \\\"name\\\": \\\"Van 12\\\"}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"device_id\":{\"type\":\"string\",\"description\":\"Mobility device UUID. Get it from list_mobility_devices (same workspace).\\nMobility id — not a Network device UUID.\"},\"name\":{\"type\":\"string\",\"description\":\"New device name, 1-32 chars (spec UpdateDeviceNameReq.name).\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored. The call runs when made; there is no confirmation step.\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"}},\"required\":[\"workspace_id\",\"device_id\",\"name\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_mobility_device_name",
+    "title": "Update Mobility Device Name",
+    "description": "Rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {\"name\": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op (\"no_op\" when already named this), write, read-after.\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \"no_op\", reason, device}. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (update_mobility_device_name):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"name\": \"Van 12\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "device_id": {
+       "type": "string",
+       "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+      },
+      "name": {
+       "type": "string",
+       "description": "New device name, 1-32 chars (spec UpdateDeviceNameReq.name)."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored. The call runs when made; there is no confirmation step."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      }
+     },
+     "required": [
+      "workspace_id",
+      "device_id",
+      "name"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_mobility_device_network": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_mobility_device_network\",\"title\":\"Update Mobility Device Network\",\"description\":\"Update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}.\\n\\nPartial: only provided fields apply (WAN/IPv6/InternetSource are not configurable here); at least one is required. The Mobility docs differ on PUT semantics; if the console does full replacement, unsent LAN/DHCP fields can reset. dhcp_mode is 'dhcp' or 'none'; IPs must be dotted-quad IPv4 (a leading-zero octet is refused before any request); dhcp_lease_time is seconds (0 = infinite). explicit null is forwarded; omitted stays unchanged. Guarded, in order: family:mobility=deny refuses first (add it to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only), read-before, no-op on the observable host_address, write, read-after.\\n\\nReturns {status: \\\"updated\\\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \\\"no_op\\\", reason, device}. Under dry-run policy nothing is sent: {status: \\\"dry_run\\\", device (the body read first), response (the dry-run preview)}; no read-after.\\n\\nRequired arguments: workspace_id, device_id.\\n\\nDry-run preview: {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"device_id\":{\"type\":\"string\",\"description\":\"Mobility device UUID. Get it from list_mobility_devices (same workspace).\\nMobility id — not a Network device UUID.\"},\"host_address\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Optional new LAN gateway IPv4 (spec UpdateNetworkReq).\"},\"dhcp_mode\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Optional 'dhcp' or 'none'.\"},\"dhcp_range_start\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Optional DHCP pool start IPv4.\"},\"dhcp_range_stop\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Optional DHCP pool end IPv4.\"},\"dhcp_lease_time\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"description\":\"Optional lease seconds (>=0; 0 = infinite).\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored. The call runs when made; there is no confirmation step.\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"}},\"required\":[\"workspace_id\",\"device_id\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_mobility_device_network",
+    "title": "Update Mobility Device Network",
+    "description": "Update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}.\n\nPartial: only provided fields apply (WAN/IPv6/InternetSource are not configurable here); at least one is required. The Mobility docs differ on PUT semantics; if the console does full replacement, unsent LAN/DHCP fields can reset. dhcp_mode is 'dhcp' or 'none'; IPs must be dotted-quad IPv4 (a leading-zero octet is refused before any request); dhcp_lease_time is seconds (0 = infinite). explicit null is forwarded; omitted stays unchanged. Guarded, in order: family:mobility=deny refuses first (add it to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only), read-before, no-op on the observable host_address, write, read-after.\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: \"no_op\", reason, device}. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nRequired arguments: workspace_id, device_id.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "device_id": {
+       "type": "string",
+       "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+      },
+      "host_address": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional new LAN gateway IPv4 (spec UpdateNetworkReq)."
+      },
+      "dhcp_mode": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional 'dhcp' or 'none'."
+      },
+      "dhcp_range_start": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional DHCP pool start IPv4."
+      },
+      "dhcp_range_stop": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional DHCP pool end IPv4."
+      },
+      "dhcp_lease_time": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional lease seconds (>=0; 0 = infinite)."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored. The call runs when made; there is no confirmation step."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      }
+     },
+     "required": [
+      "workspace_id",
+      "device_id"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_mobility_device_wireless": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_mobility_device_wireless\",\"title\":\"Update Mobility Device Wireless\",\"description\":\"Update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless.\\n\\nBoth fields required (ssid 1-32 chars; password a WPA2-PSK secret of 8-63 chars). Guarded, in order: family:mobility=deny refuses first, read-before, write, read-after. No no-op short-circuit (the password is unobservable). The password is not echoed back; under dry-run policy the preview body shows it (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on).\\n\\nReturns {status: \\\"updated\\\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}; never no_op. Under dry-run policy nothing is sent: {status: \\\"dry_run\\\", device (the body read first), response (the dry-run preview)}; no read-after.\\n\\nDry-run preview: {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nExample call (update_mobility_device_wireless):\\n    {\\\"workspace_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n     \\\"device_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\", \\\"ssid\\\": \\\"Fleet-WiFi\\\",\\n     \\\"password\\\": \\\"correct-horse-9\\\"}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"workspace_id\":{\"type\":\"string\",\"description\":\"Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id).\"},\"device_id\":{\"type\":\"string\",\"description\":\"Mobility device UUID. Get it from list_mobility_devices (same workspace).\\nMobility id — not a Network device UUID.\"},\"ssid\":{\"type\":\"string\",\"description\":\"New SSID, 1-32 chars (spec UpdateWirelessReq.ssid).\"},\"password\":{\"type\":\"string\",\"description\":\"New WPA2-PSK, 8-63 chars (spec UpdateWirelessReq.password).\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored. The call runs when made; there is no confirmation step.\"},\"key_label\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional configured API-key label (see list_configured_api_keys). Omit to use\\nwhichever configured key owns the object: every key is tried and the first that answers\\nis used.\"}},\"required\":[\"workspace_id\",\"device_id\",\"ssid\",\"password\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"mobility/official/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_mobility_device_wireless",
+    "title": "Update Mobility Device Wireless",
+    "description": "Update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless.\n\nBoth fields required (ssid 1-32 chars; password a WPA2-PSK secret of 8-63 chars). Guarded, in order: family:mobility=deny refuses first, read-before, write, read-after. No no-op short-circuit (the password is unobservable). The password is not echoed back; under dry-run policy the preview body shows it (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on).\n\nReturns {status: \"updated\", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}; never no_op. Under dry-run policy nothing is sent: {status: \"dry_run\", device (the body read first), response (the dry-run preview)}; no read-after.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (update_mobility_device_wireless):\n    {\"workspace_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"device_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"ssid\": \"Fleet-WiFi\",\n     \"password\": \"correct-horse-9\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "workspace_id": {
+       "type": "string",
+       "description": "Mobility workspace UUID. Get it from list_mobility_workspaces (workspace_id)."
+      },
+      "device_id": {
+       "type": "string",
+       "description": "Mobility device UUID. Get it from list_mobility_devices (same workspace).\nMobility id — not a Network device UUID."
+      },
+      "ssid": {
+       "type": "string",
+       "description": "New SSID, 1-32 chars (spec UpdateWirelessReq.ssid)."
+      },
+      "password": {
+       "type": "string",
+       "description": "New WPA2-PSK, 8-63 chars (spec UpdateWirelessReq.password)."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored. The call runs when made; there is no confirmation step."
+      },
+      "key_label": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional configured API-key label (see list_configured_api_keys). Omit to use\nwhichever configured key owns the object: every key is tried and the first that answers\nis used."
+      }
+     },
+     "required": [
+      "workspace_id",
+      "device_id",
+      "ssid",
+      "password"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "mobility/official/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  }
+ },
+ "calls": {
+  "read": {
+   "tool": "list_mobility_workspaces",
+   "arguments": {},
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"data\":[{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"/v1/mobility/workspaces#0\"}],\"httpStatusCode\":200,\"traceId\":\"t\",\"_count\":1}"
+     }
+    ],
+    "structuredContent": {
+     "data": [
+      {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-object",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "/v1/mobility/workspaces#0"
+      }
+     ],
+     "httpStatusCode": 200,
+     "traceId": "t",
+     "_count": 1
+    }
+   }
+  },
+  "write_dry_run": {
+   "tool": "update_mobility_device_name",
+   "arguments": {
+    "workspace_id": "00000000-0000-4000-8000-0000000000aa",
+    "device_id": "00000000-0000-4000-8000-0000000000aa",
+    "name": "probe-renamed",
+    "confirm": true
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "dry-run"
+   },
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"status\":\"dry_run\",\"device\":{\"data\":{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0\"},\"httpStatusCode\":200,\"traceId\":\"t\"},\"response\":{\"status\":\"dry_run\",\"dryRun\":true,\"sent\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"preview\":{\"method\":\"PUT\",\"path\":\"/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa\",\"params\":null,\"body\":{\"name\":\"probe-renamed\"},\"keyLabel\":\"default\"}}}"
+     }
+    ],
+    "structuredContent": {
+     "status": "dry_run",
+     "device": {
+      "data": {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-object",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0"
+      },
+      "httpStatusCode": 200,
+      "traceId": "t"
+     },
+     "response": {
+      "status": "dry_run",
+      "dryRun": true,
+      "sent": false,
+      "message": "DRY RUN - no upstream write was performed",
+      "preview": {
+       "method": "PUT",
+       "path": "/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa",
+       "params": null,
+       "body": {
+        "name": "probe-renamed"
+       },
+       "keyLabel": "default"
+      }
+     }
+    }
+   }
+  },
+  "write_confirm": {
+   "tool": "update_mobility_device_name",
+   "arguments": {
+    "workspace_id": "00000000-0000-4000-8000-0000000000aa",
+    "device_id": "00000000-0000-4000-8000-0000000000aa",
+    "name": "probe-renamed",
+    "confirm": true
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"status\":\"updated\",\"changed\":{\"name\":{\"from\":\"probe-object\",\"to\":\"probe-renamed\"}},\"verified\":{\"name\":true},\"device\":{\"data\":{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-renamed\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0\"},\"httpStatusCode\":200,\"traceId\":\"t\"},\"response\":{\"data\":{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"PUT /v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0\"},\"httpStatusCode\":200,\"traceId\":\"t\"}}"
+     }
+    ],
+    "structuredContent": {
+     "status": "updated",
+     "changed": {
+      "name": {
+       "from": "probe-object",
+       "to": "probe-renamed"
+      }
+     },
+     "verified": {
+      "name": true
+     },
+     "device": {
+      "data": {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-renamed",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "/v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0"
+      },
+      "httpStatusCode": 200,
+      "traceId": "t"
+     },
+     "response": {
+      "data": {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-object",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "PUT /v1/mobility/workspaces/00000000-0000-4000-8000-0000000000aa/devices/00000000-0000-4000-8000-0000000000aa#0"
+      },
+      "httpStatusCode": 200,
+      "traceId": "t"
+     }
+    }
+   }
+  },
+  "write_denied": {
+   "tool": "update_mobility_device_name",
+   "arguments": {
+    "workspace_id": "00000000-0000-4000-8000-0000000000aa",
+    "device_id": "00000000-0000-4000-8000-0000000000aa",
+    "name": "probe-renamed",
+    "confirm": true
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "deny"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"write_denied\", \"message\": \"update_mobility_device_name refused: the server is in read-only mode because UNIFI_WRITE_POLICY=deny is set. Every write and action tool across all areas (Network create/update/delete, device/client actions, Protect, the connector relay, Carrier Fabric, Mobility, port-profiles, vouchers, etc.) is refused; read tools are unaffected. To allow writes, unset UNIFI_WRITE_POLICY (the default is allow) or set it to allow or dry-run where you set it: the server's `env` block in your MCP client's configuration (or set the plugin's Write policy option to allow), or the service's `environment:` block of the docker-compose file that deploys this server. Then restart the server (recreate the container for Docker). See Read-only mode in docs/CONFIGURATION.md#read-only-mode.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "validation_error": {
+   "tool": "list_mobility_workspaces",
+   "arguments": {
+    "baseline_unknown_argument": 1
+   },
+   "env": {},
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "Invalid arguments for tool 'list_mobility_workspaces':\n- baseline_unknown_argument: not a parameter of this tool.\nValid parameters: key_label.\nCall shape (required arguments): {}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "tool_not_exposed": {
+   "tool": "list_mobility_workspaces",
+   "arguments": {},
+   "env": {
+    "UNIFI_EXCLUDE": "family:mobility"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"tool_not_exposed\", \"message\": \"'list_mobility_workspaces' is not exposed: the operator's UNIFI_FAMILY_ALLOW or UNIFI_EXCLUDE removes it. No request was sent. Use search_tools to list the exposed tools.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  }
+ }
+}

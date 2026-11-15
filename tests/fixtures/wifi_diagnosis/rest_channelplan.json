@@ -1,0 +1,387 @@
+{
+ "data": [
+  {
+   "_id": "plan-1",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-09-11T02:43:47Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 64,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 160
+    },
+    {
+     "channel": 100,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-2",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-10-11T18:49:22Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 64,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 100,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-3",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-11-05T09:04:32Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 1,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi0",
+     "tx_power": 14,
+     "tx_power_mode": "auto",
+     "width": 40
+    },
+    {
+     "channel": 11,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi0",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 20
+    },
+    {
+     "channel": 64,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 100,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    },
+    {
+     "channel": 69,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi2",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 101,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi2",
+     "tx_power": 21,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-4",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-11-06T09:04:19Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 11,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi0",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 20
+    },
+    {
+     "channel": 1,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi0",
+     "tx_power": 14,
+     "tx_power_mode": "auto",
+     "width": 40
+    },
+    {
+     "channel": 64,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 100,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    },
+    {
+     "channel": 69,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi2",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 101,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi2",
+     "tx_power": 21,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-5",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-11-09T09:04:26Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 1,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi0",
+     "tx_power": 14,
+     "tx_power_mode": "auto",
+     "width": 40
+    },
+    {
+     "channel": 11,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi0",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 20
+    },
+    {
+     "channel": 60,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    },
+    {
+     "channel": 112,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 37,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi2",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 69,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi2",
+     "tx_power": 21,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-6",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-11-10T09:04:26Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 11,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi0",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 20
+    },
+    {
+     "channel": 1,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi0",
+     "tx_power": 14,
+     "tx_power_mode": "auto",
+     "width": 40
+    },
+    {
+     "channel": 112,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 60,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi1",
+     "tx_power": 24,
+     "tx_power_mode": "auto",
+     "width": 160
+    },
+    {
+     "channel": 37,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi2",
+     "tx_power": 6,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 69,
+     "device_mac": "02:00:5e:00:00:a1",
+     "name": "wifi2",
+     "tx_power": 21,
+     "tx_power_mode": "auto",
+     "width": 160
+    }
+   ]
+  },
+  {
+   "_id": "plan-7",
+   "channels_ng": [
+    1,
+    6,
+    11
+   ],
+   "date": "2026-07-31T18:57:27Z",
+   "ht_modes_na": [
+    20,
+    40,
+    80
+   ],
+   "ht_modes_ng": [
+    20
+   ],
+   "method": "FULL_SCAN",
+   "radio_table": [
+    {
+     "channel": 161,
+     "device_mac": "02:00:5e:00:00:a2",
+     "name": "wifi1",
+     "tx_power": 20,
+     "tx_power_mode": "auto",
+     "width": 80
+    },
+    {
+     "channel": 64,
+     "device_mac": "02:00:5e:00:00:a3",
+     "name": "wifi1",
+     "tx_power": 22,
+     "tx_power_mode": "auto",
+     "width": 80
+    }
+   ]
+  }
+ ],
+ "meta": {
+  "rc": "ok"
+ }
+}

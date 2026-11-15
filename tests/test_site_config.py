@@ -20,6 +20,7 @@ import pytest
 
 from unifi_fabric import families, server
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
+from unifi_fabric.families.network import registrar as network_registrar
 from unifi_fabric.families.network import site_config as sc
 
 HOST_ID = "host-001"
@@ -827,7 +828,7 @@ def test_radius_account_tools_route_only_to_v2_batch_writes():
     rest/account (official > v2 > Classic route preference)."""
     import inspect
 
-    src = inspect.getsource(sc.register)
+    src = inspect.getsource(network_registrar.register_11)
     for tool, helper in (
         ("create_radius_account", "_create_batch_record"),
         ("update_radius_account", "_update_batch_record"),

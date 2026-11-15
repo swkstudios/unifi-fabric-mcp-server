@@ -1,0 +1,20 @@
+# Allowed family-to-family imports (scripts/check_family_imports.py).
+# Line format: <importer module> -> <imported module>: <names>  # L1-C <family>
+# Each L1-C family PR deletes its family's lines; a stale line fails the check.
+unifi_fabric.families.devices.device_mgmt -> unifi_fabric.families.network.network: _proxy  # L1-C devices
+unifi_fabric.families.devices.device_radios -> unifi_fabric.families.connector.connector: CONNECTOR_WRITE_ENV,connector_write_refusal  # L1-C devices
+unifi_fabric.families.devices.device_radios -> unifi_fabric.families.statistics.statistics: _classic_stat,_select_one_record,_stat_records  # L1-C devices
+unifi_fabric.families.devices.switch_port_overrides -> unifi_fabric.families.connector.connector: CONNECTOR_WRITE_ENV,connector_write_refusal  # L1-C devices
+unifi_fabric.families.devices.switch_port_overrides -> unifi_fabric.families.statistics.statistics: _classic_stat,_select_one_record,_stat_records  # L1-C devices
+unifi_fabric.families.devices.wifi_diagnosis -> unifi_fabric.families.network.network_services_proxy: get_channel_plan,get_setting,list_rogue_aps,list_wlan_configs  # L1-C devices
+unifi_fabric.families.devices.wifi_diagnosis -> unifi_fabric.families.network.network_wifi_radio: get_spectrum_scan_results,get_wifi_connectivity,get_wifi_stats,list_available_wifi_channels  # L1-C devices
+unifi_fabric.families.devices.wifi_diagnosis -> unifi_fabric.families.statistics.statistics: _classic_stat,_stat_records  # L1-C devices
+unifi_fabric.families.firewall.registrar -> unifi_fabric.families.network.firewall_proxy: -  # L1-C firewall
+unifi_fabric.families.firewall.registrar -> unifi_fabric.families.network.network_dpi_policy: -  # L1-C firewall
+unifi_fabric.families.firewall.registrar -> unifi_fabric.families.network.network_services_proxy: -  # L1-C firewall
+unifi_fabric.families.network.matter -> unifi_fabric.families.connector.connector: area_write_refusal  # L1-C network
+unifi_fabric.families.network.network_clients_guests -> unifi_fabric.families.clients.clients: _describe_clients,_record_mac,_stamgr_mac,_validate_client_ref  # L1-C network
+unifi_fabric.families.network.network_controller_admin -> unifi_fabric.families.devices.device_mgmt: -  # L1-C network
+unifi_fabric.families.network.network_controller_admin -> unifi_fabric.families.site_manager.site_manager: -  # L1-C network
+unifi_fabric.families.network.network_wifi_radio -> unifi_fabric.families.connector.connector: CONNECTOR_WRITE_ENV,connector_write_refusal  # L1-C network
+unifi_fabric.families.protect.protect_private -> unifi_fabric.families.connector.connector: -  # L1-C protect

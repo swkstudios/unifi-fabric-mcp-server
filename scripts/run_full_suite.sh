@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Run the whole test suite the way CI's test and test-locked jobs run it.
+# Run the whole test suite the way CI's test job runs it.
 #
 #   scripts/run_full_suite.sh PYTHON [--workers N|auto] [--print-command]
 #                             [--] [extra pytest arguments...]
 #
 # PYTHON is the interpreter of the environment under test (test: "$DEV_VENV/bin/python",
-# test-locked: python). The suite runs from the repository root. The command is
+# a locked environment: python). The suite runs from the repository root. The command is
 #
 #   PYTHON -m pytest tests/ -v -n <N> --dist loadgroup --max-worker-restart=0
 #          --cov=src/unifi_fabric --cov-report=term --cov-fail-under=97
@@ -30,7 +30,7 @@
 # --cov-fail-under and the terminal coverage report (no shard can pass or fail the
 # threshold alone) and writes the shard report to PATH (default shard-K-of-N.json). Each
 # shard leaves its own .coverage file.
-# --shard-suite names the suite (test, test-locked) the report belongs to; the report also
+# --shard-suite names the suite (test) the report belongs to; the report also
 # carries the run id and attempt, the environment identity and its lock differences.
 # --collect-only is the anchor: the same command and arguments without the coverage options,
 # plus --collect-only -q (without -v, which would print a tree instead of IDs), so the node-ID list it prints is what an unsharded run executes.
@@ -190,6 +190,10 @@ if ! [[ "$workers" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The combine directory is read again after the script changes into the repository root, so a
+# relative one is made absolute against the caller's directory first (issue 932).
+case "$combine" in "" | /*) ;; *) combine="$PWD/$combine" ;; esac
 
 if [ -n "$combine" ] || [ -n "$shard_count" ] || [ -n "$summary" ]; then
   if [ -n "$shard" ] || [ -n "$shard_report" ] || [ -n "$shard_suite" ] || [ "$collect_only" = true ] \

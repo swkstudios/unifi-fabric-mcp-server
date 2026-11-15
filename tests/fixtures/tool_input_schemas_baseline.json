@@ -660,6 +660,24 @@
       ],
       "type": "object"
     },
+    "arm_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_profile_id": {
+          "description": "External arm profile id from list_external_arm_profiles (id).",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "arm_profile_id"
+      ],
+      "type": "object"
+    },
     "assign_carrier_subscriber_plan": {
       "additionalProperties": false,
       "properties": {
@@ -3017,6 +3035,96 @@
       ],
       "type": "object"
     },
+    "create_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        },
+        "settings": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "properties": {
+                "activation_delay": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {}
+                  ],
+                  "description": "Delay in seconds."
+                },
+                "alarm_ids": {
+                  "anyOf": [
+                    {
+                      "type": "array"
+                    },
+                    {}
+                  ],
+                  "description": "Shape: string[]"
+                },
+                "deactivation_delay": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {}
+                  ],
+                  "description": "Delay in seconds."
+                },
+                "pin_code": {
+                  "anyOf": [
+                    {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    {}
+                  ],
+                  "description": "Shape: string|null"
+                },
+                "schedule": {
+                  "anyOf": [
+                    {
+                      "type": "object"
+                    },
+                    {}
+                  ],
+                  "description": "Shape: {fri?:T1|T2,mon?:T1|T2,sat?:T1|T2,sun?:T1|T2,thu?:T1|T2,tue?:T1|T2,wed?:T1|T2} where T1={entries:({end:T3|{hour:24,minute:0},start:T3})[],type:'intervals'};T2={type:'all_day'};T3={hour:integer,minute:integer}"
+                },
+                "title": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {}
+                  ],
+                  "description": "Title of the external arm profile."
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional rest of the body (Protect 7.4.96 POST /v1/external/arm-profiles).\nShape: {activation_delay?: integer, deactivation_delay?: integer,\nschedule?: object, alarm_ids?: string[], pin_code?: string}. Leave title out; it\ncomes from the title argument.\nAdvisory spec fields; any JSON passes. externalArmProfileRequest Required: title."
+        },
+        "title": {
+          "description": "REQUIRED profile title, sent as the body field title.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "title"
+      ],
+      "type": "object"
+    },
     "create_firewall_policy": {
       "additionalProperties": false,
       "properties": {
@@ -3770,6 +3878,30 @@
         "host",
         "site",
         "rule"
+      ],
+      "type": "object"
+    },
+    "create_port_automation": {
+      "additionalProperties": false,
+      "properties": {
+        "automation": {
+          "additionalProperties": true,
+          "description": "Automation object in the shape list_port_automations returns, e.g.\n{\"name\": \"Phones\", \"enabled\": true, \"port_profile_id\": \"PORT_PROFILE_ID\",\n\"match\": {\"vendor_ids\": [], \"mac_ouis\": [\"00:11:22\"]},\n\"scope\": {\"switch_macs\": [], \"device_tag_ids\": [],\n\"port_range\": {\"from_port\": 1, \"to_port\": 24}}}. Free-form object.",
+          "type": "object"
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "automation"
       ],
       "type": "object"
     },
@@ -5501,6 +5633,24 @@
       ],
       "type": "object"
     },
+    "delete_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_profile_id": {
+          "description": "External arm profile id from list_external_arm_profiles (id).",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "arm_profile_id"
+      ],
+      "type": "object"
+    },
     "delete_firewall_policy": {
       "additionalProperties": false,
       "properties": {
@@ -5819,6 +5969,29 @@
         "host",
         "site",
         "rule_id"
+      ],
+      "type": "object"
+    },
+    "delete_port_automation": {
+      "additionalProperties": false,
+      "properties": {
+        "automation_id": {
+          "description": "Port automation id from list_port_automations, e.g.\n\"000000000000000000000107\".",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "automation_id"
       ],
       "type": "object"
     },
@@ -6856,6 +7029,42 @@
       ],
       "type": "object"
     },
+    "diagnose_wifi": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        },
+        "thresholds": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional free-form object of threshold names to numbers that replaces\nthe defaults, e.g. {\"high_utilization_pct\": 60, \"weak_snr_db\": 18}. Names (default\nand unit): sticky_rssi_dbm (unset: the SSID's roaming-assistant setting,\nelse -75), sticky_min_associated_seconds (300), sticky_max_snr_db (25),\nhigh_tx_power_dbm (20), high_tx_retries_pct (15, 5 and 6 GHz),\nhigh_tx_retries_pct_2ghz (25), min_tx_packets (1000), min_connect_failures\n(3), min_connect_success_pct (90), high_utilization_pct (50),\nhigh_interference_pct (25), neighbor_min_signal_dbm (-75),\nneighbor_max_age_minutes (10), max_strong_neighbors (5), roam_churn_count\n(10), weak_snr_db (15), hog_traffic_share_pct (15), hog_max_phy_mbps (100),\nhigh_client_retries_pct (25), low_satisfaction (50),\nmax_2ghz_client_share_pct (25), ap_load_ratio (2.0),\nmax_spectrum_scan_age_hours (24), flap_window_days (7), flap_min_changes (3),\nmin_legacy_rate_kbps (12000). A value that is not a number or is outside its\nrange is rejected before any request; an unknown name is ignored and listed\nunder warnings."
+        },
+        "window_hours": {
+          "default": 24,
+          "description": "Hours of statistics and connection history to read, 1 to 168,\ne.g. 24.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "host",
+        "site"
+      ],
+      "type": "object"
+    },
     "disable_arm": {
       "additionalProperties": false,
       "properties": {
@@ -6912,6 +7121,24 @@
       "required": [
         "host",
         "camera_id"
+      ],
+      "type": "object"
+    },
+    "disarm_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_profile_id": {
+          "description": "External arm profile id from list_external_arm_profiles (id).",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "arm_profile_id"
       ],
       "type": "object"
     },
@@ -9529,6 +9756,24 @@
       },
       "type": "object"
     },
+    "get_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_profile_id": {
+          "description": "External arm profile id from list_external_arm_profiles (id).",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "arm_profile_id"
+      ],
+      "type": "object"
+    },
     "get_firewall_group": {
       "additionalProperties": false,
       "properties": {
@@ -9802,6 +10047,24 @@
       },
       "required": [
         "host"
+      ],
+      "type": "object"
+    },
+    "get_hotspot_guest_webhook_delivery": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site"
       ],
       "type": "object"
     },
@@ -10933,6 +11196,29 @@
       "required": [
         "host",
         "site"
+      ],
+      "type": "object"
+    },
+    "get_port_automation": {
+      "additionalProperties": false,
+      "properties": {
+        "automation_id": {
+          "description": "Port automation id (the id field of a record), e.g.\n\"000000000000000000000107\".",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "automation_id"
       ],
       "type": "object"
     },
@@ -12570,6 +12856,17 @@
         "log_class": {
           "default": "all",
           "description": "The log class (URL path segment), e.g. \"all\", \"device-alert\",\n\"client-alert\", \"admin-activity\", \"update-alert\", \"threat-alert\",\n\"next-ai-alert\", \"vpn-alert\", \"critical\". Default \"all\".",
+          "enum": [
+            "all",
+            "device-alert",
+            "client-alert",
+            "admin-activity",
+            "update-alert",
+            "threat-alert",
+            "next-ai-alert",
+            "vpn-alert",
+            "critical"
+          ],
           "type": "string"
         },
         "page": {
@@ -14832,6 +15129,19 @@
       ],
       "type": "object"
     },
+    "list_external_arm_profiles": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name or id: the short name from list_hosts (data[].reportedState.hostname or\nreportedState.name, case-insensitive, e.g. \"my-console\") or the long data[].id\n(MAC:numericId composite). One console serves both Network and Protect. The console whose\nexternal alarm manager arm profiles are listed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host"
+      ],
+      "type": "object"
+    },
     "list_firewall_app_blocks": {
       "additionalProperties": false,
       "properties": {
@@ -16177,7 +16487,7 @@
             }
           ],
           "default": null,
-          "description": "Optional system-log class to read instead of \"all\" (URL path segment, sent\nas given), e.g. \"device-alert\" or \"admin-activity\". Default \"all\".\nExample: `device-alert`."
+          "description": "Optional system-log class to read instead of \"all\" (URL path segment), one of\nthe nine classes, e.g. \"device-alert\" or \"admin-activity\". Default \"all\".\nExample: `device-alert`."
         },
         "vpn_user_id": {
           "anyOf": [
@@ -16355,6 +16665,24 @@
       ],
       "type": "object"
     },
+    "list_port_automations": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site"
+      ],
+      "type": "object"
+    },
     "list_port_forwards": {
       "additionalProperties": false,
       "properties": {
@@ -16413,7 +16741,7 @@
       "additionalProperties": false,
       "properties": {
         "host": {
-          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id. The console whose Protect automations are listed.",
           "type": "string"
         }
       },
@@ -17293,7 +17621,7 @@
       "additionalProperties": false,
       "properties": {
         "host": {
-          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "description": "Console name or id: the short name from list_hosts (data[].reportedState.hostname or\nreportedState.name, case-insensitive, e.g. \"my-console\") or the long data[].id\n(MAC:numericId composite). One console serves both Network and Protect. The Protect console\nwhose speakers are listed.",
           "type": "string"
         }
       },
@@ -19377,6 +19705,34 @@
         "site": {
           "description": "Required Network site name or UUID from list_local_sites, e.g. \"Default\".",
           "type": "string"
+        },
+        "threat_signature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shape: string|integer|(string|integer)[]; sent as the body key\nips_signature_id (the key the Network 11.1.47 web app filters flows by IPS\nsignature with), as an array. Values are the console's IPS signature ids, as\nlisted under ips_signatures by GET traffic-flows/filter-data; any value is\nforwarded for the console to validate, e.g. 2027750."
         },
         "window": {
           "anyOf": [
@@ -22682,6 +23038,24 @@
       ],
       "type": "object"
     },
+    "stop_speaker_siren": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        },
+        "speaker_id": {
+          "description": "Speaker id (24-hex) from list_speakers.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "speaker_id"
+      ],
+      "type": "object"
+    },
     "stop_speaker_stream": {
       "additionalProperties": false,
       "properties": {
@@ -23532,7 +23906,7 @@
                 },
                 {}
               ],
-              "description": "Current video mode of the camera One of: 'default', 'highFps', 'sport', 'slowShutter', 'lprReflex', 'lprNoneReflex'."
+              "description": "Current video mode of the camera One of: 'default', 'highFps', 'sport', 'slowShutter', 'lprReflex', 'lprNoneReflex', 'antiFlicker'."
             }
           },
           "type": "object"
@@ -24945,6 +25319,101 @@
       ],
       "type": "object"
     },
+    "update_external_arm_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_profile_id": {
+          "description": "External arm profile id from list_external_arm_profiles (id).",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": true,
+          "description": "Partial update (PATCH; only listed keys change); spec Protect 7.4.96 PATCH\n/v1/external/arm-profiles/{id} body. Keys: title, activation_delay,\ndeactivation_delay, schedule, alarm_ids, pin_code.\nAdvisory spec fields; any JSON passes. externalArmProfilePatch",
+          "properties": {
+            "activation_delay": {
+              "anyOf": [
+                {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                {}
+              ],
+              "description": "Delay in seconds. Shape: integer|null"
+            },
+            "alarm_ids": {
+              "anyOf": [
+                {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                {}
+              ],
+              "description": "Omit to retain the existing associations; use null or an empty array to clear them. Shape: string[]|null"
+            },
+            "deactivation_delay": {
+              "anyOf": [
+                {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                {}
+              ],
+              "description": "Delay in seconds. Shape: integer|null"
+            },
+            "pin_code": {
+              "anyOf": [
+                {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                {}
+              ],
+              "description": "Omit to retain the existing PIN; use null to clear it. Shape: string|null"
+            },
+            "schedule": {
+              "anyOf": [
+                {
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                {}
+              ],
+              "description": "Omit to retain the existing schedule; use null to clear it. Shape: {fri?:T1|T2,mon?:T1|T2,sat?:T1|T2,sun?:T1|T2,thu?:T1|T2,tue?:T1|T2,wed?:T1|T2}|null where T1={entries:({end:T3|{hour:24,minute:0},start:T3})[],type:'intervals'};T2={type:'all_day'};T3={hour:integer,minute:integer}"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {}
+              ],
+              "description": "Omit to retain the existing title."
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "host",
+        "arm_profile_id",
+        "settings"
+      ],
+      "type": "object"
+    },
     "update_firewall_policy": {
       "additionalProperties": false,
       "properties": {
@@ -26218,6 +26687,35 @@
         "site",
         "rule_id",
         "rule"
+      ],
+      "type": "object"
+    },
+    "update_port_automation": {
+      "additionalProperties": false,
+      "properties": {
+        "automation": {
+          "additionalProperties": true,
+          "description": "Leaves to change, e.g. {\"enabled\": false}. Free-form object.",
+          "type": "object"
+        },
+        "automation_id": {
+          "description": "Port automation id from list_port_automations, e.g.\n\"000000000000000000000107\".",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID from list_local_sites, e.g. \"Default\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "automation_id",
+        "automation"
       ],
       "type": "object"
     },
@@ -27992,7 +28490,7 @@
         },
         "wan": {
           "additionalProperties": true,
-          "description": "Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1,\nwan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nwan, another is sent as given (an upstream error then gets a hint).\nA purpose-only update is refused.\nFree-form JSON object; no fixed body shape is published.",
+          "description": "Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1,\nwan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged\n(empty-string list placeholders dropped); an absent or null purpose is sent as\nwan, another is sent as given (an upstream error then gets a hint).\nA purpose-only update is refused. Network 11.1.47 passthrough VLANs:\ntagged_networkconf_ids (array of VLAN Only network _ids, sent with\nsetting_preference manual; an empty array clears them), and the WAN's own VLAN in\nwan_vlan_enabled, wan_vlan and wan_vlan_networkconf_id.\nFree-form JSON object; no fixed body shape is published.",
           "type": "object"
         },
         "wan_id": {
@@ -28722,7 +29220,30 @@
         "pin"
       ],
       "type": "object"
+    },
+    "wake_client": {
+      "additionalProperties": false,
+      "properties": {
+        "client_id": {
+          "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nis sent to the controller as is (lowercase colon form) with no list lookup, so\nan offline machine can be woken. A UUID is resolved to the MAC with the client\nGET, which answers only while the machine is online; an unknown UUID fails\nasking for the MAC. Network-app id, not a Protect id.",
+          "type": "string"
+        },
+        "host": {
+          "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.",
+          "type": "string"
+        },
+        "site": {
+          "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "site",
+        "client_id"
+      ],
+      "type": "object"
     }
   },
-  "tool_count": 798
+  "tool_count": 814
 }

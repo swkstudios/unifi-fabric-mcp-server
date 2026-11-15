@@ -7,7 +7,9 @@ collection. Build it here, on first use, inside a function, a fixture or a
 ``lazy_parametrize`` thunk.
 
 ``tools()`` imports ``unifi_fabric.server`` lazily inside the function, never at import
-of this module.
+of this module. It loads every deferred step first (public #41), so its readers get each
+tool's ``fn`` both under pytest and in a generator run outside it
+(``python -m tests.tool_shapes_gen --write``), where no conftest has loaded them.
 """
 
 from __future__ import annotations
@@ -38,7 +40,10 @@ def _record(kind: str) -> None:
 def _build() -> tuple[Any, ...]:
     global _IN_BUILD
     from unifi_fabric import server  # lazy: never at module import
+    from unifi_fabric.catalog import deferred
 
+    # A deferred stub has no ``fn``; loading is a no-op when every step is already loaded.
+    deferred.load_all(server.mcp)
     _IN_BUILD = True
     try:
         res = server.mcp.list_tools()

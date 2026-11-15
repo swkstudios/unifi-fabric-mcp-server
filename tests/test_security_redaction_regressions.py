@@ -146,7 +146,7 @@ async def test_refused_relay_audit_omits_query_and_fragment(monkeypatch, tmp_pat
             )
         text = log.read_text()
         assert SECRET not in text and "synthetic-fragment" not in text and "?" not in text
-        assert "/invalid/path" in text and "refused" in text
+        assert "/***/***" in text and "refused" in text
         get_client.assert_not_called()
     finally:
         await client.close()

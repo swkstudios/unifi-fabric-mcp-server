@@ -13,11 +13,26 @@ from unifi_fabric.redaction import REDACTION_MASK, is_credential_field, redact_c
 from unifi_fabric.secret_scrub import log_secret_values, scrub_log_text, secret_scope
 
 ROOT = Path(__file__).parent / "fixtures"
-MATERIAL = re.compile(r"secret|password|passphrase|private[ _-]?key|psk|token|key", re.IGNORECASE)
+MATERIAL = re.compile(
+    r"secret|password|passphrase|private[ _-]?key|psk|token|key|(?<![a-z])pin(?![a-z])",
+    re.IGNORECASE,
+)
 SENTINEL = "synthetic-spec-coverage-sentinel"
 
 # Exact descriptions prevent a new credential with an existing benign name slipping through.
 ALLOWLIST = {
+    (
+        "has_pin",
+        "",
+    ): "Boolean presence flag: the profile reports whether a PIN is set, never the PIN.",
+    (
+        "pin",
+        "The alarm hub input pin channel",
+    ): "Hardware input channel number of an alarm hub event, not a credential.",
+    (
+        "pin",
+        "",
+    ): "Alarm hub input channel number in the spec-drift snapshot (descriptions stripped).",
     (
         "metadata",
         "Free-form key/value metadata. The serialized JSON object must not exceed "

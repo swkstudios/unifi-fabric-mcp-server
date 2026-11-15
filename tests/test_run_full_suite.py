@@ -1,4 +1,5 @@
-"""scripts/run_full_suite.sh owns the full-suite pytest command of CI's test and test-locked."""
+"""scripts/run_full_suite.sh owns the full-suite pytest command of CI's test shards and the
+install-proof collection."""
 
 from __future__ import annotations
 
@@ -15,18 +16,15 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "run_full_suite.sh"
 CI = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
 BASH = shutil.which("bash") or "/bin/bash"
-#: The command both jobs ran inline before the script owned it (ci.yml at dev 2e2651e).
+#: The command the jobs ran inline before the script owned it (ci.yml at dev 2e2651e).
 FULL_SUITE = (
     "-m pytest tests/ -v -n 4 --dist loadgroup --max-worker-restart=0"
     " --cov=src/unifi_fabric --cov-report=term --cov-fail-under=97"
 )
 COLLECT = "-m pytest tests/ -n 4 --dist loadgroup --max-worker-restart=0"
 #: The shard job of each suite and its one step that calls the script.
-FULL_SUITE_STEPS = {
-    "test-shard": "Run full suite with coverage",
-    "test-locked-shard": "Run full locked suite",
-}
-SHARD_JOB_SUITES = {"test-shard": "test", "test-locked-shard": "test-locked"}
+FULL_SUITE_STEPS = {"test-shard": "Run full suite with coverage"}
+SHARD_JOB_SUITES = {"test-shard": "test"}
 
 
 def _script(*args: str, cwd: Path = ROOT, env: dict[str, str] | None = None):
@@ -159,12 +157,17 @@ def test_both_ci_jobs_run_the_same_full_suite_through_the_script(monkeypatch):
         # Without its shard options the step is the whole suite with the coverage gate.
         commands[job] = workflow_full_suite_command(run.partition(" --shard ")[0])
     assert shlex.split(_step("test-shard")["run"])[2] == "$DEV_VENV/bin/python"
-    assert shlex.split(_step("test-locked-shard")["run"])[2] == "python"
-    assert (
-        commands["test-shard"]
-        == commands["test-locked-shard"]
-        == shlex.join(["PYTHON", *FULL_SUITE.split(), *_extra_collection()])
+    assert commands["test-shard"] == shlex.join(
+        ["PYTHON", *FULL_SUITE.split(), *_extra_collection()]
     )
+    # install-proof collects the same whole suite (the anchor command) in the locked venv.
+    collect = [
+        str(s["run"])
+        for s in CI["jobs"]["install-proof"]["steps"]
+        if "run_full_suite.sh" in str(s.get("run", ""))
+    ]
+    assert len(collect) == 1 and "--collect-only" in collect[0]
+    assert "$venv" not in collect[0] and "python --workers auto --collect-only" in collect[0]
     # A shard runs the same command minus the threshold and the terminal report.
     shard = composed_command("python", "--workers", "4", "--shard", "3/20", "--shard-suite", "test")
     assert "--cov-fail-under=97" not in shard and "--cov-report=" in shard
@@ -215,7 +218,7 @@ def test_shard_runs_the_same_options_without_a_threshold_or_terminal_report():
         "--workers",
         "2",
         "--shard=1/3",
-        "--shard-suite=test-locked",
+        "--shard-suite=test",
         "--shard-report",
         "out/r.json",
         "-q",
@@ -225,7 +228,7 @@ def test_shard_runs_the_same_options_without_a_threshold_or_terminal_report():
         "--shard",
         "1/3",
         "--shard-suite",
-        "test-locked",
+        "test",
         "--shard-report",
         "out/r.json",
         "-q",
@@ -259,6 +262,29 @@ def test_shard_report_needs_a_shard_and_combine_refuses_other_modes(tmp_path):
         "python", "--combine", str(tmp_path), "--shards", "2", "--shard", "1/2", "--print-command"
     )
     assert both.returncode == 2
+
+
+def test_a_relative_combine_directory_is_made_absolute(tmp_path):
+    """Issue 932: the directory is read after the script changes into the repository root."""
+    (tmp_path / "cov").mkdir()
+    result = subprocess.run(  # noqa: S603 - the repository script under test
+        [
+            "/bin/bash",
+            str(SCRIPT),
+            "python",
+            "--combine",
+            "cov",
+            "--shards",
+            "2",
+            "--print-command",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert f"under {tmp_path}/cov" in result.stdout
 
 
 def _fake_python(tmp_path: Path) -> tuple[Path, Path]:

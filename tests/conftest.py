@@ -37,6 +37,7 @@ import pytest
 from fastmcp.utilities.logging import configure_logging
 
 from tests import upstream_harness as uh
+from tests._reload_caches import clear_function_keyed_caches
 from tests.test_auth_http import auth_http_client  # noqa: F401 -- re-exported as a shared fixture
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
@@ -65,6 +66,15 @@ if _INTERPRETER_BIN not in os.environ.get("PATH", "").split(os.pathsep):
 # logging and pytest's failure tracebacks. Explicit Rich scrubber tests opt in on
 # their own logger. Configure the existing handler too (FastMCP configures at import).
 configure_logging(enable_rich_tracebacks=False)
+
+# Deferred tool loading (public #41): the suite reads registered tools' ``fn``, and some
+# modules build their parametrization from the registered catalog at collection time, so
+# every step is loaded when this conftest is imported, before collection. The deferred
+# loading tests start fresh interpreters of their own (tests/deferred_probe.py).
+from unifi_fabric import server as _server  # noqa: E402
+from unifi_fabric.catalog import deferred as _deferred  # noqa: E402
+
+_deferred.load_all(_server.mcp)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -131,6 +141,38 @@ def _hermetic_credentials_env(request, monkeypatch):
     for var in list(os.environ):
         if var.startswith(("UNIFI_", "MCP_", "FASTMCP_")):
             monkeypatch.delenv(var, raising=False)
+
+
+def _install_instant_pacing() -> None:
+    """Put the connector pacer on a clock whose sleep advances it instantly.
+
+    The pacer sleeps when a console has already seen its cap of sends in the trailing 60 s.
+    Tests (and the parametrization that calls tools while pytest is still collecting) send
+    hundreds of stubbed requests to one synthetic console; on the real clock the 96th would
+    wait out a real minute. Installed for the whole session in ``pytest_configure``, so
+    collection is covered too, and again for each test with empty send logs.
+    """
+    from unifi_fabric import pacing
+
+    state = {"now": 1000.0}
+
+    def clock() -> float:
+        return state["now"]
+
+    async def sleep(seconds: float) -> None:
+        state["now"] += max(seconds, 0.0)
+
+    pacing.reset_registry()
+    pacing.set_time_source(clock, sleep)
+
+
+@pytest.fixture(autouse=True)
+def _instant_connector_pacing():
+    """Each test starts with empty send logs on the instant clock; the pacer's own tests
+    install their own time source over it."""
+    _install_instant_pacing()
+    yield
+    _install_instant_pacing()  # never the real clock between tests: collection may still run
 
 
 @pytest.fixture(autouse=True)
@@ -202,6 +244,9 @@ def _reset_server_singletons(_hermetic_credentials_env, monkeypatch):
     for name in ("_settings", "_client", "_registry"):
         setattr(server, name, None)
     yield
+    reloaded = sys.modules.get(server.__name__) is not server or vars(server).get(
+        "mcp"
+    ) is not import_state.get("mcp")
     # Undo test patches first, otherwise their finalizers can resurrect a dirty
     # binding after this fixture resets it. This also rolls back temporary env.
     monkeypatch.undo()
@@ -214,6 +259,10 @@ def _reset_server_singletons(_hermetic_credentials_env, monkeypatch):
     secret_scrub.set_secret_provider(secret_provider)
     for name in ("_settings", "_client", "_registry"):
         setattr(server, name, None)
+    # A reload or re-import leaves function-keyed caches holding the discarded
+    # registrations; other tests keep their warm caches.
+    if reloaded:
+        clear_function_keyed_caches()
 
 
 # Two API keys owning DISJOINT host sets. "alpha" is a personal key (first/default),
@@ -261,6 +310,7 @@ def multikey_registry(multikey_client: UniFiClient) -> Registry:
 
 
 def pytest_configure(config):
+    _install_instant_pacing()  # before collection: lazy parametrization calls tools
     config.addinivalue_line(
         "markers",
         "lazy_parametrize(argnames, thunk, **kw): parametrize with values computed by "
@@ -320,6 +370,9 @@ def pytest_collection_finish(session):
 
 
 def pytest_unconfigure(config):
+    from unifi_fabric import pacing
+
+    pacing.set_time_source()
     from tests import _selection_cache
 
     _selection_cache.flush()

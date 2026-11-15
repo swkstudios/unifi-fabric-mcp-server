@@ -47,7 +47,7 @@ POSITIONS = {
 def _cursor_link(config: str, *, urlsafe: bool = False, pad: bool = True) -> str:
     encode = base64.urlsafe_b64encode if urlsafe else base64.b64encode
     payload = encode(config.encode()).decode()
-    return "https://cursor.com/en/install-mcp?name=x&config=" + (
+    return "https://cursor.com/install-mcp?name=x&config=" + (
         payload if pad else payload.rstrip("=")
     )
 
@@ -123,9 +123,11 @@ def test_an_unpadded_payload_stays_unpadded(lead: int) -> None:
 # --- a missing or unpinned encoded badge fails the generator (issue 861) -------------------
 
 #: The real install link, not just a pin-shaped token: the guard needs the link itself.
-VSCODE = "https://insiders.vscode.dev/redirect/mcp/install?name=x&config=" + POSITIONS[
-    "VS Code install-badge pin"
-].format(v=CURRENT)
+VSCODE = (
+    '<a href="https://insiders.vscode.dev/redirect/mcp/install?name=x&config='
+    + POSITIONS["VS Code install-badge pin"].format(v=CURRENT)
+    + '">install</a>'
+)
 
 
 def _readme(*, vscode: str | None = VSCODE, cursor: str | None = None) -> str:
@@ -143,9 +145,9 @@ def test_the_real_readme_has_both_pinned_badges() -> None:
         (_readme(vscode=None), "no VS Code install badge"),
         (_readme(vscode="unifi-fabric-mcp-server%3D%3D"), "no VS Code install badge"),
         (_readme(cursor=""), "no Cursor install badge"),
-        (_readme(cursor="cursor.com/en/install-mcp?name=x&config=!!!"), "no Cursor install badge"),
+        (_readme(cursor="cursor.com/install-mcp?name=x&config=!!!"), "no Cursor install badge"),
         (_readme(cursor=_cursor_link('{"command": "uvx other"}')), "pins no package version"),
-        (_readme(cursor="https://cursor.com/en/install-mcp?name=x&config=A"), "does not decode"),
+        (_readme(cursor="https://cursor.com/install-mcp?name=x&config=A"), "does not decode"),
     ],
 )
 def test_a_missing_or_unpinned_badge_fails_the_generator(text: str, fragment: str) -> None:
@@ -161,6 +163,15 @@ def test_a_vscode_badge_replaced_by_plain_text_fails_the_generator() -> None:
     orphan = "see unifi-fabric-mcp-server%3D%3D" + CURRENT + " in the badge"
     with pytest.raises(gen.MarkerError, match="no VS Code install badge"):
         gen.require_install_badges(_readme(vscode=orphan), "README.md")
+
+
+def test_a_vscode_install_url_as_plain_text_fails_the_generator() -> None:
+    url = (
+        "https://insiders.vscode.dev/redirect/mcp/install?name=unifi-fabric"
+        "&config=unifi-fabric-mcp-server%3D%3D" + CURRENT
+    )
+    with pytest.raises(gen.MarkerError, match="no VS Code install badge"):
+        gen.require_install_badges(_readme(vscode=f"install from {url} by hand"), "README.md")
 
 
 def test_a_complete_pair_of_badges_passes() -> None:

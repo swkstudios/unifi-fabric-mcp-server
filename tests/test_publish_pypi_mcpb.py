@@ -61,15 +61,34 @@ def test_release_asset_job_is_public_only_and_idempotent():
     assert "secrets." not in WORKFLOW.read_text()
 
 
-def test_the_bundle_packs_exactly_the_manifest_and_readme(tmp_path):
+# What the bundle carries: the manifest, its README and the twelve icons the manifest names.
+BUNDLE_FILES = [
+    "README.md",
+    "icon-128.png",
+    "icon-16.png",
+    "icon-256.png",
+    "icon-32.png",
+    "icon-64.png",
+    "icon-light-128.png",
+    "icon-light-16.png",
+    "icon-light-256.png",
+    "icon-light-32.png",
+    "icon-light-64.png",
+    "icon-light.png",
+    "icon.png",
+    "manifest.json",
+]
+
+
+def test_the_bundle_packs_exactly_the_manifest_readme_and_icons(tmp_path):
     """Offline stand-in for the pack step: the folder holds only what the bundle ships."""
     folder = ROOT / "plugins" / "claude-desktop"
-    assert sorted(p.name for p in folder.iterdir()) == ["README.md", "manifest.json"]
+    assert sorted(p.name for p in folder.iterdir()) == BUNDLE_FILES
     manifest = json.loads((folder / "manifest.json").read_text())
     assert manifest["name"] == "unifi-fabric"
     bundle = tmp_path / "b.mcpb"
     with zipfile.ZipFile(bundle, "w") as out:
-        for name in ("README.md", "manifest.json"):
+        for name in BUNDLE_FILES:
             out.write(folder / name, name)
     script = _step("build", "npm ci --ignore-scripts")["run"]
     check = script.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
@@ -139,3 +158,99 @@ def test_mcpb_toolchain_lock_has_no_known_vulnerable_versions():
         name = key.rsplit("node_modules/", 1)[-1]
         if name in _MCPB_LOCK_FLOORS:
             assert _semver(value["version"]) >= _MCPB_LOCK_FLOORS[name], (key, value["version"])
+
+
+# Dependabot alerts on tools/mcpb/package-lock.json: the package, the first patched
+# release GitHub reports, and the severity. All three alerts read "fixed" once the lock held the
+# patched versions; this pins them so a lock refresh cannot take a patched package back.
+MCPB_ALERT_FLOORS = {
+    "tmp": ((0, 2, 6), "alerts 2 (low) and 3 (high)"),
+    "zod": ((4, 6, 6), "alert 4 (high)"),
+}
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("-")[0].split("."))
+
+
+def test_mcpb_lock_holds_the_patched_dependency_versions():
+    manifest = json.loads((ROOT / "tools/mcpb/package.json").read_text())
+    lock = json.loads((ROOT / "tools/mcpb/package-lock.json").read_text())
+    for name, (floor, alerts) in MCPB_ALERT_FLOORS.items():
+        # The override forces the patched release for every dependent, whatever the
+        # @anthropic-ai/mcpb range asks for ...
+        assert _version(manifest["overrides"][name]) >= floor, (name, alerts)
+        # ... and no copy of the package in the lock is older than the first patched release.
+        copies = {
+            path: entry["version"]
+            for path, entry in lock["packages"].items()
+            if path == f"node_modules/{name}" or path.endswith(f"/node_modules/{name}")
+        }
+        assert copies, name
+        assert all(_version(v) >= floor for v in copies.values()), (name, alerts, copies)
+
+
+def test_the_claude_desktop_manifest_stays_the_second_distribution():
+    # Decision (keep): the MCPB manifest is shipped and validated by the pinned mcpb in the
+    # public PyPI build, so the alerts above are fixed rather than the manifest dropped.
+    assert (ROOT / "plugins/claude-desktop/manifest.json").is_file()
+    assert "mcpb pack plugins/claude-desktop" in _step("build", "npm ci --ignore-scripts")["run"]
+
+
+def _bundle_check() -> str:
+    script = _step("build", "npm ci --ignore-scripts")["run"]
+    check = script.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    return "\n".join(line.removeprefix("          ") for line in check.splitlines())
+
+
+def _packed(tmp_path: Path, names: list[str]) -> Path:
+    folder = ROOT / "plugins" / "claude-desktop"
+    bundle = tmp_path / "c.mcpb"
+    with zipfile.ZipFile(bundle, "w") as out:
+        for name in names:
+            out.write(folder / name, name)
+    return bundle
+
+
+def test_the_bundle_check_fails_closed_on_a_missing_or_extra_file(tmp_path):
+    """The workflow's expected list is the exact list: one icon short, or one file over, fails."""
+    check = _bundle_check()
+    for missing in BUNDLE_FILES:
+        if missing == "manifest.json":
+            continue  # the check reads the manifest first; a bundle without it fails earlier
+        bundle = _packed(tmp_path, [n for n in BUNDLE_FILES if n != missing])
+        done = subprocess.run(  # noqa: S603 - in-repo check script, temp file
+            [sys.executable, "-c", check, str(bundle)], cwd=ROOT, capture_output=True
+        )
+        assert done.returncode != 0, f"a bundle without {missing} passed the check"
+    extra = _packed(tmp_path, BUNDLE_FILES)
+    with zipfile.ZipFile(extra, "a") as out:
+        out.writestr("icon-48.png", b"x")
+    done = subprocess.run(  # noqa: S603 - in-repo check script, temp file
+        [sys.executable, "-c", check, str(extra)], cwd=ROOT, capture_output=True
+    )
+    assert done.returncode != 0, "a bundle with an extra file passed the check"
+
+
+def test_the_bundle_check_fails_closed_on_a_changed_manifest(tmp_path):
+    """The packed manifest must equal the one in the tree: a different manifest fails."""
+    check = _bundle_check()
+    folder = ROOT / "plugins" / "claude-desktop"
+    ok = _packed(tmp_path, BUNDLE_FILES)
+    done = subprocess.run(  # noqa: S603 - in-repo check script, temp file
+        [sys.executable, "-c", check, str(ok)], cwd=ROOT, capture_output=True
+    )
+    assert done.returncode == 0, done.stderr  # control: the right bundle passes
+    changed = json.loads((folder / "manifest.json").read_text())
+    changed["version"] = "9.9.9"
+    bundle = tmp_path / "d.mcpb"
+    with zipfile.ZipFile(bundle, "w") as out:
+        for name in BUNDLE_FILES:
+            if name == "manifest.json":
+                out.writestr(name, json.dumps(changed))
+            else:
+                out.write(folder / name, name)
+    done = subprocess.run(  # noqa: S603 - in-repo check script, temp file
+        [sys.executable, "-c", check, str(bundle)], cwd=ROOT, capture_output=True
+    )
+    assert done.returncode != 0, "a bundle with a changed manifest passed the check"

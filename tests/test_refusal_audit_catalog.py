@@ -315,6 +315,7 @@ async def test_every_refused_write_is_audited_exactly_once(monkeypatch, tmp_path
 async def test_chokepoint_refusals_are_audited_with_method_and_path(tmp_path):
     """The HTTP chokepoint's own refusals (an unsafe path, a body of nothing but masked
     secrets) are audited there, with the request's method and path."""
+    from unifi_fabric.audit_vocabulary import mask_path
     from unifi_fabric.client import UniFiClient
     from unifi_fabric.config import Settings
 
@@ -336,14 +337,14 @@ async def test_chokepoint_refusals_are_audited_with_method_and_path(tmp_path):
     await client.close()
     recs = _records(log)
     assert [(r["method"], r["path"], r["outcome"]) for r in recs] == [
-        ("DELETE", unsafe, "refused"),
-        ("PUT", masked, "refused"),
+        ("DELETE", mask_path(unsafe), "refused"),
+        ("PUT", mask_path(masked), "refused"),
     ], recs
     assert all(r.get("reason") for r in recs), recs
 
 
 def test_text_format_reason_is_one_parseable_field(tmp_path):
-    """A free-text reason stays one field of one line in the text format."""
+    """A free-text reason never reaches the line: one line, the closed code ``other``."""
     from unifi_fabric.audit import AuditSink
 
     log = tmp_path / "audit.log"
@@ -351,7 +352,7 @@ def test_text_format_reason_is_one_parseable_field(tmp_path):
     sink.record(method=None, path=None, outcome="refused", status=None, tool="t", reason='a b\n"c"')
     lines = log.read_text().splitlines()
     assert len(lines) == 1, lines
-    assert lines[0].endswith(' reason="a b\\n\\"c\\""'), lines[0]
+    assert " reason=other ref=" in lines[0], lines[0]
 
 
 async def test_a_refusal_quoting_a_credential_is_audited_without_it():

@@ -392,7 +392,11 @@ def _safe_span_processor_class() -> type:
                 copy = safe_span(span)
             except Exception:  # noqa: BLE001
                 return
-            self._inner.on_end(copy)
+            # Same guard for the export hand-off: an exporter fault never reaches the request.
+            try:
+                self._inner.on_end(copy)
+            except Exception:  # noqa: BLE001, S110 - a dropped span is not a failed call
+                pass
 
         def shutdown(self) -> None:
             self._inner.shutdown()

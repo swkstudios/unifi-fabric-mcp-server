@@ -79,9 +79,7 @@ def test_ci_only_jobs_are_the_reviewed_set():
         "test-prep",
         "test-shard",
         "test",
-        "test-locked-prep",
-        "test-locked-shard",
-        "test-locked",
+        "install-proof",
         "scrub-oracle-prep",
         "scrub-oracle-shard",
         "scrub-oracle",
@@ -430,17 +428,11 @@ PR_CONCURRENCY_WORKFLOWS = tuple(
 @pytest.mark.parametrize("name", PR_CONCURRENCY_WORKFLOWS)
 def test_pr_runs_share_a_group_and_other_runs_never_do(name):
     """runs of one PR share a group that is cancelled in progress; for ci.yml pushes to dev
-    share one group too (the newest dev head supersedes the older run); every other event
-    keeps a group unique per sha and run."""
+    share one group too, which is not cancelled (test_dev_push_runs_are_not_cancelled_in_progress);
+    every other event keeps a group unique per sha and run."""
     workflow = yaml.safe_load((ROOT / ".github" / "workflows" / f"{name}.yml").read_text())
     cancel = workflow["concurrency"]["cancel-in-progress"]
-    expected = (
-        "${{ github.event_name == 'pull_request' || "
-        "(github.event_name == 'push' && github.ref == 'refs/heads/dev') }}"
-        if name == "ci"
-        else "${{ github.event_name == 'pull_request' }}"
-    )
-    assert cancel == expected
+    assert cancel == "${{ github.event_name == 'pull_request' }}"
     pr_groups = [
         _concurrency_groups(workflow, "pull_request", sha, run_id=run, pr=7)
         for sha, run in (("a" * 40, "1"), ("b" * 40, "2"))
@@ -464,6 +456,41 @@ def test_non_pull_request_runs_are_never_replaced_by_a_newer_commit():
     assert _no_pending_push_run_is_replaced({**unique, "jobs": {}})
     shared = {"concurrency": {"group": "${{ github.workflow }}-${{ github.ref }}"}}
     assert not _no_pending_push_run_is_replaced({**shared, "jobs": {}})
+
+
+def test_dev_push_runs_are_not_cancelled_in_progress():
+    """Merges to dev arrive faster than CI finishes, so a cancelling dev-push group means no
+    run ever completes and Publish (a workflow_run on green dev CI) never builds :dev. Dev
+    pushes keep their single group (GitHub holds one running and one pending run, the pending
+    one replaced by the newest) but are never cancelled; PR runs still are."""
+    block = WORKFLOW["concurrency"]
+
+    def context(event, ref, sha):
+        return {
+            "github": {
+                "workflow": "CI",
+                "event_name": event,
+                "ref": ref,
+                "sha": sha,
+                "run_id": "1",
+                "event": {"pull_request": {"number": 7}} if event == "pull_request" else {},
+            }
+        }
+
+    def cancels(c):
+        return fast.substitute(str(block["cancel-in-progress"]), c)
+
+    dev_push = [context("push", "refs/heads/dev", sha) for sha in ("a" * 40, "b" * 40)]
+    # The single dev-push group is kept: two dev heads share it.
+    groups = {fast.substitute(str(block["group"]), c) for c in dev_push}
+    assert groups == {"CI-push-dev"}
+    # Dev pushes are not cancelled in progress, so every run finishes.
+    assert [cancels(c) for c in dev_push] == ["false", "false"]
+    # Pull requests still cancel a superseded run of the same PR.
+    assert cancels(context("pull_request", "refs/pull/7/merge", "c" * 40)) == "true"
+    # No other event cancels either.
+    for event in ("workflow_dispatch", "schedule", "release"):
+        assert cancels(context(event, "refs/heads/main", "d" * 40)) == "false"
 
 
 @pytest.mark.parametrize(
@@ -559,6 +586,9 @@ def _scratch_repository(
     (origin / "scripts").mkdir()
     shutil.copy2(PREPUSH, origin / "scripts" / "prepush.sh")
     shutil.copy2(HELPER, origin / "scripts" / "ci_fast_jobs.py")
+    # prepush.sh also runs the README contract lint, with the modules it imports.
+    for name in ("readme_contracts.py", "doc_blocks.py", "markdown_blocks.py"):
+        shutil.copy2(HELPER.parent / name, origin / "scripts" / name)
     (origin / ".github" / "workflows").mkdir(parents=True)
     for name in fast.PREPUSH_GUARDS:
         (origin / name).parent.mkdir(parents=True, exist_ok=True)

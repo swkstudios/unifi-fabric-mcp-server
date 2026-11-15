@@ -19,6 +19,7 @@ from pydantic import SecretStr
 
 from tests import test_cross_tool_invariants as cti
 from tests import tool_args, upstream_harness
+from tests._family_steps import register_module
 from tests._tool_classes import tool_batches
 from unifi_fabric import server
 from unifi_fabric.families.clients import clients
@@ -85,7 +86,7 @@ REGISTER_CASES = [
 
 async def _register_tool(module, name, deps):
     mcp = FastMCP("test")
-    module.register(mcp, deps)
+    register_module(mcp, module, deps)  # the module's steps, wherever they live
     return await mcp.get_tool(name)
 
 

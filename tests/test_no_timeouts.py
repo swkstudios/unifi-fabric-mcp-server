@@ -19,10 +19,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_allowlist_contains_only_the_approved_entries():
     entries = json.loads((ROOT / ALLOWLIST).read_text())
+    # The release approval await (a source-repository workflow) raises GitHub's 360-minute
+    # job default; its entry exists exactly while that workflow does.
+    conditional = {e["path"] for e in entries if e["class"] == "platform-default-raised"}
+    assert len(conditional) <= 1
+    assert all((ROOT / path).is_file() for path in conditional)
     assert {entry["path"] for entry in entries} == {
         "Dockerfile",
         "docs/TLS.md",
         "src/unifi_fabric/code_mode.py",
+        *conditional,
     }
     assert [e["class"] for e in entries].count("sandbox-interpreter-cpu") == 1
     assert all(
@@ -43,7 +49,13 @@ def test_allowlist_rejects_unrecognized_private_verdict(tmp_path):
 
 def test_allowlist_rejects_stale_or_malformed_exceptions(tmp_path):
     (tmp_path / "docs").mkdir()
-    entries = json.loads((ROOT / ALLOWLIST).read_text())
+    # The await exception is approved only while its workflow exists; this tree has none,
+    # so it carries the three unconditional entries.
+    entries = [
+        e
+        for e in json.loads((ROOT / ALLOWLIST).read_text())
+        if e["class"] != "platform-default-raised"
+    ]
     (tmp_path / ALLOWLIST).parent.mkdir(parents=True, exist_ok=True)
     (tmp_path / ALLOWLIST).write_text(json.dumps(entries))
     (tmp_path / "Dockerfile").write_text(

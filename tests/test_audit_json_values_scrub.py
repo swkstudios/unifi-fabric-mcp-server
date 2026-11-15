@@ -64,4 +64,4 @@ def test_text_audit_line_still_never_holds_the_secret(tmp_path: Path) -> None:
     text = log.read_text()
     assert "hunter2-credential" not in text
     assert "outcome" not in text
-    assert " ***=refused status=- reason=x" in text
+    assert " ***=refused status=- reason=other ref=" in text

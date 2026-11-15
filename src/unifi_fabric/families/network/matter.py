@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
-from fastmcp import FastMCP
 from pydantic import SecretStr
 
 from ...client import (
@@ -22,10 +20,10 @@ from ...registry import Registry
 from ...selector_args import check_selector
 from ...shared_shapes._pagination import collect_offset, offset_list_result
 from ...shared_shapes._results import deletion_result
-from ...tool_annotations import READ_ONLY, WRITE
 from ..connector.connector import area_write_refusal
-
-BASE = "/v1/connector/consoles/{host_id}/proxy/network/v2/api/site/{site_slug}"
+from .schemas import (  # the family's shapes (family-owned layout)
+    BASE,
+)
 
 
 async def _target(registry: Registry, host: str, site: str) -> tuple[APIKeyConfig | None, str]:
@@ -160,112 +158,3 @@ _list_matter_nodes = list_matter_nodes
 _commission_matter_node = commission_matter_node
 _rename_matter_node = rename_matter_node
 _remove_matter_node = remove_matter_node
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_thread_networks(host: str, site: str) -> Any:
-        """List Thread networks through the cloud connector, preserving the native body.
-
-        Returns the Network v2 bare array, including all border router and network fields.
-        This endpoint ignores offset/limit and returns its complete array. A controller
-        returning an offset envelope is drained, with explicit caps marked incomplete.
-
-        Args:
-            host: Console name or composite id from list_hosts; for example "Gateway".
-            site: Network site name, id or slug from list_local_sites; for example "default".
-        """
-        client, registry = deps_fn()
-        return await _list_thread_networks(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_matter_nodes(host: str, site: str) -> Any:
-        """List commissioned Matter nodes through the cloud connector.
-
-        Returns the native bare array, including an empty array when no nodes exist.
-        The endpoint ignores offset/limit. A controller returning an offset envelope
-        is drained, with explicit caps marked incomplete. No local console transport.
-
-        Args:
-            host: Console name or composite id from list_hosts; for example "Gateway".
-            site: Network site name, id or slug from list_local_sites; for example "default".
-        """
-        client, registry = deps_fn()
-        return await _list_matter_nodes(client, registry, host, site)
-
-    @mcp.tool(annotations=WRITE)
-    async def commission_matter_node(
-        host: str, site: str, setup_code: SecretStr, confirm: bool = False
-    ) -> Any:
-        """Commission a Matter device using its setup code through the cloud connector.
-
-        Consequence: the device joins this console's Matter fabric and becomes a node that
-        list_matter_nodes reports and other Matter tools can control.
-
-        Sends the exact setup_code string to POST matter/nodes and returns the native
-        body unchanged. The setup code is secret: logs always scrub it; returned errors and
-        the dry-run preview mask it only with UNIFI_REDACT_SECRETS. Under dry-run policy
-        nothing is sent and the preview is returned instead. Network write opt-out and global
-        read-only mode apply before any request. Commissioning requires a device in
-        pairing mode.
-
-        Returns the upstream body unchanged. With dry-run policy, returns
-        {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-        body}} without sending a write.
-
-        Args:
-            host: Console name or composite id from list_hosts; for example "Gateway".
-            site: Network site name, id or slug from list_local_sites; for example "default".
-            setup_code: Secret device pairing code copied from its label; for example "34970112332".
-            confirm: Accepted and ignored for compatibility; for example false.
-        """
-        client, registry = deps_fn()
-        return await _commission_matter_node(client, registry, host, site, setup_code)
-
-    @mcp.tool(annotations=WRITE)
-    async def rename_matter_node(
-        host: str, site: str, node_id: str, name: str, confirm: bool = False
-    ) -> Any:
-        """Rename a commissioned Matter node through the cloud connector.
-
-        Sends PUT matter/nodes/{node_id} with {name} and returns the native body
-        unchanged. No invented verification or no-op result. Discover the native node
-        identifier with list_matter_nodes. Dry-run returns a preview without writing.
-
-        Returns the upstream body unchanged. With dry-run policy, returns
-        {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-        body}} without sending a write.
-
-        Args:
-            host: Console name or composite id from list_hosts; for example "Gateway".
-            site: Network site name, id or slug from list_local_sites; for example "default".
-            node_id: Native Matter node id from list_matter_nodes; for example "999999999999999999".
-            name: New display name sent exactly as given; for example "Desk lamp".
-            confirm: Accepted and ignored for compatibility; for example false.
-        """
-        client, registry = deps_fn()
-        return await _rename_matter_node(client, registry, host, site, node_id, name)
-
-    @mcp.tool(annotations=WRITE)
-    async def remove_matter_node(host: str, site: str, node_id: str, confirm: bool = False) -> Any:
-        """Remove a commissioned Matter node through the cloud connector.
-
-        Consequence: the node leaves this console's Matter fabric and can no longer be
-        controlled here; it must be commissioned again (in pairing mode) to return.
-
-        Sends DELETE matter/nodes/{node_id}. Discover ids with list_matter_nodes.
-
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). With dry-run policy, returns {status: "dry_run", deleted: false, message, response},
-        where response is the dry-run preview {status, dryRun, sent: false, message, preview:
-        {method, path, params, body}}, without sending a write.
-
-        Args:
-            host: Console name or composite id from list_hosts; for example "Gateway".
-            site: Network site name, id or slug from list_local_sites; for example "default".
-            node_id: Native Matter node id from list_matter_nodes; for example "999999999999999999".
-            confirm: Accepted and ignored for compatibility; for example false.
-        """
-        client, registry = deps_fn()
-        return await _remove_matter_node(client, registry, host, site, node_id)

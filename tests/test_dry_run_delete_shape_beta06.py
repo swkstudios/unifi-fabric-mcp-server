@@ -1,4 +1,4 @@
-"""GS3 P06: the listed tools return the deletion_result dry-run shape.
+"""Dry-run shape: the listed tools return the deletion_result dry-run shape.
 
 Under dry-run policy each listed tool returns ``{status: "dry_run", deleted: false, message,
 response: <client preview>}`` - never the bare client preview - and sends no write.

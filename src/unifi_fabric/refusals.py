@@ -145,15 +145,24 @@ REFUSALS: tuple[Refusal, ...] = (
         "empty window names nothing; a negative or millisecond-size bound is not refused, it "
         "is sent with a warning), and a source list (log_classes, cameras, types) is a list "
         "of strings naming at least one source "
-        "(the Network collector's log_classes may name only a class on the read-POST allowlist)",
-        r"^collect_(?:network|protect)_incident_evidence (?:window: |\w+ names no source"
-        r"|\w+ must be a list of strings|log_classes may name only a read-allowlisted)",
+        "(the Network collector's log_classes, and the log_class of the system-log readers, "
+        "may name only a class on the read-POST allowlist)",
+        r"^(?:collect_(?:network|protect)_incident_evidence (?:window: |\w+ names no source"
+        r"|\w+ must be a list of strings|log_classes may name only a read-allowlisted)"
+        r"|log_class may name only a read-allowlisted)",
         (
             "shared_shapes/_incident_document.py:evidence_window",
             "shared_shapes/_incident_document.py:evidence_selectors",
-            "families/statistics/system_log.py:_collect_network_incident_evidence",
+            "families/statistics/system_log.py:require_read_class",
         ),
-        tools=frozenset({"collect_network_incident_evidence", "collect_protect_incident_evidence"}),
+        tools=frozenset(
+            {
+                "collect_network_incident_evidence",
+                "collect_protect_incident_evidence",
+                "get_system_log",
+                "list_network_events",
+            }
+        ),
     ),
     Refusal(
         "event-stream-site-selector",
@@ -413,13 +422,13 @@ REFUSALS: tuple[Refusal, ...] = (
         r"[Cc]onnector path |resolved path |^'path' must not be empty|site placeholder "
         r"|^Invalid scope |^scope=|connector_write does not handle|Unresolved placeholder",
         (
-            "families/connector/connector.py:_check_raw_charset",
-            "families/connector/connector.py:_check_placeholders",
+            "relay_policy.py:_check_raw_charset",
+            "relay_policy.py:_check_placeholders",
             "families/connector/connector.py:_check_final_charset",
-            "families/connector/connector.py:_validate_relay_path",
-            "families/connector/connector.py:_check_site_given",
+            "relay_policy.py:_validate_relay_path",
+            "relay_policy.py:_check_site_given",
             "families/connector/connector.py:_substitute_site",
-            "families/connector/connector.py:_check_scope",
+            "relay_policy.py:_check_scope",
             "families/connector/connector.py:connector_write",
         ),
     ),
@@ -434,18 +443,19 @@ REFUSALS: tuple[Refusal, ...] = (
         r"mutually exclusive|^client_type must be one of|belongs to API key .*omit key_label"
         r"|reads one page of ONE key's listing|organization is ambiguous: pass key_label"
         r"| source must be one of | source conflict: |^list_network_events scope conflict: "
-        r"|^get_scoped_system_log scope must be one of ",
+        r"|^get_scoped_system_log scope must be one of |'title' was given twice",
         (
-            "families/clients/clients.py:resolve_list_source",
+            "families/protect/protect.py:create_external_arm_profile",
+            "shared_shapes/_clients_shared.py:resolve_list_source",
             "families/clients/client_records.py:_guest_source",
             "families/statistics/system_log.py:_vpn_user_connection_log",
             "families/statistics/system_log.py:_get_scoped_system_log",
             "families/statistics/statistics.py:_get_client_link_diagnostics",
             "families/site_manager/site_manager.py:validate_isp_sites",
             "families/protect/protect.py:_body_with_name",
-            "families/carrier/carrier_fabric.py:register.update_carrier_subscriber",
+            "families/carrier/registrar.py:register.update_carrier_subscriber",
             "families/clients/clients.py:_resolve_client_filter",
-            "families/site_manager/site_manager.py:list_devices",
+            "shared_shapes/_site_manager_shared.py:list_devices",
             "shared_shapes/_keys.py:page_mode_scope",
             "families/carrier/carrier_fabric.py:_create_key",
         ),
@@ -616,7 +626,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "families/carrier/carrier_fabric.py:_validate_metadata",
             "families/carrier/carrier_fabric.py:update_carrier_subscriber",
             "families/carrier/carrier_fabric.py:list_carrier_subscribers",
-            "families/carrier/carrier_fabric.py:register.update_carrier_subscriber",
+            "families/carrier/registrar.py:register.update_carrier_subscriber",
         ),
     ),
     Refusal(
@@ -637,18 +647,20 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "protect-request-fields",
         SPEC,
-        "protect-7.3.74: posTransactionRequest required [type, externalId, amount], type "
+        "protect-7.4.96: posTransactionRequest required [type, externalId, amount], type "
         "enum [sale, refund], externalId minLength 1, amount minimum 0; createArmProfile "
         "name minLength 1; RTSPS qualities minItems 1 (create body, delete query); "
         "{outputId} type integer; POST /v1/files/{fileType} accepted media types "
         "(the upload extension check is kept by the refusal policy)",
         r"^'transaction' must be a posTransactionRequest|^transaction '\w+' (must|is "
-        r"required)|^'name' must not be empty$|^'qualities' (must be a non-empty list|entries "
+        r"required)|^'name' must not be empty$|^'title' must not be empty$|"
+        r"^'qualities' (must be a non-empty list|entries "
         r"must be non-empty)|^'output_id' must be an integer|^content_type must be a MIME "
         r"type|^Cannot tell the upload's MIME type|^file_content_base64 is not valid base64",
         (
             "families/protect/protect.py:pos_ingest_transaction",
             "families/protect/protect.py:create_arm_profile",
+            "families/protect/protect.py:create_external_arm_profile",
             "families/protect/protect.py:require_nonempty_qualities",
             "families/protect/protect.py:_output_channel",
             "families/protect/protect.py:upload_content_type",
@@ -727,8 +739,8 @@ REFUSALS: tuple[Refusal, ...] = (
         r"^Invalid arguments for tool |^Text arguments must be strings\.$",
         (
             "argument_errors.py:ArgumentErrorMiddleware.on_call_tool",
-            "families/devices/device_radios.py:RadioChanges._no_null_fields",
-            "families/devices/switch_port_overrides.py:PortOverrideChange._fields_present",
+            "families/devices/schemas.py:RadioChanges._no_null_fields",
+            "families/devices/schemas.py:PortOverrideChange._fields_present",
             "families/protect/protect_automation_backup.py:_text",
         ),
     ),
@@ -872,6 +884,21 @@ REFUSALS: tuple[Refusal, ...] = (
         ("families/devices/device_radios.py:_validate_channel",),
     ),
     Refusal(
+        "wifi-diagnosis-thresholds",
+        SELECTOR_SYNTAX,
+        "diagnose_wifi's own arguments (the thresholds object and window_hours): a known "
+        "threshold name with a number inside its documented range, and a whole number of "
+        "hours from 1 to 168, checked before any request; the tool has no upstream schema "
+        "for them",
+        r"^('thresholds' must be an object|'window_hours' must be |"
+        r"'[a-z0-9_]+' must be (a number|between))",
+        (
+            "families/devices/wifi_diagnosis.py:validate_thresholds",
+            "families/devices/wifi_diagnosis.py:validate_window_hours",
+        ),
+        frozenset({"diagnose_wifi"}),
+    ),
+    Refusal(
         "collector-control-bounds",
         RULED_KEEP,
         "Collectors validate positive poll counts, finite nonnegative pacing and positive "
@@ -920,7 +947,7 @@ REFUSALS: tuple[Refusal, ...] = (
         "(relay design, families/connector/connector.py); GETs, and "
         "mutations with no opt-out set, relay",
         r"unclassified route is refused while a per-area write opt-out is active",
-        ("families/connector/connector.py:_check_unclassified_mutation",),
+        ("relay_policy.py:_check_unclassified_mutation",),
     ),
     Refusal(
         "area-write-opt-out",
@@ -935,7 +962,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "read_only_tools.py:AreaOptOutMiddleware.on_call_tool",
             "read_only.py:guard_area_write",
             "read_only.py:guard_tool_write",
-            "families/connector/connector.py:_check_area_opt_out",
+            "relay_policy.py:_check_area_opt_out",
             "families/connector/connector.py:connector_get",
             "families/carrier/carrier_fabric.py:_require_writes",
             "families/mobility/mobility.py:_require_writes",
@@ -945,6 +972,19 @@ REFUSALS: tuple[Refusal, ...] = (
             "families/network/network_wifi_radio.py:start_spectrum_scan",
             "families/network/network_wifi_radio.py:configure_wifi_wan",
             "families/network/matter.py:_write_guard",
+        ),
+    ),
+    Refusal(
+        "family-load-failed",
+        RULED_KEEP,
+        "public #41 lazy loading: a tool family whose step failed to import or register, "
+        "or whose registered tools differ from the generated snapshot, refuses its calls "
+        "before anything runs (fail closed; other families are unaffected; "
+        "docs/CONFIGURATION.md, Startup loading)",
+        r"family_load_failed|could not be loaded \(step ",
+        (
+            "catalog/deferred.py:Controller.swap",
+            "catalog/deferred.py:DeferredTool._backstop",
         ),
     ),
     Refusal(
@@ -1106,7 +1146,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "families/clients/client_records.py:_resolve_network_id",
             "families/clients/client_records.py:_extend_guest",
             "families/network/site_admin.py:_select_site",
-            "families/network/site_config.py:_select_config_record",
+            "shared_shapes/_site_config_shared.py:_select_config_record",
             "families/network/site_config.py:_set_client_user_group",
         ),
         upstream_reason="Selector lookup requires upstream records and valid choices.",
@@ -1120,9 +1160,23 @@ REFUSALS: tuple[Refusal, ...] = (
         r"body _id .* does not match the resolved record _id ",
         (
             "families/devices/device_mgmt.py:_update_device_tag",
-            "families/network/site_config.py:_addressed_config_body",
+            "shared_shapes/_site_config_shared.py:_addressed_config_body",
         ),
         upstream_reason="The body _id is compared with the record resolved upstream.",
+    ),
+    Refusal(
+        "masked-element-unmatched",
+        UPSTREAM_JUDGED,
+        "under UNIFI_REDACT_SECRETS, a whole-record write whose caller passed back a list "
+        "element holding the redaction mask that matches no single element of the record "
+        "the tool READ (removed, reordered without ids, edited, ambiguous, something of "
+        "another type stored there, or a mask that is itself a list element; a masked field "
+        "in an element of a list with nothing stored is dropped and reported, not refused): "
+        "its stored secret cannot be kept, dropping the mask would clear it on a "
+        "replace route, and the mask string must never be sent",
+        r"the redaction mask .* in a list element matches no single stored element",
+        ("client.py:keep_stored_secrets",),
+        upstream_reason="The element is matched against the record read from the upstream.",
     ),
     Refusal(
         "matter-node-selection",
@@ -1360,6 +1414,16 @@ REFUSALS: tuple[Refusal, ...] = (
         ),
     ),
     Refusal(
+        "arm-readback-shape",
+        UPSTREAM_JUDGED,
+        "enable_arm and disable_arm read the NVR back after the write; an answer with no "
+        "armMode object is reported as an unverified result (readAfterError), never raised "
+        "to the caller and never read as verified",
+        r"^Read-after GET .* armMode: expected an object",
+        ("families/protect/protect.py:_arm_action._read",),
+        upstream_reason="the arm state is read from the upstream NVR answer",
+    ),
+    Refusal(
         "n01-upstream-record-selection",
         UPSTREAM_JUDGED,
         (
@@ -1455,7 +1519,7 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "device-operations-argument-type",
         JSON_VALIDITY,
-        "a GS3 N03 device-operation argument of the wrong JSON type for its declared schema "
+        "a device-operation argument of the wrong JSON type for its declared schema "
         "(integer, boolean, string, object, array); checked again on the direct call path",
         r"^'[\w\[\]]+' must be (an integer|a boolean|a string|an object \(mapping\)|an "
         r"array), got ",
@@ -1471,7 +1535,7 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         "device-operations-argument-grammar",
         SELECTOR_SYNTAX,
-        "combinations of the GS3 N03 device-operation tools' own arguments that name "
+        "combinations of the device-operation tools' own arguments that name "
         "nothing or contradict each other (unit_id without port_idx, prefer1/prefer2 when "
         "clearing, estimate_body without time_estimate, an outlet index given twice, an empty "
         "battery_ids list, an empty bulk payload list)",

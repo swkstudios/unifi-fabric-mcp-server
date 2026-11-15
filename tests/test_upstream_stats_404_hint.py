@@ -94,3 +94,11 @@ async def test_e_the_relay_gets_the_hint_beside_status_and_body():
     resp = await _client().request("GET", V2_STATS, raise_on_error=False)
     assert resp.status_code == 404 and resp.text == _HTML_404
     assert "does not serve that statistics route" in resp.extensions["unifi_auth_hint"]
+
+
+def test_e_the_hint_does_not_blame_the_network_version_and_points_at_the_version_read():
+    hint = route_hint(404, V2_STATS, _HTML_404)
+    assert "does not serve that statistics route" in hint
+    assert "Network 10.6.109 and 11.0.99" in hint
+    assert "older than 11.0" not in hint
+    assert "get_network_application_info" in hint

@@ -305,17 +305,17 @@ async def test_create_vpn_client_dry_run_preview_masks_only_under_the_opt_in(mon
         assert body["x_openvpn_password"] == OVPN_SECRET
 
 
-# ----------------------------------------------------------------- system-log writes
+# ----------------------------------------------------------------- system-log reads
 _SYSLOG = "/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/"
 SYSTEM_LOG_TOOLS = ("get_system_log", "list_network_events", "list_ips_events")
 
 
 @pytest.mark.parametrize("log_class", system_log.KNOWN_CLASSES)
 @pytest.mark.parametrize("suffix", ["", "/", "?pageNumber=0"])
-def test_documented_system_log_posts_are_writes(log_class, suffix):
-    # `all` is the one read-allowlisted route (its query string is not part of the route): the
-    # native readers keep it a write with always_write, every other class is a write by route
-    is_read = log_class == "all" and suffix in ("", "?pageNumber=0")
+def test_documented_system_log_posts_are_reads_only_for_the_nine_listed_classes(log_class, suffix):
+    # The nine allowlisted classes are reads by their exact route (a query string is not part of
+    # the route); a trailing slash, and every other class (``triggers``), stay writes.
+    is_read = log_class in system_log.EVIDENCE_READ_CLASSES and suffix in ("", "?pageNumber=0")
     assert read_only.is_write_request("POST", _SYSLOG + log_class + suffix) is not is_read
 
 
@@ -334,42 +334,59 @@ def test_documented_system_log_posts_are_writes(log_class, suffix):
         "all%252Fx",
         "delete",
         "count",
+        "triggers",
     ],
 )
 def test_alternate_or_unapproved_system_log_posts_are_writes(log_class):
     assert read_only.is_write_request("POST", _SYSLOG + log_class) is True
 
 
-async def test_system_log_tools_are_advertised_as_writes():
+async def test_system_log_tools_are_advertised_as_reads():
     tools = {tool.name: tool for tool in await server.mcp.list_tools()}
     assert set(SYSTEM_LOG_TOOLS) == {"get_system_log", "list_network_events", "list_ips_events"}
     for name in SYSTEM_LOG_TOOLS:
-        assert tools[name].annotations.read_only_hint is not True, name
-        assert name in cti.WRITE_TOOLS, name
+        assert tools[name].annotations.read_only_hint is True, name
+        assert name not in cti._lz_WRITE_TOOLS(), name
+
+
+@pytest.mark.parametrize(
+    "name,extra",
+    [("get_system_log", {"log_class": log_class}) for log_class in system_log.EVIDENCE_READ_CLASSES]
+    + [("list_network_events", {}), ("list_ips_events", {})],
+)
+@pytest.mark.parametrize("exceptions", [None, "family:network=dry-run"])
+async def test_system_log_reads_are_not_refused_under_deny(monkeypatch, name, extra, exceptions):
+    """A read-allowlisted POST is a read: UNIFI_WRITE_POLICY=deny (and a network dry-run
+    exception) neither refuse it nor turn it into a preview."""
+    up = uh.FakeUpstream()
+    args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
+    res = await cti._call(
+        monkeypatch,
+        name,
+        up,
+        args=args,
+        env={"UNIFI_WRITE_POLICY": "deny"}
+        | ({"UNIFI_WRITE_EXCEPTIONS": exceptions} if exceptions else {}),
+    )
+    payload = uh.result_payload(res)
+    assert not (isinstance(payload, dict) and payload.get("status") == "dry_run"), payload
+    assert [s.path for s in up.served if s.method == "POST"], f"{name} sent no POST"
 
 
 @pytest.mark.parametrize(
     "name,extra",
     [
         ("get_system_log", {"log_class": log_class})
-        for log_class in (*system_log.KNOWN_CLASSES, "%61ll", "%2561ll", "all/", "unknown-class")
+        for log_class in ("triggers", "%61ll", "%2561ll", "all/", "unknown-class")
     ]
-    + [("list_network_events", {}), ("list_ips_events", {})],
+    + [("list_network_events", {"view": "triggers"})],
 )
-@pytest.mark.parametrize("exceptions", [None, "family:network=dry-run"])
-async def test_system_log_tools_refused_before_any_request(monkeypatch, name, extra, exceptions):
+async def test_an_unlisted_system_log_class_is_refused_before_any_request(monkeypatch, name, extra):
     up = uh.FakeUpstream()
     args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
-    with pytest.raises(ToolError, match="UNIFI_WRITE_POLICY|read-only"):
-        await cti._call(
-            monkeypatch,
-            name,
-            up,
-            args=args,
-            env={"UNIFI_WRITE_POLICY": "deny"}
-            | ({"UNIFI_WRITE_EXCEPTIONS": exceptions} if exceptions else {}),
-        )
-    assert up.served == [], f"{name} made an upstream request before refusal"
+    with pytest.raises(ToolError):
+        await cti._call(monkeypatch, name, up, args=args)
+    assert [s for s in up.served if s.method == "POST"] == []
 
 
 @pytest.mark.parametrize(
@@ -382,24 +399,20 @@ async def test_system_log_tools_refused_before_any_request(monkeypatch, name, ex
         ("list_ips_events", {}, "threat-alert"),
     ],
 )
-async def test_system_log_dry_run_returns_first_post_preview(monkeypatch, name, extra, log_class):
+async def test_system_log_dry_run_policy_sends_the_read_post(monkeypatch, name, extra, log_class):
     up = uh.FakeUpstream()
-    # the class is passed explicitly: the generated defaults (tool_args) use device-alert, so
-    # without it the `all` cases would never exercise the read-allowlisted route
     chosen = {"get_system_log": "log_class", "list_network_events": "view"}.get(name)
     extra = {**extra, **({chosen: log_class} if chosen else {})}
     args = {**tool_args.generated_args(cti.TOOLS[name]), **extra}
-    res = await cti._call(monkeypatch, name, up, args=args, env={"UNIFI_WRITE_POLICY": "dry-run"})
-    payload = uh.result_payload(res)
-    assert payload["status"] == "dry_run", payload
-    assert payload["preview"]["method"] == "POST"
-    assert payload["preview"]["path"].endswith("/system-log/" + log_class)
-    assert payload["preview"]["body"]["pageNumber"] == 0
+    await cti._call(monkeypatch, name, up, args=args, env={"UNIFI_WRITE_POLICY": "dry-run"})
+    posts = [s for s in up.served if s.method == "POST"]
+    assert posts and posts[0].path.endswith("/system-log/" + log_class)
+    assert posts[0].sent_json["pageNumber"] == 0
     if "page_size" in extra:
-        assert payload["preview"]["body"]["pageSize"] == extra["page_size"]
+        assert posts[0].sent_json["pageSize"] == extra["page_size"]
     if log_class == "threat-alert":
-        assert payload["preview"]["body"]["threatTypes"] == ["HONEYPOT", "THREAT"]
-    assert up.writes() == [], "a dry run sent a POST"
+        assert posts[0].sent_json["threatTypes"] == ["HONEYPOT", "THREAT"]
+    assert up.writes() == []
 
 
 @pytest.mark.asyncio

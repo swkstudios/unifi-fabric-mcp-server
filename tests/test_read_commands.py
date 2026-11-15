@@ -33,7 +33,7 @@ from unifi_fabric import read_only
 from unifi_fabric import read_post_routes as rp
 from unifi_fabric.client import UniFiClient, is_dry_run_preview
 from unifi_fabric.config import Settings
-from unifi_fabric.families.devices import device_commands
+from unifi_fabric.families.devices import registrar as devices_registrar
 from unifi_fabric.read_only_tools import ReadOnlyToolMiddleware
 
 IDS = [c.name for c in rp.READ_COMMANDS]
@@ -379,7 +379,7 @@ def _tool_app(client: UniFiClient) -> FastMCP:
     registry.resolve_host_id.return_value = "console"
     registry.resolve_site_slug.return_value = "default"
     app = FastMCP("read-commands")
-    device_commands.register(app, lambda: (client, registry))
+    devices_registrar.register_2(app, lambda: (client, registry))
     app.add_middleware(ReadOnlyToolMiddleware(app))
     return app
 

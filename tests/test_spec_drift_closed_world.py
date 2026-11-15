@@ -434,6 +434,7 @@ _DIRECTIONAL_KEYWORDS = {
     "maximum": ({"maximum": 2}, {"maximum": 1}, (True, False)),
     "minItems": ({"minItems": 1}, {"minItems": 2}, (True, False)),
     "minLength": ({"minLength": 1}, {"minLength": 2}, (True, False)),
+    "minProperties": ({"minProperties": 1}, {"minProperties": 2}, (True, False)),
     "minimum": ({"minimum": 1}, {"minimum": 2}, (True, False)),
     "nullable": (
         {"type": "string", "nullable": True},

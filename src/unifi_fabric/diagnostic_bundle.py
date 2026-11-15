@@ -165,6 +165,14 @@ def _provider_flags(settings: Any) -> dict[str, bool]:
     return flags
 
 
+def _trace_export_status() -> str:
+    """``on`` while traces are exported, else ``off``: never an endpoint or header."""
+    from .tracing import trace_export_result
+
+    result = trace_export_result()
+    return "on" if result is not None and result.exporting else "off"
+
+
 def _configuration(client: UniFiClient) -> dict[str, Any]:
     from .header_credentials import key_mode
 
@@ -191,7 +199,10 @@ def _configuration(client: UniFiClient) -> dict[str, Any]:
             "sink": _choice(settings.audit_sink.lower() or None, audit.SINKS),
             "level": _choice(settings.audit_level.lower(), ("off", "normal", "debug")),
             "calls": settings.audit_calls,
+            "remoteSinkConfigured": bool(settings.audit_remote_url.strip()),
+            "remotePlaintext": bool(settings.audit_remote_plaintext),
         },
+        "traceExport": _trace_export_status(),
     }
     try:
         data["keyMode"] = key_mode()
@@ -208,6 +219,15 @@ def _policy() -> dict[str, Any]:
         "effectivePolicy": policy.canonical_policy_object(effective),
         "digest": policy_digest(effective),
     }
+
+
+def _transport_settings() -> Any:
+    from .config import MCPTransportSettings
+
+    try:
+        return MCPTransportSettings()
+    except Exception:  # noqa: BLE001 - the transport section reports its own failure
+        return None
 
 
 def _transport() -> dict[str, Any]:
@@ -353,7 +373,7 @@ async def build_bundle(
         "sections": sections,
         "neverCollected": list(NEVER_COLLECTED),
     }
-    secrets = configured_secrets(client._settings)  # noqa: SLF001 - the client's settings
+    secrets = configured_secrets(client._settings, _transport_settings())  # noqa: SLF001
     clean = scrub_json_strings(bundle, secrets)
     leaked = contains_secret(json.dumps(clean), secrets)
     clean["sanitization"] = {

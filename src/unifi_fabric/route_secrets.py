@@ -644,7 +644,7 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         response_fields=("url", "directUrl", "alias"),
         response_headers=("location",),
         relay_path="protect/api/ws/livestream",
-        evidence=f"{_FE_PROTECT} getWSPath; GS3 P04 recorded stream responses "
+        evidence=f"{_FE_PROTECT} getWSPath; recorded stream responses "
         "contain url/directUrl or alias; stream redirects carry Location",
         verified=True,
     ),
@@ -671,6 +671,22 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
             f"{_FE_PROTECT} POST cameras/{{id}}/wifi-setup (swai.js 2054416) sends a dynamic "
             "body; key names inferred from the adoption QR's ssid/password query keys"
         ),
+    ),
+    RouteSecret(
+        name="external-arm-profile-pin",
+        route=r"protect/integration/v1/external/arm-profiles(?:/[^/]+)?",
+        methods=frozenset({"POST", "PATCH"}),
+        request_fields=("pin_code",),
+        tool_arguments={
+            "create_external_arm_profile": ("settings",),
+            "update_external_arm_profile": ("settings",),
+        },
+        relay_path="protect/integration/v1/external/arm-profiles",
+        evidence=(
+            "Protect 7.4.96 spec externalArmProfileRequest / externalArmProfilePatch pin_code "
+            "(pattern ^\\d{4,6}$); the profile response reports has_pin only"
+        ),
+        verified=True,
     ),
     RouteSecret(
         name="protect-rtsps-stream-url",
@@ -751,7 +767,7 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         relay_path="protect/api/third-party-cameras/adopt",
         evidence=(
             f"{_FE_PROTECT} POST third-party-cameras/adopt (body built at run time); the "
-            "camera login key names are inferred (GS3 P01 adopt_third_party_camera)"
+            "camera login key names are inferred (adopt_third_party_camera)"
         ),
     ),
     RouteSecret(
@@ -762,7 +778,7 @@ ROUTE_SECRETS: tuple[RouteSecret, ...] = (
         relay_path="protect/api/keyrings",
         evidence=(
             f"{_FE_PROTECT} GET keyrings (NFC card / fingerprint keyrings); the registryId "
-            "key name is inferred (GS3 P01 list_protect_keyrings)"
+            "key name is inferred (list_protect_keyrings)"
         ),
     ),
     RouteSecret(

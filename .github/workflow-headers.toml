@@ -13,16 +13,20 @@ cancel-in-progress = "${{ github.event_name == 'pull_request' }}"
 workflows = [
   "changelog-size.yml",
   "dependency-refresh.yml",
+  "homebrew-proof.yml",
   "docs-checks.yml",
   "install-smoke.yml",
   "public-artifact-dry-run.yml",
 ]
 # Workflows that key a concurrency block on the pull request but deliberately keep their
 # own block, which this file does not render:
-# - ci.yml: pushes to dev also share one group, so a newer dev head cancels the superseded
-#   run (the :dev image publishes from the newest green head).
+# - ci.yml: pushes to dev also share one group that is never cancelled in progress (the
+#   pending run is replaced by the newest head, so every run finishes and the :dev image
+#   publishes from the newest green head that completes).
 # - codeql.yml: one group per pull request or ref, always cancelling.
+# - ci-relabel.yml: one re-run at a time per pull request, none replaced.
 own-block = [
   "ci.yml",
+  "ci-relabel.yml",
   "codeql.yml",
 ]

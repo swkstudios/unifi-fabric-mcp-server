@@ -6,8 +6,9 @@ Four settings decide what a server exposes and how its writes behave:
 * ``UNIFI_WRITE_EXCEPTIONS``: one semicolon list of ``<target>=deny|dry-run`` where the
   target is ``family:<family-id>`` or ``tool:<public-name>``. There is no allow exception.
 * ``UNIFI_FAMILY_ALLOW``: a comma set of frozen family IDs (unset: every family).
-* ``UNIFI_EXCLUDE``: one comma list of ``family:<id>``, ``tool:<name>``, ``source:<selector>``
-  and ``unofficial``.
+* ``UNIFI_EXCLUDE``: one comma list of ``family:<id>``, ``tool:<name>``, ``module:<module>``
+  (a sub-area module of the explicit inventory, :func:`unifi_fabric.catalog.membership.
+  modules`), ``source:<selector>`` and ``unofficial``.
 
 The write order is allow < dry-run < deny, and the strictest of the global policy and every
 matching exception wins. Tokens are trimmed of ASCII whitespace; an empty, leading, trailing
@@ -136,6 +137,7 @@ class ToolFacts:
     family: str
     pairs: tuple[str, ...]
     access: str  # api_sources.READ or api_sources.WRITE (selection access)
+    module: str = ""  # the sub-area module (``module:`` exclusions); "" for a meta tool
 
     @property
     def is_meta(self) -> bool:
@@ -187,6 +189,9 @@ class Catalog:
         A domain tool without a family or an API-source classification fails validation
         (``unclassified catalog entries fail validation``).
         """
+        from .families import build_module_index
+
+        modules = build_module_index()
         tools: dict[str, ToolFacts] = {}
         unclassified: list[str] = []
         for name, tool_access in access.items():
@@ -198,7 +203,7 @@ class Catalog:
             if family is None or family not in FAMILIES or not pairs:
                 unclassified.append(name)
                 continue
-            tools[name] = ToolFacts(name, family, pairs, tool_access)
+            tools[name] = ToolFacts(name, family, pairs, tool_access, modules.get(name, ""))
         if unclassified:
             raise ValueError(
                 f"{len(unclassified)} registered tools have no family or API-source "
@@ -254,6 +259,19 @@ def _family_id(text: str, position: int) -> str:
         raise _GrammarError(
             f"names an unknown or reserved family (position {position}, counted from 0); "
             f"valid families: {', '.join(sorted(FAMILIES))}"
+        )
+    return text
+
+
+def _module_id(text: str, position: int) -> str:
+    """A sub-area module of the explicit inventory (the per-module switch)."""
+    from .catalog.membership import modules
+
+    known = modules()
+    if text not in known:
+        raise _GrammarError(
+            f"names an unknown module (position {position}, counted from 0); "
+            f"valid modules: {', '.join(sorted(known))}"
         )
     return text
 
@@ -325,12 +343,14 @@ def parse_exclude(value: str, catalog: Catalog | None) -> tuple[str, ...]:
         if not colon:
             raise _GrammarError(
                 f"item {i} (counted from 0) must be family:<id>, tool:<name>, "
-                "source:<selector> or unofficial"
+                "module:<module>, source:<selector> or unofficial"
             )
         if kind == "family":
             _family_id(ident, i)
         elif kind == "tool":
             _tool_target(ident, token, i, catalog)
+        elif kind == "module":
+            _module_id(ident, i)
         elif kind == "source":
             if ident not in _VALID_SELECTORS:
                 raise _GrammarError(
@@ -339,7 +359,8 @@ def parse_exclude(value: str, catalog: Catalog | None) -> tuple[str, ...]:
                 )
         else:
             raise _GrammarError(
-                f"item {i} must be family:<id>, tool:<name>, source:<selector> or unofficial"
+                f"item {i} must be family:<id>, tool:<name>, module:<module>, "
+                "source:<selector> or unofficial"
             )
         out.append(token)
     return tuple(out)
@@ -633,6 +654,8 @@ def is_exposed(policy: EffectivePolicy, tool: ToolFacts) -> bool:
     if tool.family not in policy.exposed_families:
         return False
     if f"tool:{tool.name}" in policy.exclusions:
+        return False
+    if tool.module and f"module:{tool.module}" in policy.exclusions:
         return False
     if UNOFFICIAL in policy.exclusions and tool.api_status == UNOFFICIAL:
         return False

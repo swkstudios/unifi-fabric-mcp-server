@@ -1,0 +1,3636 @@
+{
+ "tools": [
+  {
+   "name": "get_unifi_placement_snapshot",
+   "description": "Return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract.\n\nReturns schema_version, generated_at, freshness, provenance, floors, walls, placed_devices, topology, placement_links, plus incomplete/incompleteReason if a source list stops short. Address/asset fields (ip/mac, floor image/model/zip/bin URLs) are included by default; only opt-in UNIFI_REDACT_SECRETS removes them and URL/IP/MAC/credential strings, counting each in _withheld (section.field/reason) with _withheld_how_to_obtain naming the source tool (both absent with redaction off). Records outside schema v1 (not_an_object, no_position, no_geometry, no_source_id, not_numeric) are counted in _unprojected with _unprojected_how_to_obtain. Duplicate Network devices merge onto Protect nodes (Network-only fields omitted). For full payloads use get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices. Reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.\n\nRequired arguments: host.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "properties": {
+     "schema_version": {
+      "description": "Snapshot schema id: unifi.placement-snapshot/v1.",
+      "type": "string"
+     },
+     "generated_at": {
+      "description": "When the snapshot was built (ISO 8601 UTC).",
+      "type": "string"
+     },
+     "freshness": {
+      "additionalProperties": true,
+      "description": "Freshness contract: observed_at, max_age_seconds and cache.",
+      "type": "object"
+     },
+     "provenance": {
+      "additionalProperties": true,
+      "description": "Producer, approved read sources and read_only.",
+      "type": "object"
+     },
+     "floors": {
+      "description": "Floor plans with their scale and map.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "walls": {
+      "description": "Wall segments placed on floors.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "placed_devices": {
+      "description": "Devices placed on floors, with positions.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "topology": {
+      "description": "Network and Protect device inventory.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "placement_links": {
+      "description": "Links from placed devices to inventory records by unique name.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "incomplete": {
+      "description": "True when a source list stopped short (opt-in page cap, repeated cursor).",
+      "type": "boolean"
+     },
+     "incompleteReason": {
+      "description": "Why the result is incomplete, one reason per source; absent when complete.",
+      "type": "string"
+     },
+     "_unprojected": {
+      "additionalProperties": true,
+      "description": "Count of source records schema v1 cannot represent.",
+      "type": "object"
+     },
+     "_unprojected_how_to_obtain": {
+      "description": "Which full read tool returns the unprojected records."
+     },
+     "_withheld": {
+      "additionalProperties": true,
+      "description": "Values removed under UNIFI_REDACT_SECRETS, counted.",
+      "type": "object"
+     },
+     "_withheld_how_to_obtain": {
+      "description": "Which tool returns the withheld values, or how to disable redaction."
+     }
+    },
+    "required": [
+     "schema_version",
+     "generated_at",
+     "freshness",
+     "provenance",
+     "floors",
+     "walls",
+     "placed_devices",
+     "topology",
+     "placement_links"
+    ],
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get UniFi Placement Snapshot",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_summary",
+   "description": "Inventory a console's InnerSpace floor-plan project without the full payload.\n\nReturns counts and structure: shape breakdown by type (wall / device / map /\nscale), per-floor plans with each plan's own scale, product and wall-material /\nattenuation-type dictionary sizes, and project metadata. Call this before\nget_innerspace_project when you only need to know what's present. Surfaces the\nmulti-floor caveat: floors do not share a coordinate origin. Top-level keys: mode,\nshape_total, shape_counts, wall_variants, plan_count, plans, plan_scales, product_count,\nwall_type_count, attenuation_object_type_count (null when the document has no\nattenuationObjectTypes), project, multi_floor, and multi_floor_note when there are\nseveral plans.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "mode": {
+      "default": "3D",
+      "type": "string",
+      "description": "'3D' (default; device shapes carry real metric mounting heights) or '2D'."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "properties": {
+     "mode": {
+      "description": "Project view summarized: 3D or 2D.",
+      "type": "string"
+     },
+     "shape_total": {
+      "description": "Number of shapes in the project.",
+      "type": "integer"
+     },
+     "shape_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "description": "Shape count per shape type.",
+      "type": "object"
+     },
+     "wall_variants": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "description": "Wall shape count per wall variant.",
+      "type": "object"
+     },
+     "plan_count": {
+      "description": "Number of floor plans.",
+      "type": "integer"
+     },
+     "plans": {
+      "description": "Per floor plan: ordering, name and that plan's own scale.",
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "plan_scales": {
+      "description": "Scale data per plan id (upstream planScales when present), or null if none."
+     },
+     "product_count": {
+      "description": "Number of product definitions in the project.",
+      "type": "integer"
+     },
+     "wall_type_count": {
+      "description": "Number of wall types in the project.",
+      "type": "integer"
+     },
+     "attenuation_object_type_count": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Number of attenuation object types, or null when the list is absent."
+     },
+     "project": {
+      "additionalProperties": true,
+      "description": "Project metadata: unit, migrated, and id/title/timestamps if present.",
+      "type": "object"
+     },
+     "multi_floor": {
+      "description": "True when the project has more than one floor plan.",
+      "type": "boolean"
+     },
+     "multi_floor_note": {
+      "description": "Why floors do not share a coordinate origin (multi-floor only).",
+      "type": "string"
+     }
+    },
+    "required": [
+     "mode",
+     "shape_total",
+     "shape_counts",
+     "wall_variants",
+     "plan_count",
+     "plans",
+     "plan_scales",
+     "product_count",
+     "wall_type_count",
+     "attenuation_object_type_count",
+     "project",
+     "multi_floor"
+    ],
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Summary",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_project",
+   "description": "Return the full InnerSpace floor-plan project geometry for a console.\n\nThe complete (~66 KB) project document: shapes, plans, products, wall types,\nand attenuation-object types. The upstream response object is returned verbatim\n(the documented API wraps the project under data; the legacy path returns it bare),\nincluding device meta.mac / meta.ip and floor-plan image/asset URLs. Prefer\nget_innerspace_summary first\nif you only need an inventory — this payload is large.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "mode": {
+      "default": "3D",
+      "type": "string",
+      "description": "'3D' (default; device shapes carry real metric mounting heights) or '2D' (device\nshapes flattened to z=0). 3D is the only mode with real heights."
+     },
+     "user_email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional userEmail query of the legacy /api/project route, e.g.\n\"admin@example.com\". When it or site_id is given the legacy route is used."
+     },
+     "site_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional siteId query of the legacy /api/project route, e.g. \"default\"."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Project",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_devices",
+   "description": "List placed device shapes from a console's InnerSpace floor-plan.\n\nReturns {shapes, _mode, _count}: shapes holds the project's device shapes verbatim, _mode the\nnormalized mode argument and _count the number of shapes.\n\nEach mounted device's placement: mount, productId, title, position, and\nrotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including\ndevice meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting\nheights; mode='2D' flattens positions to z=0.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "mode": {
+      "default": "3D",
+      "type": "string",
+      "description": "'3D' (default) or '2D'."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Devices",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_floor_plans",
+   "description": "List a console's InnerSpace floor plans (documented Integration API).\n\nReturns the upstream body verbatim (floor_plans and every other top-level key the API sends)\nplus the additive _count of floor_plans.\n\nEach floor plan carries id, name, floor_number, image_url (an asset path — fetch\nwith get_innerspace_asset), ppm (pixels per metre, the scale for interpreting\ncoordinates/heights), width/height (image pixels), origin_x/origin_y, and site_id\nwhen filtered. Returned verbatim.\n\nExample call (list_innerspace_floor_plans):\n    {\"host\": \"my-console\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Floor Plans",
+   "_meta": {
+    "unifi/apiSource": "innerspace/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_access_points",
+   "description": "List placed access points from a console's InnerSpace floor plans (Integration API).\n\nReturns the upstream body verbatim (access_points and every other top-level key the API sends)\nplus the additive _count of access_points.\n\nEach AP carries id, name, model (SKU), mac, serial, floor_plan_id, x/y (pixels on\nthe floor-plan image), height (mounting height in metres), azimuth (antenna\norientation, 0-360 degrees), mount, and status. Returned verbatim, including\nmac/serial.\n\nExample call (list_innerspace_access_points):\n    {\"host\": \"my-console\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Access Points",
+   "_meta": {
+    "unifi/apiSource": "innerspace/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_switches",
+   "description": "List placed switches from a console's InnerSpace floor plans (Integration API).\n\nReturns the upstream body verbatim (switches and every other top-level key the API sends) plus\nthe additive _count of switches.\n\nEach switch carries id, name, model, type (switch), mac, serial, floor_plan_id,\nx/y (pixels on the floor-plan image), and status. Returned verbatim, including\nmac/serial.\n\nExample call (list_innerspace_switches):\n    {\"host\": \"my-console\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Switches",
+   "_meta": {
+    "unifi/apiSource": "innerspace/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_inventory",
+   "description": "List UNPLACED device inventory for a console's InnerSpace project (Integration API).\n\nReturns the upstream body verbatim (devices and every other top-level key the API sends) plus\nthe additive _count of devices.\n\nDevices known to the project but not yet positioned on a floor plan. Each carries\nid, name, model, mac, and serial. Returned verbatim, including mac/serial. The\nresponse array key is 'devices'.\n\nExample call (list_innerspace_inventory):\n    {\"host\": \"my-console\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Inventory",
+   "_meta": {
+    "unifi/apiSource": "innerspace/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_asset",
+   "description": "Download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here).\n\nReturns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the complete bytes base64-encoded (no size cap) with the upstream Content-Type (typically image/jpeg or image/png; null when none) and size; _plan_id/_filename echo the arguments. metadata_only=true leaves out the bytes: same keys, image_base64=null.\n\n`plan_id` is the id in the {planId} segment of the floor plan's image_url (between '/assets/' and the trailing '/{filename}'): the asset-group UUID, NOT the floor plan's own 'id' (passing that returns HTTP 404). Parse both plan_id and filename from image_url (from list_innerspace_floor_plans).\n\nExample call (get_innerspace_asset):\n    {\"host\": \"my-console\", \"plan_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"filename\": \"plan.png\"}",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "plan_id": {
+      "type": "string",
+      "description": "Asset-group UUID parsed from a floor plan's image_url\n(/assets/{planId}/{filename}). NOT the floor plan id. From list_innerspace_floor_plans."
+     },
+     "filename": {
+      "type": "string",
+      "description": "Filename segment from the floor plan's image_url (after /assets/{planId}/), as\nthe plain (decoded) name, e.g. \"2DPreview.svg\"; the tool percent-encodes it. If that\nsegment carries %XX escapes, pass it percent-decoded (\"my%20plan.png\" -> \"my plan.png\"),\nor the escapes are sent literally (%25XX)."
+     },
+     "metadata_only": {
+      "default": false,
+      "type": "boolean",
+      "description": "Optional. True leaves out the image bytes: every other key is returned\nand image_base64 is null. Default false: the full image is returned."
+     }
+    },
+    "required": [
+     "host",
+     "plan_id",
+     "filename"
+    ]
+   },
+   "outputSchema": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Asset",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_innerspace_doors",
+   "description": "List InnerSpace access doors (GET /proxy/innerspace/api/access/doors).\n\nReturns the upstream body verbatim: an array of door unique_id strings. Door listing\nneeds the UniFi Access app on the console: without it the console answers HTTP 502,\nand the error says so.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List InnerSpace Doors",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_stats",
+   "description": "Get InnerSpace application statistics (GET /proxy/innerspace/api/stats).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Stats",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_ucore_manifest",
+   "description": "Get the InnerSpace UniFi OS app manifest (GET /proxy/innerspace/api/ucore/manifest).\n\nReturns the upstream body verbatim. A 403 indicates the console denied access;\ncheck console permissions.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Ucore Manifest",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_ucore_status",
+   "description": "Get the InnerSpace UniFi OS app status (GET /proxy/innerspace/api/ucore/status).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Ucore Status",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_innerspace_health",
+   "description": "Get the InnerSpace application health (GET /proxy/innerspace/health).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get InnerSpace Health",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "import_innerspace_captures",
+   "description": "Import scan captures as a new InnerSpace project (POST .../api/project/import).\n\nConsequence: a new project is created on the console under site_id; existing\nprojects are not changed.\n\nSends {title, siteId, captures}. Each capture is free-form and is sent as given;\ncaptures carry files (topView, 3d.gltf), a title and devices [{id, sku}].\nReturns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, title, site_id, captures (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "title": {
+      "type": "string",
+      "description": "Project title, e.g. \"Main office\"."
+     },
+     "site_id": {
+      "type": "string",
+      "description": "UniFi site id the project belongs to, e.g. \"default\"."
+     },
+     "captures": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "description": "Non-empty list of capture objects (an empty list fails before any\nrequest), e.g. [{\"title\": \"Lobby\", \"files\": {\"topView\":\n\"top.png\", \"3d.gltf\": \"scan.gltf\"}, \"devices\": [{\"id\": \"dev-1\",\n\"sku\": \"U7-Pro\"}]}].\nShape: {title?:string,files?:{topView?:string,'3d.gltf'?:string},\ndevices?:{id:string,sku:string}[]}[]; keys the server reads: none, each capture is\nsent as given"
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "title",
+     "site_id",
+     "captures"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Import InnerSpace Captures",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "create_innerspace_plan",
+   "description": "Create an InnerSpace floor plan (POST /proxy/innerspace/api/project/plan).\n\nThe plan object is free-form and sent as given; the web app sends type, url,\ntitle and siteId. Returns the upstream body verbatim ({data: plan}). An empty\nplan fails before any request. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \"dry_run\",\ndryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, plan (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "plan": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Plan fields, e.g. {\"type\": \"image\", \"url\": \"/assets/plan.png\",\n\"title\": \"Ground floor\", \"siteId\": \"default\"}. Free-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "plan"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Create InnerSpace Plan",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "delete_innerspace_plan",
+   "description": "Delete an InnerSpace floor plan (DELETE .../api/project/plan/{planId}).\n\nConsequence: the plan and its shapes are removed; there is no undo.\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails\nbefore any request. The id is resolved in the collection list first; an unknown id lists the\nvalid ids and sends no write. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it\nbefore any request. dry-run policy returns {status: \"dry_run\", deleted: false, message,\nresponse} where response is the dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "plan_id": {
+      "type": "string",
+      "description": "Plan id (UUID) from get_innerspace_project plans[].id, e.g.\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "plan_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Delete InnerSpace Plan",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "reorder_innerspace_plans",
+   "description": "Reorder InnerSpace floor plans (PATCH /proxy/innerspace/api/project/plan/order).\n\nSends the array of plan objects as given; each carries its\nnew ordering. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, plans (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "plans": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "description": "Non-empty list of plan objects with ordering (an empty list fails before\nany request), e.g. [{\"id\":\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"ordering\": 0}].\nShape: {id:string,ordering:integer}[]; keys the server reads: none, the array is\nsent as given"
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "plans"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Reorder InnerSpace Plans",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_innerspace_plan_map",
+   "description": "Update a floor plan's map (PATCH .../api/project/plan/{planId}/map).\n\nThe fields are free-form and sent as given. An empty update or a plan_id that is\nnot a UUID fails before any request. The id is resolved in the collection list\nfirst; an unknown id lists the valid ids and sends no write. Returns the upstream\nbody verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before\nany request.\ndry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "plan_id": {
+      "type": "string",
+      "description": "Plan id (UUID) from get_innerspace_project plans[].id, e.g.\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Map fields to send, e.g. {\"rotation\": 90}. Free-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "plan_id",
+     "fields"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Update InnerSpace Plan Map",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_innerspace_plan",
+   "description": "Update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request.\n\nRead-merge-write: reads the plan as get_innerspace_project does (documented integration route first, legacy .../api/project as fallback), lays fields over it (nested objects merge key by key) and PATCHes the whole plan. An unknown plan id fails listing the valid ids; an empty update or a non-UUID plan_id fails before any request. Returns the PATCH body verbatim (a non-object body under response) plus _verified (type-strict, leaf by leaf against a fresh read; null with _readAfterError when the re-read fails). A change already applied returns the plan as read plus _noOp: true, _verified: true and _note, without writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction mask is not sent and is listed under _redactedFieldsNotSent. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "plan_id": {
+      "type": "string",
+      "description": "Plan id (UUID), e.g. \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Plan fields to change, e.g. {\"title\": \"First floor\"}. Free-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "plan_id",
+     "fields"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Update InnerSpace Plan",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_innerspace_project",
+   "description": "Update the InnerSpace project document (PATCH /proxy/innerspace/api/project).\n\nThe fields are free-form and sent as given. An empty update fails before any\nrequest. Returns the upstream body verbatim; it is not read back, and an earlier\nlive test saw this route answer HTTP 200 without persisting the change, so confirm\nwith get_innerspace_project. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \"dry_run\",\ndryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Project fields to send, e.g. {\"title\": \"Main office\"}. Free-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "fields"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Update InnerSpace Project",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "upload_innerspace_plan_asset",
+   "description": "Upload a floor-plan asset (multipart POST .../api/project/plan/upload).\n\nConsequence: the file is stored on the console in assets_dir for InnerSpace plans to\nuse.\n\nSends the decoded file as the files part and assets_dir as the assetsDir field.\nNo size limit. Content that is not base64 fails before any request. Returns the\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\nit before any request. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun,\nsent: false, message, preview: {method, path, params, body, multipart}} plus _form.\n\nRequired arguments: host, filename, content_base64, assets_dir (see each parameter's\ndescription).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "filename": {
+      "type": "string",
+      "description": "File name sent with the part, e.g. \"ground-floor.png\"."
+     },
+     "content_base64": {
+      "type": "string",
+      "description": "File bytes, base64-encoded, e.g. \"iVBORw0KGgo=\"."
+     },
+     "assets_dir": {
+      "type": "string",
+      "description": "Target assets directory (assetsDir), e.g. \"plans\"."
+     },
+     "content_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional part media type, e.g. \"image/png\"; omitted lets the\nHTTP library pick it from the file name."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "filename",
+     "content_base64",
+     "assets_dir"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Upload InnerSpace Plan Asset",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_innerspace_wall_type",
+   "description": "Create or update an InnerSpace wall type (POST .../api/project/wall-type).\n\nConsequence: the wall type is stored on the console, and its attenuation applies\nwherever plans use that wall type.\n\nThe wall type is free-form and sent as given. An empty body fails before any\nrequest. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, wall_type (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "wall_type": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Wall type fields, e.g. {\"id\": \"drywall\", \"attenuation\": 3}. Free-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "wall_type"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Update InnerSpace Wall Type",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "update_innerspace_attenuation_type",
+   "description": "Create or update an attenuation object type (POST .../attenuation-object-type).\n\nConsequence: the type is stored on the console, and its attenuation applies wherever\nplans use that object type.\n\nRoute: /proxy/innerspace/api/project/attenuation-object-type. The type is\nfree-form and sent as given. An empty body fails before any request. Returns the\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\nit before any request. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun,\nsent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, attenuation_type (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "attenuation_type": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Type fields, e.g. {\"id\": \"cabinet\", \"attenuation\": 6}.\nFree-form object."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "attenuation_type"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Update InnerSpace Attenuation Type",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "import_innerspace_dc_shapes",
+   "description": "Import design-center shapes into InnerSpace (POST .../api/import/dc-shapes).\n\nConsequence: the imported shapes become plans under site_id (data.planIds); failed\nmaps are listed in mapFailures and can be retried with retry_innerspace_plan_maps.\n\nSends siteId as a query parameter and the optional free-form body after removing\nadditive underscore-prefixed keys and masked credential fields.\nReturns the upstream body verbatim ({data: {planIds, mapFailures}}). Write: sent\nonce, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy\nreturns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview:\n{method, path, params, body}}.\n\nRequired arguments: host, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "site_id": {
+      "type": "string",
+      "description": "UniFi site id (siteId query), e.g. \"default\"."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional free-form request body, e.g. {\"shapes\": []}; additive keys and\nmasked credential fields are removed before sending."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "site_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Import InnerSpace Dc Shapes",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "retry_innerspace_plan_maps",
+   "description": "Retry failed InnerSpace plan map imports (POST .../api/import/retry-maps).\n\nConsequence: the console re-runs the failed map imports of site_id, which may add\nthe plans they produce.\n\nSends siteId as a query parameter and no body. Returns the upstream body\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\nrequest. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "site_id": {
+      "type": "string",
+      "description": "UniFi site id (siteId query), e.g. \"default\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "site_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Retry InnerSpace Plan Maps",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "import_innerspace_shared_project",
+   "description": "Import a shared InnerSpace project (POST .../api/import/projects/{token}).\n\nConsequence: a copy of the shared project is added to the console under site_id;\nexisting projects are not changed.\n\nThe share token is a UUID path segment (checked before any request, never echoed\nin that refusal) and siteId a query parameter. Returns the upstream body verbatim.\nWrite: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request.\ndry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, token, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "token": {
+      "type": "string",
+      "description": "Share token (UUID), e.g. \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+     },
+     "site_id": {
+      "type": "string",
+      "description": "UniFi site id (siteId query), e.g. \"default\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "token",
+     "site_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Import InnerSpace Shared Project",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "transform_innerspace_shapes",
+   "description": "Move, rotate or otherwise change InnerSpace shapes (POST .../api/shape/change).\n\nConsequence: the shapes change in the stored project at once; there is no undo\nthrough this tool.\n\nThe transform data is free-form and sent as the body, with mode added when\ngiven; socket_id is sent as the socketId query. An empty transform fails before\nany request. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, transform (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "transform": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Transform data, e.g. {\"ids\": [\"shape-1\"], \"translate\": {\"x\": 1,\n\"y\": 0}}. Free-form object."
+     },
+     "mode": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional mode added to the body (a 'mode' key also in transform fails before\nany request), e.g. \"3D\"."
+     },
+     "socket_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional socketId query of the editor session, e.g. \"abc123\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "transform"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Transform InnerSpace Shapes",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "export_innerspace_backup",
+   "description": "Export an InnerSpace backup on the console (POST .../api/ucore/backup/export).\n\nConsequence: the export is written as a file to directory on the console, using\nits storage; InnerSpace data is unchanged.\n\nSends {dir}. The route may need a console session rather than an API key; an\nupstream 401/403 is raised with its full reason. Returns the upstream body\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\nrequest. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "directory": {
+      "type": "string",
+      "description": "Backup directory on the console (dir), e.g. \"/data/backup\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "directory"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Export InnerSpace Backup",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "import_innerspace_backup",
+   "description": "Restore an InnerSpace backup on the console (POST .../api/ucore/backup/import).\n\nConsequence: the InnerSpace data is replaced by the backup. Sends {dir}. The route\nmay need a console session rather than an API key; an upstream 401/403 is raised\nwith its full reason. Returns the upstream body verbatim. Write: sent once, never\nretried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a\ndry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path,\nparams, body}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "directory": {
+      "type": "string",
+      "description": "Backup directory on the console (dir), e.g. \"/data/backup\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "directory"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Import InnerSpace Backup",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "create_innerspace_support_dump",
+   "description": "Write an InnerSpace support dump on the console (POST .../api/ucore/support-dump).\n\nSends {dir}. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "directory": {
+      "type": "string",
+      "description": "Output directory on the console (dir), e.g. \"/data/support\"."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host",
+     "directory"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Create InnerSpace Support Dump",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "clean_innerspace_storage",
+   "description": "Clean InnerSpace storage on the console (POST .../api/ucore/storage/clean).\n\nConsequence: the application removes stored files it no longer references. Sends\nno body. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for compatibility. The call executes when made."
+     }
+    },
+    "required": [
+     "host"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Clean InnerSpace Storage",
+   "_meta": {
+    "unifi/apiSource": "innerspace/private/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  }
+ ],
+ "describe": {
+  "get_unifi_placement_snapshot": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_unifi_placement_snapshot\",\"title\":\"Get UniFi Placement Snapshot\",\"description\":\"Return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract.\\n\\nReturns schema_version, generated_at, freshness, provenance, floors, walls, placed_devices, topology, placement_links, plus incomplete/incompleteReason if a source list stops short. Address/asset fields (ip/mac, floor image/model/zip/bin URLs) are included by default; only opt-in UNIFI_REDACT_SECRETS removes them and URL/IP/MAC/credential strings, counting each in _withheld (section.field/reason) with _withheld_how_to_obtain naming the source tool (both absent with redaction off). Records outside schema v1 (not_an_object, no_position, no_geometry, no_source_id, not_numeric) are counted in _unprojected with _unprojected_how_to_obtain. Duplicate Network devices merge onto Protect nodes (Network-only fields omitted). For full payloads use get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices. Reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.\\n\\nRequired arguments: host.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"properties\":{\"schema_version\":{\"description\":\"Snapshot schema id: unifi.placement-snapshot/v1.\",\"type\":\"string\"},\"generated_at\":{\"description\":\"When the snapshot was built (ISO 8601 UTC).\",\"type\":\"string\"},\"freshness\":{\"additionalProperties\":true,\"description\":\"Freshness contract: observed_at, max_age_seconds and cache.\",\"type\":\"object\"},\"provenance\":{\"additionalProperties\":true,\"description\":\"Producer, approved read sources and read_only.\",\"type\":\"object\"},\"floors\":{\"description\":\"Floor plans with their scale and map.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"walls\":{\"description\":\"Wall segments placed on floors.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"placed_devices\":{\"description\":\"Devices placed on floors, with positions.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"topology\":{\"description\":\"Network and Protect device inventory.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"placement_links\":{\"description\":\"Links from placed devices to inventory records by unique name.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"incomplete\":{\"description\":\"True when a source list stopped short (opt-in page cap, repeated cursor).\",\"type\":\"boolean\"},\"incompleteReason\":{\"description\":\"Why the result is incomplete, one reason per source; absent when complete.\",\"type\":\"string\"},\"_unprojected\":{\"additionalProperties\":true,\"description\":\"Count of source records schema v1 cannot represent.\",\"type\":\"object\"},\"_unprojected_how_to_obtain\":{\"description\":\"Which full read tool returns the unprojected records.\"},\"_withheld\":{\"additionalProperties\":true,\"description\":\"Values removed under UNIFI_REDACT_SECRETS, counted.\",\"type\":\"object\"},\"_withheld_how_to_obtain\":{\"description\":\"Which tool returns the withheld values, or how to disable redaction.\"}},\"required\":[\"schema_version\",\"generated_at\",\"freshness\",\"provenance\",\"floors\",\"walls\",\"placed_devices\",\"topology\",\"placement_links\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_unifi_placement_snapshot",
+    "title": "Get UniFi Placement Snapshot",
+    "description": "Return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract.\n\nReturns schema_version, generated_at, freshness, provenance, floors, walls, placed_devices, topology, placement_links, plus incomplete/incompleteReason if a source list stops short. Address/asset fields (ip/mac, floor image/model/zip/bin URLs) are included by default; only opt-in UNIFI_REDACT_SECRETS removes them and URL/IP/MAC/credential strings, counting each in _withheld (section.field/reason) with _withheld_how_to_obtain naming the source tool (both absent with redaction off). Records outside schema v1 (not_an_object, no_position, no_geometry, no_source_id, not_numeric) are counted in _unprojected with _unprojected_how_to_obtain. Duplicate Network devices merge onto Protect nodes (Network-only fields omitted). For full payloads use get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices. Reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.\n\nRequired arguments: host.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "properties": {
+      "schema_version": {
+       "description": "Snapshot schema id: unifi.placement-snapshot/v1.",
+       "type": "string"
+      },
+      "generated_at": {
+       "description": "When the snapshot was built (ISO 8601 UTC).",
+       "type": "string"
+      },
+      "freshness": {
+       "additionalProperties": true,
+       "description": "Freshness contract: observed_at, max_age_seconds and cache.",
+       "type": "object"
+      },
+      "provenance": {
+       "additionalProperties": true,
+       "description": "Producer, approved read sources and read_only.",
+       "type": "object"
+      },
+      "floors": {
+       "description": "Floor plans with their scale and map.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "walls": {
+       "description": "Wall segments placed on floors.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "placed_devices": {
+       "description": "Devices placed on floors, with positions.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "topology": {
+       "description": "Network and Protect device inventory.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "placement_links": {
+       "description": "Links from placed devices to inventory records by unique name.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "incomplete": {
+       "description": "True when a source list stopped short (opt-in page cap, repeated cursor).",
+       "type": "boolean"
+      },
+      "incompleteReason": {
+       "description": "Why the result is incomplete, one reason per source; absent when complete.",
+       "type": "string"
+      },
+      "_unprojected": {
+       "additionalProperties": true,
+       "description": "Count of source records schema v1 cannot represent.",
+       "type": "object"
+      },
+      "_unprojected_how_to_obtain": {
+       "description": "Which full read tool returns the unprojected records."
+      },
+      "_withheld": {
+       "additionalProperties": true,
+       "description": "Values removed under UNIFI_REDACT_SECRETS, counted.",
+       "type": "object"
+      },
+      "_withheld_how_to_obtain": {
+       "description": "Which tool returns the withheld values, or how to disable redaction."
+      }
+     },
+     "required": [
+      "schema_version",
+      "generated_at",
+      "freshness",
+      "provenance",
+      "floors",
+      "walls",
+      "placed_devices",
+      "topology",
+      "placement_links"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_summary": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_summary\",\"title\":\"Get InnerSpace Summary\",\"description\":\"Inventory a console's InnerSpace floor-plan project without the full payload.\\n\\nReturns counts and structure: shape breakdown by type (wall / device / map /\\nscale), per-floor plans with each plan's own scale, product and wall-material /\\nattenuation-type dictionary sizes, and project metadata. Call this before\\nget_innerspace_project when you only need to know what's present. Surfaces the\\nmulti-floor caveat: floors do not share a coordinate origin. Top-level keys: mode,\\nshape_total, shape_counts, wall_variants, plan_count, plans, plan_scales, product_count,\\nwall_type_count, attenuation_object_type_count (null when the document has no\\nattenuationObjectTypes), project, multi_floor, and multi_floor_note when there are\\nseveral plans.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"mode\":{\"default\":\"3D\",\"type\":\"string\",\"description\":\"'3D' (default; device shapes carry real metric mounting heights) or '2D'.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"properties\":{\"mode\":{\"description\":\"Project view summarized: 3D or 2D.\",\"type\":\"string\"},\"shape_total\":{\"description\":\"Number of shapes in the project.\",\"type\":\"integer\"},\"shape_counts\":{\"additionalProperties\":{\"type\":\"integer\"},\"description\":\"Shape count per shape type.\",\"type\":\"object\"},\"wall_variants\":{\"additionalProperties\":{\"type\":\"integer\"},\"description\":\"Wall shape count per wall variant.\",\"type\":\"object\"},\"plan_count\":{\"description\":\"Number of floor plans.\",\"type\":\"integer\"},\"plans\":{\"description\":\"Per floor plan: ordering, name and that plan's own scale.\",\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\"},\"plan_scales\":{\"description\":\"Scale data per plan id (upstream planScales when present), or null if none.\"},\"product_count\":{\"description\":\"Number of product definitions in the project.\",\"type\":\"integer\"},\"wall_type_count\":{\"description\":\"Number of wall types in the project.\",\"type\":\"integer\"},\"attenuation_object_type_count\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"description\":\"Number of attenuation object types, or null when the list is absent.\"},\"project\":{\"additionalProperties\":true,\"description\":\"Project metadata: unit, migrated, and id/title/timestamps if present.\",\"type\":\"object\"},\"multi_floor\":{\"description\":\"True when the project has more than one floor plan.\",\"type\":\"boolean\"},\"multi_floor_note\":{\"description\":\"Why floors do not share a coordinate origin (multi-floor only).\",\"type\":\"string\"}},\"required\":[\"mode\",\"shape_total\",\"shape_counts\",\"wall_variants\",\"plan_count\",\"plans\",\"plan_scales\",\"product_count\",\"wall_type_count\",\"attenuation_object_type_count\",\"project\",\"multi_floor\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_summary",
+    "title": "Get InnerSpace Summary",
+    "description": "Inventory a console's InnerSpace floor-plan project without the full payload.\n\nReturns counts and structure: shape breakdown by type (wall / device / map /\nscale), per-floor plans with each plan's own scale, product and wall-material /\nattenuation-type dictionary sizes, and project metadata. Call this before\nget_innerspace_project when you only need to know what's present. Surfaces the\nmulti-floor caveat: floors do not share a coordinate origin. Top-level keys: mode,\nshape_total, shape_counts, wall_variants, plan_count, plans, plan_scales, product_count,\nwall_type_count, attenuation_object_type_count (null when the document has no\nattenuationObjectTypes), project, multi_floor, and multi_floor_note when there are\nseveral plans.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "mode": {
+       "default": "3D",
+       "type": "string",
+       "description": "'3D' (default; device shapes carry real metric mounting heights) or '2D'."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "properties": {
+      "mode": {
+       "description": "Project view summarized: 3D or 2D.",
+       "type": "string"
+      },
+      "shape_total": {
+       "description": "Number of shapes in the project.",
+       "type": "integer"
+      },
+      "shape_counts": {
+       "additionalProperties": {
+        "type": "integer"
+       },
+       "description": "Shape count per shape type.",
+       "type": "object"
+      },
+      "wall_variants": {
+       "additionalProperties": {
+        "type": "integer"
+       },
+       "description": "Wall shape count per wall variant.",
+       "type": "object"
+      },
+      "plan_count": {
+       "description": "Number of floor plans.",
+       "type": "integer"
+      },
+      "plans": {
+       "description": "Per floor plan: ordering, name and that plan's own scale.",
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "plan_scales": {
+       "description": "Scale data per plan id (upstream planScales when present), or null if none."
+      },
+      "product_count": {
+       "description": "Number of product definitions in the project.",
+       "type": "integer"
+      },
+      "wall_type_count": {
+       "description": "Number of wall types in the project.",
+       "type": "integer"
+      },
+      "attenuation_object_type_count": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Number of attenuation object types, or null when the list is absent."
+      },
+      "project": {
+       "additionalProperties": true,
+       "description": "Project metadata: unit, migrated, and id/title/timestamps if present.",
+       "type": "object"
+      },
+      "multi_floor": {
+       "description": "True when the project has more than one floor plan.",
+       "type": "boolean"
+      },
+      "multi_floor_note": {
+       "description": "Why floors do not share a coordinate origin (multi-floor only).",
+       "type": "string"
+      }
+     },
+     "required": [
+      "mode",
+      "shape_total",
+      "shape_counts",
+      "wall_variants",
+      "plan_count",
+      "plans",
+      "plan_scales",
+      "product_count",
+      "wall_type_count",
+      "attenuation_object_type_count",
+      "project",
+      "multi_floor"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_project": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_project\",\"title\":\"Get InnerSpace Project\",\"description\":\"Return the full InnerSpace floor-plan project geometry for a console.\\n\\nThe complete (~66 KB) project document: shapes, plans, products, wall types,\\nand attenuation-object types. The upstream response object is returned verbatim\\n(the documented API wraps the project under data; the legacy path returns it bare),\\nincluding device meta.mac / meta.ip and floor-plan image/asset URLs. Prefer\\nget_innerspace_summary first\\nif you only need an inventory — this payload is large.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"mode\":{\"default\":\"3D\",\"type\":\"string\",\"description\":\"'3D' (default; device shapes carry real metric mounting heights) or '2D' (device\\nshapes flattened to z=0). 3D is the only mode with real heights.\"},\"user_email\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional userEmail query of the legacy /api/project route, e.g.\\n\\\"admin@example.com\\\". When it or site_id is given the legacy route is used.\"},\"site_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional siteId query of the legacy /api/project route, e.g. \\\"default\\\".\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_project",
+    "title": "Get InnerSpace Project",
+    "description": "Return the full InnerSpace floor-plan project geometry for a console.\n\nThe complete (~66 KB) project document: shapes, plans, products, wall types,\nand attenuation-object types. The upstream response object is returned verbatim\n(the documented API wraps the project under data; the legacy path returns it bare),\nincluding device meta.mac / meta.ip and floor-plan image/asset URLs. Prefer\nget_innerspace_summary first\nif you only need an inventory — this payload is large.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "mode": {
+       "default": "3D",
+       "type": "string",
+       "description": "'3D' (default; device shapes carry real metric mounting heights) or '2D' (device\nshapes flattened to z=0). 3D is the only mode with real heights."
+      },
+      "user_email": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional userEmail query of the legacy /api/project route, e.g.\n\"admin@example.com\". When it or site_id is given the legacy route is used."
+      },
+      "site_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional siteId query of the legacy /api/project route, e.g. \"default\"."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_devices": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_devices\",\"title\":\"List InnerSpace Devices\",\"description\":\"List placed device shapes from a console's InnerSpace floor-plan.\\n\\nReturns {shapes, _mode, _count}: shapes holds the project's device shapes verbatim, _mode the\\nnormalized mode argument and _count the number of shapes.\\n\\nEach mounted device's placement: mount, productId, title, position, and\\nrotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including\\ndevice meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting\\nheights; mode='2D' flattens positions to z=0.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"mode\":{\"default\":\"3D\",\"type\":\"string\",\"description\":\"'3D' (default) or '2D'.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_devices",
+    "title": "List InnerSpace Devices",
+    "description": "List placed device shapes from a console's InnerSpace floor-plan.\n\nReturns {shapes, _mode, _count}: shapes holds the project's device shapes verbatim, _mode the\nnormalized mode argument and _count the number of shapes.\n\nEach mounted device's placement: mount, productId, title, position, and\nrotation (pov = heading/yaw, base = mount tilt). Returned verbatim, including\ndevice meta.mac / meta.ip. Use mode='3D' (default) for real metric mounting\nheights; mode='2D' flattens positions to z=0.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "mode": {
+       "default": "3D",
+       "type": "string",
+       "description": "'3D' (default) or '2D'."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_floor_plans": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_floor_plans\",\"title\":\"List InnerSpace Floor Plans\",\"description\":\"List a console's InnerSpace floor plans (documented Integration API).\\n\\nReturns the upstream body verbatim (floor_plans and every other top-level key the API sends)\\nplus the additive _count of floor_plans.\\n\\nEach floor plan carries id, name, floor_number, image_url (an asset path — fetch\\nwith get_innerspace_asset), ppm (pixels per metre, the scale for interpreting\\ncoordinates/heights), width/height (image pixels), origin_x/origin_y, and site_id\\nwhen filtered. Returned verbatim.\\n\\nExample call (list_innerspace_floor_plans):\\n    {\\\"host\\\": \\\"my-console\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional filter: Network site UUID matched against each InnerSpace record's product\\nsiteId. Get it from list_local_sites (id).\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_floor_plans",
+    "title": "List InnerSpace Floor Plans",
+    "description": "List a console's InnerSpace floor plans (documented Integration API).\n\nReturns the upstream body verbatim (floor_plans and every other top-level key the API sends)\nplus the additive _count of floor_plans.\n\nEach floor plan carries id, name, floor_number, image_url (an asset path — fetch\nwith get_innerspace_asset), ppm (pixels per metre, the scale for interpreting\ncoordinates/heights), width/height (image pixels), origin_x/origin_y, and site_id\nwhen filtered. Returned verbatim.\n\nExample call (list_innerspace_floor_plans):\n    {\"host\": \"my-console\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_access_points": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_access_points\",\"title\":\"List InnerSpace Access Points\",\"description\":\"List placed access points from a console's InnerSpace floor plans (Integration API).\\n\\nReturns the upstream body verbatim (access_points and every other top-level key the API sends)\\nplus the additive _count of access_points.\\n\\nEach AP carries id, name, model (SKU), mac, serial, floor_plan_id, x/y (pixels on\\nthe floor-plan image), height (mounting height in metres), azimuth (antenna\\norientation, 0-360 degrees), mount, and status. Returned verbatim, including\\nmac/serial.\\n\\nExample call (list_innerspace_access_points):\\n    {\\\"host\\\": \\\"my-console\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional filter: Network site UUID matched against each InnerSpace record's product\\nsiteId. Get it from list_local_sites (id).\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_access_points",
+    "title": "List InnerSpace Access Points",
+    "description": "List placed access points from a console's InnerSpace floor plans (Integration API).\n\nReturns the upstream body verbatim (access_points and every other top-level key the API sends)\nplus the additive _count of access_points.\n\nEach AP carries id, name, model (SKU), mac, serial, floor_plan_id, x/y (pixels on\nthe floor-plan image), height (mounting height in metres), azimuth (antenna\norientation, 0-360 degrees), mount, and status. Returned verbatim, including\nmac/serial.\n\nExample call (list_innerspace_access_points):\n    {\"host\": \"my-console\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_switches": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_switches\",\"title\":\"List InnerSpace Switches\",\"description\":\"List placed switches from a console's InnerSpace floor plans (Integration API).\\n\\nReturns the upstream body verbatim (switches and every other top-level key the API sends) plus\\nthe additive _count of switches.\\n\\nEach switch carries id, name, model, type (switch), mac, serial, floor_plan_id,\\nx/y (pixels on the floor-plan image), and status. Returned verbatim, including\\nmac/serial.\\n\\nExample call (list_innerspace_switches):\\n    {\\\"host\\\": \\\"my-console\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional filter: Network site UUID matched against each InnerSpace record's product\\nsiteId. Get it from list_local_sites (id).\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_switches",
+    "title": "List InnerSpace Switches",
+    "description": "List placed switches from a console's InnerSpace floor plans (Integration API).\n\nReturns the upstream body verbatim (switches and every other top-level key the API sends) plus\nthe additive _count of switches.\n\nEach switch carries id, name, model, type (switch), mac, serial, floor_plan_id,\nx/y (pixels on the floor-plan image), and status. Returned verbatim, including\nmac/serial.\n\nExample call (list_innerspace_switches):\n    {\"host\": \"my-console\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_inventory": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_inventory\",\"title\":\"List InnerSpace Inventory\",\"description\":\"List UNPLACED device inventory for a console's InnerSpace project (Integration API).\\n\\nReturns the upstream body verbatim (devices and every other top-level key the API sends) plus\\nthe additive _count of devices.\\n\\nDevices known to the project but not yet positioned on a floor plan. Each carries\\nid, name, model, mac, and serial. Returned verbatim, including mac/serial. The\\nresponse array key is 'devices'.\\n\\nExample call (list_innerspace_inventory):\\n    {\\\"host\\\": \\\"my-console\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional filter: Network site UUID matched against each InnerSpace record's product\\nsiteId. Get it from list_local_sites (id).\"}},\"required\":[\"host\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_inventory",
+    "title": "List InnerSpace Inventory",
+    "description": "List UNPLACED device inventory for a console's InnerSpace project (Integration API).\n\nReturns the upstream body verbatim (devices and every other top-level key the API sends) plus\nthe additive _count of devices.\n\nDevices known to the project but not yet positioned on a floor plan. Each carries\nid, name, model, mac, and serial. Returned verbatim, including mac/serial. The\nresponse array key is 'devices'.\n\nExample call (list_innerspace_inventory):\n    {\"host\": \"my-console\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional filter: Network site UUID matched against each InnerSpace record's product\nsiteId. Get it from list_local_sites (id)."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_asset": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_asset\",\"title\":\"Get InnerSpace Asset\",\"description\":\"Download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here).\\n\\nReturns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the complete bytes base64-encoded (no size cap) with the upstream Content-Type (typically image/jpeg or image/png; null when none) and size; _plan_id/_filename echo the arguments. metadata_only=true leaves out the bytes: same keys, image_base64=null.\\n\\n`plan_id` is the id in the {planId} segment of the floor plan's image_url (between '/assets/' and the trailing '/{filename}'): the asset-group UUID, NOT the floor plan's own 'id' (passing that returns HTTP 404). Parse both plan_id and filename from image_url (from list_innerspace_floor_plans).\\n\\nExample call (get_innerspace_asset):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"plan_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n     \\\"filename\\\": \\\"plan.png\\\"}\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"plan_id\":{\"type\":\"string\",\"description\":\"Asset-group UUID parsed from a floor plan's image_url\\n(/assets/{planId}/{filename}). NOT the floor plan id. From list_innerspace_floor_plans.\"},\"filename\":{\"type\":\"string\",\"description\":\"Filename segment from the floor plan's image_url (after /assets/{planId}/), as\\nthe plain (decoded) name, e.g. \\\"2DPreview.svg\\\"; the tool percent-encodes it. If that\\nsegment carries %XX escapes, pass it percent-decoded (\\\"my%20plan.png\\\" -> \\\"my plan.png\\\"),\\nor the escapes are sent literally (%25XX).\"},\"metadata_only\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Optional. True leaves out the image bytes: every other key is returned\\nand image_base64 is null. Default false: the full image is returned.\"}},\"required\":[\"host\",\"plan_id\",\"filename\"],\"type\":\"object\"},\"outputSchema\":{\"additionalProperties\":true,\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_asset",
+    "title": "Get InnerSpace Asset",
+    "description": "Download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here).\n\nReturns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the complete bytes base64-encoded (no size cap) with the upstream Content-Type (typically image/jpeg or image/png; null when none) and size; _plan_id/_filename echo the arguments. metadata_only=true leaves out the bytes: same keys, image_base64=null.\n\n`plan_id` is the id in the {planId} segment of the floor plan's image_url (between '/assets/' and the trailing '/{filename}'): the asset-group UUID, NOT the floor plan's own 'id' (passing that returns HTTP 404). Parse both plan_id and filename from image_url (from list_innerspace_floor_plans).\n\nExample call (get_innerspace_asset):\n    {\"host\": \"my-console\", \"plan_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"filename\": \"plan.png\"}",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "plan_id": {
+       "type": "string",
+       "description": "Asset-group UUID parsed from a floor plan's image_url\n(/assets/{planId}/{filename}). NOT the floor plan id. From list_innerspace_floor_plans."
+      },
+      "filename": {
+       "type": "string",
+       "description": "Filename segment from the floor plan's image_url (after /assets/{planId}/), as\nthe plain (decoded) name, e.g. \"2DPreview.svg\"; the tool percent-encodes it. If that\nsegment carries %XX escapes, pass it percent-decoded (\"my%20plan.png\" -> \"my plan.png\"),\nor the escapes are sent literally (%25XX)."
+      },
+      "metadata_only": {
+       "default": false,
+       "type": "boolean",
+       "description": "Optional. True leaves out the image bytes: every other key is returned\nand image_base64 is null. Default false: the full image is returned."
+      }
+     },
+     "required": [
+      "host",
+      "plan_id",
+      "filename"
+     ],
+     "type": "object"
+    },
+    "outputSchema": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_innerspace_doors": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_innerspace_doors\",\"title\":\"List InnerSpace Doors\",\"description\":\"List InnerSpace access doors (GET /proxy/innerspace/api/access/doors).\\n\\nReturns the upstream body verbatim: an array of door unique_id strings. Door listing\\nneeds the UniFi Access app on the console: without it the console answers HTTP 502,\\nand the error says so.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_innerspace_doors",
+    "title": "List InnerSpace Doors",
+    "description": "List InnerSpace access doors (GET /proxy/innerspace/api/access/doors).\n\nReturns the upstream body verbatim: an array of door unique_id strings. Door listing\nneeds the UniFi Access app on the console: without it the console answers HTTP 502,\nand the error says so.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_stats": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_stats\",\"title\":\"Get InnerSpace Stats\",\"description\":\"Get InnerSpace application statistics (GET /proxy/innerspace/api/stats).\\n\\nReturns the upstream body verbatim.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_stats",
+    "title": "Get InnerSpace Stats",
+    "description": "Get InnerSpace application statistics (GET /proxy/innerspace/api/stats).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_ucore_manifest": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_ucore_manifest\",\"title\":\"Get InnerSpace Ucore Manifest\",\"description\":\"Get the InnerSpace UniFi OS app manifest (GET /proxy/innerspace/api/ucore/manifest).\\n\\nReturns the upstream body verbatim. A 403 indicates the console denied access;\\ncheck console permissions.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_ucore_manifest",
+    "title": "Get InnerSpace Ucore Manifest",
+    "description": "Get the InnerSpace UniFi OS app manifest (GET /proxy/innerspace/api/ucore/manifest).\n\nReturns the upstream body verbatim. A 403 indicates the console denied access;\ncheck console permissions.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_ucore_status": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_ucore_status\",\"title\":\"Get InnerSpace Ucore Status\",\"description\":\"Get the InnerSpace UniFi OS app status (GET /proxy/innerspace/api/ucore/status).\\n\\nReturns the upstream body verbatim.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_ucore_status",
+    "title": "Get InnerSpace Ucore Status",
+    "description": "Get the InnerSpace UniFi OS app status (GET /proxy/innerspace/api/ucore/status).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_innerspace_health": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_innerspace_health\",\"title\":\"Get InnerSpace Health\",\"description\":\"Get the InnerSpace application health (GET /proxy/innerspace/health).\\n\\nReturns the upstream body verbatim.\\n\\nRequired arguments: host (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_innerspace_health",
+    "title": "Get InnerSpace Health",
+    "description": "Get the InnerSpace application health (GET /proxy/innerspace/health).\n\nReturns the upstream body verbatim.\n\nRequired arguments: host (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "import_innerspace_captures": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"import_innerspace_captures\",\"title\":\"Import InnerSpace Captures\",\"description\":\"Import scan captures as a new InnerSpace project (POST .../api/project/import).\\n\\nConsequence: a new project is created on the console under site_id; existing\\nprojects are not changed.\\n\\nSends {title, siteId, captures}. Each capture is free-form and is sent as given;\\ncaptures carry files (topView, 3d.gltf), a title and devices [{id, sku}].\\nReturns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host, title, site_id, captures (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"title\":{\"type\":\"string\",\"description\":\"Project title, e.g. \\\"Main office\\\".\"},\"site_id\":{\"type\":\"string\",\"description\":\"UniFi site id the project belongs to, e.g. \\\"default\\\".\"},\"captures\":{\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\",\"description\":\"Non-empty list of capture objects (an empty list fails before any\\nrequest), e.g. [{\\\"title\\\": \\\"Lobby\\\", \\\"files\\\": {\\\"topView\\\":\\n\\\"top.png\\\", \\\"3d.gltf\\\": \\\"scan.gltf\\\"}, \\\"devices\\\": [{\\\"id\\\": \\\"dev-1\\\",\\n\\\"sku\\\": \\\"U7-Pro\\\"}]}].\\nShape: {title?:string,files?:{topView?:string,'3d.gltf'?:string},\\ndevices?:{id:string,sku:string}[]}[]; keys the server reads: none, each capture is\\nsent as given\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"title\",\"site_id\",\"captures\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "import_innerspace_captures",
+    "title": "Import InnerSpace Captures",
+    "description": "Import scan captures as a new InnerSpace project (POST .../api/project/import).\n\nConsequence: a new project is created on the console under site_id; existing\nprojects are not changed.\n\nSends {title, siteId, captures}. Each capture is free-form and is sent as given;\ncaptures carry files (topView, 3d.gltf), a title and devices [{id, sku}].\nReturns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, title, site_id, captures (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "title": {
+       "type": "string",
+       "description": "Project title, e.g. \"Main office\"."
+      },
+      "site_id": {
+       "type": "string",
+       "description": "UniFi site id the project belongs to, e.g. \"default\"."
+      },
+      "captures": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array",
+       "description": "Non-empty list of capture objects (an empty list fails before any\nrequest), e.g. [{\"title\": \"Lobby\", \"files\": {\"topView\":\n\"top.png\", \"3d.gltf\": \"scan.gltf\"}, \"devices\": [{\"id\": \"dev-1\",\n\"sku\": \"U7-Pro\"}]}].\nShape: {title?:string,files?:{topView?:string,'3d.gltf'?:string},\ndevices?:{id:string,sku:string}[]}[]; keys the server reads: none, each capture is\nsent as given"
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "title",
+      "site_id",
+      "captures"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "create_innerspace_plan": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"create_innerspace_plan\",\"title\":\"Create InnerSpace Plan\",\"description\":\"Create an InnerSpace floor plan (POST /proxy/innerspace/api/project/plan).\\n\\nThe plan object is free-form and sent as given; the web app sends type, url,\\ntitle and siteId. Returns the upstream body verbatim ({data: plan}). An empty\\nplan fails before any request. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\",\\ndryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nRequired arguments: host, plan (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"plan\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Plan fields, e.g. {\\\"type\\\": \\\"image\\\", \\\"url\\\": \\\"/assets/plan.png\\\",\\n\\\"title\\\": \\\"Ground floor\\\", \\\"siteId\\\": \\\"default\\\"}. Free-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"plan\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "create_innerspace_plan",
+    "title": "Create InnerSpace Plan",
+    "description": "Create an InnerSpace floor plan (POST /proxy/innerspace/api/project/plan).\n\nThe plan object is free-form and sent as given; the web app sends type, url,\ntitle and siteId. Returns the upstream body verbatim ({data: plan}). An empty\nplan fails before any request. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \"dry_run\",\ndryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, plan (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "plan": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Plan fields, e.g. {\"type\": \"image\", \"url\": \"/assets/plan.png\",\n\"title\": \"Ground floor\", \"siteId\": \"default\"}. Free-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "plan"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "delete_innerspace_plan": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"delete_innerspace_plan\",\"title\":\"Delete InnerSpace Plan\",\"description\":\"Delete an InnerSpace floor plan (DELETE .../api/project/plan/{planId}).\\n\\nConsequence: the plan and its shapes are removed; there is no undo.\\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails\\nbefore any request. The id is resolved in the collection list first; an unknown id lists the\\nvalid ids and sends no write. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\\nrefuses it\\nbefore any request. dry-run policy returns {status: \\\"dry_run\\\", deleted: false, message,\\nresponse} where response is the dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false,\\nmessage,\\npreview: {method, path, params, body}}.\\n\\nRequired arguments: host, plan_id (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"plan_id\":{\"type\":\"string\",\"description\":\"Plan id (UUID) from get_innerspace_project plans[].id, e.g.\\n\\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"plan_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "delete_innerspace_plan",
+    "title": "Delete InnerSpace Plan",
+    "description": "Delete an InnerSpace floor plan (DELETE .../api/project/plan/{planId}).\n\nConsequence: the plan and its shapes are removed; there is no undo.\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails\nbefore any request. The id is resolved in the collection list first; an unknown id lists the\nvalid ids and sends no write. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it\nbefore any request. dry-run policy returns {status: \"dry_run\", deleted: false, message,\nresponse} where response is the dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "plan_id": {
+       "type": "string",
+       "description": "Plan id (UUID) from get_innerspace_project plans[].id, e.g.\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "plan_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "reorder_innerspace_plans": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"reorder_innerspace_plans\",\"title\":\"Reorder InnerSpace Plans\",\"description\":\"Reorder InnerSpace floor plans (PATCH /proxy/innerspace/api/project/plan/order).\\n\\nSends the array of plan objects as given; each carries its\\nnew ordering. Returns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host, plans (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"plans\":{\"items\":{\"additionalProperties\":true,\"type\":\"object\"},\"type\":\"array\",\"description\":\"Non-empty list of plan objects with ordering (an empty list fails before\\nany request), e.g. [{\\\"id\\\":\\n\\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\", \\\"ordering\\\": 0}].\\nShape: {id:string,ordering:integer}[]; keys the server reads: none, the array is\\nsent as given\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"plans\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "reorder_innerspace_plans",
+    "title": "Reorder InnerSpace Plans",
+    "description": "Reorder InnerSpace floor plans (PATCH /proxy/innerspace/api/project/plan/order).\n\nSends the array of plan objects as given; each carries its\nnew ordering. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, plans (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "plans": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array",
+       "description": "Non-empty list of plan objects with ordering (an empty list fails before\nany request), e.g. [{\"id\":\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"ordering\": 0}].\nShape: {id:string,ordering:integer}[]; keys the server reads: none, the array is\nsent as given"
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "plans"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_innerspace_plan_map": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_innerspace_plan_map\",\"title\":\"Update InnerSpace Plan Map\",\"description\":\"Update a floor plan's map (PATCH .../api/project/plan/{planId}/map).\\n\\nThe fields are free-form and sent as given. An empty update or a plan_id that is\\nnot a UUID fails before any request. The id is resolved in the collection list\\nfirst; an unknown id lists the valid ids and sends no write. Returns the upstream\\nbody verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before\\nany request.\\ndry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false, message,\\npreview: {method, path, params, body}}.\\n\\nRequired arguments: host, plan_id, fields (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"plan_id\":{\"type\":\"string\",\"description\":\"Plan id (UUID) from get_innerspace_project plans[].id, e.g.\\n\\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\".\"},\"fields\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Map fields to send, e.g. {\\\"rotation\\\": 90}. Free-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"plan_id\",\"fields\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_innerspace_plan_map",
+    "title": "Update InnerSpace Plan Map",
+    "description": "Update a floor plan's map (PATCH .../api/project/plan/{planId}/map).\n\nThe fields are free-form and sent as given. An empty update or a plan_id that is\nnot a UUID fails before any request. The id is resolved in the collection list\nfirst; an unknown id lists the valid ids and sends no write. Returns the upstream\nbody verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before\nany request.\ndry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "plan_id": {
+       "type": "string",
+       "description": "Plan id (UUID) from get_innerspace_project plans[].id, e.g.\n\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+      },
+      "fields": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Map fields to send, e.g. {\"rotation\": 90}. Free-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "plan_id",
+      "fields"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_innerspace_plan": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_innerspace_plan\",\"title\":\"Update InnerSpace Plan\",\"description\":\"Update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request.\\n\\nRead-merge-write: reads the plan as get_innerspace_project does (documented integration route first, legacy .../api/project as fallback), lays fields over it (nested objects merge key by key) and PATCHes the whole plan. An unknown plan id fails listing the valid ids; an empty update or a non-UUID plan_id fails before any request. Returns the PATCH body verbatim (a non-object body under response) plus _verified (type-strict, leaf by leaf against a fresh read; null with _readAfterError when the re-read fails). A change already applied returns the plan as read plus _noOp: true, _verified: true and _note, without writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction mask is not sent and is listed under _redactedFieldsNotSent. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nRequired arguments: host, plan_id, fields (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"plan_id\":{\"type\":\"string\",\"description\":\"Plan id (UUID), e.g. \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\".\"},\"fields\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Plan fields to change, e.g. {\\\"title\\\": \\\"First floor\\\"}. Free-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"plan_id\",\"fields\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_innerspace_plan",
+    "title": "Update InnerSpace Plan",
+    "description": "Update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request.\n\nRead-merge-write: reads the plan as get_innerspace_project does (documented integration route first, legacy .../api/project as fallback), lays fields over it (nested objects merge key by key) and PATCHes the whole plan. An unknown plan id fails listing the valid ids; an empty update or a non-UUID plan_id fails before any request. Returns the PATCH body verbatim (a non-object body under response) plus _verified (type-strict, leaf by leaf against a fresh read; null with _readAfterError when the re-read fails). A change already applied returns the plan as read plus _noOp: true, _verified: true and _note, without writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction mask is not sent and is listed under _redactedFieldsNotSent. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, plan_id, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "plan_id": {
+       "type": "string",
+       "description": "Plan id (UUID), e.g. \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+      },
+      "fields": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Plan fields to change, e.g. {\"title\": \"First floor\"}. Free-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "plan_id",
+      "fields"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_innerspace_project": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_innerspace_project\",\"title\":\"Update InnerSpace Project\",\"description\":\"Update the InnerSpace project document (PATCH /proxy/innerspace/api/project).\\n\\nThe fields are free-form and sent as given. An empty update fails before any\\nrequest. Returns the upstream body verbatim; it is not read back, and an earlier\\nlive test saw this route answer HTTP 200 without persisting the change, so confirm\\nwith get_innerspace_project. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\",\\ndryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nRequired arguments: host, fields (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"fields\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Project fields to send, e.g. {\\\"title\\\": \\\"Main office\\\"}. Free-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"fields\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_innerspace_project",
+    "title": "Update InnerSpace Project",
+    "description": "Update the InnerSpace project document (PATCH /proxy/innerspace/api/project).\n\nThe fields are free-form and sent as given. An empty update fails before any\nrequest. Returns the upstream body verbatim; it is not read back, and an earlier\nlive test saw this route answer HTTP 200 without persisting the change, so confirm\nwith get_innerspace_project. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny\nrefuses it before any request. dry-run policy returns a dry-run preview {status: \"dry_run\",\ndryRun, sent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, fields (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "fields": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Project fields to send, e.g. {\"title\": \"Main office\"}. Free-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "fields"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "upload_innerspace_plan_asset": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"upload_innerspace_plan_asset\",\"title\":\"Upload InnerSpace Plan Asset\",\"description\":\"Upload a floor-plan asset (multipart POST .../api/project/plan/upload).\\n\\nConsequence: the file is stored on the console in assets_dir for InnerSpace plans to\\nuse.\\n\\nSends the decoded file as the files part and assets_dir as the assetsDir field.\\nNo size limit. Content that is not base64 fails before any request. Returns the\\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\\nit before any request. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun,\\nsent: false, message, preview: {method, path, params, body, multipart}} plus _form.\\n\\nRequired arguments: host, filename, content_base64, assets_dir (see each parameter's\\ndescription).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"filename\":{\"type\":\"string\",\"description\":\"File name sent with the part, e.g. \\\"ground-floor.png\\\".\"},\"content_base64\":{\"type\":\"string\",\"description\":\"File bytes, base64-encoded, e.g. \\\"iVBORw0KGgo=\\\".\"},\"assets_dir\":{\"type\":\"string\",\"description\":\"Target assets directory (assetsDir), e.g. \\\"plans\\\".\"},\"content_type\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional part media type, e.g. \\\"image/png\\\"; omitted lets the\\nHTTP library pick it from the file name.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"filename\",\"content_base64\",\"assets_dir\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "upload_innerspace_plan_asset",
+    "title": "Upload InnerSpace Plan Asset",
+    "description": "Upload a floor-plan asset (multipart POST .../api/project/plan/upload).\n\nConsequence: the file is stored on the console in assets_dir for InnerSpace plans to\nuse.\n\nSends the decoded file as the files part and assets_dir as the assetsDir field.\nNo size limit. Content that is not base64 fails before any request. Returns the\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\nit before any request. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun,\nsent: false, message, preview: {method, path, params, body, multipart}} plus _form.\n\nRequired arguments: host, filename, content_base64, assets_dir (see each parameter's\ndescription).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "filename": {
+       "type": "string",
+       "description": "File name sent with the part, e.g. \"ground-floor.png\"."
+      },
+      "content_base64": {
+       "type": "string",
+       "description": "File bytes, base64-encoded, e.g. \"iVBORw0KGgo=\"."
+      },
+      "assets_dir": {
+       "type": "string",
+       "description": "Target assets directory (assetsDir), e.g. \"plans\"."
+      },
+      "content_type": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional part media type, e.g. \"image/png\"; omitted lets the\nHTTP library pick it from the file name."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "filename",
+      "content_base64",
+      "assets_dir"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_innerspace_wall_type": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_innerspace_wall_type\",\"title\":\"Update InnerSpace Wall Type\",\"description\":\"Create or update an InnerSpace wall type (POST .../api/project/wall-type).\\n\\nConsequence: the wall type is stored on the console, and its attenuation applies\\nwherever plans use that wall type.\\n\\nThe wall type is free-form and sent as given. An empty body fails before any\\nrequest. Returns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host, wall_type (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"wall_type\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Wall type fields, e.g. {\\\"id\\\": \\\"drywall\\\", \\\"attenuation\\\": 3}. Free-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"wall_type\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_innerspace_wall_type",
+    "title": "Update InnerSpace Wall Type",
+    "description": "Create or update an InnerSpace wall type (POST .../api/project/wall-type).\n\nConsequence: the wall type is stored on the console, and its attenuation applies\nwherever plans use that wall type.\n\nThe wall type is free-form and sent as given. An empty body fails before any\nrequest. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, wall_type (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "wall_type": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Wall type fields, e.g. {\"id\": \"drywall\", \"attenuation\": 3}. Free-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "wall_type"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "update_innerspace_attenuation_type": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"update_innerspace_attenuation_type\",\"title\":\"Update InnerSpace Attenuation Type\",\"description\":\"Create or update an attenuation object type (POST .../attenuation-object-type).\\n\\nConsequence: the type is stored on the console, and its attenuation applies wherever\\nplans use that object type.\\n\\nRoute: /proxy/innerspace/api/project/attenuation-object-type. The type is\\nfree-form and sent as given. An empty body fails before any request. Returns the\\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\\nit before any request. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun,\\nsent: false, message, preview: {method, path, params, body}}.\\n\\nRequired arguments: host, attenuation_type (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"attenuation_type\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Type fields, e.g. {\\\"id\\\": \\\"cabinet\\\", \\\"attenuation\\\": 6}.\\nFree-form object.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"attenuation_type\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "update_innerspace_attenuation_type",
+    "title": "Update InnerSpace Attenuation Type",
+    "description": "Create or update an attenuation object type (POST .../attenuation-object-type).\n\nConsequence: the type is stored on the console, and its attenuation applies wherever\nplans use that object type.\n\nRoute: /proxy/innerspace/api/project/attenuation-object-type. The type is\nfree-form and sent as given. An empty body fails before any request. Returns the\nupstream body verbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses\nit before any request. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun,\nsent: false, message, preview: {method, path, params, body}}.\n\nRequired arguments: host, attenuation_type (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "attenuation_type": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Type fields, e.g. {\"id\": \"cabinet\", \"attenuation\": 6}.\nFree-form object."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "attenuation_type"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "import_innerspace_dc_shapes": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"import_innerspace_dc_shapes\",\"title\":\"Import InnerSpace Dc Shapes\",\"description\":\"Import design-center shapes into InnerSpace (POST .../api/import/dc-shapes).\\n\\nConsequence: the imported shapes become plans under site_id (data.planIds); failed\\nmaps are listed in mapFailures and can be retried with retry_innerspace_plan_maps.\\n\\nSends siteId as a query parameter and the optional free-form body after removing\\nadditive underscore-prefixed keys and masked credential fields.\\nReturns the upstream body verbatim ({data: {planIds, mapFailures}}). Write: sent\\nonce, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy\\nreturns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview:\\n{method, path, params, body}}.\\n\\nRequired arguments: host, site_id (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"site_id\":{\"type\":\"string\",\"description\":\"UniFi site id (siteId query), e.g. \\\"default\\\".\"},\"body\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional free-form request body, e.g. {\\\"shapes\\\": []}; additive keys and\\nmasked credential fields are removed before sending.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"site_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "import_innerspace_dc_shapes",
+    "title": "Import InnerSpace Dc Shapes",
+    "description": "Import design-center shapes into InnerSpace (POST .../api/import/dc-shapes).\n\nConsequence: the imported shapes become plans under site_id (data.planIds); failed\nmaps are listed in mapFailures and can be retried with retry_innerspace_plan_maps.\n\nSends siteId as a query parameter and the optional free-form body after removing\nadditive underscore-prefixed keys and masked credential fields.\nReturns the upstream body verbatim ({data: {planIds, mapFailures}}). Write: sent\nonce, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy\nreturns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview:\n{method, path, params, body}}.\n\nRequired arguments: host, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "site_id": {
+       "type": "string",
+       "description": "UniFi site id (siteId query), e.g. \"default\"."
+      },
+      "body": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional free-form request body, e.g. {\"shapes\": []}; additive keys and\nmasked credential fields are removed before sending."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "site_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "retry_innerspace_plan_maps": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"retry_innerspace_plan_maps\",\"title\":\"Retry InnerSpace Plan Maps\",\"description\":\"Retry failed InnerSpace plan map imports (POST .../api/import/retry-maps).\\n\\nConsequence: the console re-runs the failed map imports of site_id, which may add\\nthe plans they produce.\\n\\nSends siteId as a query parameter and no body. Returns the upstream body\\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\\nrequest. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false,\\nmessage,\\npreview: {method, path, params, body}}.\\n\\nRequired arguments: host, site_id (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"site_id\":{\"type\":\"string\",\"description\":\"UniFi site id (siteId query), e.g. \\\"default\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"site_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "retry_innerspace_plan_maps",
+    "title": "Retry InnerSpace Plan Maps",
+    "description": "Retry failed InnerSpace plan map imports (POST .../api/import/retry-maps).\n\nConsequence: the console re-runs the failed map imports of site_id, which may add\nthe plans they produce.\n\nSends siteId as a query parameter and no body. Returns the upstream body\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\nrequest. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "site_id": {
+       "type": "string",
+       "description": "UniFi site id (siteId query), e.g. \"default\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "site_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "import_innerspace_shared_project": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"import_innerspace_shared_project\",\"title\":\"Import InnerSpace Shared Project\",\"description\":\"Import a shared InnerSpace project (POST .../api/import/projects/{token}).\\n\\nConsequence: a copy of the shared project is added to the console under site_id;\\nexisting projects are not changed.\\n\\nThe share token is a UUID path segment (checked before any request, never echoed\\nin that refusal) and siteId a query parameter. Returns the upstream body verbatim.\\nWrite: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request.\\ndry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false, message,\\npreview: {method, path, params, body}}.\\n\\nRequired arguments: host, token, site_id (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"token\":{\"type\":\"string\",\"description\":\"Share token (UUID), e.g. \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\".\"},\"site_id\":{\"type\":\"string\",\"description\":\"UniFi site id (siteId query), e.g. \\\"default\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"token\",\"site_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "import_innerspace_shared_project",
+    "title": "Import InnerSpace Shared Project",
+    "description": "Import a shared InnerSpace project (POST .../api/import/projects/{token}).\n\nConsequence: a copy of the shared project is added to the console under site_id;\nexisting projects are not changed.\n\nThe share token is a UUID path segment (checked before any request, never echoed\nin that refusal) and siteId a query parameter. Returns the upstream body verbatim.\nWrite: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any request.\ndry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false, message,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, token, site_id (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "token": {
+       "type": "string",
+       "description": "Share token (UUID), e.g. \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"."
+      },
+      "site_id": {
+       "type": "string",
+       "description": "UniFi site id (siteId query), e.g. \"default\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "token",
+      "site_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "transform_innerspace_shapes": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"transform_innerspace_shapes\",\"title\":\"Transform InnerSpace Shapes\",\"description\":\"Move, rotate or otherwise change InnerSpace shapes (POST .../api/shape/change).\\n\\nConsequence: the shapes change in the stored project at once; there is no undo\\nthrough this tool.\\n\\nThe transform data is free-form and sent as the body, with mode added when\\ngiven; socket_id is sent as the socketId query. An empty transform fails before\\nany request. Returns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host, transform (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"transform\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Transform data, e.g. {\\\"ids\\\": [\\\"shape-1\\\"], \\\"translate\\\": {\\\"x\\\": 1,\\n\\\"y\\\": 0}}. Free-form object.\"},\"mode\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional mode added to the body (a 'mode' key also in transform fails before\\nany request), e.g. \\\"3D\\\".\"},\"socket_id\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional socketId query of the editor session, e.g. \\\"abc123\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"transform\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "transform_innerspace_shapes",
+    "title": "Transform InnerSpace Shapes",
+    "description": "Move, rotate or otherwise change InnerSpace shapes (POST .../api/shape/change).\n\nConsequence: the shapes change in the stored project at once; there is no undo\nthrough this tool.\n\nThe transform data is free-form and sent as the body, with mode added when\ngiven; socket_id is sent as the socketId query. An empty transform fails before\nany request. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, transform (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "transform": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Transform data, e.g. {\"ids\": [\"shape-1\"], \"translate\": {\"x\": 1,\n\"y\": 0}}. Free-form object."
+      },
+      "mode": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional mode added to the body (a 'mode' key also in transform fails before\nany request), e.g. \"3D\"."
+      },
+      "socket_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional socketId query of the editor session, e.g. \"abc123\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "transform"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "export_innerspace_backup": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"export_innerspace_backup\",\"title\":\"Export InnerSpace Backup\",\"description\":\"Export an InnerSpace backup on the console (POST .../api/ucore/backup/export).\\n\\nConsequence: the export is written as a file to directory on the console, using\\nits storage; InnerSpace data is unchanged.\\n\\nSends {dir}. The route may need a console session rather than an API key; an\\nupstream 401/403 is raised with its full reason. Returns the upstream body\\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\\nrequest. dry-run policy returns a dry-run preview {status: \\\"dry_run\\\", dryRun, sent: false,\\nmessage,\\npreview: {method, path, params, body}}.\\n\\nRequired arguments: host, directory (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"directory\":{\"type\":\"string\",\"description\":\"Backup directory on the console (dir), e.g. \\\"/data/backup\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"directory\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "export_innerspace_backup",
+    "title": "Export InnerSpace Backup",
+    "description": "Export an InnerSpace backup on the console (POST .../api/ucore/backup/export).\n\nConsequence: the export is written as a file to directory on the console, using\nits storage; InnerSpace data is unchanged.\n\nSends {dir}. The route may need a console session rather than an API key; an\nupstream 401/403 is raised with its full reason. Returns the upstream body\nverbatim. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny refuses it before any\nrequest. dry-run policy returns a dry-run preview {status: \"dry_run\", dryRun, sent: false,\nmessage,\npreview: {method, path, params, body}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "directory": {
+       "type": "string",
+       "description": "Backup directory on the console (dir), e.g. \"/data/backup\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "directory"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "import_innerspace_backup": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"import_innerspace_backup\",\"title\":\"Import InnerSpace Backup\",\"description\":\"Restore an InnerSpace backup on the console (POST .../api/ucore/backup/import).\\n\\nConsequence: the InnerSpace data is replaced by the backup. Sends {dir}. The route\\nmay need a console session rather than an API key; an upstream 401/403 is raised\\nwith its full reason. Returns the upstream body verbatim. Write: sent once, never\\nretried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a\\ndry-run preview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path,\\nparams, body}}.\\n\\nRequired arguments: host, directory (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"directory\":{\"type\":\"string\",\"description\":\"Backup directory on the console (dir), e.g. \\\"/data/backup\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"directory\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "import_innerspace_backup",
+    "title": "Import InnerSpace Backup",
+    "description": "Restore an InnerSpace backup on the console (POST .../api/ucore/backup/import).\n\nConsequence: the InnerSpace data is replaced by the backup. Sends {dir}. The route\nmay need a console session rather than an API key; an upstream 401/403 is raised\nwith its full reason. Returns the upstream body verbatim. Write: sent once, never\nretried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a\ndry-run preview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path,\nparams, body}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "directory": {
+       "type": "string",
+       "description": "Backup directory on the console (dir), e.g. \"/data/backup\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "directory"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "create_innerspace_support_dump": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"create_innerspace_support_dump\",\"title\":\"Create InnerSpace Support Dump\",\"description\":\"Write an InnerSpace support dump on the console (POST .../api/ucore/support-dump).\\n\\nSends {dir}. Returns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host, directory (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"directory\":{\"type\":\"string\",\"description\":\"Output directory on the console (dir), e.g. \\\"/data/support\\\".\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\",\"directory\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "create_innerspace_support_dump",
+    "title": "Create InnerSpace Support Dump",
+    "description": "Write an InnerSpace support dump on the console (POST .../api/ucore/support-dump).\n\nSends {dir}. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host, directory (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "directory": {
+       "type": "string",
+       "description": "Output directory on the console (dir), e.g. \"/data/support\"."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host",
+      "directory"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "clean_innerspace_storage": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"clean_innerspace_storage\",\"title\":\"Clean InnerSpace Storage\",\"description\":\"Clean InnerSpace storage on the console (POST .../api/ucore/storage/clean).\\n\\nConsequence: the application removes stored files it no longer references. Sends\\nno body. Returns the upstream body verbatim. Write: sent once, never retried.\\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\\npreview {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params,\\nbody}}.\\n\\nRequired arguments: host (see each parameter's description).\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \\\"my-console\\\") or data[].id.\"},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for compatibility. The call executes when made.\"}},\"required\":[\"host\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"innerspace/private/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "clean_innerspace_storage",
+    "title": "Clean InnerSpace Storage",
+    "description": "Clean InnerSpace storage on the console (POST .../api/ucore/storage/clean).\n\nConsequence: the application removes stored files it no longer references. Sends\nno body. Returns the upstream body verbatim. Write: sent once, never retried.\nUNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a dry-run\npreview {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params,\nbody}}.\n\nRequired arguments: host (see each parameter's description).\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. \"my-console\") or data[].id."
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for compatibility. The call executes when made."
+      }
+     },
+     "required": [
+      "host"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "innerspace/private/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  }
+ },
+ "calls": {
+  "read": {
+   "tool": "get_innerspace_summary",
+   "arguments": {
+    "host": "hostname-0001"
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"mode\":\"3D\",\"shape_total\":5,\"shape_counts\":{\"map\":1,\"scale\":1,\"device\":1,\"wall\":1,\"calibration\":1},\"wall_variants\":{\"wood\":1},\"plan_count\":4,\"plans\":[{\"ordering\":2,\"name\":\"title-0004\",\"scale\":3.8100464},{\"ordering\":3,\"name\":\"title-0005\",\"scale\":null},{\"ordering\":0,\"name\":\"title-0006\",\"scale\":null},{\"ordering\":1,\"name\":\"title-0007\",\"scale\":null}],\"plan_scales\":{\"00000000-0000-4000-8000-000000fa01d6\":{\"scale\":3.8100464,\"computedScale\":null,\"height\":3.048037,\"defaultScale\":false,\"defaultHeight\":false}},\"product_count\":5,\"wall_type_count\":2,\"attenuation_object_type_count\":0,\"project\":{\"unit\":null,\"migrated\":null,\"id\":\"00000000-0000-4000-a000-000000fa01d5\",\"title\":\"title-0013\",\"createdAt\":\"2025-07-16T17:42:17.351Z\",\"updatedAt\":\"2026-10-05T08:55:32.783Z\"},\"multi_floor\":true,\"multi_floor_note\":\"Multiple floor plans present. Each plan has its own scale and places its map at (0,0), so floors do NOT share a coordinate origin — align them by plan ordering, not by raw coordinates.\"}"
+     }
+    ],
+    "structuredContent": {
+     "mode": "3D",
+     "shape_total": 5,
+     "shape_counts": {
+      "map": 1,
+      "scale": 1,
+      "device": 1,
+      "wall": 1,
+      "calibration": 1
+     },
+     "wall_variants": {
+      "wood": 1
+     },
+     "plan_count": 4,
+     "plans": [
+      {
+       "ordering": 2,
+       "name": "title-0004",
+       "scale": 3.8100464
+      },
+      {
+       "ordering": 3,
+       "name": "title-0005",
+       "scale": null
+      },
+      {
+       "ordering": 0,
+       "name": "title-0006",
+       "scale": null
+      },
+      {
+       "ordering": 1,
+       "name": "title-0007",
+       "scale": null
+      }
+     ],
+     "plan_scales": {
+      "00000000-0000-4000-8000-000000fa01d6": {
+       "scale": 3.8100464,
+       "computedScale": null,
+       "height": 3.048037,
+       "defaultScale": false,
+       "defaultHeight": false
+      }
+     },
+     "product_count": 5,
+     "wall_type_count": 2,
+     "attenuation_object_type_count": 0,
+     "project": {
+      "unit": null,
+      "migrated": null,
+      "id": "00000000-0000-4000-a000-000000fa01d5",
+      "title": "title-0013",
+      "createdAt": "2025-07-16T17:42:17.351Z",
+      "updatedAt": "2026-10-05T08:55:32.783Z"
+     },
+     "multi_floor": true,
+     "multi_floor_note": "Multiple floor plans present. Each plan has its own scale and places its map at (0,0), so floors do NOT share a coordinate origin — align them by plan ordering, not by raw coordinates."
+    }
+   }
+  },
+  "write_dry_run": {
+   "tool": "create_innerspace_plan",
+   "arguments": {
+    "host": "hostname-0001",
+    "plan": {
+     "name": "probe-renamed"
+    },
+    "confirm": true
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "dry-run"
+   },
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"status\":\"dry_run\",\"dryRun\":true,\"sent\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"preview\":{\"method\":\"POST\",\"path\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/api/project/plan\",\"params\":null,\"body\":{\"name\":\"probe-renamed\"},\"keyLabel\":\"default\"}}"
+     }
+    ],
+    "structuredContent": {
+     "status": "dry_run",
+     "dryRun": true,
+     "sent": false,
+     "message": "DRY RUN - no upstream write was performed",
+     "preview": {
+      "method": "POST",
+      "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/api/project/plan",
+      "params": null,
+      "body": {
+       "name": "probe-renamed"
+      },
+      "keyLabel": "default"
+     }
+    }
+   }
+  },
+  "write_confirm": {
+   "tool": "create_innerspace_plan",
+   "arguments": {
+    "host": "hostname-0001",
+    "plan": {
+     "name": "probe-renamed"
+    },
+    "confirm": true
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/api/project/plan#0\"}"
+     }
+    ],
+    "structuredContent": {
+     "id": "00000000-0000-4000-8000-0000000000aa",
+     "_id": "0000000000000000000000aa",
+     "mac": "02:00:5e:00:00:aa",
+     "macAddress": "02:00:5e:00:00:aa",
+     "key": "probe-object",
+     "name": "probe-object",
+     "subsystem": "wan",
+     "hostId": "00000000-0000-4000-8000-0000000000aa",
+     "nested": {
+      "list": [
+       1,
+       "two",
+       {
+        "three": null
+       }
+      ],
+      "flag": false,
+      "ratio": 1.25
+     },
+     "probe": "POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/innerspace/api/project/plan#0"
+    }
+   }
+  },
+  "write_denied": {
+   "tool": "create_innerspace_plan",
+   "arguments": {
+    "host": "hostname-0001",
+    "plan": {
+     "name": "probe-renamed"
+    },
+    "confirm": true
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "deny"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"write_denied\", \"message\": \"create_innerspace_plan refused: the server is in read-only mode because UNIFI_WRITE_POLICY=deny is set. Every write and action tool across all areas (Network create/update/delete, device/client actions, Protect, the connector relay, Carrier Fabric, Mobility, port-profiles, vouchers, etc.) is refused; read tools are unaffected. To allow writes, unset UNIFI_WRITE_POLICY (the default is allow) or set it to allow or dry-run where you set it: the server's `env` block in your MCP client's configuration (or set the plugin's Write policy option to allow), or the service's `environment:` block of the docker-compose file that deploys this server. Then restart the server (recreate the container for Docker). See Read-only mode in docs/CONFIGURATION.md#read-only-mode.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "validation_error": {
+   "tool": "get_innerspace_summary",
+   "arguments": {
+    "baseline_unknown_argument": 1
+   },
+   "env": {},
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "Invalid arguments for tool 'get_innerspace_summary':\n- host: missing required argument. Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\n- baseline_unknown_argument: not a parameter of this tool.\nValid parameters: host (required), mode.\nCall shape (required arguments): {\"host\": \"STRING\"}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "tool_not_exposed": {
+   "tool": "get_innerspace_summary",
+   "arguments": {
+    "host": "hostname-0001"
+   },
+   "env": {
+    "UNIFI_EXCLUDE": "family:innerspace"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"tool_not_exposed\", \"message\": \"'get_innerspace_summary' is not exposed: the operator's UNIFI_FAMILY_ALLOW or UNIFI_EXCLUDE removes it. No request was sent. Use search_tools to list the exposed tools.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  }
+ }
+}

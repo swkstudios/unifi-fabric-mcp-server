@@ -809,8 +809,9 @@ def _no_upstream(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return sent
 
 
-# Families whose registered catalog has no write tool: nothing for family:<id>=deny to refuse.
-FAMILIES_WITHOUT_WRITE_TOOL = frozenset({"site_manager"})
+# Families whose registered catalog has no write tool: nothing for family:<id>=deny to refuse
+# (statistics lost its only write tools when the system-log readers became reads).
+FAMILIES_WITHOUT_WRITE_TOOL = frozenset({"site_manager", "statistics"})
 
 
 @functools.cache

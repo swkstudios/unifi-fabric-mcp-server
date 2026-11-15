@@ -22,9 +22,17 @@ def registered_wrapper(name: str) -> Callable[..., Awaitable[Any]]:
     Raises ``LookupError`` when no tool of that name is registered: a discovery meta tool
     outside discovery mode, or a tool that family selection, read-only mode, an area
     opt-out or the API-source filter de-registered. Until registration goes through
-    ``register_tool``, adapters resolve against the live roster.
+    ``register_tool``, adapters resolve against the live roster. A tool whose step is
+    deferred (public #41) is loaded first, through the one load path, so its wrapper is
+    the real one with every install pass applied; a failed load raises
+    ``family_load_failed``.
     """
+    from .catalog import deferred
     from .server import mcp
+
+    controller = deferred.controller_for(mcp)
+    if controller is not None:
+        controller.resolve_sync(name)
 
     try:
         components = mcp._local_provider._components  # noqa: SLF001 - registered catalog

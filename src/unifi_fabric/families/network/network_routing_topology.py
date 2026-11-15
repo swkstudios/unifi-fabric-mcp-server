@@ -21,16 +21,16 @@ site's short name (``default``), resolved from the caller's site name or UUID.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, Literal
-
-from fastmcp import FastMCP
 
 from ...client import (
     UniFiClient,
     UniFiConnectionError,
     describe_shape,
     is_dry_run_preview,
+    keep_stored_secrets,
+    unmasked_read,
     upstream_error_value,
     validate_id,
 )
@@ -51,18 +51,17 @@ from ...shared_shapes._results import (
     requested_leaves_verdict,
     safe_read_after,
 )
-from ...tool_annotations import READ_ONLY, WRITE
 from ...write_body import IDENTITY_FIELDS, require_unmasked_fields, require_update_fields
-
-_BGP = "/bgp/config"
-_BGP_ALL = "/bgp/config/all"
-_OSPF = "/ospf/router"
-_GLOBAL = "/global/config/network"
-_MCLAG = "/mclag-groups"
-_STACK = "/stacking"
-_VNET = "/visual-programming/virtual-network"
-_STATUS_VIEWS = ("config", "neighbors")
-
+from .schemas import (  # the family's shapes (family-owned layout)
+    _BGP,
+    _BGP_ALL,
+    _GLOBAL,
+    _MCLAG,
+    _OSPF,
+    _STACK,
+    _STATUS_VIEWS,
+    _VNET,
+)
 
 # --- shared helpers ---
 
@@ -229,18 +228,24 @@ async def _verified_collection_update(
     changes: dict[str, Any],
     label: str,
     method: Literal["POST", "PUT"] = "PUT",
+    requested: dict[str, Any] | None = None,
 ) -> Any:
-    """Read-merge-write one collection record, then verify every requested leaf."""
+    """Read-merge-write one collection record, then verify every requested leaf.
+
+    ``requested`` is the caller's value as given: a leaf passed back as the redaction mask
+    keeps the stored value (:func:`client.keep_stored_secrets`).
+    """
     key, host_id, slug = await _site(registry, host, site)
     list_path = v2_site(host_id, slug, list_suffix)
-    current, resolved = await _listed_record(client, list_path, key, identifier, label)
+    with unmasked_read():  # the stored password is written back as stored
+        current, resolved = await _listed_record(client, list_path, key, identifier, label)
     suffix = (
         await _bgp_write_suffix(client, host_id, slug, key, resolved)
         if write_suffix == _BGP
         else f"{write_suffix}/{resolved}"
     )
     path = v2_site(host_id, slug, suffix)
-    body = _merge(current, changes)
+    body = keep_stored_secrets(client, _merge(current, changes), current, requested or {})
     if method == "POST":
         response = await client.post(path, key=key, json=body)
     else:
@@ -375,6 +380,7 @@ async def update_bgp_config(
         changes=changes,
         label="BGP config",
         method="POST",
+        requested=config,
     )
 
 
@@ -436,6 +442,7 @@ async def update_ospf_router(
         identifier=router_id,
         changes=changes,
         label="OSPF router",
+        requested=router,
     )
 
 
@@ -678,584 +685,3 @@ async def update_switch_stack(
 
 
 # --- registration ---
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the 21 routing, global-network and switching-topology tools."""
-
-    @mcp.tool(name="get_bgp_status", annotations=READ_ONLY)
-    async def get_bgp_status_tool(
-        host: str, site: str, view: Literal["config", "neighbors"] = "config"
-    ) -> Any:
-        """Get a site's BGP configurations or BGP neighbour state (Network v2 route).
-
-        With view "config": GET /proxy/network/v2/api/site/{site}/bgp/config/all; with
-        view "neighbors": GET .../bgp/neighbors. Returns the upstream body (JSON object or array)
-        verbatim (configurations can carry neighbour passwords; they are not masked unless the
-        operator sets UNIFI_REDACT_SECRETS).
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            view: "config" (default) or "neighbors", e.g. "neighbors".
-        """
-        client, registry = deps_fn()
-        return await get_bgp_status(client, registry, host, site, view)
-
-    @mcp.tool(name="create_bgp_config", annotations=WRITE)
-    async def create_bgp_config_tool(host: str, site: str, config: dict[str, Any]) -> Any:
-        """Create a BGP configuration (Network v2 route). Consequence: changes routing.
-
-        POST /proxy/network/v2/api/site/{site}/bgp/config with config sent verbatim. Returns
-        the upstream body verbatim. The body shape is not published: send the
-        object get_bgp_status (view "config") returns for an existing configuration.
-        Never auto-retried; on a timeout, read get_bgp_status before retrying.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, config.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            config: Free-form BGP configuration object, sent verbatim, e.g.
-                {"name": "edge-bgp", "enabled": false}.
-        """
-        client, registry = deps_fn()
-        return await create_bgp_config(client, registry, host, site, config)
-
-    @mcp.tool(name="update_bgp_config", annotations=WRITE)
-    async def update_bgp_config_tool(
-        host: str, site: str, config_id: str, config: dict[str, Any]
-    ) -> Any:
-        """Update a BGP configuration (Network v2 route). Consequence: changes routing.
-
-        Reads the configuration from GET .../bgp/config/all, merges only the given leaves into it
-        and POSTs the whole merged record to /proxy/network/v2/api/site/{site}/bgp/config for the
-        gateway singleton, or /bgp/config/{id} for another listed configuration, then reads it back.
-        Returns the upstream object verbatim plus _verified (true only when every requested leaf
-        reads back equal, type-strict) and _readAfterError when the read-back failed; a non-object
-        body (array or scalar) is returned whole under response with those keys beside it. The id,
-        _id and site_id in the object are ignored; an object with nothing else to change fails
-        before any request.
-        An unknown id fails listing every valid id. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, config_id, config.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            config_id: Configuration _id or id from get_bgp_status, e.g.
-                "000000000000000000000107".
-            config: Free-form object of leaves to change, e.g. {"enabled": true}.
-        """
-        client, registry = deps_fn()
-        return await update_bgp_config(client, registry, host, site, config_id, config)
-
-    @mcp.tool(name="delete_bgp_config", annotations=WRITE)
-    async def delete_bgp_config_tool(host: str, site: str, config_id: str) -> Any:
-        """Delete a BGP configuration (Network v2 route). Consequence: BGP sessions drop.
-
-        Resolves the id in GET .../bgp/config/all first (an unknown id fails listing every valid
-        id), then DELETE /proxy/network/v2/api/site/{site}/bgp/config for the gateway singleton,
-        or /bgp/config/{id} for another listed configuration, and verify it is absent.
-        Returns {deleted, message, response}: deleted is true only when absence is confirmed, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). Irreversible: the configuration is removed.
-
-        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-        deleted: false, message, response}, where response is the dry-run preview (status,
-        dryRun, sent: false, message and preview with method, path, params, body).
-
-        Required arguments: host, site, config_id.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            config_id: Configuration _id or id from get_bgp_status, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await delete_bgp_config(client, registry, host, site, config_id)
-
-    @mcp.tool(name="get_ospf_status", annotations=READ_ONLY)
-    async def get_ospf_status_tool(
-        host: str, site: str, view: Literal["config", "neighbors"] = "config"
-    ) -> Any:
-        """Get a site's OSPF routers or OSPF neighbour state (Network v2 route).
-
-        With view "config": GET /proxy/network/v2/api/site/{site}/ospf/router; with
-        view "neighbors": GET .../ospf/neighbors. Returns the upstream body (JSON object or array)
-        verbatim.
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            view: "config" (default) or "neighbors", e.g. "neighbors".
-        """
-        client, registry = deps_fn()
-        return await get_ospf_status(client, registry, host, site, view)
-
-    @mcp.tool(name="create_ospf_router", annotations=WRITE)
-    async def create_ospf_router_tool(host: str, site: str, router: dict[str, Any]) -> Any:
-        """Create an OSPF router (Network v2 route). Consequence: changes routing.
-
-        POST /proxy/network/v2/api/site/{site}/ospf/router with router sent verbatim. Returns
-        the upstream body verbatim. The body shape is not published: send the
-        object get_ospf_status (view "config") returns for an existing router. Never
-        auto-retried; on a timeout, read get_ospf_status before retrying.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, router.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            router: Free-form OSPF router object, sent verbatim, e.g.
-                {"name": "core-ospf", "enabled": false}.
-        """
-        client, registry = deps_fn()
-        return await create_ospf_router(client, registry, host, site, router)
-
-    @mcp.tool(name="update_ospf_router", annotations=WRITE)
-    async def update_ospf_router_tool(
-        host: str, site: str, router_id: str, router: dict[str, Any]
-    ) -> Any:
-        """Update an OSPF router (Network v2 route). Consequence: changes routing.
-
-        Reads the router from GET .../ospf/router, merges only the given leaves into it, PUT
-        /proxy/network/v2/api/site/{site}/ospf/router/{id} with the whole merged record and reads it
-        back. Returns the upstream object verbatim plus _verified (true only when every requested
-        leaf reads back equal, type-strict) and _readAfterError when the read-back failed; a
-        non-object body (array or scalar) is returned whole under response with those keys beside
-        it. id, _id and site_id in the object are ignored; an object with nothing else to change
-        fails before any request. An unknown id fails listing every valid id. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, router_id, router.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            router_id: Router _id or id from get_ospf_status, e.g.
-                "000000000000000000000107".
-            router: Free-form object of leaves to change, e.g. {"enabled": true}.
-        """
-        client, registry = deps_fn()
-        return await update_ospf_router(client, registry, host, site, router_id, router)
-
-    @mcp.tool(name="delete_ospf_router", annotations=WRITE)
-    async def delete_ospf_router_tool(host: str, site: str, router_id: str) -> Any:
-        """Delete an OSPF router (Network v2 route). Consequence: OSPF adjacencies drop.
-
-        Resolves the id in GET .../ospf/router first (an unknown id fails listing every valid id),
-        then DELETE /proxy/network/v2/api/site/{site}/ospf/router/{id}.
-        Returns {deleted, message, response}: deleted is true only when absence is confirmed;
-        message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). Irreversible: the router is removed.
-
-        Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-        deleted: false, message, response}, where response is the dry-run preview (status,
-        dryRun, sent: false, message and preview with method, path, params, body).
-
-        Required arguments: host, site, router_id.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            router_id: Router _id or id from get_ospf_status, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await delete_ospf_router(client, registry, host, site, router_id)
-
-    @mcp.tool(name="get_global_network_config", annotations=READ_ONLY)
-    async def get_global_network_config_tool(host: str, site: str) -> Any:
-        """Get a site's global network configuration (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/global/config/network. Returns the upstream body
-        (JSON object or array) verbatim.
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await get_global_network_config(client, registry, host, site)
-
-    @mcp.tool(name="update_global_network_config", annotations=WRITE)
-    async def update_global_network_config_tool(
-        host: str, site: str, config: dict[str, Any]
-    ) -> Any:
-        """Update a site's global network configuration (Network v2 route).
-
-        Consequence: applies to every network of the site. Reads GET .../global/config/network,
-        merges only the given leaves into it, PUT
-        /proxy/network/v2/api/site/{site}/global/config/network with the whole merged object and
-        reads it back. Returns the upstream object verbatim plus _verified (true only when every
-        requested leaf reads back equal, type-strict) and _readAfterError when the read-back failed;
-        a non-object body (array or scalar) is returned whole under response with those keys beside
-        it. An object with nothing to change fails before any request. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, config.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            config: Free-form object of leaves to change, shaped like get_global_network_config,
-                e.g. {"ipv6_enabled": true}.
-        """
-        client, registry = deps_fn()
-        return await update_global_network_config(client, registry, host, site, config)
-
-    @mcp.tool(name="get_mdns_settings", annotations=READ_ONLY)
-    async def get_mdns_settings_tool(host: str, site: str) -> Any:
-        """Get a site's LAN mDNS (multicast DNS) settings (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/lan/mdns. Returns the upstream body
-        (JSON object or array) verbatim.
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await get_mdns_settings(client, registry, host, site)
-
-    @mcp.tool(name="migrate_network_to_layer3", annotations=WRITE)
-    async def migrate_network_to_layer3_tool(
-        host: str, site: str, network_id: str, request: dict[str, Any]
-    ) -> Any:
-        """Migrate a network's routing to a Layer 3 switch (Network v2 route).
-
-        Consequence: moves the network's gateway; clients can lose connectivity while it
-        moves. Resolves network_id in the Classic networkconf list (an unknown id fails
-        listing every valid id), then POST
-        /proxy/network/v2/api/site/{site}/lan/migrate-to-layer3/{_id} with request sent
-        verbatim. Returns the upstream body (JSON object or array) verbatim. The Network 11.0.81 web
-        UI sends the keys cmd, gateway_device and name; their values are not published, so
-        nothing is filled in. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, network_id, request.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            network_id: Network Integration id or Classic _id from list_networks, e.g.
-                "000000000000000000000107".
-            request: Free-form migration body, sent verbatim, e.g.
-                {"gateway_device": "02:00:5e:00:00:a1", "name": "Office L3"}.
-        """
-        client, registry = deps_fn()
-        return await migrate_network_to_layer3(client, registry, host, site, network_id, request)
-
-    @mcp.tool(name="suggest_network_settings", annotations=READ_ONLY)
-    async def suggest_network_settings_tool(host: str, site: str) -> Any:
-        """Get the controller's suggested settings for a new network (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/network/suggest (the free VLAN id and
-        subnet the web UI pre-fills). Returns the upstream body (JSON object or array) verbatim.
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await suggest_network_settings(client, registry, host, site)
-
-    @mcp.tool(name="generate_vlan_plan", annotations=WRITE)
-    async def generate_vlan_plan_tool(
-        host: str, site: str, request: dict[str, Any] | None = None
-    ) -> Any:
-        """Ask the controller to generate a VLAN plan (Network v2 route).
-
-        Consequence: whether the controller only computes the plan or also stores or
-        applies it is not published; treat it as a change to the site's networks.
-
-        POST /proxy/network/v2/api/site/{site}/network/generate-vlans. Returns the upstream body
-        (JSON object or array) verbatim. The Network 11.0.81 web UI sends no body keys the inventory
-        records, so request is free-form and optional: omit it to send no body. This
-        POST is not on the read-POST allowlist, so it is classified as a write
-        (UNIFI_WRITE_POLICY=deny refuses it).
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            request: Optional free-form body sent verbatim, e.g. {"purpose": "corporate"}.
-        """
-        client, registry = deps_fn()
-        return await generate_vlan_plan(client, registry, host, site, request)
-
-    @mcp.tool(name="import_dhcp_reservations", annotations=WRITE)
-    async def import_dhcp_reservations_tool(
-        host: str, site: str, reservations: dict[str, Any] | list[dict[str, Any]]
-    ) -> Any:
-        """Import DHCP reservations (fixed IPs) into a site (Network v2 route).
-
-        Consequence: creates or changes client IP reservations. POST
-        /proxy/network/v2/api/site/{site}/dhcp-import with reservations sent verbatim (object or
-        array; the body shape is not published; an empty array fails before any request). Returns
-        the upstream body (JSON object or array) verbatim. Never auto-retried; on a timeout, check
-        the clients' fixed IPs before retrying.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, reservations.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            reservations: Free-form import body (object or array), e.g.
-                [{"mac": "02:00:5e:00:00:a1", "fixed_ip": "192.0.2.20"}].
-        """
-        client, registry = deps_fn()
-        return await import_dhcp_reservations(client, registry, host, site, reservations)
-
-    @mcp.tool(name="detach_from_orchestration", annotations=WRITE)
-    async def detach_from_orchestration_tool(
-        host: str, site: str, target: Literal["network", "settings"], object_id: str
-    ) -> Any:
-        """Detach a network or settings from central orchestration (Network v2 route).
-
-        Consequence: the object stops following its orchestration template. target
-        "network": object_id is resolved in the Classic networkconf list (an unknown id
-        fails listing every valid id), then POST
-        /proxy/network/v2/api/site/{site}/orchestration/network/{_id}/detach. target
-        "settings": POST .../orchestration/{object_id}/settings/detach. No body is sent.
-        Returns the upstream body (JSON object or array) verbatim. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, target, object_id.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            target: "network" or "settings", e.g. "network".
-            object_id: Network id (target network) or orchestration id (target
-                settings), e.g. "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await detach_from_orchestration(client, registry, host, site, target, object_id)
-
-    @mcp.tool(name="manage_virtual_network", annotations=WRITE)
-    async def manage_virtual_network_tool(
-        host: str,
-        site: str,
-        action: Literal["create", "update"],
-        virtual_network: dict[str, Any],
-        virtual_network_id: str | None = None,
-    ) -> Any:
-        """Create or update a visual-programming virtual network (Network v2 route).
-
-        Consequence: changes the site's network topology. action "create": POST
-        /proxy/network/v2/api/site/{site}/visual-programming/virtual-network; action
-        "update": PUT .../visual-programming/virtual-network/{virtual_network_id}.
-        virtual_network is sent verbatim. Returns the upstream body (JSON object or array) verbatim.
-        The 11.0.81 inventory has no read route for these records, so an update is not
-        merged or read back: send the complete object. An object with no field fails
-        before any request. Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, action, virtual_network.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            action: "create" or "update", e.g. "create".
-            virtual_network: Free-form virtual network object, e.g. {"name": "lab-segment"}.
-            virtual_network_id: Required for update, omitted for create, e.g.
-                "000000000000000000000107".
-        """
-        client, registry = deps_fn()
-        return await manage_virtual_network(
-            client, registry, host, site, action, virtual_network, virtual_network_id
-        )
-
-    @mcp.tool(name="get_loop_detection_status", annotations=READ_ONLY)
-    async def get_loop_detection_status_tool(host: str, site: str) -> Any:
-        """Get a site's loop-detection status and loop-blocked ports (Network v2 route).
-
-        GET /proxy/network/v2/api/site/{site}/loop-detection/info. Returns the upstream body
-        (JSON object or array) verbatim.
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await get_loop_detection_status(client, registry, host, site)
-
-    @mcp.tool(name="recover_loop_blocked_ports", annotations=WRITE)
-    async def recover_loop_blocked_ports_tool(host: str, site: str) -> Any:
-        """Re-enable every port loop protection blocked on a site (Network v2 route).
-
-        Consequence: physical ports come back up; if the loop is still cabled, it can
-        return and disrupt the network. POST
-        /proxy/network/v2/api/site/{site}/loop-detection/recover-all-ports with no body;
-        Returns the upstream body (JSON object or array) verbatim. Never auto-retried. Read
-        get_loop_detection_status first.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-        """
-        client, registry = deps_fn()
-        return await recover_loop_blocked_ports(client, registry, host, site)
-
-    @mcp.tool(name="manage_mclag_group", annotations=WRITE)
-    async def manage_mclag_group_tool(
-        host: str,
-        site: str,
-        action: Literal["create", "update", "delete"],
-        group_id: str | None = None,
-        group: dict[str, Any] | None = None,
-    ) -> Any:
-        """Create, update or delete an MC-LAG switch group (Network v2 route).
-
-        Consequence: changes switch link aggregation; links can drop. action "create": POST
-        /proxy/network/v2/api/site/{site}/mclag-groups with group verbatim. action "update": reads
-        GET .../mclag-groups, merges only the given leaves, PUT .../mclag-groups/{id} with the
-        merged record and reads it back, adding _verified (type-strict per requested leaf) and
-        _readAfterError. action "delete": DELETE .../mclag-groups/{id} (irreversible). Update and
-        delete resolve group_id in the list first (an unknown id fails listing every valid id).
-        group is required for create and update and omitted for delete; group_id is required for
-        update and delete and omitted for create. Returns the upstream body (JSON object or
-        array) verbatim for actions "create" and "update"; for action "update" a non-object
-        body is returned whole under response with _verified (and _readAfterError) beside it.
-        Action "delete" returns {deleted, message, response}: deleted is true, message
-        summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw
-        text, or null when the body is empty).
-        Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body); for
-        action "delete" that preview is the response of {status: "dry_run", deleted: false, message,
-        response}.
-
-        Required arguments: host, site, action.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            action: "create", "update" or "delete", e.g. "update".
-            group_id: Group _id or id, e.g. "000000000000000000000107".
-            group: Free-form group object (create) or leaves to change (update), e.g.
-                {"name": "core-pair"}.
-        """
-        client, registry = deps_fn()
-        return await manage_mclag_group(client, registry, host, site, action, group_id, group)
-
-    @mcp.tool(name="update_switch_stack", annotations=WRITE)
-    async def update_switch_stack_tool(
-        host: str, site: str, stack_id: str, stack: dict[str, Any]
-    ) -> Any:
-        """Update a switch stack, e.g. its unit order (Network v2 route).
-
-        Consequence: stack members can renumber or reboot. Reads GET .../stacking, merges only the
-        given leaves into the stack, PUT /proxy/network/v2/api/site/{site}/stacking/{id} with the
-        whole merged record and reads it back. Returns the upstream object verbatim plus _verified
-        (true only when every requested leaf reads back equal, type-strict) and _readAfterError when
-        the read-back failed; a non-object body (array or scalar) is returned whole under response
-        with those keys beside it. id, _id and site_id in the object are ignored; an object with
-        nothing else to change fails before any request. An unknown id fails listing every valid id.
-        Never auto-retried.
-
-        Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-        status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
-
-        Required arguments: host, site, stack_id, stack.
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            stack_id: Stack _id or id from GET .../stacking, e.g.
-                "000000000000000000000107".
-            stack: Free-form object of leaves to change, e.g. {"unit_order": ["02:00:5e:00:00:a1",
-                "02:00:5e:00:00:a2"]}.
-        """
-        client, registry = deps_fn()
-        return await update_switch_stack(client, registry, host, site, stack_id, stack)

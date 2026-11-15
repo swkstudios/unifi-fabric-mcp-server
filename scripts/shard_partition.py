@@ -137,6 +137,16 @@ def select_reports(
     return [r for _, r in newest.values()], errors
 
 
+def rerun_shards(reports: Sequence[Mapping[str, Any]]) -> list[tuple[Any, int]]:
+    """The shards whose kept report is not the first attempt (issue 962, F8). A shard that ran more
+    than once is visible in the aggregate, so a re-run of a test failure cannot pass unseen
+    (one re-run is allowed for infrastructure failures only)."""
+    return sorted(
+        ((r.get("k"), a) for r in reports if (a := _attempt(r.get("attempt"))) and a > 1),
+        key=lambda item: str(item[0]),
+    )
+
+
 def totals(reports: Sequence[Mapping[str, Any]]) -> dict[str, int]:
     """Outcome counts summed over all reports (``passed``, ``skipped``, ``xfailed``,
     ``failed``, ...) and ``total``."""
@@ -166,7 +176,7 @@ def verify(
     ``selected``, ``groups`` and the final ``outcomes`` per executed ID; see
     ``select_reports`` for which reports count. ``coverage_files`` (when given) are the
     coverage data files found; there must be exactly ``n``. ``require_identity`` (the
-    ``test-locked`` suite) demands that the shards and ``anchor_identity`` (the record
+    locked suite) demands that the shards and ``anchor_identity`` (the record
     ``scripts/env_identity.py record`` writes) carry one equal environment identity and
     that none of them saw a difference from requirements.lock."""
     # 2. only this suite's and run's newest attempts; exactly N, K = 1..N once each.
@@ -253,7 +263,7 @@ def verify(
     if split:
         errors.append(_listing("xdist_group names that span two shards:", split))
 
-    # 8. one environment identity everywhere (test-locked), equal to the lock.
+    # 8. one environment identity everywhere (a locked suite), equal to the lock.
     if require_identity:
         anchor_value = anchor_identity.get("identity") if anchor_identity else None
         if not anchor_value:
@@ -698,6 +708,11 @@ def _main(argv: Sequence[str]) -> int:
             f"shard proof: {len(full)} ids, {args.shards} shards, disjoint, complete,"
             f" all executed ({counts})"
         )
+        for k, attempt in rerun_shards(kept):
+            print(
+                f"::warning::shard {k} counted from attempt {attempt}: it was re-run "
+                "(an infrastructure re-run is allowed, a test failure is never re-run green)"
+            )
     return 1 if errors else 0
 
 

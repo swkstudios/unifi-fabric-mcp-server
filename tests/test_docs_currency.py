@@ -303,8 +303,35 @@ def test_homebrew_formula_url_names_current_release():
     assert tags and set(tags) == {VERSION}, (tags, VERSION)
 
 
+COUNT_RE = re.compile(r"(?<![\w.-])(\d{2,3}) (?:MCP )?tools\b|(\d{2,3}) tool names\b")
+
+
+def _prose_count_findings(path: Path, numbered, count: int) -> tuple[int, list[str]]:
+    """(raw claims seen, stale "N tools" claims) on ``numbered`` (lineno, line) pairs, in
+    the raw line and in every URL / base64 / hex layer of it."""
+    bad = []
+    seen = 0
+    for no, line in numbered:
+        for where, view in _views(line):
+            for m in COUNT_RE.finditer(view):
+                n = int(m.group(1) or m.group(2))
+                # "N tools remain and M are excluded" is the official-only subset
+                # (UNIFI_EXCLUDE=unofficial,source:relay, also under UNIFI_WRITE_POLICY=deny),
+                # rendered and checked against the running server by gen_catalog_figures.py.
+                if re.match(r"\s+remain\s+and\s+\d+\s+are\s+excluded", view[m.end() :]):
+                    continue
+                # "this release's N tools" names the current catalog even on a line that
+                # also cites a historical sweep, so the historical marker never exempts it.
+                current = view[max(0, m.start() - 15) : m.start()].endswith("this release's ")
+                if HISTORICAL.search(line) and n != count and not current:
+                    continue
+                seen += not where
+                if n != count:
+                    bad.append(f"{_rel(path)}:{no}: {n} != {count}{where}")
+    return seen, bad
+
+
 def test_prose_tool_counts_equal_registry():
-    count_re = re.compile(r"(?<![\w.-])(\d{2,3}) (?:MCP )?tools\b|(\d{2,3}) tool names\b")
     bad = []
     seen = 0
     # TOOLS.md is generated and checked by test_tools_reference_matches_registry; its
@@ -312,24 +339,58 @@ def test_prose_tool_counts_equal_registry():
     for path in (p for p in DOC_FILES if p.name != "TOOLS.md"):
         if path.name == "MIGRATING-0.7.md":
             continue  # Historical release detail intentionally contains old counts.
-        for no, line in _lines(path):
-            for m in count_re.finditer(line):
-                n = int(m.group(1) or m.group(2))
-                # "N tools remain and M are excluded" is the official-only subset
-                # (UNIFI_EXCLUDE=unofficial,source:relay, also under UNIFI_WRITE_POLICY=deny),
-                # rendered and checked against the running server by gen_catalog_figures.py.
-                if re.match(r"\s+remain\s+and\s+\d+\s+are\s+excluded", line[m.end() :]):
-                    continue
-                # "this release's N tools" names the current catalog even on a line that
-                # also cites a historical sweep, so the historical marker never exempts it.
-                current = line[max(0, m.start() - 15) : m.start()].endswith("this release's ")
-                if HISTORICAL.search(line) and n != _lz_TOOL_COUNT() and not current:
-                    continue
-                seen += 1
-                if n != _lz_TOOL_COUNT():
-                    bad.append(f"{_rel(path)}:{no}: {n} != {_lz_TOOL_COUNT()}")
+        found, stale = _prose_count_findings(path, _lines(path), _lz_TOOL_COUNT())
+        seen += found
+        bad += stale
     assert seen >= 2, "expected tool-count claims in the docs"
     assert not bad, "stale tool counts:\n" + "\n".join(bad)
+
+
+FAMILY_ROW_RE = re.compile(r"\| [A-Za-z][^|]* \| (\d+) ")
+FAMILY_LISTED_RE = re.compile(r"\*\*(\d+)\*\* are in the product families")
+FAMILY_REMAINING_RE = re.compile(r"The remaining (\d+) cover")
+FAMILY_REGISTERED_RE = re.compile(r"\*\*(\d+) registered tools\*\*")
+
+
+def _family_figures(text: str) -> tuple[list[int], int | None, int | None, int | None]:
+    """(row counts, listed, remaining, registered) as ``text`` states them."""
+    flat = " ".join(text.split())
+
+    def one(pattern: re.Pattern[str]) -> int | None:
+        m = pattern.search(flat)
+        return int(m[1]) if m else None
+
+    rows = [int(n) for n in FAMILY_ROW_RE.findall(text)]
+    return rows, one(FAMILY_LISTED_RE), one(FAMILY_REMAINING_RE), one(FAMILY_REGISTERED_RE)
+
+
+def _family_table_findings(block: str, count: int) -> list[str]:
+    """Family-table figures that disagree with each other or with the registry: in the
+    raw block (all four must be there) and in every encoded layer of a line of it (only
+    the figures that layer states, each checked against what it can be checked against)."""
+    rows, listed, remaining, registered = _family_figures(block)
+    bad = []
+    if not rows or None in (listed, remaining, registered):
+        bad.append("family table not found")
+    else:
+        if sum(rows) != listed:
+            bad.append(f"rows sum {sum(rows)} != listed {listed}")
+        if not listed + remaining == registered == count:
+            bad.append(
+                f"listed {listed} + remaining {remaining}, registered {registered} != {count}"
+            )
+    for no, line in enumerate(block.splitlines(), 1):
+        for where, view in _views(line):
+            if not where:
+                continue
+            v_rows, v_listed, v_remaining, v_registered = _family_figures(view)
+            if v_registered is not None and v_registered != count:
+                bad.append(f"line {no}: registered {v_registered} != {count}{where}")
+            if None not in (v_listed, v_remaining) and v_listed + v_remaining != count:
+                bad.append(f"line {no}: listed + remaining != {count}{where}")
+            if v_rows and v_listed is not None and sum(v_rows) != v_listed:
+                bad.append(f"line {no}: rows sum {sum(v_rows)} != listed {v_listed}{where}")
+    return bad
 
 
 def test_readme_family_table_sums_to_registry():
@@ -337,19 +398,7 @@ def test_readme_family_table_sums_to_registry():
     text = README.read_text()
     start = text.index("<!-- BEGIN GENERATED: tool-families -->")
     block = text[start : text.index("<!-- END GENERATED -->", start)]
-    counts = [int(n) for n in re.findall(r"\| [A-Za-z][^|]* \| (\d+) ", block)]
-    assert counts, "family table not found"
-    flat = " ".join(block.split())
-    listed = int(re.search(r"\*\*(\d+)\*\* are in the product families", flat)[1])
-    remaining = int(re.search(r"The remaining (\d+) cover", flat)[1])
-    registered = int(re.search(r"\*\*(\d+) registered tools\*\*", flat)[1])
-    assert sum(counts) == listed, (sum(counts), listed)
-    assert listed + remaining == registered == _lz_TOOL_COUNT(), (
-        listed,
-        remaining,
-        registered,
-        _lz_TOOL_COUNT(),
-    )
+    assert _family_table_findings(block, _lz_TOOL_COUNT()) == []
 
 
 def shape_totals() -> tuple[int, int, int]:
@@ -388,11 +437,61 @@ def test_catalog_body_shape_size_is_exact():
     assert "and example call" not in text
 
 
+REFERENCE_HEADING_RE = re.compile(r"^### ", re.M)
+REFERENCE_CATEGORY_RE = re.compile(r"^- \[[^\]]+\]\(#[^)]+\) \((\d+)\)$", re.M)
+ACCESS_ROW_RE = re.compile(r"^\| \[`(\w+)`\]\(#(\w+)\) \| `([\w-]+)` \| (read|write) \|$", re.M)
+# An encoded layer is the whole line decoded, so a hidden entry does not start the line:
+# the same three shapes, unanchored.
+HIDDEN_HEADING_RE = re.compile(r"### `\w+`")
+HIDDEN_CATEGORY_RE = re.compile(r"- \[[^\]]+\]\(#[^)]+\) \((\d+)\)")
+HIDDEN_ACCESS_ROW_RE = re.compile(r"\| \[`(\w+)`\]\(#(\w+)\) \| `([\w-]+)` \| (read|write) \|")
+
+
+def _tools_reference_findings(text: str, count: int) -> list[str]:
+    """Reference headings and category counts that do not add up to the registry. An
+    entry hidden under an encoding adds to both totals, so the registry cannot be met
+    with one in the file."""
+    headings = len(REFERENCE_HEADING_RE.findall(text))
+    categories = [int(n) for n in REFERENCE_CATEGORY_RE.findall(text)]
+    bad = []
+    for no, line in enumerate(text.splitlines(), 1):
+        for where, view in _views(line):
+            if not where:
+                continue
+            hidden_headings = len(HIDDEN_HEADING_RE.findall(view))
+            hidden_categories = [int(n) for n in HIDDEN_CATEGORY_RE.findall(view)]
+            if hidden_headings or hidden_categories:
+                bad.append(f"line {no}: a reference entry hidden{where}")
+            headings += hidden_headings
+            categories += hidden_categories
+    if headings != count:
+        bad.append(f"{headings} reference headings != {count}")
+    if not categories or sum(categories) != count:
+        bad.append(f"category counts sum {sum(categories)} != {count}")
+    return bad
+
+
 def test_tools_reference_matches_registry():
     text = (ROOT / "docs" / "TOOLS.md").read_text()
-    assert len(re.findall(r"^### ", text, re.M)) == _lz_TOOL_COUNT()
-    cats = [int(n) for n in re.findall(r"^- \[[^\]]+\]\(#[^)]+\) \((\d+)\)$", text, re.M)]
-    assert cats and sum(cats) == _lz_TOOL_COUNT(), (sum(cats), _lz_TOOL_COUNT())
+    assert _tools_reference_findings(text, _lz_TOOL_COUNT()) == []
+
+
+def _access_index_findings(head: str, expected: list[tuple[str, str, str, str]]) -> list[str]:
+    """Access-index rows that are not the registry's, in order, in the raw text; and any
+    row hidden under an encoding (the index lists every tool once, in the clear)."""
+    rows = ACCESS_ROW_RE.findall(head)
+    bad = []
+    if rows != expected:
+        bad.append(f"{len(rows)} access rows differ from the {len(expected)} registry rows")
+    for no, line in enumerate(head.splitlines(), 1):
+        for where, view in _views(line):
+            if where and HIDDEN_ACCESS_ROW_RE.search(view):
+                known = any(row in expected for row in HIDDEN_ACCESS_ROW_RE.findall(view))
+                bad.append(
+                    f"line {no}: an access row hidden{where} "
+                    f"({'a registry row listed again' if known else 'not a registry row'})"
+                )
+    return bad
 
 
 def test_tools_reference_access_index_matches_registry():
@@ -404,7 +503,6 @@ def test_tools_reference_access_index_matches_registry():
     text = (ROOT / "docs" / "TOOLS.md").read_text()
     head = text.split("\n## Filter expressions", 1)[0]
     assert "\n## Tool access index\n" in head  # at the top, before the reference
-    rows = re.findall(r"^\| \[`(\w+)`\]\(#(\w+)\) \| `([\w-]+)` \| (read|write) \|$", head, re.M)
     tools = asyncio.run(_runtime_tools())
     families = build_family_index()
     expected = [
@@ -416,10 +514,10 @@ def test_tools_reference_access_index_matches_registry():
         )
         for tool in tools
     ]
-    assert rows == expected
-    assert len(rows) == _lz_TOOL_COUNT()
+    assert _access_index_findings(head, expected) == []
+    assert len(expected) == _lz_TOOL_COUNT()
     headings = set(re.findall(r"^### `(\w+)`", text, re.M))
-    assert {name for name, *_ in rows} == headings
+    assert {name for name, *_ in expected} == headings
 
 
 def test_documented_package_and_entry_point_names():
@@ -498,6 +596,7 @@ def test_claude_plugin_folder_is_self_contained():
     }
     expected = {
         ".claude-plugin/plugin.json",
+        ".claude-plugin/icon.png",
         "README.md",
         "LICENSE",
         *(f"skills/{name}/SKILL.md" for name in skill_names),
@@ -627,9 +726,36 @@ def test_client_integrations_default_to_discovery_with_full_opt_out():
 @pytest.mark.parametrize(
     ("folder", "expected"),
     [
-        (CODEX_PLUGIN_DIR, {".codex-plugin/plugin.json", ".mcp.json", "README.md"}),
+        (
+            CODEX_PLUGIN_DIR,
+            {
+                ".codex-plugin/plugin.json",
+                ".mcp.json",
+                "README.md",
+                "assets/composer-icon.png",
+                "assets/logo.png",
+            },
+        ),
         (ANTIGRAVITY_DIR, {"plugin.json", "mcp_config.json", "README.md"}),
-        (MCPB_DIR, {"manifest.json", "README.md"}),
+        (
+            MCPB_DIR,
+            {
+                "README.md",
+                "icon-128.png",
+                "icon-16.png",
+                "icon-256.png",
+                "icon-32.png",
+                "icon-64.png",
+                "icon-light-128.png",
+                "icon-light-16.png",
+                "icon-light-256.png",
+                "icon-light-32.png",
+                "icon-light-64.png",
+                "icon-light.png",
+                "icon.png",
+                "manifest.json",
+            },
+        ),
         (ROOT / ".agents", {"plugins/marketplace.json"}),
     ],
     ids=["codex", "antigravity", "claude-desktop", "agents"],
@@ -703,17 +829,39 @@ def test_readme_links_the_072_migration_guide_for_a_071_upgrader():
     assert text.count("](docs/MIGRATING-0.7.2.md)") >= 2
 
 
-def test_release_count_phrases_are_generated_from_the_registry():
-    """gen_tools_doc owns every "this release's N tools" phrase (docs/COVERAGE.md)."""
-    import importlib.util
-
+def _gen_tools_doc():
     script = ROOT / "scripts" / "gen_tools_doc.py"
     spec = importlib.util.spec_from_file_location("gen_tools_doc", script)
     gen = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(gen)
+    return gen
+
+
+def _release_count_findings(path: Path, numbered, count: int) -> list[str]:
+    """Release-count phrases ("this release's N tools") that are not ``count``, in the raw
+    line and in every encoded layer of it."""
+    pattern = _gen_tools_doc().RELEASE_COUNT_RE
+    return [
+        f"{_rel(path)}:{no}: {m.group(2)} != {count}{where}"
+        for no, line in numbered
+        for where, view in _views(line)
+        for m in pattern.finditer(view)
+        if int(m.group(2)) != count
+    ]
+
+
+def test_release_count_phrases_are_generated_from_the_registry():
+    """gen_tools_doc owns every "this release's N tools" phrase (docs/COVERAGE.md)."""
+    gen = _gen_tools_doc()
     stale = gen.release_count_drift(_lz_TOOL_COUNT())
     assert stale == [], f"run python3 scripts/gen_tools_doc.py: {stale}"
+    hidden = [
+        finding
+        for path in gen.RELEASE_COUNT_FILES
+        for finding in _release_count_findings(path, _lines(path), _lz_TOOL_COUNT())
+    ]
+    assert hidden == [], f"run python3 scripts/gen_tools_doc.py: {hidden}"
     assert any("this release's" in p.read_text() for p in gen.RELEASE_COUNT_FILES)
 
 
@@ -734,3 +882,81 @@ def test_install_pins_equal_published_version_and_version_fields_equal_pyproject
     assert registry["version"] == VERSION
     for package in registry["packages"]:
         assert package.get("version", package["identifier"].rpartition(":")[2]) == VERSION
+
+
+# --- negative controls: one per literal kind, each planted under every encoding layer ----------
+#
+# A literal scan that reads raw text only is blind to a stale figure inside a percent-encoded,
+# base64 or hex payload. Each control plants the stale literal where the raw line shows
+# nothing the check's own pattern matches, and requires the finding to name the layer.
+
+LAYERS = ["url", "base64", "hex"]
+
+
+def _hide(text: str, layer: str) -> str:
+    """``text`` as one encoded payload inside a deeplink-shaped line (built at runtime)."""
+    if layer == "url":
+        return f"[VS Code](vscode:mcp/install?{urllib.parse.quote(text, safe='')})"
+    if layer == "base64":
+        return f"[Cursor](cursor://anysphere.cursor-deeplink/mcp/install?config={base64.b64encode(text.encode()).decode()})"
+    return f"payload {text.encode().hex()}"
+
+
+def _inside(layer: str) -> str:
+    return f"(inside {layer} encoding)"
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_a_stale_prose_tool_count_inside_an_encoding_is_caught(layer):
+    count = _lz_TOOL_COUNT()
+    stale = _hide(f"The server registers {count + 1} tools.", layer)
+    assert not COUNT_RE.search(stale), "the planted count must not be visible raw"
+    _seen, bad = _prose_count_findings(README, [(1, stale)], count)
+    assert any(_inside(layer) in f for f in bad), bad
+    current = _hide(f"The server registers {count} tools.", layer)
+    assert _prose_count_findings(README, [(1, current)], count)[1] == []
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_a_stale_family_table_figure_inside_an_encoding_is_caught(layer):
+    count = _lz_TOOL_COUNT()
+    stale = _hide(f"**{count + 1} registered tools**", layer)
+    assert not FAMILY_REGISTERED_RE.search(stale), "the planted figure must not be visible raw"
+    bad = _family_table_findings(stale, count)
+    assert any(_inside(layer) in f for f in bad), bad
+    current = _hide(f"**{count} registered tools**", layer)
+    assert not any("inside" in f for f in _family_table_findings(current, count))
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_a_stale_release_count_phrase_inside_an_encoding_is_caught(layer):
+    count = _lz_TOOL_COUNT()
+    pattern = _gen_tools_doc().RELEASE_COUNT_RE
+    stale = _hide(f"this release's {count + 1} tools", layer)
+    assert not pattern.search(stale), "the planted phrase must not be visible raw"
+    bad = _release_count_findings(README, [(1, stale)], count)
+    assert any(_inside(layer) in f for f in bad), bad
+    current = _hide(f"this release's {count} tools", layer)
+    assert _release_count_findings(README, [(1, current)], count) == []
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_a_reference_entry_hidden_inside_an_encoding_is_caught(layer):
+    count = 3
+    clear = "\n".join([*(f"### `tool_{i}`" for i in range(count)), f"- [All](#all) ({count})"])
+    assert _tools_reference_findings(clear, count) == []
+    hidden = _hide("### `tool_extra`\n- [Extra](#extra) (1)", layer)
+    assert not REFERENCE_HEADING_RE.search(hidden), "the planted entry must not be visible raw"
+    bad = _tools_reference_findings(clear + "\n" + hidden, count)
+    assert any(_inside(layer) in f for f in bad), bad
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_an_access_row_hidden_inside_an_encoding_is_caught(layer):
+    expected = [("get_thing", "get_thing", "network", "read")]
+    clear = "| [`get_thing`](#get_thing) | `network` | read |"
+    assert _access_index_findings(clear, expected) == []
+    stale = _hide("| [`get_thing`](#get_thing) | `network` | write |", layer)
+    assert not ACCESS_ROW_RE.search(stale), "the planted row must not be visible raw"
+    bad = _access_index_findings(clear + "\n" + stale, expected)
+    assert any(_inside(layer) in f and "not a registry row" in f for f in bad), bad

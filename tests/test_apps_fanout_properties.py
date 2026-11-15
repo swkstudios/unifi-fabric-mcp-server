@@ -229,6 +229,11 @@ def test_every_fanout_site_has_a_catalog_property():
         "_fleet_summary",
         "_list_all_clients_fleet",
     }
+    # A register step is keyed by its loader-map origin (the module its tools are indexed
+    # under), so the key holds wherever a family move puts the step (registrar.py).
+    from unifi_fabric.catalog.loaders import LOADERS
+
+    step_origin = {(e.family, e.module, e.function): e.origin for e in LOADERS}
     discovered = set()
     for path in (ROOT / "src" / "unifi_fabric").rglob("*.py"):
         if path.name == "_keys.py":
@@ -242,7 +247,11 @@ def test_every_fanout_site_has_a_catalog_property():
                 if isinstance(call, ast.Call) and isinstance(call.func, (ast.Name, ast.Attribute))
             }
             if roots & calls:
-                discovered.add((path.stem, node.name))
+                step = (path.parent.name, path.stem, node.name)
+                if step in step_origin:
+                    discovered.add((step_origin[step], "register"))
+                else:
+                    discovered.add((path.stem, node.name))
     covered = {(fn.__module__.rsplit(".", 1)[-1], fn.__name__) for fn, _, _ in CATALOG}
     covered |= {
         ("site_manager", "register"),  # hosts the query_isp_metrics wrapper (tested via server)

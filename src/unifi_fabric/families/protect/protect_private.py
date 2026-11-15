@@ -9,11 +9,7 @@ from __future__ import annotations
 
 import copy
 import re
-from collections.abc import Callable
-from typing import Any, Literal
-
-from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing import Any
 
 from ... import switches
 from ...client import (
@@ -36,222 +32,51 @@ from ...shared_shapes._history_common import (
     with_warnings,
 )
 from ...shared_shapes._results import requested_leaves_match, safe_read_after
-from ...tool_annotations import READ_ONLY, WRITE
 from ...write_body import update_problem
 from ..connector import connector
 from . import protect
-
-
-class PrivateSettings(BaseModel):
-    """Extensible private-controller settings; additional upstream fields pass through."""
-
-    model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
-
-
-class RecordingSettings(PrivateSettings):
-    mode: Literal["adaptive", "always", "never", "schedule", "detections"] | None = Field(
-        default=None,
-        description="Recording mode; always records continuously, never disables recording.",
-    )
-    enableMotionDetection: bool | None = Field(
-        default=None, description="Enable camera motion detection."
-    )
-
-
-class ImageSettings(PrivateSettings):
-    irLedMode: str | None = Field(
-        default=None,
-        description="IR mode: auto, on, autoFilterOnly, off, manual, custom, customFilterOnly.",
-    )
-    icrCustomValue: int | None = Field(
-        default=None,
-        description="Controller lux-threshold index 0 through 10; use the camera's reported value.",
-    )
-    isColorNightVisionEnabled: bool | None = Field(
-        default=None, description="Enable colour night vision on supported cameras."
-    )
-    wdr: int | None = Field(
-        default=None,
-        description="Wide dynamic range level, reported by the camera (normally 0 through 4).",
-    )
-    zoomPosition: int | None = Field(
-        default=None, description="Optical zoom position in percent on supported cameras."
-    )
-    brightness: int | None = Field(default=None, description="Camera image brightness.")
-
-
-class AudioSettings(PrivateSettings):
-    isEnabled: bool | None = Field(default=None, description="Enable speaker output.")
-    areSystemSoundsEnabled: bool | None = Field(
-        default=None, description="Enable camera system sounds."
-    )
-    volume: int | None = Field(default=None, description="Speaker volume in percent.")
-    speakerVolume: int | None = Field(
-        default=None, description="Camera speaker output volume in percent."
-    )
-    ringVolume: int | None = Field(default=None, description="Doorbell ring volume in percent.")
-    ringtoneId: str | None = Field(
-        default=None, description="Doorbell ringtone identifier from the camera."
-    )
-    repeatTimes: int | None = Field(default=None, description="Ringtone repetition count.")
-
-
-class SmartSettings(PrivateSettings):
-    objectTypes: list[str] | None = Field(
-        default=None,
-        description=(
-            "Detected types such as person, vehicle, animal, package, face, licensePlate. "
-            "Shape: string[]"
-        ),
-    )
-    audioTypes: list[str] | None = Field(
-        default=None,
-        description="Smart audio detection types reported by the camera. Shape: string[]",
-    )
-    autoTrackingObjectTypes: list[str] | None = Field(
-        default=None,
-        description=(
-            "Tracking types; person enables person tracking and an empty list disables it. "
-            "Shape: string[]"
-        ),
-    )
-
-
-class CameraZone(PrivateSettings):
-    id: int | None = Field(default=None, description="Zone identifier from the camera.")
-    name: str | None = Field(default=None, description="Zone display name.")
-    color: str | None = Field(default=None, description="Zone colour, e.g. #85BCEC.")
-    points: list[list[float]] | None = Field(
-        default=None,
-        description=(
-            "Polygon coordinate pairs in the camera's 0 to 1 coordinate space. Shape: number[][]"
-        ),
-    )
-    sensitivity: int | None = Field(
-        default=None, description="Motion sensitivity in percent when this zone supports it."
-    )
-    objectTypes: list[str] | None = Field(
-        default=None, description="Smart object types detected in this zone. Shape: string[]"
-    )
-
-
-class LedSettings(PrivateSettings):
-    isEnabled: bool | None = Field(default=None, description="Enable the device status light.")
-
-
-class CameraSettings(PrivateSettings):
-    recordingSettings: RecordingSettings | None = Field(
-        default=None,
-        description=(
-            "Recording mode and motion detection settings. Shape: "
-            "{mode?:'adaptive'|'always'|'never'|'schedule'|'detections',"
-            "enableMotionDetection?:boolean}"
-        ),
-    )
-    privacyZones: list[CameraZone] | None = Field(
-        default=None,
-        description=(
-            "Complete desired privacy zone array; include every zone to retain. Shape: "
-            "{id?:integer,name?:string,color?:string,points?:number[][],sensitivity?:integer,"
-            "objectTypes?:string[]}[]"
-        ),
-    )
-    motionZones: list[CameraZone] | None = Field(
-        default=None,
-        description=(
-            "Complete desired motion zone array; include every zone to retain. Shape: "
-            "{id?:integer,name?:string,color?:string,points?:number[][],sensitivity?:integer,"
-            "objectTypes?:string[]}[]"
-        ),
-    )
-    smartDetectZones: list[CameraZone] | None = Field(
-        default=None,
-        description=(
-            "Complete desired smart detection zone array; include every zone to retain. "
-            "Shape: {id?:integer,name?:string,color?:string,points?:number[][],"
-            "sensitivity?:integer,objectTypes?:string[]}[]"
-        ),
-    )
-    ispSettings: ImageSettings | None = Field(
-        default=None,
-        description=(
-            "Image, IR, lux index, colour night vision, WDR and optical zoom. Shape: "
-            "{irLedMode?:string,icrCustomValue?:integer,isColorNightVisionEnabled?:boolean,"
-            "wdr?:integer,zoomPosition?:integer,brightness?:integer}"
-        ),
-    )
-    speakerSettings: AudioSettings | None = Field(
-        default=None,
-        description=(
-            "Speaker, ring and system sound configuration. Shape: "
-            "{isEnabled?:boolean,areSystemSoundsEnabled?:boolean,volume?:integer,"
-            "speakerVolume?:integer,ringVolume?:integer,ringtoneId?:string,repeatTimes?:integer}"
-        ),
-    )
-    smartDetectSettings: SmartSettings | None = Field(
-        default=None,
-        description=(
-            "Motion object/audio detection and person tracking. Shape: "
-            "{objectTypes?:string[],audioTypes?:string[],autoTrackingObjectTypes?:string[]}"
-        ),
-    )
-    ledSettings: LedSettings | None = Field(
-        default=None, description="Camera status light configuration. Shape: {isEnabled?:boolean}"
-    )
-    chimeDuration: int | None = Field(
-        default=None,
-        description=(
-            "External chime duration in milliseconds: 0 none, 300 mechanical, 1000 digital."
-        ),
-    )
-    micVolume: int | None = Field(default=None, description="Microphone volume in percent.")
-    isMicEnabled: bool | None = Field(
-        default=None, description="Enable the microphone when the hardware supports it."
-    )
-
-
-class DoorbellSettings(PrivateSettings):
-    customMessages: list[str] | None = Field(
-        default=None,
-        description=(
-            "Complete custom-message list; retain entries to keep them. "
-            "Controller normally accepts at most 30 characters per message. Shape: string[]"
-        ),
-    )
-
-
-class NvrSettings(PrivateSettings):
-    doorbellSettings: DoorbellSettings | None = Field(
-        default=None,
-        description="NVR-wide doorbell custom-message list. Shape: {customMessages?:string[]}",
-    )
-    isInsightsEnabled: bool | None = Field(default=None, description="Enable Protect insights.")
-    analyticsData: Literal["none", "anonymous", "full"] | None = Field(
-        default=None, description="Protect analytics sharing level."
-    )
-    autoRetentionEnabled: bool | None = Field(
-        default=None,
-        description="Automatic recording retention; coupled behaviour is controller-dependent.",
-    )
-    recordingRetentionDurationMs: StrictInt | str | None = Field(
-        default=None,
-        description=(
-            "Retention duration in milliseconds as an integer or string, or null. "
-            "Shortening it can permanently delete footage."
-        ),
-    )
-
-
-class SensorSettings(PrivateSettings):
-    mountType: Literal["none", "leak", "door", "window", "garage"] | None = Field(
-        default=None, description="Sensor mounting/use type."
-    )
-    ledSettings: LedSettings | None = Field(
-        default=None, description="Sensor status light configuration. Shape: {isEnabled?:boolean}"
-    )
-
-
-DEVICE_TYPES = Literal["camera", "sensor"]
+from .schemas import (
+    _MODE_FLAG,
+    _NOT_DETERMINED,
+    DEVICE_TYPES,
+    EXTERNAL_ARM_PROFILE_TOOLS,
+    GLOBAL_ALARM_MANAGER_ROUTES,
+    GLOBAL_ALARM_MANAGER_UNSUPPORTED,
+    INTEGRATION_ARM_PROFILE_TOOLS,
+)
+from .schemas import (  # the family's shapes (family-owned layout)
+    AudioSettings as AudioSettings,
+)
+from .schemas import (
+    CameraSettings as CameraSettings,
+)
+from .schemas import (
+    CameraZone as CameraZone,
+)
+from .schemas import (
+    DoorbellSettings as DoorbellSettings,
+)
+from .schemas import (
+    ImageSettings as ImageSettings,
+)
+from .schemas import (
+    LedSettings as LedSettings,
+)
+from .schemas import (
+    NvrSettings as NvrSettings,
+)
+from .schemas import (
+    PrivateSettings as PrivateSettings,
+)
+from .schemas import (
+    RecordingSettings as RecordingSettings,
+)
+from .schemas import (
+    SensorSettings as SensorSettings,
+)
+from .schemas import (
+    SmartSettings as SmartSettings,
+)
 
 
 def _guard(method: str) -> None:
@@ -356,44 +181,6 @@ async def get_nvr_private(client: UniFiClient, registry: Registry, host: str) ->
     return await connector.connector_get(client, registry, host, "protect/api/nvr")
 
 
-#: The UniFi OS global Alarm Manager routes (rules under ``protect``, profiles and their
-#: arm/disarm actions). They are served at the console root, not under ``/proxy/protect``.
-GLOBAL_ALARM_MANAGER_ROUTES = (
-    "GET /api/v2/alarms/protect",
-    "POST /api/v2/alarms/protect",
-    "PATCH /api/v2/alarms/protect/{id}",
-    "DELETE /api/v2/alarms/protect/{id}",
-    "GET /api/v2/alarms/profiles",
-    "POST /api/v2/alarms/profiles/{id}/actions/arm",
-    "POST /api/v2/alarms/profiles/{id}/actions/disarm",
-)
-
-#: Why the global Alarm Manager API is unsupported through this server, in every mode.
-GLOBAL_ALARM_MANAGER_UNSUPPORTED = (
-    "The global Alarm Manager API (/api/v2/alarms) is served at the console root, outside the "
-    "/proxy/<application>/ paths the Fabric connector relays. The connector answers it with "
-    "HTTP 403 forbidden ('insufficient permissions for this endpoint'), the same answer it "
-    "gives any unknown console-root path, so this server cannot list, create, update or "
-    "delete global alarm rules, list global alarm profiles or arm/disarm them. Manage them "
-    "in the UniFi Protect app."
-)
-
-#: The Protect Integration arm-profile tools: the alarm surface of a local-mode console.
-INTEGRATION_ARM_PROFILE_TOOLS = (
-    "list_arm_profiles",
-    "get_arm_profile",
-    "create_arm_profile",
-    "update_arm_profile",
-    "delete_arm_profile",
-    "update_arm_profile_settings",
-    "enable_arm",
-    "disable_arm",
-)
-
-_MODE_FLAG = "useExternalAlarmManager"
-_NOT_DETERMINED = "the Alarm Manager mode was not determined"
-
-
 def _alarm_manager_mode(status: Any, body: Any, client: UniFiClient) -> dict[str, Any]:
     """The additive ``_alarmManager`` summary for one ``GET protect/api/nvr`` relay result.
 
@@ -454,6 +241,18 @@ def _alarm_manager_mode(status: Any, body: Any, client: UniFiClient) -> dict[str
                 else None
             ),
         },
+        "externalArmProfiles": {
+            "available": is_global,
+            "tools": list(EXTERNAL_ARM_PROFILE_TOOLS),
+            "reason": (
+                "the Protect 7.4.96 Integration API serves the external Alarm Manager's arm "
+                "profiles and their arm/disarm actions under /v1/external/arm-profiles, "
+                "available only when this flag is true; a console on an older Protect "
+                "answers 404 there"
+                if is_global
+                else None
+            ),
+        },
         "globalAlarmManagerApi": disposition,
     }
 
@@ -461,11 +260,41 @@ def _alarm_manager_mode(status: Any, body: Any, client: UniFiClient) -> dict[str
 async def get_protect_alarm_manager_mode(
     client: UniFiClient, registry: Registry, host: str
 ) -> dict[str, Any]:
-    """Report whether the console's Alarm Manager runs in local or global mode.
+    """Report whether a Protect console's Alarm Manager runs in local or global mode, and
+    which alarm operations this server can perform there. Read-only: one GET of the private
+    NVR object (protect/api/nvr); nothing is sent to the alarm APIs.
 
-    One ``GET protect/api/nvr`` relay read, returned exactly as the relay reports it (status,
-    contentType, verbatim body), plus the additive ``_alarmManager`` summary (see
-    :func:`_alarm_manager_mode`). Read-only; nothing is sent to ``/api/v2/alarms``.
+    Returns method, routeClass, scope, path, resolvedPath, status (upstream HTTP),
+    contentType and body (the NVR object, as get_nvr_private returns it), plus _alarmManager
+    {mode, reason, integrationArmProfiles, externalArmProfiles, globalAlarmManagerApi}. mode
+    is "global" when body.featureFlags.useExternalAlarmManager is true and "local" when it is
+    false or absent (older consoles omit it). mode is null, with reason, when the
+    NVR read failed (any non-200 status, returned unchanged) or the flag is
+    malformed; a failure is never a mode.
+    integrationArmProfiles is {available, tools, reason}, or null when mode is null. In local
+    mode the listed tools (list_arm_profiles, enable_arm, ...) work; the API documents them
+    for the local Alarm Manager only. In global mode available is false: the console answered
+    the arm-profile reads with HTTP 400; writes were not exercised. A sent enable_arm or
+    disable_arm response is not proof of the arm state (their verified flag reads armMode
+    back); read body.armMode here for the current state.
+    externalArmProfiles {available, tools, reason} is present only when mode is known:
+    available is true in global mode, where the Protect 7.4.96 external arm-profile tools
+    (list_external_arm_profiles and its get, create, update, delete, arm and disarm
+    siblings) manage the external Alarm Manager's arm profiles; an older Protect answers
+    404. It is false, with a null reason, in local mode.
+    globalAlarmManagerApi {supported, routes, reason}: supported is always false; this
+    server has no tool for the global Alarm Manager API (/api/v2/alarms), at the console
+    root outside the paths the Fabric connector relays. The external arm profiles are a
+    separate, relayed API.
+
+    Example call (get_protect_alarm_manager_mode):
+        {"host": "my-console"}
+
+    Args:
+        host: Console name or id: the short name from list_hosts
+            (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
+            "my-console") or the long data[].id (MAC:numericId composite). One console
+            serves both Network and Protect.
     """
     response = await connector.connector_get(client, registry, host, "protect/api/nvr")
     response["_alarmManager"] = _alarm_manager_mode(
@@ -798,506 +627,6 @@ async def clear_sensor_tamper(
             result["_noOp"] = None
 
     return result
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register source-backed private Protect tools in the Protect family."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_camera_private(host: str, camera_id: str) -> dict[str, Any]:
-        """Read the complete private camera settings. The relay returns status, contentType and the
-        upstream body unchanged; use body as the source for update_camera_private.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (get_camera_private):
-            {"host": "my-console", "camera_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _get_camera_private(client, registry, host, camera_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_ptz_presets(host: str, camera_id: str) -> dict[str, Any]:
-        """List PTZ presets, including native id, name, slot and pan/tilt/zoom. Non-PTZ cameras
-        reject this route: the console answers HTTP 500 (a console-side limit), and the upstream
-        status and body are returned unchanged, with an additive _hint about PTZ capability.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (list_ptz_presets):
-            {"host": "my-console", "camera_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _list_ptz_presets(client, registry, host, camera_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_ptz_patrols(host: str, camera_id: str) -> dict[str, Any]:
-        """List PTZ patrols with slots, preset lists and duration. Returns the upstream body under
-        body, with status and contentType.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (list_ptz_patrols):
-            {"host": "my-console", "camera_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _list_ptz_patrols(client, registry, host, camera_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_sensor_private(host: str, sensor_id: str) -> dict[str, Any]:
-        """Read complete private sensor settings and tamper state. Use body with
-        update_sensor_private; status and contentType accompany the unchanged upstream body.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (get_sensor_private):
-            {"host": "my-console", "sensor_id": "00000000000000000000010c"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "00000000000000000000010c", or an unambiguous sensor name such as
-                "Back Door".
-        """
-        client, registry = deps_fn()
-        return await _get_sensor_private(client, registry, host, sensor_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_nvr_private(host: str) -> dict[str, Any]:
-        """Read NVR-wide settings including doorbell messages, insights, analytics and retention.
-        Returns the complete upstream body under body with status and contentType. Use body with
-        update_nvr.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (get_nvr_private):
-            {"host": "my-console"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-        """
-        client, registry = deps_fn()
-        return await _get_nvr_private(client, registry, host)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_protect_alarm_manager_mode(host: str) -> dict[str, Any]:
-        """Report whether a Protect console's Alarm Manager runs in local or global mode, and
-        which alarm operations this server can perform there. Read-only: one GET of the private
-        NVR object (protect/api/nvr); nothing is sent to the alarm APIs.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and body (the
-        NVR object, unchanged, as get_nvr_private returns it), plus _alarmManager {mode, reason,
-        integrationArmProfiles, globalAlarmManagerApi}. mode is "global" when
-        body.featureFlags.useExternalAlarmManager is true and "local" when it is false or absent
-        (older consoles do not report it). mode is null, with reason, when the NVR read failed
-        (any non-200 status, for example a 403 permission refusal, whose status and body are
-        returned unchanged) or the flag is malformed; a failure is never reported as a mode.
-        integrationArmProfiles is {available, tools, reason}, or null when mode is null. In
-        local mode the listed tools (list_arm_profiles, enable_arm, disable_arm, ...) work; the API
-        documents them for the local Alarm Manager only. In global mode available is false: the
-        console answered the arm-profile reads with HTTP 400; writes were not exercised. A sent
-        enable_arm or disable_arm result is not proof of the arm state: read body.armMode here.
-        globalAlarmManagerApi {supported, routes, reason}: supported is always false; the
-        global Alarm Manager API (/api/v2/alarms) is at the console root, which the Fabric
-        connector does not relay. Manage global alarms in the UniFi Protect app.
-
-        Result status is the upstream HTTP number.
-
-        Example call (get_protect_alarm_manager_mode):
-            {"host": "my-console"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-        """
-        client, registry = deps_fn()
-        return await _get_protect_alarm_manager_mode(client, registry, host)
-
-    @mcp.tool(annotations=WRITE)
-    async def update_camera_private(
-        host: str, camera_id: str, settings: CameraSettings
-    ) -> dict[str, Any]:
-        """Change camera recording, zones, image, IR, lux index, audio, motion detection and
-        tracking. Read-merge-PATCH preserves nested siblings; zone arrays replace in full,
-        so retain every wanted zone. Privacy masks hide covered imagery.
-
-        Consequence: the PATCH persistently changes stored camera settings. Restore prior
-        readBefore values to reverse settings changes. Disabling recording leaves footage gaps.
-        Disabling motion detection loses footage only in motion- or detection-triggered recording
-        modes; recordingSettings.mode="always" continues recording. Privacy masks hide covered
-        imagery. Missing footage and masked imagery cannot be recovered later.
-
-        Returns relay method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes. Write metadata includes
-        writeEnabled. Read twins add readBefore/readAfter, noOp and changed when known.
-        _verified says requested fields saved; noOp, changed and _noOp compare requested leaves,
-        type-strict. If requested fields are absent from both 2xx reads, noOpReason explains why
-        noOp is unknown. Failed read-back leaves _verified and _noOp null; readAfterError and
-        _verificationWarning explain failed or unproven verification.
-
-        Under dry-run policy no write is sent. Status is "dry_run"; body contains the exact
-        merged preview {status, dryRun, sent: false, message, preview: {method, path, params,
-        body}}. _verified remains null; otherwise status is the upstream HTTP number.
-
-        Example call (update_camera_private):
-            {"host":"my-console","camera_id":"00000000000000000000010b",
-             "settings":{"recordingSettings":{"mode":"always"}}}
-
-        Args:
-            host: Console short name from list_hosts (reportedState.hostname/name,
-                case-insensitive) or data[].id (MAC:numericId); serves Network and Protect.
-            camera_id: Protect 24-hex id from list_cameras or an unambiguous camera name.
-            settings: Typed partial private settings; additional controller fields pass through.
-        """
-        client, registry = deps_fn()
-        return await _update_camera_private(
-            client, registry, host, camera_id, settings.model_dump(exclude_unset=True)
-        )
-
-    @mcp.tool(annotations=WRITE)
-    async def update_nvr(host: str, settings: NvrSettings) -> dict[str, Any]:
-        """Change NVR doorbell custom messages, insights, analytics and retention. Nested objects
-        merge; arrays replace in full. DANGER: shorter recording retention can permanently
-        delete older footage; retention coupling is controller-dependent and needs live testing.
-        Returns the relay response with readBefore/readAfter, _verified and _noOp. A failed or
-        non-object read-after leaves _verified and _noOp null, preserving the relay error.
-        Dry-run previews the exact merged body.
-
-        Consequence: the PATCH persistently changes NVR-wide settings, reversible by writing back
-        the prior values returned in readBefore; shortening recording retention, however, can make
-        the NVR permanently delete older footage, which no later write restores.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled; retention changes may add _warnings.
-        Read twins add readBefore, readAfter, noOp and changed when known; _noOp compares
-        requested leaves, type-strict. If requested fields are absent from both 2xx reads,
-        noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
-        explain failed or unproven read-back.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (update_nvr):
-            {"host": "my-console", "settings": {"isInsightsEnabled": true}}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            settings: Typed partial private settings, e.g.
-                {"isInsightsEnabled":true,"analyticsData":"anonymous"}; additional controller fields
-                pass through.
-        """
-        client, registry = deps_fn()
-        return await _update_nvr(client, registry, host, settings.model_dump(exclude_unset=True))
-
-    @mcp.tool(annotations=WRITE)
-    async def update_sensor_private(
-        host: str, sensor_id: str, settings: SensorSettings
-    ) -> dict[str, Any]:
-        """Change sensor mount type and status light via read-merge-PATCH, preserving nested
-        siblings. Returns the relay response with readBefore/readAfter, _verified and _noOp.
-        A failed or non-object read-after leaves _verified and _noOp null, preserving
-        the relay error; dry-run previews the exact merged body.
-
-        Consequence: the PATCH persistently changes the sensor's stored settings. Mount type and
-        status light changes are reversible by restoring readBefore values; additional controller
-        fields may have other effects.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled.
-        Read twins add readBefore, readAfter, noOp and changed when known; _noOp compares
-        requested leaves, type-strict. If requested fields are absent from both 2xx reads,
-        noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
-        explain failed or unproven read-back.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (update_sensor_private):
-            {
-              "host": "my-console",
-              "sensor_id": "00000000000000000000010c",
-              "settings": {
-                "mountType": "door"
-              }
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "00000000000000000000010c", or an unambiguous sensor name such as
-                "Back Door".
-            settings: Typed partial private settings, e.g.
-                {"mountType":"door","ledSettings":{"isEnabled":true}}; additional controller fields
-                pass through.
-        """
-        client, registry = deps_fn()
-        return await _update_sensor_private(
-            client, registry, host, sensor_id, settings.model_dump(exclude_unset=True)
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def export_camera_video(
-        host: str, camera_id: str, start: int, end: int, channel: int = 0, fps: int | None = None
-    ) -> dict[str, Any]:
-        """Export an MP4 clip or timelapse through the private video route. Returns the entire
-        uncapped payload base64-encoded in bodyBase64 with sizeBytes and contentType; body is
-        null for binary output. Base64 expands bytes by about one third and the whole response
-        occupies memory, so long clips can produce very large MCP messages. Requested clip
-        boundaries may differ by a few seconds. Set fps for a timelapse; no duration or payload
-        cap is imposed.
-        The additive ``_warnings`` entry flags negative or millisecond-looking epoch inputs while
-        sending values as given.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-
-        Result status is the upstream HTTP number.
-
-        Example call (export_camera_video):
-            {
-              "host": "my-console",
-              "camera_id": "00000000000000000000010b",
-              "start": 1735689600,
-              "end": 1735689610
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            camera_id: Protect camera id (24-hex) from list_cameras (id), e.g.
-                "00000000000000000000010b", or an unambiguous camera name such as "Front Door".
-            start: Clip start in epoch seconds, e.g. 1735689600; converted to controller
-                milliseconds.
-            end: Clip end in epoch seconds, e.g. 1735689610; converted to controller
-                milliseconds.
-            channel: Stream index, e.g. 0 for high quality; index 3 selects package-camera lens
-                2.
-            fps: Optional timelapse frame rate, e.g. 4 for 60x or 8 for 120x; omitted for a
-                normal clip.
-        """
-        client, registry = deps_fn()
-        return await _export_camera_video(
-            client, registry, host, camera_id, start, end, channel, fps
-        )
-
-    @mcp.tool(annotations=WRITE)
-    async def reboot_protect_device(
-        host: str, device_type: DEVICE_TYPES, device_id: str
-    ) -> dict[str, Any]:
-        """Reboot a Protect device once. Camera recording and live view are interrupted while it
-        restarts. No automatic retry; a timeout means outcome unknown, read back before
-        retrying.
-
-        Consequence: the camera or sensor restarts and is offline until it comes back; a camera
-        records nothing and serves no live view meanwhile, and that gap in footage cannot be
-        recovered. No setting is changed.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled; _warnings describes operational risks.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (reboot_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            device_type: Protect resource kind, singular: "camera" or "sensor" (the route
-                adds the plural collection, e.g. protect/api/cameras).
-            device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "00000000000000000000010b", or an unambiguous device name such as
-                "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _reboot_protect_device(client, registry, host, device_type, device_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def adopt_protect_device(
-        host: str, device_type: DEVICE_TYPES, device_id: str
-    ) -> dict[str, Any]:
-        """Adopt an available Protect device using its native id. Adoption changes management and
-        may interrupt service. Returns the relay status and unchanged upstream adoption result;
-        no automatic retry. An unknown id may return a per-device error in an HTTP 200 response.
-
-        Consequence: this console's Protect application takes over management of the device, which
-        is provisioned and may restart (briefly interrupting its stream). Adoption persists until
-        the device is removed with unadopt_protect_device.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled; _warnings describes operational risks.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (adopt_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            device_type: Protect resource kind, singular: "camera" or "sensor" (the route
-                adds the plural collection, e.g. protect/api/cameras).
-            device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "00000000000000000000010b", or an unambiguous device name such as
-                "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _adopt_protect_device(client, registry, host, device_type, device_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def unadopt_protect_device(
-        host: str, device_type: DEVICE_TYPES, device_id: str
-    ) -> dict[str, Any]:
-        """Unadopt and remove a Protect device from management. This deletes its managed-device
-        configuration and interrupts recording; re-adoption may be required. Returns the
-        unchanged upstream body under body; no automatic retry.
-
-        Consequence: the device and its managed-device configuration are removed from Protect;
-        cameras stop recording. Undo requires re-adoption and reconfiguration.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled; _warnings describes operational risks.
-        Read twins add readBefore/readAfter, noOp and changed. HTTP 404 after a 2xx read-before
-        confirms removal: changed true, noOp false, _verified true, _noOp false. A 2xx read-after
-        with the device still present gives noOp null and noOpReason "deletion not confirmed".
-        Other failed read-backs set readAfterError and leave _verified and _noOp null.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (unadopt_protect_device):
-            {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            device_type: Protect resource kind, singular: "camera" or "sensor" (the route
-                adds the plural collection, e.g. protect/api/cameras).
-            device_id: Protect device id (24-hex) from list_cameras / list_sensors (id),
-                e.g. "00000000000000000000010b", or an unambiguous device name such as
-                "Front Door".
-        """
-        client, registry = deps_fn()
-        return await _unadopt_protect_device(client, registry, host, device_type, device_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def clear_sensor_tamper(host: str, sensor_id: str) -> dict[str, Any]:
-        """Clear a sensor's latched tamper flag once. Returns the relay status and unchanged
-        response; _readAfter reports current sensor state without claiming success from HTTP
-        alone. Failed read-back preserves the response with readAfterError and null
-        _verified/_noOp verdicts. No automatic retry.
-
-        Consequence: the sensor's latched tamper alert is cleared on the controller, so the sensor
-        no longer shows as tampered; the cleared flag cannot be restored, but a new tamper event
-        latches it again. Nothing happens physically at the sensor.
-
-        Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-        body; binary responses use bodyBase64 and sizeBytes.
-        Write metadata includes writeEnabled; _warnings describes operational risks.
-
-        Under dry-run policy no upstream write is sent: status is "dry_run" and body
-        contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}}.
-
-        Result status is the upstream HTTP number or dry_run for a preview.
-
-        Example call (clear_sensor_tamper):
-            {"host": "my-console", "sensor_id": "00000000000000000000010c"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g.
-                "my-console") or the long data[].id (MAC:numericId composite). One console
-                serves both Network and Protect.
-            sensor_id: Protect sensor id (24-hex) from list_sensors (id), e.g.
-                "00000000000000000000010c", or an unambiguous sensor name such as
-                "Back Door".
-        """
-        client, registry = deps_fn()
-        return await _clear_sensor_tamper(client, registry, host, sensor_id)
 
 
 # Stable aliases prevent nested registration wrappers from calling themselves.

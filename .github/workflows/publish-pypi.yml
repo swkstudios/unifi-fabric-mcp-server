@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     environment: pypi-upload
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,13 +117,28 @@ jobs:
           tools/mcpb/node_modules/.bin/mcpb validate plugins/claude-desktop/manifest.json
           mkdir -p mcpb
           tools/mcpb/node_modules/.bin/mcpb pack plugins/claude-desktop "mcpb/unifi-fabric-${VERSION}.mcpb"
-          # The bundle carries exactly the manifest and README, manifest unchanged.
+          # The bundle carries exactly the manifest, README and the icons the manifest names, manifest unchanged.
           python - "mcpb/unifi-fabric-${VERSION}.mcpb" <<'PY'
           import json, sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as bundle:
               names = sorted(bundle.namelist())
               packed = json.loads(bundle.read("manifest.json"))
-          assert names == ["README.md", "manifest.json"], names
+          assert names == [
+              "README.md",
+              "icon-128.png",
+              "icon-16.png",
+              "icon-256.png",
+              "icon-32.png",
+              "icon-64.png",
+              "icon-light-128.png",
+              "icon-light-16.png",
+              "icon-light-256.png",
+              "icon-light-32.png",
+              "icon-light-64.png",
+              "icon-light.png",
+              "icon.png",
+              "manifest.json",
+          ], names
           assert packed == json.load(open("plugins/claude-desktop/manifest.json")), "manifest changed"
           PY
           sha256sum "mcpb/unifi-fabric-${VERSION}.mcpb"
@@ -158,7 +173,7 @@ jobs:
               && github.ref_type == 'tag'
               && startsWith(github.ref_name, 'v')))
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     permissions:
       contents: write
     steps:
@@ -192,7 +207,7 @@ jobs:
               && github.ref_type == 'tag'
               && startsWith(github.ref_name, 'v')))
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     environment: pypi-upload
     permissions:
       # OIDC: the job's identity token is exchanged for a short-lived PyPI upload token.

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastmcp import FastMCP
 
+from tests._family_steps import register_module
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.families.network import (
     network_clients_guests as clients,
@@ -119,7 +120,7 @@ async def test_legacy_inputs_reach_upstream_once_and_preserve_error(
     registry.resolve_site_slug.return_value = "site-id"
     if registered:
         mcp = FastMCP("compat")
-        module.register(mcp, lambda: (client, registry))
+        register_module(mcp, module, lambda: (client, registry))
         tool = {t.name: t for t in await mcp.list_tools()}[name]
         call = tool.fn(**arguments)
     else:
@@ -189,7 +190,7 @@ async def test_legacy_success_preserves_body_and_query(
     registry.resolve_site_slug.return_value = "site-id"
     if registered:
         mcp = FastMCP("compat-success")
-        module.register(mcp, lambda: (client, registry))
+        register_module(mcp, module, lambda: (client, registry))
         result = await {t.name: t for t in await mcp.list_tools()}[name].fn(**arguments)
     else:
         direct_args = dict(arguments)

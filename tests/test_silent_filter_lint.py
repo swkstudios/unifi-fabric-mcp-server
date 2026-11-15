@@ -106,6 +106,111 @@ HOST_MACS = (
 #: {(file relative to src/unifi_fabric, function qualname, kind, normalized source): reason}
 ALLOWED: dict[tuple[str, str, str, str], str] = {
     (
+        "redaction.py",
+        "_echoed_credential_keys",
+        "comprehension-filter",
+        "isinstance(key, str) and key.lower() in _ECHO_NAME_KEYS and isinstance(value, str)",
+    ): (
+        "Chooses which value of an already-parsed object to mask: a sibling key names a "
+        "credential field in an echo such as {field, value}. Nothing is dropped or counted; "
+        "a key or value of another type is simply not an echo, and the object is returned "
+        "whole with only the matched value masked."
+    ),
+    (
+        "redaction.py",
+        "_echoed_credential_keys",
+        "comprehension-filter",
+        "isinstance(key, str) and key.lower() in _ECHO_VALUE_KEYS "
+        "and any((_should_mask(name, value) for name in named))",
+    ): (
+        "Chooses which value of an already-parsed object to mask: a sibling key names a "
+        "credential field in an echo such as {field, value}. Nothing is dropped or counted; "
+        "a key or value of another type is simply not an echo, and the object is returned "
+        "whole with only the matched value masked."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "_dict",
+        "ifexp-empty",
+        "value if isinstance(value, dict) else {}",
+    ): (
+        "Reads an optional nested object (uplink, attempts, a client block) out of a "
+        "record that already passed the envelope shape check. A malformed block reads as "
+        "absent, and every rule that needs a field from it lists itself as not assessed "
+        "or skips that record; the value is never guessed, and nothing sent upstream "
+        "depends on it."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "_records",
+        "ifexp-empty",
+        "[item for item in value if isinstance(item, dict)] if isinstance(value, list) else []",
+    ): (
+        "Reads a nested array (vap_table, radio_table, events, scans) out of a record "
+        "that already passed the envelope shape check; a malformed array reads as empty "
+        "and the rule that needs it reports not assessed or finds nothing. Top-level "
+        "record lists are shape-checked and raise."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "_records",
+        "comprehension-filter",
+        "isinstance(item, dict)",
+    ): (
+        "Same nested-array read: a non-object element cannot hold the fields a rule "
+        "names, so it yields no finding. The result is a read-only report; nothing is "
+        "written from it."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "unknown_thresholds",
+        "if-skip",
+        "not isinstance(overrides, dict)",
+    ): (
+        "The caller's own thresholds argument, not upstream data: a non-object value is "
+        "rejected by validate_thresholds before any request, so this helper only sees an "
+        "object."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "_access_points",
+        "if-skip",
+        "not isinstance(stats, list)",
+    ): (
+        "A stat/device record without radio_table_stats is not an access point (a switch, "
+        "a gateway, a camera) and is outside the report by definition; every AP is "
+        "counted either as checked or as not assessed in the summary."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "_latencies",
+        "ifexp-empty",
+        "value if isinstance(value, dict) else {}",
+    ): (
+        "Copies five named latency fields of the connectivity read into the site finding; "
+        "a malformed block yields nulls beside the stage ratios and never a finding of "
+        "its own."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "analyse",
+        "comprehension-filter",
+        "isinstance(w.get('name'), str)",
+    ): (
+        "Indexes WLAN records by name to resolve an SSID for a client; a WLAN without a "
+        "string name cannot be looked up, so the client's SSID reads as unknown and the "
+        "rule skips that detail."
+    ),
+    (
+        "families/devices/wifi_diagnosis.py",
+        "analyse",
+        "comprehension-filter",
+        "isinstance(w.get('_id'), str)",
+    ): (
+        "Indexes WLAN records by id to resolve a client's wlanconf_id; a WLAN without a "
+        "string id cannot be matched, so the SSID name is left out of the evidence."
+    ),
+    (
         "refusal_audit.py",
         "denial_reason",
         "ifexp-empty",
@@ -136,7 +241,7 @@ ALLOWED: dict[tuple[str, str, str, str], str] = {
         "so the substitute {} never reaches an upstream request."
     ),
     (
-        "families/__init__.py",
+        "_call_graph.py",
         "_route_literals",
         "comprehension-filter",
         "isinstance(child, ast.Constant) and isinstance(child.value, str) and "
@@ -431,7 +536,7 @@ ALLOWED: dict[tuple[str, str, str, str], str] = {
         "isinstance(c, dict) and isinstance(c.get('name'), str)",
     ): LOOKUP,
     (
-        "families/site_manager/site_manager.py",
+        "shared_shapes/_site_manager_shared.py",
         "_aggregate_lists_over_keys._fetch",
         "ifexp-empty",
         "dict(envelope) if isinstance(envelope, dict) else {}",
@@ -617,13 +722,13 @@ ALLOWED: dict[tuple[str, str, str, str], str] = {
         "before if isinstance(before, dict) else {}",
     ): MERGE_BASE,
     (
-        "families/network/site_config.py",
+        "shared_shapes/_site_config_shared.py",
         "_merge_config_body.keep",
         "ifexp-empty",
         "prior if isinstance(prior, dict) else {}",
     ): CALLER_MERGE,
     (
-        "families/network/site_config.py",
+        "shared_shapes/_site_config_shared.py",
         "_merge_config_body.keep",
         "ifexp-empty",
         "prior if isinstance(prior, list) else []",

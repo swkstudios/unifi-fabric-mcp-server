@@ -42,6 +42,7 @@ from unifi_fabric.families import (
     MODULE_FAMILY,
     apply_tool_family_filter,
     build_family_index,
+    module_key_of,
 )
 from unifi_fabric.families.protect import protect
 from unifi_fabric.redaction import REDACTION_MASK
@@ -523,7 +524,7 @@ async def test_b7_full_mode_advertises_the_registry_unchanged() -> None:
 def test_roster_every_registered_tool_and_module_has_a_family() -> None:
     assert set(TOOLS) - FAMILY.keys() == set(), "unclassified tools"
     assert FAMILY.keys() - set(TOOLS) == set(), "stale family entries"
-    defining = {inspect.unwrap(tool.fn).__module__.rsplit(".", 1)[-1] for tool in TOOLS.values()}
+    defining = {module_key_of(inspect.unwrap(tool.fn).__module__) for tool in TOOLS.values()}
     modules = defining - {"server"}
     assert modules - MODULE_FAMILY.keys() == set(), "tool modules without a family"
     assert modules - set(_REGISTER_MODULES) == set(), "register() modules not indexed"

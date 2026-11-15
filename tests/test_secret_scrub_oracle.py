@@ -388,6 +388,30 @@ def test_token_decode_stdlib_equality():
         assert product._unit_char(token) == scrub_oracle.token_decode(token), ("G1", token)
 
 
+def test_oracle_reuse_changes_no_result():
+    """Issue 836: the oracle reuses only pure work, keyed by the complete input. The view
+    enumeration and the token decoder return what their uncached forms return, a different
+    text or token is a different key, and ``reference_spans`` gives the same spans whether
+    the views come from the reuse or are enumerated again."""
+    texts = [
+        "plain text",
+        r"a%41b&#66;\x43 and %2541 and &amp;amp;",
+        r"nested %2526%2523x41%253B " + "Key" + "0123456789012345",
+        "",
+    ]
+    for text in texts:
+        assert list(scrub_oracle.views(text)) == list(scrub_oracle._enumerate_views(text))
+        assert list(scrub_oracle.views(text)) == list(scrub_oracle.views(text))
+    assert list(scrub_oracle.views(texts[1])) != list(scrub_oracle.views(texts[0]))
+    for token in ("%41", "%u0041", "&amp;", "&nosuchentity;", r"\x41", r"\q", "%" + "41" * 12):
+        assert scrub_oracle._decode_cached(token) == scrub_oracle.token_decode(token)
+    secrets = ["Key" + "0123456789012345", "short"]
+    for text in texts + ["xx Key0123456789012345 short%41 yy"]:
+        first = scrub_oracle.reference_spans(text, secrets)
+        scrub_oracle._all_views.cache_clear()
+        assert scrub_oracle.reference_spans(text, secrets) == first
+
+
 def run_chunk(corpus, seed):
     """Every case of one chunk through :func:`check`; the bound-hit rate is REPORTED in the
     evidence JSON (per chunk), never gated here (V3-2). The later-round-bound exemptions

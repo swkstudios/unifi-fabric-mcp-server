@@ -326,13 +326,14 @@ async def test_the_collector_is_a_read_neither_hidden_by_deny_nor_previewed_by_d
     assert "dry_run" not in doc and "dryRun" not in doc
 
 
-def test_only_the_listed_system_log_route_is_a_read():
+def test_only_the_nine_listed_system_log_routes_are_reads():
     prefix = f"/v1/connector/consoles/{HOST_ID}/proxy/network/v2/api/site/default"
-    assert read_only.is_write_request("POST", f"{prefix}/system-log/all") is False
-    # the read-allowlist covers exactly this route: every other POST stays a write
+    for log_class in system_log.EVIDENCE_READ_CLASSES:
+        assert read_only.is_write_request("POST", f"{prefix}/system-log/{log_class}") is False
+    # the read-allowlist covers exactly these routes: every other POST stays a write
     for path in (
-        f"{prefix}/system-log/critical",
-        f"{prefix}/system-log/threat-alert",
+        f"{prefix}/system-log/triggers",
+        f"{prefix}/system-log/count",
         f"{prefix}/system-log/all/extra",
         f"{prefix}/system-log/critical/mark-all-as-read",
         f"{prefix}/system-log",
@@ -344,7 +345,7 @@ def test_only_the_listed_system_log_route_is_a_read():
 
 async def test_a_class_that_is_not_allowlisted_is_refused_before_any_request(client, registry):
     with pytest.raises(ValueError, match="log_classes may name only a read-allowlisted"):
-        await _collect(client, registry, log_classes=["all", "critical"])
+        await _collect(client, registry, log_classes=["all", "triggers"])
     client.request.assert_not_awaited()
 
 
@@ -445,13 +446,19 @@ def test_tool_is_registered_with_derived_read_annotations_and_described_params()
     assert tool.parameters["required"] == ["host", "site", "start", "end"]
 
 
-def test_derivation_counts_the_collector_as_a_read_and_the_other_system_log_posts_as_writes():
+def test_derivation_counts_the_collector_and_the_native_system_log_readers_as_reads():
     from tests.test_read_only import _registered_tools
 
     writes = derive_write_tools(_registered_tools())
-    assert "collect_network_incident_evidence" not in writes
-    # the same route sent with client.post stays a write tool, and so does every other class
-    assert {"get_system_log", "list_network_events", "list_ips_events"} <= writes
+    assert (
+        not {
+            "collect_network_incident_evidence",
+            "get_system_log",
+            "list_network_events",
+            "list_ips_events",
+        }
+        & writes
+    )
 
 
 def test_description_claims_no_causality():
@@ -491,7 +498,7 @@ async def test_an_uncertain_write_outcome_raises_and_sends_no_further_post(
     boom = _error_for(status)
     client.request.side_effect = _by_class({"all": boom, "critical": CRITICAL})
     with pytest.raises(type(boom)) as raised:
-        await _collect(client, registry, log_classes=["all", "critical"])
+        await _collect(client, registry, log_classes=["all", "triggers"])
     assert raised.value is boom  # the client's own error, verbatim
     # The first POST is the only one sent: the second class is never requested.
     assert client.request.await_count == 1
@@ -559,21 +566,10 @@ async def test_id_less_rows_are_one_record_each_and_bad_rows_are_counted(client,
 
 
 def test_the_read_post_allowlist_is_pinned_literally():
-    """Pinned by name, not from the source constants under test: only the system-log ``all``
-    route is a read among the system-log routes, and the other listed routes are unchanged."""
-    assert {r.name for r in rp.READ_POST_ROUTES} == {
-        "network-v2-traffic-flows",
-        "network-v2-system-log-all",
-        "network-classic-stat-session",
-        "network-classic-stat-report",
-        "site-manager-isp-metrics-query",
-    }
-    assert [r.template for r in rp.READ_POST_ROUTES if "system-log" in r.template] == [
-        "/v1/connector/consoles/{console}/proxy/network/v2/api/site/{site}/system-log/all"
-    ]
-    assert system_log.EVIDENCE_READ_CLASSES == ("all",)
-    prefix = f"/v1/connector/consoles/{HOST_ID}/proxy/network/v2/api/site/default/system-log"
-    for log_class in (
+    """Pinned by name, not from the source constants under test: the nine system-log class
+    routes are reads and the other listed routes are unchanged."""
+    classes = (
+        "all",
         "device-alert",
         "client-alert",
         "admin-activity",
@@ -582,9 +578,21 @@ def test_the_read_post_allowlist_is_pinned_literally():
         "next-ai-alert",
         "vpn-alert",
         "critical",
-        "triggers",
-        "count",
-    ):
+    )
+    assert {r.name for r in rp.READ_POST_ROUTES} == {
+        "network-v2-traffic-flows",
+        "network-classic-stat-session",
+        "network-classic-stat-report",
+        "site-manager-isp-metrics-query",
+        *(f"network-v2-system-log-{c}" for c in classes),
+    }
+    assert sorted(r.template for r in rp.READ_POST_ROUTES if "system-log" in r.template) == sorted(
+        f"/v1/connector/consoles/{{console}}/proxy/network/v2/api/site/{{site}}/system-log/{c}"
+        for c in classes
+    )
+    assert system_log.EVIDENCE_READ_CLASSES == classes
+    prefix = f"/v1/connector/consoles/{HOST_ID}/proxy/network/v2/api/site/default/system-log"
+    for log_class in ("triggers", "count", "recent", "filter-data"):
         assert read_only.is_write_request("POST", f"{prefix}/{log_class}") is True, log_class
 
 
@@ -600,12 +608,9 @@ def test_the_read_post_allowlist_is_pinned_literally():
         ("list_ips_events", {}),
     ],
 )
-async def test_native_system_log_writes_preview_under_dry_run_on_every_class(
-    monkeypatch, name, extra
-):
-    """The native readers are 0.7.1 writes on every class, ``all`` included although that route
-    is read-allowlisted for the collector: under dry-run policy they send 0 upstream POSTs and
-    return the preview (the write audit and the area guards see a write, as before)."""
+async def test_native_system_log_readers_are_reads_and_send_under_dry_run(monkeypatch, name, extra):
+    """The native readers send through ``post_read``: a read, so dry-run policy does not turn
+    them into a preview and the POST is sent."""
     from tests import tool_args
     from tests import upstream_harness as uh
 
@@ -615,9 +620,38 @@ async def test_native_system_log_writes_preview_under_dry_run_on_every_class(
     try:
         tool = {t.name: t for t in await server.mcp.list_tools()}[name]
         args = {k: v for k, v in tool_args.generated_args(tool).items() if k in ("host", "site")}
-        result = await server.mcp.call_tool(name, {**args, **extra})
+        try:
+            result = await server.mcp.call_tool(name, {**args, **extra})
+        except Exception:  # noqa: BLE001 - the fake upstream may answer an unusable page
+            result = None
     finally:
         await client.close()
-    payload = uh.result_payload(result)
-    assert payload["status"] == "dry_run" and payload["sent"] is False, payload
+    if result is not None:
+        payload = uh.result_payload(result)
+        assert not (isinstance(payload, dict) and payload.get("status") == "dry_run"), payload
+    assert [row.path for row in upstream.served if row.method == "POST"], "no POST was sent"
+
+
+@pytest.mark.parametrize(
+    ("name", "extra"),
+    [
+        ("get_system_log", {"log_class": "triggers"}),
+        ("list_network_events", {"view": "triggers"}),
+    ],
+)
+async def test_native_system_log_readers_refuse_a_class_that_is_not_allowlisted(
+    monkeypatch, name, extra
+):
+    from tests import tool_args
+    from tests import upstream_harness as uh
+
+    upstream = uh.FakeUpstream(replay_recordings=False)
+    client = uh.install(monkeypatch, upstream)
+    try:
+        tool = {t.name: t for t in await server.mcp.list_tools()}[name]
+        args = {k: v for k, v in tool_args.generated_args(tool).items() if k in ("host", "site")}
+        with pytest.raises(Exception, match="Invalid arguments|read-allowlisted"):
+            await server.mcp.call_tool(name, {**args, **extra})
+    finally:
+        await client.close()
     assert [row.path for row in upstream.served if row.method == "POST"] == []

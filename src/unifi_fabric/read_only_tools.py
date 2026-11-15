@@ -151,27 +151,25 @@ def area_opt_out_env(name: str, family: str | None, connector_write_enabled: boo
     write switch governs the relay's write tools and every typed write tool that checks it
     (derived from source at generation time: :func:`families.connector_write_tools`).
     """
-    from . import families
-    from .families.connector import connector
+    from . import families, relay_policy
 
-    env = connector.area_write_env(family)
+    env = relay_policy.area_write_env(family)
     if (
         env is None
         and not connector_write_enabled
         and (family == "connector" or name in families.connector_write_tools())
     ):
-        env = connector.CONNECTOR_WRITE_ENV
+        env = relay_policy.CONNECTOR_WRITE_ENV
     return env
 
 
 def hidden_area_write_refusal(name: str, env: str) -> str:
     """The refusal for a write tool hidden by the denying exception ``env``."""
-    from . import families
-    from .families.connector import connector
+    from . import families, relay_policy
 
-    if env == connector.CONNECTOR_WRITE_ENV:
-        return connector.connector_write_refusal(name)
-    text = connector.area_write_refusal(families.build_family_index().get(name))
+    if env == relay_policy.CONNECTOR_WRITE_ENV:
+        return relay_policy.connector_write_refusal(name)
+    text = relay_policy.area_write_refusal(families.build_family_index().get(name))
     return text or (
         f"{name!r} is a write tool hidden at startup because UNIFI_WRITE_EXCEPTIONS contains "
         f"{env}; remove that item and restart the server to list it."
@@ -251,8 +249,7 @@ class ReadOnlyToolMiddleware(Middleware):
 
     def _denial(self, target: str, read_only: bool) -> tuple[str, str] | None:
         """``(reason, message)`` when the target's write mode is deny, else None."""
-        from . import families, policy
-        from .families.connector import connector
+        from . import families, policy, relay_policy
 
         current = policy.current()
         if read_only:
@@ -267,9 +264,9 @@ class ReadOnlyToolMiddleware(Middleware):
             return None
         token = f"family:{family}=deny"
         message = (
-            connector.connector_write_refusal(target)
+            relay_policy.connector_write_refusal(target)
             if family == "connector"
-            else connector.area_write_refusal(family)
+            else relay_policy.area_write_refusal(family)
         ) or (
             f"{target} refused: UNIFI_WRITE_EXCEPTIONS contains {token}, which denies the "
             f"writes of the {family} family. No request was sent. Remove that item to allow "
@@ -344,12 +341,12 @@ class AreaOptOutMiddleware(Middleware):
 
     def _hidden_refusal(self, name: str) -> tuple[str, str] | None:
         """``(refusal, variable)`` for a startup-hidden write whose opt-out is still set."""
-        from .families.connector import connector
+        from . import relay_policy
 
         env = self._hidden_writes.get(name)
         if env is None:
             return None
-        if env == connector.CONNECTOR_WRITE_ENV:
+        if env == relay_policy.CONNECTOR_WRITE_ENV:
             opted_out = not self._connector_write_enabled()
         else:
             opted_out = family_denied(_token_family(env))
@@ -360,8 +357,7 @@ class AreaOptOutMiddleware(Middleware):
         context: MiddlewareContext[Any],
         call_next: CallNext[Any, Any],
     ) -> Any:
-        from . import families
-        from .families.connector import connector
+        from . import families, relay_policy
 
         name = str(getattr(context.message, "name", ""))
         hidden = self._hidden_refusal(name)
@@ -371,11 +367,11 @@ class AreaOptOutMiddleware(Middleware):
                 self._audit(name, hidden[1])
             raise refusal(name, WRITE_DENIED, hidden[0])
         family = families.build_family_index().get(name)
-        area_refusal = connector.area_write_refusal(family)
-        gate = connector.area_write_env(family)
+        area_refusal = relay_policy.area_write_refusal(family)
+        gate = relay_policy.area_write_env(family)
         if area_refusal is None and family == "connector" and not self._connector_write_enabled():
-            area_refusal = connector.connector_write_refusal(name)
-            gate = connector.CONNECTOR_WRITE_ENV
+            area_refusal = relay_policy.connector_write_refusal(name)
+            gate = relay_policy.CONNECTOR_WRITE_ENV
         if area_refusal is not None:
             try:
                 tool = await self._server.get_tool(name)

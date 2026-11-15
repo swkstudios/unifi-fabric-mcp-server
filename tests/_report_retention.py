@@ -27,11 +27,20 @@ class ReportRetention:
     def __init__(self, config: pytest.Config) -> None:
         self._config = config
         self._phases: dict[tuple[str, int], list[pytest.TestReport]] = {}
+        # The item that produced each teardown report, until that report is logged.
+        self._items: dict[str, pytest.Item] = {}
 
     def _passes_summary_requested(self) -> bool:
         reporter = self._config.pluginmanager.get_plugin("terminalreporter")
         # Without a terminal reporter, keep everything for whichever plugin replaced it.
         return reporter is None or "P" in reporter.reportchars
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_runtest_makereport(self, item: pytest.Item, call: pytest.CallInfo[None]):
+        report = yield
+        if report.when == "teardown":
+            self._items[report.nodeid] = item
+        return report
 
     @pytest.hookimpl(trylast=True)
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
@@ -43,11 +52,18 @@ class ReportRetention:
         if report.when != "teardown":
             return
         del self._phases[key]
+        item = self._items.pop(report.nodeid, None)
         if self._passes_summary_requested():
             return
         if all(rep.passed and not hasattr(rep, "wasxfail") for rep in phases):
             for rep in phases:
                 rep.sections = []
+            # Each report holds a copy: the item keeps the captured text of every phase
+            # (``Item._report_sections``) for as long as the session holds the item, that
+            # is the whole run, in a worker as much as in the controller. Reports are
+            # built from it only while the phases run, so a passed test no longer needs it.
+            if item is not None:
+                item._report_sections.clear()
 
 
 def pytest_configure(config: pytest.Config) -> None:

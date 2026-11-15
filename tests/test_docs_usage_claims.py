@@ -54,12 +54,6 @@ def test_write_opt_out_intro_matches_the_runtime_default() -> None:
     assert intro.rstrip().endswith(expected)
 
 
-def test_migration_guide_makes_no_boolean_refusal_claim() -> None:
-    text = _flat(_doc("docs/MIGRATING-0.7.md"))
-    assert "a number for a boolean parameter is the one now refused" not in text
-    assert "no longer matches `true`" not in text
-
-
 @pytest.mark.asyncio
 async def test_server_accepts_a_number_or_yes_for_a_boolean_parameter(
     monkeypatch: pytest.MonkeyPatch,

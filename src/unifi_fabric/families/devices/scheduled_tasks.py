@@ -7,11 +7,8 @@ and free-form body fields are preserved, including controller-version extensions
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
-
-from fastmcp import FastMCP
 
 from ...client import UniFiClient, UniFiConnectionError, validate_id
 from ...refusal_audit import credential_values
@@ -26,7 +23,6 @@ from ...shared_shapes._classic_objects import (
     select_classic_record,
 )
 from ...shared_shapes._results import deletion_result
-from ...tool_annotations import WRITE
 
 
 def _incomplete(response: Any) -> bool:
@@ -104,84 +100,3 @@ async def _delete_scheduled_task(
         await client.delete(path, key=key), path, client=client, key=key
     )
     return deletion_result(f"Scheduled task {task_id} deleted.", response)
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    @mcp.tool(annotations=WRITE)
-    async def create_scheduled_task(host: str, site: str, task: dict[str, Any]) -> Any:
-        """Create a scheduled task using the native Classic body.
-
-        Consequence: the controller executes the action at its scheduled time; upgrades can
-        interrupt devices and clients.
-
-        Returns the upstream body verbatim. Under dry-run policy nothing is sent; returns {status:
-        "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
-
-        Example: docs/TOOL-USAGE.md#create_scheduled_task.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            task: Free-form native object. Source fields include name, action,
-                cron_expr, execute_only_once and upgrade_targets, a list of objects with mac.
-                Example: {"name": "Monthly upgrades", "action": "upgrade",
-                "cron_expr": "0 0 1 * *", "execute_only_once": false,
-                "upgrade_targets": [{"mac": "02:00:00:00:00:01"}]}.
-                The controller validates actions and scheduling syntax; unknown fields
-                are forwarded unchanged.
-        """
-        client, registry = deps_fn()
-        return await _create_scheduled_task(client, registry, host, site, task)
-
-    @mcp.tool(annotations=WRITE)
-    async def update_scheduled_task(
-        host: str, site: str, task_id: str, task: dict[str, Any]
-    ) -> Any:
-        """Update a scheduled task with a whole-record read-merge-write.
-
-        Preserves unmentioned fields, upgrade_targets and the resolved _id. A supplied array
-        replaces that array, including [] to clear it.
-
-        Consequence: schedule or target changes affect future device actions; upgrades can interrupt
-        devices and clients.
-
-        Returns the upstream body verbatim. Under dry-run policy nothing is sent; returns {status:
-        "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
-
-        Example: docs/TOOL-USAGE.md#update_scheduled_task.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            task_id: Classic _id from list_scheduled_tasks data[], for example
-                "000000000000000000000001".
-            task: Free-form native changed fields, for example {"name": "Monthly upgrades"}.
-                Source fields include name, action, cron_expr, execute_only_once and
-                upgrade_targets, a list of objects with mac. Unknown fields are retained and
-                forwarded; the controller validates values.
-        """
-        client, registry = deps_fn()
-        return await _update_scheduled_task(client, registry, host, site, task_id, task)
-
-    @mcp.tool(annotations=WRITE)
-    async def delete_scheduled_task(host: str, site: str, task_id: str) -> Any:
-        """Delete a scheduled task after resolving its Classic id in the site.
-
-        Consequence: permanently removes the scheduled action.
-
-        Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-        response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-        empty). Under dry-run policy nothing is sent; returns {status: "dry_run", deleted: false,
-        message, response}, where response is the dry-run preview {status, dryRun, sent: false,
-        message, preview: {method, path, params, body}}.
-
-        Example: docs/TOOL-USAGE.md#delete_scheduled_task.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            task_id: Classic _id from list_scheduled_tasks data[], for example
-                "000000000000000000000001".
-        """
-        client, registry = deps_fn()
-        return await _delete_scheduled_task(client, registry, host, site, task_id)

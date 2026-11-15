@@ -1,7 +1,7 @@
 {
-  "hits": 1524,
-  "queries": 1638,
-  "recall_at_5": 0.9304029304029304,
+  "hits": 1574,
+  "queries": 1670,
+  "recall_at_5": 0.9425149700598803,
   "metric": "single-target Recall@5 over committed rank-independent natural-language fixture",
-  "query_fixture_sha256": "b9a4a02a02edc98d41c1ec4f93b87533a668e9ff1ba55546e5e54a2ae1ed9780"
+  "query_fixture_sha256": "0946b076894cee30be2617bedd27d53042fdbba9a6c087d80b32a76ccd907d1e"
 }

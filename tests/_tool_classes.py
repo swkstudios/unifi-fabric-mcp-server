@@ -25,7 +25,6 @@ Catalog sets are built on first use (``tests/_tool_catalog``), never at import.
 
 from __future__ import annotations
 
-import ast
 import asyncio
 import functools
 import inspect
@@ -72,29 +71,14 @@ def tool_module_name(stem: str) -> str:
 
 
 def module_index() -> dict[str, str]:
-    """``tool name -> tools/ sub-module``, statically from source (the reference the fast
-    runtime classification is checked against in ``tests/test_tool_classes.py``)."""
-    from unifi_fabric import families as fam
+    """``tool name -> sub-area module`` from the explicit inventory (public #42 steps 6
+    and 7): the reference the fast runtime classification is checked against in
+    ``tests/test_tool_classes.py``. Each tool's module is its loader step's ``origin``, so
+    the runtime classification (from the registered functions) must agree with the
+    authored inventory."""
+    from unifi_fabric.catalog import membership
 
-    pkg = Path(fam.__file__).parent.parent
-    index: dict[str, str] = {}
-    server_tree = ast.parse((pkg / "server.py").read_text())
-    for node in server_tree.body:
-        if isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef) and any(
-            fam._is_tool_decorator(d) for d in node.decorator_list
-        ):
-            refs = fam._module_refs(node)
-            index[fam._tool_name(node)] = refs[0] if refs else "server"
-    for mod in fam._REGISTER_MODULES:
-        tree = ast.parse((pkg / fam._module_rel(mod)).read_text())
-        for reg in ast.walk(tree):
-            if isinstance(reg, ast.FunctionDef) and fam._REGISTER_FUNCTION_RE.fullmatch(reg.name):
-                for sub in ast.walk(reg):
-                    if isinstance(sub, ast.AsyncFunctionDef | ast.FunctionDef) and any(
-                        fam._is_tool_decorator(d) for d in sub.decorator_list
-                    ):
-                        index[fam._tool_name(sub)] = mod
-    return index
+    return dict(membership.module_index())
 
 
 @functools.cache
@@ -107,7 +91,7 @@ def runtime_module_index() -> dict[str, str]:
     out: dict[str, str] = {}
     for tool in _tool_catalog._build():
         fn = inspect.unwrap(tool.fn)
-        mod = fn.__module__.rsplit(".", 1)[-1]
+        mod = fam.tool_function_module(fn)
         if mod == "server":
             refs = [n for n in fn.__code__.co_names if n in fam.MODULE_FAMILY]
             mod = refs[0] if refs else "server"

@@ -130,7 +130,7 @@ def test_the_action_owns_the_key_the_restore_and_the_locked_install():
     # The key: OS, fixed venv path, exact interpreter, ISO week, project inputs.
     assert key["env"] == {
         "PYTHON_VERSION": "${{ inputs.python-version }}",
-        "PROJECT_HASH": "${{ hashFiles('pyproject.toml', 'requirements.lock') }}",
+        "PROJECT_HASH": "${{ hashFiles('requirements.lock') }}",
     }
     assert 'week="$(date -u +%G-W%V)"' in key["run"]
     assert (

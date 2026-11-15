@@ -543,6 +543,7 @@ _BAD_SETTINGS: dict[str, tuple[str, str]] = {
     "cache_max_hosts": ("UNIFI_CACHE_MAX_HOSTS", "0"),
     "cache_max_sites": ("UNIFI_CACHE_MAX_SITES", "x"),
     "max_concurrency": ("UNIFI_MAX_CONCURRENCY", "0"),
+    "connector_max_rpm": ("UNIFI_CONNECTOR_MAX_RPM", "101"),
     "request_timeout_seconds": ("UNIFI_REQUEST_TIMEOUT_SECONDS", "30"),
     "paginate_max_pages": ("UNIFI_PAGINATE_MAX_PAGES", "0"),
     "log_level": ("UNIFI_LOG_LEVEL", "LOUD"),
@@ -570,6 +571,8 @@ _BAD_SETTINGS: dict[str, tuple[str, str]] = {
     "audit_chain": ("UNIFI_AUDIT_CHAIN", "maybe"),
     "audit_chain_key": ("UNIFI_AUDIT_CHAIN_KEY", "invalid"),
     "tool_mode": ("UNIFI_TOOL_MODE", "discovery,full"),
+    "preload": ("UNIFI_PRELOAD", "sometimes"),
+    "background_tasks": ("UNIFI_BACKGROUND_TASKS", "sometimes"),
     "write_policy": ("UNIFI_WRITE_POLICY", "maybe"),
     "write_exceptions": ("UNIFI_WRITE_EXCEPTIONS", "family:network=allow"),
     "family_allow": ("UNIFI_FAMILY_ALLOW", "networkk"),
@@ -629,6 +632,13 @@ def test_every_setting_is_validated_at_load_naming_its_variable(monkeypatch, fie
 )
 def test_valid_settings_still_load(monkeypatch, env, value):
     monkeypatch.setenv("FASTMCP_TRANSPORT", "streamable-http")
+    if env.startswith("MCP_OAUTH_"):
+        # An OAuth setting applies only in oauth mode, with the complete descriptor.
+        monkeypatch.setenv("MCP_AUTH_MODE", "oauth")
+        monkeypatch.setenv("MCP_OAUTH_ISSUER", "https://auth.example.com/")
+        monkeypatch.setenv("MCP_OAUTH_JWKS_URI", "https://auth.example.com/jwks")
+        monkeypatch.setenv("MCP_OAUTH_AUDIENCE", "mcp")
+        monkeypatch.setenv("MCP_OAUTH_BASE_URL", "https://mcp.example.com")
     monkeypatch.setenv(env, value)
     model = MCPTransportSettings if env.startswith("MCP_") else Settings
     model()

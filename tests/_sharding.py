@@ -5,9 +5,21 @@ the committed heavy list (``tests/shard_heavy_units.json``) and a fixed salt
 (``scripts/shard_partition.py``). The unit of assignment is the ``xdist_group`` name when
 an item has one (a group never splits), else the item's node ID.
 
-The hook runs last, after the ``-m`` and ``-k`` deselection, so its input is exactly the
-item list an unsharded run would execute. Items of other shards go through
-``pytest_deselected``. With ``--shard-report PATH`` the run writes a JSON report: commit,
+The selection is applied while collecting. As each collector's report is handled, the ``-m``
+and ``-k`` deselection is applied to them, every surviving ID is recorded for the proof, and
+the items of other shards are dropped (``pytest_deselected``) before the next module is
+collected. A worker therefore holds one module's items of other shards at a time, not the
+whole suite's (about 7 KiB each). The heavy units are the exception: their placement depends
+on which heavy units are present, so their items are kept until the hook that runs last, after
+the ``-m`` and ``-k`` deselection, places them; its input is then the item list an unsharded
+run would execute, less the light units of other shards. ``--shard-prune-late`` does all of
+the selection in that hook instead. The late path is also used whenever the early cut could
+select differently: ``--deselect``, ``--lf``, ``--ff``, ``--sw`` (and its ``-skip`` / ``-reset``
+forms), a node id on the command line, any ``-k``, and any ``-m`` naming a marker the repo does
+not apply as a decorator (a plugin such as hypothesis adds markers in its own
+``pytest_collection_modifyitems``, after the early cut).
+
+With ``--shard-report PATH`` the run writes a JSON report: commit,
 run, K, N, the sha256 of the sorted full pre-selection ID list, the selected IDs and the
 final outcome per executed ID (read where results arrive: the xdist controller, or the
 single process). ``scripts/shard_partition.py verify`` checks the reports of all shards
@@ -19,6 +31,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +43,13 @@ ROOT = Path(__file__).resolve().parent.parent
 HEAVY_UNITS = Path(__file__).with_name("shard_heavy_units.json")
 _PARTITION_PATH = ROOT / "scripts" / "shard_partition.py"
 _IDENTITY_PATH = ROOT / "scripts" / "env_identity.py"
+
+
+class _Deselected:
+    """Stands for a deselected item in the terminal reporter's count."""
+
+
+_DESELECTED = _Deselected()
 
 
 def partition():
@@ -56,9 +76,9 @@ def env_identity():
     return module
 
 
-def heavy_weights(path: Path = HEAVY_UNITS) -> dict[str, float]:
+def heavy_weights(path: Path | None = None) -> dict[str, float]:
     """Unit -> measured seconds for the committed heavy units."""
-    data = json.loads(path.read_text())
+    data = json.loads((path or HEAVY_UNITS).read_text())
     return {str(unit): float(seconds) for unit, seconds in data["units"].items()}
 
 
@@ -110,7 +130,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--shard-suite",
         default=None,
         metavar="NAME",
-        help="with --shard-report, the suite the report belongs to (test, test-locked)",
+        help="with --shard-report, the suite the report belongs to (test, scrub-oracle)",
+    )
+    group.addoption(
+        "--shard-prune-late",
+        action="store_true",
+        default=False,
+        help="with --shard, drop the other shards' items after collection, not while collecting",
     )
     group.addoption(
         "--shard-report",
@@ -137,6 +163,57 @@ def pytest_configure(config: pytest.Config) -> None:
     config.pluginmanager.register(_Shard(config, k, n, report, suite), "unifi-shard")
 
 
+def _mark_deselection():
+    """pytest's own ``-k`` / ``-m`` deselection, which the late path gets from its plugin."""
+    from _pytest import mark
+
+    return mark
+
+
+#: Markers the repo applies with a decorator (``pyproject.toml`` ``markers``), so they are on an
+#: item when its collector reports it. Any other name in ``-m`` may be added later by a plugin.
+STATIC_MARKERS = frozenset({"mutating", "slow", "integration", "tls"})
+_MARK_WORDS = frozenset({"and", "or", "not"})
+
+
+def _static_markexpr(expression: str) -> bool:
+    """Whether a ``-m`` expression names only markers that are decorators in this repo."""
+    names = [t for t in re.findall(r"[^\s()]+", expression) if t not in _MARK_WORDS]
+    return all(name in STATIC_MARKERS for name in names)
+
+
+def _prunes_while_collecting(config: pytest.Config) -> bool:
+    """Whether the other shards' items can be dropped as each collector reports them.
+
+    That is only the same selection when nothing else shapes the item list or decides what
+    ``-m`` / ``-k`` see: no ``--deselect``, no last-failed / failed-first / stepwise ordering
+    (read after every plugin has configured: stepwise turns itself on for ``--sw-skip`` and
+    ``--sw-reset`` in its own ``pytest_configure``), no node id on the command line (pytest
+    narrows to it after the module is reported), no ``-k``, and a ``-m`` that names only
+    decorator markers (a plugin adds its own markers later, in ``pytest_collection_modifyitems``).
+    Otherwise the shard is cut after collection.
+    """
+    if config.getoption("shard_prune_late"):
+        return False
+    option = config.option
+    if getattr(option, "deselect", None) or any(
+        getattr(option, name, False)
+        for name in ("lf", "failedfirst", "stepwise", "stepwise_skip", "stepwise_reset")
+    ):
+        return False
+    if any("::" in str(arg) for arg in config.args):
+        return False
+    if str(getattr(option, "keyword", "") or "").strip():
+        return False
+    if not _static_markexpr(str(getattr(option, "markexpr", "") or "")):
+        return False
+    try:
+        mark = _mark_deselection()
+        return callable(mark.deselect_by_keyword) and callable(mark.deselect_by_mark)
+    except (ImportError, AttributeError):
+        return False
+
+
 class _Shard:
     def __init__(
         self, config: pytest.Config, k: int, n: int, report: str | None, suite: str | None
@@ -149,6 +226,71 @@ class _Shard:
         self.is_worker = hasattr(config, "workerinput")
         self.phases: dict[str, dict[str, str]] = {}
         self.collected: list[dict[str, Any]] = []  # workeroutput of each worker, or own
+        self._early = False  # decided at session start, once every plugin has configured
+        self._heavy: frozenset[str] = frozenset()
+        self._ids: list[str] = []  # every ID an unsharded run would execute, when pruning early
+        self._released = 0  # deselected entries of the terminal reporter already replaced
+
+    def pytest_sessionstart(self, session) -> None:
+        self._early = _prunes_while_collecting(self.config)
+        self._heavy = frozenset(heavy_weights()) if self._early else frozenset()
+
+    def _release_deselected(self, config: pytest.Config) -> None:
+        """Replace the terminal reporter's deselected items by placeholders.
+
+        The reporter keeps every deselected item for the summary count, which would keep the
+        whole suite's items alive in each worker. The summary reads only how many there were;
+        plugins that walk every stat list (hypothesis reads ``report.__dict__``) need an
+        object with a ``__dict__``.
+        """
+        reporter = config.pluginmanager.get_plugin("terminalreporter")
+        held = reporter.stats.get("deselected") if reporter is not None else None
+        if held:
+            held[self._released :] = [_DESELECTED] * (len(held) - self._released)
+            self._released = len(held)
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_make_collect_report(self, collector):
+        # Before the session walks the report's items (it reports the collector itself only
+        # after its children), so the next collector starts with the other shards' items gone.
+        report = yield
+        if self._early and report.result:
+            self._prune(collector.config, report.result)
+        return report
+
+    def _prune(self, config: pytest.Config, result: list[Any]) -> None:
+        """Apply ``-k``/``-m`` to a collector's items, record the survivors, drop other shards'."""
+        items = [node for node in result if isinstance(node, pytest.Item)]
+        if not items:
+            return
+        survivors = list(items)
+        mark = _mark_deselection()
+        mark.deselect_by_keyword(survivors, config)
+        mark.deselect_by_mark(survivors, config)
+        part = partition()
+        keep: set[int] = set()
+        drop = []
+        for item in survivors:
+            self._ids.append(canonical_id(item))
+            unit = unit_of(item)
+            if unit in self._heavy or part.hash_shard(unit, self.n) == self.k:
+                keep.add(id(item))
+            else:
+                drop.append(item)
+        # What the markers and expressions removed went through pytest_deselected already.
+        if drop:
+            config.hook.pytest_deselected(items=drop)
+        self._release_deselected(config)
+        drop.clear()
+        removed = len(items) - len(keep)
+        result[:] = [
+            node for node in result if not isinstance(node, pytest.Item) or id(node) in keep
+        ]
+        # The terminal reporter counts a collector's items when it is reported, after this cut,
+        # and prints "selected/collected (N deselected)": the collected count is every item.
+        reporter = config.pluginmanager.get_plugin("terminalreporter")
+        if reporter is not None and isinstance(getattr(reporter, "_numcollected", None), int):
+            reporter._numcollected += removed
 
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, config, items) -> None:
@@ -164,7 +306,13 @@ class _Shard:
                 drop.append(item)
         if drop:
             config.hook.pytest_deselected(items=drop)
+            self._release_deselected(config)
+        drop.clear()
         items[:] = keep
+        if self._early:
+            # The items left are this shard's and the heavy units'; the proof is against
+            # every ID an unsharded run would execute, recorded while collecting.
+            ids = self._ids
         mine = {
             "full_sha256": part.ids_digest(ids),
             "full_count": len(ids),

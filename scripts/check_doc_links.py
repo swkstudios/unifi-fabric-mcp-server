@@ -19,31 +19,53 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import tomllib
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, install_opener, urlopen
 
 from check_doc_provenance import MARKER, ROOT, fields, public_reference_docs, sidecar_entries
 from check_markdown import _without_code_spans, anchors, link_targets, prose_lines
 
+_TEMPORARY_REDIRECTS = frozenset({307})
+_hops = threading.local()
+
+
+class _RecordingRedirects(HTTPRedirectHandler):
+    """Follow redirects as urllib does, and remember each hop's status code per thread."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        getattr(_hops, "codes", []).append(code)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+install_opener(build_opener(_RecordingRedirects))
+
 
 def probe(url: str, retries: int = 2) -> dict[str, object]:
+    """Request ``url``. A redirect counts as moved unless every hop is a 307.
+
+    developer.ui.com answers 307 (temporary) to its versioned target, so the stable URL
+    stays the right one to link to; any other redirect (301, 302, 308, ...) is still reported.
+    """
     target = url.split("#", 1)[0]
     for attempt in range(retries + 1):
+        _hops.codes = []
         try:
             with urlopen(
                 Request(target, headers={"User-Agent": "documentation-link-check/1.0"}),
                 timeout=None,
             ) as response:  # noqa: S310 - documented HTTP URLs
                 final = response.geturl()
+                hops = set(getattr(_hops, "codes", []))
                 return {
                     "url": url,
                     "status": response.status,
                     "ok": True,
-                    "moved": final != target,
+                    "moved": final != target and not hops <= _TEMPORARY_REDIRECTS,
                     "destination": final,
                 }
         except (HTTPError, URLError, TimeoutError, OSError) as error:

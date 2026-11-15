@@ -3,10 +3,10 @@
 
 Standard library only. ``identity()`` is the Python version plus a sha256 over the sorted
 ``name==version`` lines of every installed distribution (``importlib.metadata``). The shard
-reports of ``test-locked`` carry it, and ``scripts/shard_partition.py verify`` fails unless
-the shards and the anchor all carry the same value. ``check_lock()`` asserts the installed
-set equals the lock pins plus the editable project, so "the same in every shard" also means
-"the locked set".
+reports of a locked suite carry it, and ``scripts/shard_partition.py verify --locked`` fails
+unless the shards and the anchor all carry the same value. ``check_lock()`` asserts the
+installed set equals the lock pins plus the editable project; the ci.yml ``install-proof``
+job runs ``record`` for exactly that check.
 
 CLI: ``env_identity.py record [--lock FILE] [--out FILE]`` prints (or writes) a JSON record
 ``{"identity": {...}, "lock_errors": [...]}``; it exits 1 when ``lock_errors`` is not empty.

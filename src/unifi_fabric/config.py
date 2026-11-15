@@ -142,6 +142,7 @@ _SCOPE_CHARS = frozenset(chr(c) for c in range(0x21, 0x7F)) - {'"', "\\"}
 #: being silently accepted (a page cap of 0 or below).
 _MIN_ONE_INTS: dict[str, str] = {
     "max_concurrency": "0 would block every upstream request forever",
+    "connector_max_rpm": "0 would never send a request to a console",
     "cache_max_hosts": "0 would make every host-cache write raise",
     "cache_max_sites": "0 would make every site-cache write raise",
     "paginate_max_pages": "a cap below 1 would stop every list before its first page; "
@@ -166,6 +167,14 @@ _AUDIT_REMOTE_FILES = (
     "audit_remote_cert_file",
     "audit_remote_key_file",
 )
+
+#: Upper bounds of integer settings, with what a value above the bound would do.
+_MAX_INTS: dict[str, tuple[int, str]] = {
+    "connector_max_rpm": (
+        100,
+        "the Fabric connector answers HTTP 429 above 100 requests per minute per console",
+    ),
+}
 
 #: Integer settings that may be 0 but not negative.
 _MIN_ZERO_INTS: dict[str, str] = {
@@ -777,6 +786,29 @@ class MCPTransportSettings(BaseSettings):
                 "MCP_OAUTH_WRITE_SCOPE applies only to MCP_AUTH_MODE=oauth (resolved "
                 f"auth_mode={self.auth_mode!r}); unset it, or set MCP_AUTH_MODE=oauth"
             )
+        else:
+            # Fail-closed: an OAuth setting outside oauth mode is ignored, so the server
+            # would start with bearer or no authentication while the operator believes
+            # OAuth guards it (an unset or misspelled MCP_AUTH_MODE).
+            stray = [
+                env
+                for env, value in (
+                    ("MCP_OAUTH_ISSUER", self.oauth_issuer),
+                    ("MCP_OAUTH_JWKS_URI", self.oauth_jwks_uri),
+                    ("MCP_OAUTH_AUDIENCE", self.oauth_audience),
+                    ("MCP_OAUTH_BASE_URL", self.oauth_base_url),
+                    ("MCP_OAUTH_REQUIRED_SCOPES", self.oauth_required_scopes),
+                    ("MCP_OAUTH_AUTHORIZATION_SERVERS", self.oauth_authorization_servers),
+                    ("MCP_OAUTH_ALGORITHM", self.oauth_algorithm != "RS256"),
+                )
+                if value
+            ]
+            if stray:
+                raise ValueError(
+                    f"{', '.join(stray)} apply only to MCP_AUTH_MODE=oauth (resolved "
+                    f"auth_mode={self.auth_mode!r}), so the server would start without "
+                    "OAuth authentication; set MCP_AUTH_MODE=oauth, or unset them"
+                )
 
         # HTTPS/mTLS require a server cert + key; mTLS additionally a client CA.
         if self.tls_mode in ("https", "mtls"):
@@ -886,7 +918,7 @@ class Settings(BaseSettings):
         default=None,
         repr=False,
         description="Absolute path of a file holding the single API key (UNIFI_API_KEY_FILE), "
-        "read once at startup; a trailing line break is removed. Set exactly one of "
+        "read once at startup; trailing line breaks are removed. Set exactly one of "
         "UNIFI_API_KEY, UNIFI_API_KEY_FILE or UNIFI_API_KEY_COMMAND.",
     )
     api_key_command: str | None = Field(
@@ -894,7 +926,7 @@ class Settings(BaseSettings):
         repr=False,
         description="Helper command whose standard output is the single API key "
         "(UNIFI_API_KEY_COMMAND), run once at startup without a shell: POSIX-quoted words, "
-        "the first an absolute path or a name on PATH. A trailing line break is removed.",
+        "the first an absolute path or a name on PATH. Trailing line breaks are removed.",
     )
     api_keys_file: str | None = Field(
         default=None,
@@ -930,6 +962,14 @@ class Settings(BaseSettings):
         ge=1,
         description="Max concurrent requests for cross-site aggregation.",
     )
+    connector_max_rpm: int = Field(
+        default=95,
+        ge=1,
+        le=100,
+        description="Max requests sent to one Fabric connector console in any 60 seconds "
+        "(1-100, default 95). The connector answers HTTP 429 above 100 per minute per "
+        "console; writes start only 5 below this cap.",
+    )
     request_timeout_seconds: None = Field(
         default=None,
         description="Removed setting. Leave unset: UniFi HTTP calls await completion "
@@ -948,7 +988,9 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level for the server. Accepts standard Python logging levels: "
         "DEBUG, INFO, WARNING, ERROR, CRITICAL. Logs go to stderr only — no file handlers. "
-        "Request/response bodies are never logged.",
+        "Request/response bodies are not logged, except that with the audit log on, a "
+        "failed write logs the first 2 KB of the upstream error body at WARNING, "
+        "scrubbed and with credential fields masked.",
     )
     redact_secrets: bool = Field(
         default=False,
@@ -1117,6 +1159,23 @@ class Settings(BaseSettings):
         "codemode (experimental, read-only, opt-in) advertises search_tools, describe_tool "
         "and execute, which runs a sandboxed Python script over the read tools.",
     )
+    preload: str = Field(
+        default="none",
+        description="Tool families loaded at startup (UNIFI_PRELOAD): none (default) loads each "
+        "family's tools on their first call; all loads every exposed family at startup; "
+        "family:<id>[,<id>...] loads those families. Startup time and memory only: the "
+        "advertised tools and schemas are the same in every value. The container image sets "
+        "all. Empty means none; other values fail startup.",
+    )
+    background_tasks: Literal["off", "on"] = Field(
+        default="off",
+        description="MCP background tasks (UNIFI_BACKGROUND_TASKS): off (default) or on. On, a "
+        "client that opts in to the io.modelcontextprotocol/tasks extension on a 2026-07-28 "
+        "request may run search_across_sites, collect_network_incident_evidence and "
+        "collect_protect_incident_evidence as a task it polls with tasks/get; every other "
+        "client and tool runs synchronously, unchanged. Tasks are held in this process only. "
+        "Empty means off; other values fail startup.",
+    )
     write_policy: str | None = Field(
         default=None,
         description="Global write policy (UNIFI_WRITE_POLICY): allow (default), dry-run or deny. "
@@ -1142,6 +1201,9 @@ class Settings(BaseSettings):
     exclude: str | None = Field(
         default=None,
         description="Exclusions (UNIFI_EXCLUDE): one comma list of family:<id>, tool:<name>, "
+        "module:<module> (a sub-area module, unifi_fabric.catalog.membership.modules(); a "
+        "module can span families: network_services_proxy holds network, vpn, devices and "
+        "firewall tools, network_dpi_policy network and firewall tools), "
         "source:<selector> (unifi_fabric.api_sources.valid_selectors(), case-sensitive) and "
         "unofficial (every tool whose primary API source is private). Excluded tools are not "
         "registered; no token removes a meta tool. Unset means none; a blank value fails "
@@ -1403,6 +1465,26 @@ class Settings(BaseSettings):
             )
         return self
 
+    @field_validator("preload", mode="before")
+    @classmethod
+    def _preload(cls, value: object) -> str:
+        from .catalog.deferred import parse_preload
+
+        text = "" if value is None else str(value).strip()
+        if not text:
+            return "none"
+        parse_preload(text)
+        return text
+
+    @field_validator("background_tasks", mode="before")
+    @classmethod
+    def _background_tasks(cls, value: object) -> str:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return "off"
+        if isinstance(value, str) and value.strip().lower() in {"off", "on"}:
+            return value.strip().lower()
+        raise ValueError("UNIFI_BACKGROUND_TASKS must be on or off")
+
     @field_validator("tool_mode", mode="before")
     @classmethod
     def _tool_mode(cls, value: object) -> str:
@@ -1543,6 +1625,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"{_env_name(field)} must be >= {floor}: {why}. "
                 f"Set it to {floor} or more, or unset it for the default."
+            )
+        if field in _MAX_INTS and number > _MAX_INTS[field][0]:
+            ceiling, ceiling_why = _MAX_INTS[field]
+            raise ValueError(
+                f"{_env_name(field)} must be <= {ceiling}: {ceiling_why}. "
+                f"Set it to {ceiling} or less, or unset it for the default."
             )
         return number
 

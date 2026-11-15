@@ -21,6 +21,7 @@ from unifi_fabric import server
 from unifi_fabric._read_only_audit import derive_write_tools
 from unifi_fabric.client import DRY_RUN_MESSAGE
 from unifi_fabric.families.network import network_controller_admin as admin
+from unifi_fabric.families.network import registrar as network_registrar
 
 HOST, SITE, MAC = uh.HOST, uh.SITE, uh.ARG_MAC
 CLASSIC = "/proxy/network/api/s/"
@@ -77,6 +78,35 @@ async def test_reboot_console_posts_without_body_and_passes_response_through(
     assert write.path.endswith("/proxy/network/api/system/reboot")
     assert write.sent_json is None
     assert result == write.body
+
+
+async def test_reboot_console_error_keeps_the_upstream_body_then_names_the_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Network application answers this path with its own 401 (read live on a UniFi OS 6.0
+    console); the upstream body comes first, unchanged, then the route hint."""
+    reason = {"meta": {"rc": "error", "msg": "api.err.NoSiteContext"}, "data": []}
+    with pytest.raises(Exception) as caught:
+        await _call(
+            monkeypatch,
+            "reboot_unifi_os_console",
+            {"host": HOST},
+            upstream={"mode": "error", "error_status": 401, "error_body": json.dumps(reason)},
+        )
+    message = str(caught.value)
+    body_at = message.index("api.err.NoSiteContext")
+    hint_at = message.index(f"-- Hint: {admin.REBOOT_ROUTE_HINT}")
+    assert "HTTP 401" in message and body_at < hint_at
+    for part in ("no console reboot route", "POST /api/system/reboot", "does not relay"):
+        assert part in message, part
+
+
+async def test_reboot_console_dry_run_preview_carries_no_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, up = await _call(monkeypatch, "reboot_unifi_os_console", {"host": HOST}, dry_run=True)
+    assert up.writes() == []
+    assert result["status"] == "dry_run" and "Hint" not in json.dumps(result)
 
 
 async def test_reboot_console_rejects_empty_host_before_request(
@@ -419,7 +449,7 @@ async def test_profile_dry_run_previews_the_merged_put(monkeypatch: pytest.Monke
 
 async def test_registration_is_typed_documented_and_derived() -> None:
     mcp = FastMCP("controller-admin")
-    admin.register(mcp, lambda: (None, None))
+    network_registrar.register_6(mcp, lambda: (None, None))
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     assert set(tools) == TOOL_NAMES
     writes = derive_write_tools(list(tools.values()))

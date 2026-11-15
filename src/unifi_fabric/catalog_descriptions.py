@@ -54,8 +54,7 @@ DELETE_PREFIXES = ("delete_", "bulk_delete_", "remove_", "revoke_", "unadopt_")
 #: (tests/test_deletion_result_descriptions.py derives that set from the code).
 DELETION_RESULT = (
     "Returns {deleted, message, response}: deleted is true, message summarizes the delete, "
-    "and response is the upstream body verbatim (decoded JSON, raw text, or null when the "
-    "body is empty)."
+    "response is the upstream body verbatim."
 )
 
 

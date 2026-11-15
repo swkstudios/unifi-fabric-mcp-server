@@ -54,13 +54,14 @@ The generated [settings reference](#settings-reference-generated) below lists ev
 | `UNIFI_MAX_CONCURRENCY` | No | `10` | Max concurrent outbound requests to api.ui.com (1 or more) |
 | `UNIFI_REQUEST_TIMEOUT_SECONDS` | No | unset | Removed; nonempty legacy values fail startup with a migration error. Delete the setting before upgrading. HTTP calls await completion or lifecycle cancellation without an elapsed-time deadline. |
 | `UNIFI_PAGINATE_MAX_PAGES` | No | unset (unlimited) | Hard cap on pages drained per call (1 or more). By default list tools drain all pages automatically; set this to limit drain depth. `query_traffic_flows` and `export_traffic_flows` are exempt: they drain every page the console reports even with this set, so bound them with `body.pageSize` ([Partial results when a page cap is set](PAGINATION.md#partial-results-when-a-page-cap-is-set)). When the cap is hit the response includes `"incomplete": true` and `"incompleteReason"`, plus the resume marker for that paging style (`_continuation`, or `_nextOffset`, `_nextCursor` or `_nextPage`) when one applies, so the caller can continue from where the drain stopped. A stalled cursor is flagged the same way, without a resume marker. |
-| `UNIFI_LOG_LEVEL` | No | `INFO` | Logging verbosity. Accepts standard Python levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (case-insensitive); any other value fails startup listing them. Logs go to stderr only — request/response bodies are never logged. |
+| `UNIFI_LOG_LEVEL` | No | `INFO` | Logging verbosity. Accepts standard Python levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (case-insensitive); any other value fails startup listing them. Logs go to stderr only. Request/response bodies are not logged, with one exception: while the [audit log](#audit-log) writes records, a failed write logs the first 2,048 characters of the upstream error body at `WARNING`, tagged `ref=<id>`, with configured secrets and the call's credential values scrubbed and credential fields masked. |
 | `UNIFI_WRITE_POLICY` | No | unset (`allow`) | **Global write policy:** `allow` (the default), `dry-run` or `deny`, case-sensitive. `deny` is read-only mode: annotated write/action tools (the mixed `fabric_connector_get` relay stays visible for ordinary reads) are hidden from `tools/list` and discovery search, descriptions and family counts at startup, and refused with `write_denied` if called by name before any upstream call; read tools are unaffected, except that a `fabric_connector_get` call to a known state-changing GET route (Protect camera `enable-control` / `disable-control`) is a write and is refused too. `dry-run` makes every write return a labelled preview instead of sending anything ([Dry-run preview](#dry-run-behavior)). Discovery retains its read meta-tools and hides `call_write_tool` under `deny`. A blank or other value fails startup naming the setting. See [Read-only mode](#read-only-mode). |
 | `UNIFI_WRITE_EXCEPTIONS` | No | unset (none) | **Per-family and per-tool write exceptions:** one semicolon-separated list of `<target>=deny` or `<target>=dry-run`, the target `family:<family-id>` or `tool:<tool-name>`, for example `family:protect=deny;tool:fabric_connector_post=dry-run`. Each write gets the strictest of `UNIFI_WRITE_POLICY` and every matching entry (`allow` < `dry-run` < `deny`); there is no `allow` entry. A `deny` entry for one of the six areas (network, protect, mobility, carrier, innerspace, connector) hides the write tools it covers from `tools/list` and discovery at startup and refuses them if called by name; any other `family:<id>=deny` and every `tool:<name>=deny` entry keeps the tools listed and refuses them (`write_denied`) when called. `family:network=deny` keeps the reach of the Network area: the write tools of the `network`, `firewall`, `devices`, `clients`, `vpn`, `hotspot` and `statistics` families and every write request to a Network console route, the connector relay included. Every other `family:<id>=deny` covers its own family (Protect, InnerSpace, Mobility and Carrier Fabric also cover every write request to their console or cloud routes); `family:connector=deny` covers the connector relay and the typed tools listed under [Write switches](#write-switches). A `family:<id>=dry-run` entry reaches exactly the writes the same entry set to `deny` refuses, and previews them instead. A blank, malformed, duplicate or unknown target fails startup naming the setting. |
 | `UNIFI_REDACT_SECRETS` | No | `false` | **Opt-in credential redaction, OFF by default.** Unset/`0` -> the server is a faithful pass-through and returns upstream responses verbatim, except that the server's own configured secrets are always replaced by `***` (see above). Set to `1`/`true`/`yes`/`on` to mask documented credential fields in **every** tool response (applied server-wide at one shared point: WLAN/WiFi broadcast PSKs, Dynamic DNS and account passwords, RADIUS secrets, SSH passwords, VPN pre-shared keys, API tokens, private keys, and the generic connector GET relay). Fields are matched by three documented, anchored rules: an explicit list of exact key names, string values under keys ending in `_api_key`, `_private_key`, `_secret`, `_token`, `_password` or `_passphrase` (such as `google_maps_api_key`), and string values under the controller's hidden `x_` credential fields (such as `x_authkey`, `x_stripe_api_key`). See [Credential redaction](#credential-redaction). **Operator note:** with the opt-in on, credential reads return `***REDACTED***` and masked values in write bodies are dropped (not written), so writes need fresh values to change or set a credential. |
 | `UNIFI_TOOL_MODE` | No | `discovery` (default) | `full` advertises every selected tool; `discovery` advertises five meta-tools by default (four with `UNIFI_WRITE_POLICY=deny`) (`search_tools`, `describe_tool`, `call_read_tool`, `call_write_tool`, `list_tool_families`) that reach every selected tool; `codemode` (experimental, read-only) advertises `search_tools`, `describe_tool` and `execute`. Empty or whitespace means the default; other values fail startup naming the variable and the modes. |
+| `UNIFI_PRELOAD` | No | `none` (default; the container image sets `all`) | When each tool family's tools load. `none` loads a family on its first call, `all` loads every exposed family at startup, and `family:<id>[,<id>...]` loads those families at startup. Startup time and memory only: `tools/list`, `describe_tool` and every schema are the same for every value. Empty means `none`; other values fail startup. See [Startup loading](#startup-loading-unifi_preload). |
 | `UNIFI_FAMILY_ALLOW` | No | unset (all families) | Product family IDs to advertise, comma-separated, lower case and case-sensitive: `carrier`, `clients`, `connector`, `devices`, `firewall`, `hotspot`, `innerspace`, `mobility`, `network`, `protect`, `site_manager`, `statistics`, `vpn`. Every other domain tool is de-registered at startup; the discovery meta-tools are never removed. An unknown ID, `meta`, a blank value or a repeated or empty entry fails startup naming the setting. Shrinks `tools/list` for clients that cap or pay per tool. See [Tool-family allowlist](#tool-families). |
-| `UNIFI_EXCLUDE` | No | unset (nothing excluded) | One comma-separated list of exclusions, applied after `UNIFI_FAMILY_ALLOW`: `family:<id>`, `tool:<name>`, `source:<selector>` (the API-source selectors below, case-sensitive) and `unofficial` (every tool whose primary API source is private). Every covered tool is de-registered at startup. No entry removes a discovery meta-tool or `list_configured_api_keys`: `tool:` naming one fails startup. A blank, unknown or repeated entry fails startup naming the setting. See [Exclusions and API-source selection](#api-source-selection). |
+| `UNIFI_EXCLUDE` | No | unset (nothing excluded) | One comma-separated list of exclusions, applied after `UNIFI_FAMILY_ALLOW`: `family:<id>`, `tool:<name>`, `module:<module>` (a sub-area module; a module can span families: `module:network_services_proxy` covers `network`, `vpn`, `devices` and `firewall` tools and `module:network_dpi_policy` covers `network` and `firewall` tools, so excluding one can remove tools of an allowed family; see [Fork profiles](#fork-profiles)), `source:<selector>` (the API-source selectors below, case-sensitive) and `unofficial` (every tool whose primary API source is private). Every covered tool is de-registered at startup. No entry removes a discovery meta-tool or `list_configured_api_keys`: `tool:` naming one fails startup. A blank, unknown or repeated entry fails startup naming the setting. See [Exclusions and API-source selection](#api-source-selection). |
 | `UNIFI_AUDIT_LOG` | No | unset (no file) | File path (or `/dev/stderr` in a container) that receives one record per write attempt (time, method, path, outcome, status; never a key, and a body only at `UNIFI_AUDIT_LEVEL=debug`). `/dev/stderr` works when standard error is separate from standard output; a symlink to anything other than this process's standard error is refused, and a FIFO or device named directly must belong to the server's user (so `/dev/null` or `/dev/tty` as a non-root user is refused). Best-effort and fail-open: a write failure adds the `audit_unavailable` notice to every response until the sink recovers. See [Audit log](CONFIGURATION.md). |
 | `UNIFI_AUDIT_LOG_FORMAT` | No | `json` | `json` (one canonical JSON object per line, the typed schema) or `text` (key=value line); any other value fails startup. Earlier releases defaulted to `text`; set `text` to keep those lines. |
 | `UNIFI_AUDIT_SINK` | No | unset | `none`, `stderr`, `file` or `remote`. Unset means `file` when `UNIFI_AUDIT_LOG` is set, else `none`. `file` needs `UNIFI_AUDIT_LOG`; `none` or `stderr` with `UNIFI_AUDIT_LOG` set fails startup. `remote` ships JSON records to a log collector over HTTPS and, with `UNIFI_AUDIT_LOG` set, also writes that local file first: see [Remote audit sink](#remote-audit-sink-unifi_audit_sinkremote). |
@@ -90,7 +91,7 @@ The generated [settings reference](#settings-reference-generated) below lists ev
 
 ### Settings reference (generated)
 
-Every setting read at startup, written from `unifi_fabric.config.Settings`; the table above is the editorial guide.
+Every setting read at startup, written from `unifi_fabric.config.Settings`; the table above is the editorial guide, and `scripts/regen_docs.py` rewrites its Default column from the code.
 
 <!-- BEGIN GENERATED: settings-reference -->
 | Variable | Default | Accepted | Meaning |
@@ -98,7 +99,7 @@ Every setting read at startup, written from `unifi_fabric.config.Settings`; the 
 | `UNIFI_API_BASE_URL` | `https://api.ui.com` | absolute `http://` or `https://` URL | UniFi Site Manager API base URL. |
 | `UNIFI_API_KEYS` | unset | text | List of API key configs. |
 | `UNIFI_API_KEY` | unset | text | Single API key shorthand. |
-| `UNIFI_API_KEY_FILE` | unset | text | Absolute path of a file holding the single API key (UNIFI_API_KEY_FILE), read once at startup; a trailing line break is removed. |
+| `UNIFI_API_KEY_FILE` | unset | text | Absolute path of a file holding the single API key (UNIFI_API_KEY_FILE), read once at startup; trailing line breaks are removed. |
 | `UNIFI_API_KEY_COMMAND` | unset | text | Helper command whose standard output is the single API key (UNIFI_API_KEY_COMMAND), run once at startup without a shell: POSIX-quoted words, the first an absolute path or a name on PATH. |
 | `UNIFI_API_KEYS_FILE` | unset | text | Absolute path of a file holding the UNIFI_API_KEYS JSON list (UNIFI_API_KEYS_FILE), read once at startup. |
 | `UNIFI_API_KEYS_COMMAND` | unset | text | Helper command whose standard output is the UNIFI_API_KEYS JSON list (UNIFI_API_KEYS_COMMAND), run once at startup without a shell, like UNIFI_API_KEY_COMMAND. |
@@ -106,6 +107,7 @@ Every setting read at startup, written from `unifi_fabric.config.Settings`; the 
 | `UNIFI_CACHE_MAX_HOSTS` | `512` | integer, 1 or more | Max entries in the hosts TTLCache (default 512). |
 | `UNIFI_CACHE_MAX_SITES` | `2048` | integer, 1 or more | Max entries in the sites TTLCache (default 2048). |
 | `UNIFI_MAX_CONCURRENCY` | `10` | integer, 1 or more | Max concurrent requests for cross-site aggregation. |
+| `UNIFI_CONNECTOR_MAX_RPM` | `95` | integer, 1 to 100 | Max requests sent to one Fabric connector console in any 60 seconds (1-100, default 95). |
 | `UNIFI_REQUEST_TIMEOUT_SECONDS` | unset | removed | Removed setting. |
 | `UNIFI_PAGINATE_MAX_PAGES` | unset | integer, 1 or more | Hard cap on pages drained per list call; query_traffic_flows and export_traffic_flows are exempt and always drain every page. |
 | `UNIFI_LOG_LEVEL` | `INFO` | `DEBUG` or `INFO` or `WARNING` or `ERROR` or `CRITICAL` | Logging level for the server. |
@@ -133,10 +135,12 @@ Every setting read at startup, written from `unifi_fabric.config.Settings`; the 
 | `UNIFI_AUDIT_CHAIN` | `false` | boolean | Opt-in tamper evidence for the JSON audit file. |
 | `UNIFI_AUDIT_CHAIN_KEY` | unset | text | Audit hash-chain key. |
 | `UNIFI_TOOL_MODE` | `discovery` | `full` or `discovery` or `codemode` | Tool catalog mode (UNIFI_TOOL_MODE): full advertises every selected tool; discovery advertises compact search, describe and registered-dispatch meta-tools; codemode (experimental, read-only, opt-in) advertises search_tools, describe_tool and execute, which runs a sandboxed Python script over the read tools. |
+| `UNIFI_PRELOAD` | `none` | text | Tool families loaded at startup (UNIFI_PRELOAD): none (default) loads each family's tools on their first call; all loads every exposed family at startup; family:<id>[,<id>...] loads those families. |
+| `UNIFI_BACKGROUND_TASKS` | `off` | `off` or `on` | MCP background tasks (UNIFI_BACKGROUND_TASKS): off (default) or on. |
 | `UNIFI_WRITE_POLICY` | unset | text | Global write policy (UNIFI_WRITE_POLICY): allow (default), dry-run or deny. |
 | `UNIFI_WRITE_EXCEPTIONS` | unset | text | Per-family and per-tool write exceptions (UNIFI_WRITE_EXCEPTIONS): one semicolon list of <target>=deny or <target>=dry-run, the target family:<family-id> or tool:<public-name>, e.g. |
 | `UNIFI_FAMILY_ALLOW` | unset | text | Tool-family allowlist (UNIFI_FAMILY_ALLOW): a comma set of family IDs (unifi_fabric.families.ALL_FAMILIES). |
-| `UNIFI_EXCLUDE` | unset | text | Exclusions (UNIFI_EXCLUDE): one comma list of family:<id>, tool:<name>, source:<selector> (unifi_fabric.api_sources.valid_selectors(), case-sensitive) and unofficial (every tool whose primary API source is private). |
+| `UNIFI_EXCLUDE` | unset | text | Exclusions (UNIFI_EXCLUDE): one comma list of family:<id>, tool:<name>, module:<module> (a sub-area module, unifi_fabric.catalog.membership.modules(); a module can span families: network_services_proxy holds network, vpn, devices and firewall tools, network_dpi_policy network and firewall tools), source:<selector> (unifi_fabric.api_sources.valid_selectors(), case-sensitive) and unofficial (every tool whose primary API source is private). |
 <!-- END GENERATED -->
 
 ## Tool families
@@ -150,18 +154,64 @@ setting. Counts in this release (written by `scripts/gen_catalog_figures.py`):
 | Family | Tools | Write tools | Covers |
 |---|---:|---:|---|
 | `carrier` | 11 | 7 | Carrier / ISP Fabric subscribers and service plans |
-| `clients` | 15 | 12 | Connected and known clients, client actions and records |
+| `clients` | 16 | 13 | Connected and known clients, client actions and records |
 | `connector` | 5 | 5 | The generic Fabric connector relay |
-| `devices` | 39 | 27 | Device adoption, actions, radios, tags and scheduled tasks |
+| `devices` | 40 | 27 | Device adoption, actions, radios, tags and scheduled tasks |
 | `firewall` | 33 | 19 | Firewall policies and zones, ACL rules, classic firewall rules and groups, app blocks |
 | `hotspot` | 4 | 3 | Hotspot vouchers, packages and operators |
 | `innerspace` | 32 | 18 | InnerSpace projects, floor plans and placement snapshots |
 | `mobility` | 8 | 3 | Mobility workspaces, devices and clients |
-| `network` | 345 | 193 | Networks, Wi-Fi, switching, routing, DNS, DHCP, RADIUS, port profiles and settings |
-| `protect` | 225 | 138 | Protect cameras, NVRs, sensors, events, PTZ, recognition and search |
+| `network` | 351 | 196 | Networks, Wi-Fi, switching, routing, DNS, DHCP, RADIUS, port profiles and settings |
+| `protect` | 233 | 144 | Protect cameras, NVRs, sensors, events, PTZ, recognition and search |
 | `site_manager` | 20 | 0 | Site Manager hosts, sites, fleet summaries and cross-site health |
-| `statistics` | 19 | 3 | Statistics, history, ISP metrics and system logs |
+| `statistics` | 19 | 0 | Statistics, history, ISP metrics and system logs |
 | `vpn` | 42 | 27 | VPN servers, clients and site-to-site tunnels, RADIUS profiles |
+
+## Fork profiles
+
+One server, one registration path. The default profile is the complete capability set:
+with `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` unset, every family above is served. A fork
+that ships only some product areas selects them by configuration, never by editing a
+registration file:
+
+- `UNIFI_FAMILY_ALLOW=carrier,vpn` serves the `carrier` and `vpn` tools only (an allowlist);
+- `UNIFI_EXCLUDE=family:protect` serves everything except `protect`;
+- `UNIFI_EXCLUDE=module:network_vpn_dns` removes one sub-area module, here the DNS tools of
+  `vpn`, where a whole family is the wrong cut. The modules are the sub-area keys of the
+  explicit inventory; an unknown one fails startup naming the setting, never the value,
+  and the refusal lists the valid modules. A module can span families:
+  `module:network_services_proxy` holds `network`, `vpn`, `devices` and `firewall` tools, and
+  `module:network_dpi_policy` holds `network` and `firewall` tools, so excluding either one also
+  removes those tools from an allowed family.
+
+Set them where the fork is deployed (the image's `ENV`, the compose file or the client's
+server `env` block). The same entries work per request in the `X-UniFi-Family-Allow` and
+`X-UniFi-Exclude` headers, which only narrow. The meta tools stay under every profile, and
+a removed tool called by name is refused with `tool_not_exposed` before any request; the
+refusal is audited.
+
+Every profile registers the complete roster at startup and then removes what the profile
+excludes, so a reduced profile runs exactly the code the complete one does. Which family
+each tool belongs to is written in the explicit inventory
+(`src/unifi_fabric/catalog/membership.py`), not inferred from where the code lives; the
+server refuses to start if its registration and the inventory disagree.
+
+### Family selection is not a route restriction
+
+Selecting families decides which typed tools are listed and callable. It does not restrict
+which upstream API routes the server can reach. The `connector` family's generic Fabric
+relay tools (`fabric_connector_get`, `fabric_connector_post`, `fabric_connector_put`,
+`fabric_connector_patch`, `fabric_connector_delete`) take a route as an argument and can
+reach endpoints of every product area, whatever families the profile selects. A profile
+that keeps `connector` therefore keeps that reach. Their own checks are unchanged under
+every profile: authentication, `UNIFI_WRITE_POLICY`, the area entries of
+`UNIFI_WRITE_EXCEPTIONS` (which refuse writes to an area's routes from any tool, the relay
+included), `family:connector=deny` and the read-only refusals.
+
+A fork that must not reach other product areas leaves `connector` out
+(`UNIFI_FAMILY_ALLOW` without it, or `UNIFI_EXCLUDE=family:connector`, or
+`UNIFI_EXCLUDE=source:relay` to remove every generic relay), and keeps the write switches
+of the areas it does not ship set to `deny` if a relay stays.
 
 `manage_device_ssh_session` accepts the aliases `build`, `sdp_answer` and `close`,
 and also forwards any other action as an arbitrary Classic devmgr command. The SSH
@@ -174,14 +224,14 @@ Set `UNIFI_WRITE_POLICY=deny` to hide write and action tools and refuse calls be
 
 For example, with Claude Code:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-12 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 export UNIFI_API_KEY="your-api-key-here"
-claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" -e UNIFI_WRITE_POLICY=deny -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+claude mcp add unifi-fabric -e 'UNIFI_API_KEY=${UNIFI_API_KEY}' -e UNIFI_WRITE_POLICY=deny -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
-The command stores the key in Claude Code's MCP configuration in plain text; keep it private.
+The command stores only a reference: Claude Code reads `UNIFI_API_KEY` from its environment when it launches the server, so it must be exported wherever Claude Code starts.
 
 ### Read-only mode details
 
@@ -194,7 +244,7 @@ The command stores the key in Claude Code's MCP configuration in plain text; kee
    - **Other local (stdio) clients:** add `UNIFI_WRITE_POLICY=deny` to the server's `env` block in the client configuration, or pass `-e UNIFI_WRITE_POLICY=deny` to `claude mcp add` or `--env UNIFI_WRITE_POLICY=deny` to `codex mcp add`. Antigravity reads it from the shell that starts the client; Codex does so only when the variable is listed in the server's `env_vars` (as in the [Codex setup](CLIENT-SETUP.md#use-with-openai-codex)).
    - **Docker Compose:** set it in the service's `environment:` block, then recreate the container (if a sidecar shares this server's network namespace, restart the **whole compose group together**, as for the connector-write entries in [Write switches](#write-switches)), as in this service fragment:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 ```yaml
 services:
   unifi-fabric-mcp:
@@ -264,16 +314,16 @@ The six area entries hide the write tools they cover: `family:network=deny` keep
 
 | Setting | Write tools hidden | Tools listed |
 |---|---:|---:|
-| none (default) | 0 | 798 |
-| `UNIFI_WRITE_EXCEPTIONS=family:network=deny` | 284 | 514 |
-| `UNIFI_WRITE_EXCEPTIONS=family:protect=deny` | 138 | 660 |
-| `UNIFI_WRITE_EXCEPTIONS=family:mobility=deny` | 3 | 795 |
-| `UNIFI_WRITE_EXCEPTIONS=family:carrier=deny` | 7 | 791 |
-| `UNIFI_WRITE_EXCEPTIONS=family:innerspace=deny` | 18 | 780 |
-| `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` | 19 | 779 |
-| `UNIFI_WRITE_POLICY=deny` | 454 | 344 |
+| none (default) | 0 | 814 |
+| `UNIFI_WRITE_EXCEPTIONS=family:network=deny` | 285 | 529 |
+| `UNIFI_WRITE_EXCEPTIONS=family:protect=deny` | 144 | 670 |
+| `UNIFI_WRITE_EXCEPTIONS=family:mobility=deny` | 3 | 811 |
+| `UNIFI_WRITE_EXCEPTIONS=family:carrier=deny` | 7 | 807 |
+| `UNIFI_WRITE_EXCEPTIONS=family:innerspace=deny` | 18 | 796 |
+| `UNIFI_WRITE_EXCEPTIONS=family:connector=deny` | 19 | 795 |
+| `UNIFI_WRITE_POLICY=deny` | 461 | 353 |
 
-Under `UNIFI_WRITE_POLICY=deny`, 454 of the 455 write-annotated tools are hidden. The 455th, `fabric_connector_get`, stays listed because most of its calls are reads; it is refused per call for its state-changing routes (Protect camera `enable-control` and `disable-control`).
+Under `UNIFI_WRITE_POLICY=deny`, 455 of the 456 write-annotated tools are hidden. The 456th, `fabric_connector_get`, stays listed because most of its calls are reads; it is refused per call for its state-changing routes (Protect camera `enable-control` and `disable-control`).
 
 ## Credential redaction
 
@@ -292,7 +342,7 @@ fails with an error naming `UNIFI_REDACT_SECRETS`.
 Operators who prefer secrets masked can opt in by setting `UNIFI_REDACT_SECRETS` to
 a truthy value (`1`/`true`/`yes`/`on`/`t`/`y`, case-insensitive) in the environment of the process that starts the server (the client's server `env` block, a shell export, or a Compose service's `environment:` block):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 services:
@@ -359,7 +409,7 @@ error messages. Error messages otherwise carry the real request path and the com
 upstream error body: identifiers (console ids, UUIDs) are not secrets and are never masked,
 and nothing is truncated.
 
-Error text decodes nested JSON and Python string representations up to six layers before applying the same credential predicate. Single-level JSON and Python representations preserve identifiers and reasons. Ambiguous or unresolved credential spans fail closed through the end of the message, so nested or malformed errors may lose following diagnostics; masking never raises a parser error. The fallback scans the final rendering, including all parsed containers, at every escape-decoded level until a fixed point, up to 128 decoding iterations. A credential word must be followed by a key-value separator (after an optional closing quote and whitespace); prose and tool names remain intact. If decoding still changes the text at that bound, it withholds the whole message.
+Error text decodes nested JSON and Python string representations up to six layers before applying the same credential predicate. Single-level JSON and Python representations preserve identifiers and reasons. Ambiguous or unresolved credential spans fail closed through the end of the message, so nested or malformed errors may lose following diagnostics; masking never raises a parser error. The fallback scans the final rendering, including all parsed containers, at every escape-decoded level until a fixed point, up to 128 decoding iterations. A credential word must be followed by a key-value separator (after an optional closing quote and whitespace); prose and tool names remain intact. If decoding still changes the text at that bound, it withholds the whole message. Masking takes time linear in the length of the error: a text that would need more than 64 scan steps per character (one built to defeat the scans, such as thousands of nested invalid containers) is withheld whole instead of being returned partly masked.
 
 In ordinary tool responses, the listed credential fields become `***REDACTED***` and all other fields stay unchanged. Registered route-secret fields (including an echoed request field) use that same token. This is strictly opt-in for structured data: successful writes, GET results and dry-run previews (including a read-before snapshot) remain verbatim when it is off. Logs and audit lines always scrub the registered route-secret values and credential arguments of the call, whatever the setting. Errors and hints, and the result of a failed or partial write or other non-2xx upstream response (its body, read-before/read-after snapshots, reasons and post-write error), mask them only when it is on; when it is off they carry them verbatim. The placement snapshot is a projection, not a whole upstream body, so it is the one exception: with `UNIFI_REDACT_SECRETS` on, it also leaves out URLs, IP and MAC addresses and strings containing credential markers, counting them under `_withheld` (with redaction off, `_withheld` is never present). See [Placement snapshots](TOOLS.md#get_unifi_placement_snapshot).
 
@@ -388,9 +438,12 @@ field equal to `***REDACTED***` is sent upstream as that literal string and noth
 `_redactedFieldsNotSent`, so do not write a masked read to a server that has redaction off.
 Read-merge writes, including RADIUS account batch updates and AP group updates, retain
 the fetched stored value wherever the caller supplies a mask, so full-replacement
-requests still carry that field. Other endpoints that require the field on every write
+requests still carry that field. The whole-record writes (`update_ipsec_settings`,
+`update_wireguard_users`, `update_bgp_config`, `update_ospf_router`,
+`update_protect_automation`) read the stored record unmasked for the merge, so a secret
+the caller does not change is sent back as stored; that read is never returned unmasked. Other endpoints that require the field on every write
 answer with their own validation error when it is left out; send the real value in that
-case. To change a secret, send its real new value.
+case. To change a secret, send its real new value. A value the caller passes back as the mask is restored from the same place in the stored record: the same key of an object, and in a list the same element, matched by its `id`/`_id` or else by its fields that are not masks. A masked field with no stored value at that place, in an object, in a matched list element, or in an element of a list where nothing is stored (the list is absent, `null` or empty), is dropped and reported as above. The write is refused before it is sent, naming the path, when a masked list element matches no single element of a stored list (removed, reordered and edited, ambiguous, or claimed twice), when a masked list element sits where something of another type is stored, or when a mask is itself a list element left unrestored (including where nothing is stored there, and a stored list that holds the literal mask string): send the real value, or pass the element back unchanged. A list the caller sends replaces the stored list, so each element's secrets must be passed back masked or sent.
 
 ## Transport Configuration
 
@@ -424,16 +477,16 @@ for the policy and browser-origin settings.
 
 To use a different transport, override the environment variable at runtime:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # SSE transport (UNIFI_API_KEY exported; -e with no value passes it from your shell)
-docker run -e UNIFI_API_KEY -e FASTMCP_TRANSPORT=sse -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+docker run -e UNIFI_API_KEY -e FASTMCP_TRANSPORT=sse -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 MCP clients connect to the `/sse` endpoint — note the path differs from the streamable-http default (`/mcp`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-3 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -448,7 +501,7 @@ MCP clients connect to the `/sse` endpoint — note the path differs from the st
 
 **Verify SSE is up:**
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-4 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 curl --include --no-buffer --silent --show-error http://localhost:3000/sse
@@ -458,16 +511,16 @@ An `HTTP 200` response header and the initial SSE endpoint event confirm the ser
 The stream continues delivering events until the connection closes or you stop it with Ctrl-C
 after inspecting the response.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-5 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # Stdio transport (UNIFI_API_KEY exported; -e with no value passes it from your shell)
-docker run --no-healthcheck --rm -i -e UNIFI_API_KEY -e FASTMCP_TRANSPORT=stdio ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+docker run --no-healthcheck --rm -i -e UNIFI_API_KEY -e FASTMCP_TRANSPORT=stdio ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 With stdio transport the MCP client must **spawn** the container as a subprocess (the same as [Track A](CLIENT-SETUP.md#track-a--local-stdio)), not connect over HTTP. Pass `--rm -i` so the container receives stdin and is removed on exit. The corresponding client config uses `command`/`args`, not `type`/`url`. The key sits in `env`, which the client hands to `docker`, and `-e UNIFI_API_KEY` with no value passes it on, so it is never part of the command line:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-6 mode=non-executable reason=deployment-or-client-interaction -->
 ```json
 {
@@ -477,7 +530,7 @@ With stdio transport the MCP client must **spawn** the container as a subprocess
       "args": ["run", "--no-healthcheck", "--rm", "-i",
                "-e", "UNIFI_API_KEY",
                "-e", "FASTMCP_TRANSPORT=stdio",
-               "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2"],
+               "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
@@ -488,12 +541,12 @@ With stdio transport the MCP client must **spawn** the container as a subprocess
 
 ### Override Transport in Docker Compose
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-7 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
 services:
   unifi-fabric-mcp:
-    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+    image: ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
     environment:
       UNIFI_API_KEY: your-api-key-here
       FASTMCP_TRANSPORT: sse  # or stdio
@@ -503,7 +556,7 @@ services:
 
 **Note:** The server exposes port 3000 for `streamable-http` and `sse` transports. If using `stdio`, no port is exposed; the server communicates exclusively via stdin/stdout. When switching to `stdio`, remove the `ports:` mapping and disable the built-in TCP healthcheck (which will fail permanently when nothing binds port 3000) by adding:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-8 mode=non-executable reason=deployment-or-client-interaction -->
 ```yaml
     healthcheck:
@@ -523,11 +576,11 @@ MCP protocol 2026-07-28 are stateless by design and work the same either way.
 
 To restore per-client sessions, override the variable:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-9 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # UNIFI_API_KEY exported; -e with no value passes it from your shell
-docker run -e UNIFI_API_KEY -e FASTMCP_STATELESS_HTTP=false -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+docker run -e UNIFI_API_KEY -e FASTMCP_STATELESS_HTTP=false -p 3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 The `sse` transport is session-based by nature; with `FASTMCP_TRANSPORT=sse` the
@@ -536,7 +589,7 @@ applies (sessions on) unless you set the variable yourself.
 
 ## Single key setup
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-10 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 export UNIFI_API_KEY="your-api-key-here"
@@ -544,7 +597,7 @@ export UNIFI_API_KEY="your-api-key-here"
 
 ## Multi-key MSP setup
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 <!-- install-case: docs-configuration-11 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 export UNIFI_API_KEYS='[{"key": "key-a", "label": "org-east", "is_org_key": true}, {"key": "key-b", "label": "org-west"}]'
@@ -575,7 +628,7 @@ these keys.
 | `UNIFI_API_KEY` | `UNIFI_API_KEY_FILE` | `UNIFI_API_KEY_COMMAND` |
 | `UNIFI_API_KEYS` | `UNIFI_API_KEYS_FILE` | `UNIFI_API_KEYS_COMMAND` |
 
-<!-- doc-provenance: source=file:src/unifi_fabric/credential_providers.py@sha256:3e4c8e36bd84fe2b6b92b410da50f47e68c806b8f25d38398a982c3e7b2c0240 support=0.7.2 citation=file:src/unifi_fabric/credential_providers.py@sha256:3e4c8e36bd84fe2b6b92b410da50f47e68c806b8f25d38398a982c3e7b2c0240 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/credential_providers.py@sha256:0ff1ea9903123e2b88cc4ccc02fdf4d1ddb88607bf2fe73ed90180f71436ff6f citation=file:src/unifi_fabric/credential_providers.py@sha256:0ff1ea9903123e2b88cc4ccc02fdf4d1ddb88607bf2fe73ed90180f71436ff6f -->
 <!-- install-case: docs-configuration-key-providers mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 # A Docker or Kubernetes secret file holding one key
@@ -670,7 +723,7 @@ the port-profile writes (`update_port_profile`, `allow_network_on_port_profile`,
 `exclude_network_on_port_profile`) return the bare preview with none of their additive
 keys and no follow-up read.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 ```yaml
     environment:
       UNIFI_WRITE_POLICY: "dry-run"   # preview every write, never execute them
@@ -704,7 +757,7 @@ Under `unofficial` the 5 generic relays (`fabric_connector_*`) stay: their API s
 To keep only the tools that call published Ubiquiti APIs, exclude both the unofficial tools
 and the generic relays with `UNIFI_EXCLUDE=unofficial,source:relay`.
 
-In full mode 194 tools remain and 604 are excluded, and 113 tools remain and 685 are excluded
+In full mode 202 tools remain and 612 are excluded, and 115 tools remain and 699 are excluded
 under `UNIFI_WRITE_POLICY=deny`. Every tool left calls an official API source, except
 `list_configured_api_keys` (source `server/local`) and the discovery meta-tools, which make
 no upstream request and reach only the tools that remain.
@@ -771,7 +824,7 @@ for itself with three request headers that take the same values as the settings:
 |---|---|---|
 | `X-UniFi-Write-Policy` | as `UNIFI_WRITE_POLICY`: `allow`, `dry-run` or `deny` | The stricter policy applies (`allow` < `dry-run` < `deny`) |
 | `X-UniFi-Family-Allow` | as `UNIFI_FAMILY_ALLOW` | The two family sets intersect |
-| `X-UniFi-Exclude` | as `UNIFI_EXCLUDE`, `source:` selectors and `unofficial` included | The two exclusion lists unite |
+| `X-UniFi-Exclude` | as `UNIFI_EXCLUDE`, `module:` entries, `source:` selectors and `unofficial` included | The two exclusion lists unite |
 
 A request adds no write exception, and a valid value that would loosen the operator policy is
 ignored. A blank, malformed or repeated policy header, or one the setting would refuse at startup
@@ -809,9 +862,106 @@ Code Mode is an opt-in, read-only experimental feature. It may change without a 
 
 Limits, all byte limits in UTF-8 bytes: script source 32,768 bytes (`code_mode_invalid_source`); 32 attempted tool calls per script, refusals included (the 33rd ends the script with `code_mode_limit_exceeded`); each tool response 262,144 bytes and all responses together 2,097,152 bytes (`code_mode_limit_exceeded` naming the call, no partial answer; use a tool's continuation for large pages); interpreter memory 64 MiB, recursion depth 64 and 30 seconds of interpreter execution time (waits on the console are not counted and never capped); output 65,536 bytes, where longer output is cut on a character boundary and ends with `...[truncated]`; one script at a time per server process (`code_mode_busy`). Response limits count the tool's own response (its result, or its error object) serialized as compact UTF-8 JSON; the `{"ok": ...}` envelope is not counted. Text that is not valid UTF-8 (an unpaired surrogate) in a tool response is refused with `code_mode_invalid_text` naming the call; inside the sandbox the interpreter itself turns an unpaired surrogate into U+FFFD, so script output is always valid UTF-8 (the host check on the output stays as a backstop). A `fabric_connector_get` route is refused only when it is a known state-changing route, the same rule `call_read_tool` applies. Each run writes one log record with the script's SHA-256 digest, the tools it called, one installation-key HMAC per attempted argument object and its outcome. Raw arguments, the script text, results and HMAC key are never recorded; invalid or over-budget arguments use a fixed `invalid` marker.
 
+## Startup loading (UNIFI_PRELOAD)
+
+The server lists every selected tool at startup from a generated snapshot, without importing
+or registering the tool families. A family's tools are loaded the first time one of them is
+called. `UNIFI_PRELOAD` chooses when that happens:
+
+- `none`, the default for `uvx`, `pip` and stdio clients, loads each family on its first call.
+  Startup is faster and uses less memory, and the first call to each family takes a little longer:
+  typically a few hundred milliseconds. On a heavily loaded host, the first Site Manager call
+  (`get_host`, `list_hosts`) can take more than one second, because loading that family also
+  loads part of the Network family.
+- `all`, set in the container image, loads every exposed family during startup, so no call
+  waits. A family hidden by `UNIFI_FAMILY_ALLOW`, `UNIFI_EXCLUDE`, read-only mode or a write
+  exception is never loaded.
+- `family:<id>[,<id>...]` loads only those families at startup and the rest on first call.
+
+This changes startup time and memory only. `tools/list`, `describe_tool`, every schema and
+annotation, and every call's behaviour and policy checks are the same for every value. It does
+not reduce the model's tool context or the advertised tool-definition size. Before a loaded
+family serves a call, each of its tools is checked against the snapshot. A family that fails
+to load, or does not match the snapshot, refuses its calls with `family_load_failed`, and the
+other families keep working. One `family.load` line on stderr records each load: the family,
+the step, what triggered it, the outcome, the tool count and the duration. This holds under
+every value: with `all` or `family:<id>`, a family that fails to load is recorded, refuses its
+calls, and the server still starts with every other family.
+
+The snapshot is generated for one environment: Python 3.12, fastmcp 4.1.6 and pydantic 2.14.2
+(the versions `requirements.lock` and the container image pin), without `python -O`. When the
+server runs under any other Python minor version, fastmcp or pydantic version, or with `-O` (an
+`uvx` or `pip` install that resolves newer packages, for example), it prints one warning and
+loads every family at startup, as if `UNIFI_PRELOAD=all`. Tools and behaviour are the same;
+only the faster startup is lost. Install from the lock file (or use the image) to keep it.
+
+## Background tasks (UNIFI_BACKGROUND_TASKS)
+
+`UNIFI_BACKGROUND_TASKS=on` lets a client run the three longest reads as an MCP background
+task: `search_across_sites`, `collect_network_incident_evidence` and
+`collect_protect_incident_evidence`. Each can read many sites or many pages and take a
+minute or more, which can outlast a client's or a gateway's request timeout. It is off by
+default; `off` or an empty value keeps it off, and any other value fails startup.
+
+With the setting on, a call runs as a task only when the client asks for one on that
+request: it uses MCP protocol version 2026-07-28 and declares the
+`io.modelcontextprotocol/tasks` extension in the request's `_meta`. The call then answers at
+once with a task id, and the client polls `tasks/get` for the result or ends the call with
+`tasks/cancel`. The result is the same `tools/call` result the call would have returned.
+
+Every other call is unchanged, byte for byte, whether the setting is on or off:
+
+- a client that does not ask for a task on the request;
+- every client on an earlier protocol version, and every client or gateway that does not
+  pass the extension on;
+- every other tool;
+- a call that a tool makes in turn (`call_read_tool`, a resource read).
+
+Discovery does change when the setting is on: the 2026-07-28 `server/discover` answer then
+lists `io.modelcontextprotocol/tasks` under `capabilities.extensions`, and the server
+answers `tasks/get`, `tasks/cancel` and `tasks/update` on that protocol version. The
+`initialize` answer of earlier versions and every `tools/list` answer are the same as with
+the setting off. No tool advertises per-tool task support: the 2026-07-28 tool definition
+has no field for it, and the field earlier versions have describes a different, older task
+protocol that this server does not implement.
+
+A task runs the whole call: credentials, request policy, write refusals, redaction, the
+audit records, the shared upstream concurrency limit (`UNIFI_MAX_CONCURRENCY`) and the
+handling of upstream rate limits apply exactly as they do to a call that runs synchronously.
+Tasks are kept in the server process only: no Redis and nothing on disk. A finished task
+keeps only its result (or error), its times and its caller scope; the request it came from,
+with its headers, tokens and keys, is released as soon as the task finishes or is
+cancelled. A finished task and its result can be read for 30 minutes after it finishes; a
+running task is never ended by time, only by finishing or `tasks/cancel`. A restarted
+server, or a second server process behind a load balancer, does not know the task. At most
+16 tasks run at once; a further call runs synchronously. At most 32 finished tasks are kept
+per caller and 256 in all; past 256, the caller holding the most loses its oldest first.
+
+Only callers in the same scope as the task's creator can read or cancel it. What separates
+callers depends on the authentication mode:
+
+| Mode | Callers are separated by |
+|---|---|
+| `MCP_AUTH_MODE=oauth` | the access token's client and subject (`client_id`, `sub`), not the token itself, so a refreshed token keeps access to its tasks |
+| `MCP_AUTH_MODE=bearer` | nothing: every caller holds the one configured token, so all callers share one scope |
+| `MCP_AUTH_MODE=none` | the `Authorization` header value, if one is sent; callers that send none share one scope |
+| `UNIFI_KEY_MODE=header` (with any of the above) | also the `X-UniFi-Api-Key` value, the keys the call runs with |
+| stdio | nothing: there is one local client |
+
+Callers in one scope, such as every user behind a gateway that calls this server with one
+credential, are separated only by the task id. It is a random 256-bit value that only the
+creator receives, so a gateway that serves several users must not pass one user's task id to
+another.
+
+With `MCP_AUTH_MODE=none`, and in header key mode, a caller chooses the values its scope is
+taken from, so it can present another caller's scope. It still cannot read or cancel a task
+without that task's id, but by finishing many tasks in that scope it can make that caller's
+finished results leave early. Results are kept up to the limits above, not guaranteed for 30
+minutes. Use `MCP_AUTH_MODE=oauth` where that matters.
+
 ## Audit log
 
-Audit logging is best-effort and fails open: when the audit sink cannot be written (a full disk, a permission or read-only error, a missing directory) the call continues, and every tool response carries the `audit_unavailable` notice in its `_meta` until the sink recovers; the first record after recovery is an `audit.recovered` record counting the records lost. Point `UNIFI_AUDIT_LOG` at a file path to append a structured record for **every write attempt** (all tools, via the same shared chokepoint): timestamp (UTC), HTTP method, resolved path, outcome and upstream status, plus `tool`, `resolvedHost`, `resolvedSite` and `duration_ms` when known. A write refused before it is sent is recorded as `outcome=refused`. Its `reason` names the gate (`UNIFI_WRITE_POLICY`, the denying `UNIFI_WRITE_EXCEPTIONS` entry such as `family:connector=deny`, `empty_update` / `required_body_fields`), or for any other refusal (an argument check, an unknown id, relay validation) it is the refusal message. A refusal made before the request is resolved has no method or path (`-` in text, `null` in JSON). Other outcomes include `dry_run`, `error` and `rate_limited`. `UNIFI_AUDIT_LOG_FORMAT` selects `json` (default: one canonical JSON object per line carrying `schema_version`, `event` and `timestamp_utc`) or `text` (the 0.7.2 key=value line); any other value fails startup listing the two. **Unset (the default) writes no audit file.** A new audit file is created with mode `0600` (`UNIFI_AUDIT_LOG_MODE=0640` adds group read); an existing file keeps its mode. `UNIFI_AUDIT_SINK=stderr` writes the same records to standard error instead of a file, `UNIFI_AUDIT_CALLS=true` adds one `call` or `error` record per tool call, and `UNIFI_AUDIT_LEVEL` is `normal` (default, metadata only), `off`, or `debug`, which adds the request body of a write and the arguments of a call record with every credential field masked and every configured secret scrubbed. The API key value is never recorded. Every audit setting is in the [settings table](#unifi-api-settings). Container deployments may use `UNIFI_AUDIT_LOG=/dev/stderr`; use a persistent writable directory when audit history must survive container replacement. `UNIFI_AUDIT_CHAIN=true` adds an opt-in, tamper-evident (not tamper-proof) hash chain to the JSON file: see [Tamper evidence](#tamper-evidence-unifi_audit_chain).
+Audit logging is best-effort and fails open: when the audit sink cannot be written (a full disk, a permission or read-only error, a missing directory) the call continues, and every tool response carries the `audit_unavailable` notice in its `_meta` until the sink recovers; the first record after recovery is an `audit.recovered` record counting the records lost. Point `UNIFI_AUDIT_LOG` at a file path to append a structured record for **every write attempt** (all tools, via the same shared chokepoint): timestamp (UTC), HTTP method, resolved path, outcome and upstream status, plus `tool`, `resolvedHost`, `resolvedSite` and `duration_ms` when known. A write refused before it is sent is recorded as `outcome=refused`. Its `reason` names the gate (`UNIFI_WRITE_POLICY`, the denying `UNIFI_WRITE_EXCEPTIONS` entry such as `family:connector=deny`, `empty_update` / `required_body_fields`), or for any other refusal (an argument check, an unknown id, relay validation) it is the refusal message. A refusal made before the request is resolved has no method or path (`-` in text, `null` in JSON). Other outcomes include `dry_run`, `error` and `rate_limited`. `UNIFI_AUDIT_LOG_FORMAT` selects `json` (default: one canonical JSON object per line carrying `schema_version`, `event` and `timestamp_utc`) or `text` (the 0.7.2 key=value line); any other value fails startup listing the two. **Unset (the default) writes no audit file.** A new audit file is created with mode `0600` (`UNIFI_AUDIT_LOG_MODE=0640` adds group read); an existing file keeps its mode. `UNIFI_AUDIT_SINK=stderr` writes the same records to standard error instead of a file, `UNIFI_AUDIT_CALLS=true` adds one `call` or `error` record per tool call, and `UNIFI_AUDIT_LEVEL` is `normal` (default, metadata only), `off`, or `debug`, which adds the request body of a write and the arguments of a call record with every credential field masked and every configured secret scrubbed. The API key value is never recorded. Every audit setting is in the [settings table](#unifi-api-settings). Container deployments may use `UNIFI_AUDIT_LOG=/dev/stderr`; use a persistent writable directory when audit history must survive container replacement. `UNIFI_AUDIT_CHAIN=true` adds an opt-in, tamper-evident (not tamper-proof) hash chain to the JSON file: see [Tamper evidence](#tamper-evidence-unifi_audit_chain). <!-- docs-currency: historical: the text format is the 0.7.2 line -->
 
 <!-- BEGIN GENERATED: audit-schema -->
 Every record carries `schema_version` `1`; the fields of each event (rendered from `src/unifi_fabric/audit.py`):
@@ -819,9 +969,9 @@ Every record carries `schema_version` `1`; the fields of each event (rendered fr
 | Event | Required fields | Optional fields |
 |---|---|---|
 | `startup` | `schema_version`, `event`, `timestamp_utc`, `version`, `sink`, `level`, `format`, `calls` | `file_mode`, `remote_endpoint`, `identifiers` |
-| `audit` | `schema_version`, `event`, `timestamp_utc`, `method`, `path`, `outcome`, `status` | `tool`, `reason`, `resolvedHost`, `resolvedSite`, `duration_ms`, `body`, `via` |
-| `call` | `schema_version`, `event`, `timestamp_utc`, `tool`, `outcome`, `duration_ms` | `arguments` |
-| `error` | `schema_version`, `event`, `timestamp_utc`, `tool`, `error_type`, `duration_ms` | `message` |
+| `audit` | `schema_version`, `event`, `timestamp_utc`, `method`, `path`, `outcome`, `status` | `tool`, `route_template`, `reason`, `ref`, `resolvedHost`, `resolvedSite`, `duration_ms`, `body`, `via`, `lane` |
+| `call` | `schema_version`, `event`, `timestamp_utc`, `tool`, `outcome`, `duration_ms` | `arguments`, `ref` |
+| `error` | `schema_version`, `event`, `timestamp_utc`, `tool`, `error_type`, `duration_ms` | `message`, `ref` |
 | `audit.recovered` | `schema_version`, `event`, `timestamp_utc`, `lost_records`, `fault` | none |
 | `audit.chain_start` | `schema_version`, `event`, `timestamp_utc`, `kid`, `prev_chain`, `prev_seq`, `prev_mac`, `chain`, `seq`, `prev`, `mac` | none |
 | `audit.seal` | `schema_version`, `event`, `timestamp_utc`, `sealed_sha256`, `chain`, `seq`, `prev`, `mac` | none |
@@ -829,7 +979,7 @@ Every record carries `schema_version` `1`; the fields of each event (rendered fr
 The policy records `policy.startup`, `policy.refusal` share the stream. An `audit` record's `outcome` is one of `success`, `no_response`, `rate_limited`, `classic_rc_error`, `upstream_error_body`, `error`, `dry_run`, `refused`, or `http_<status>` for a non-2xx upstream status; a `call` record's is `ok`, `error`. `UNIFI_AUDIT_LOG_FORMAT`: `text`, `json`; `UNIFI_AUDIT_SINK`: `none`, `stderr`, `file`, `remote`; `UNIFI_AUDIT_LEVEL`: `off`, `normal`, `debug`; `UNIFI_AUDIT_LOG_MODE`: `0600`, `0640`.
 <!-- END GENERATED -->
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 ```yaml
     environment:
       UNIFI_AUDIT_LOG: "/var/log/unifi-fabric/audit.log"
@@ -861,7 +1011,11 @@ An empty value counts as unset. The OpenTelemetry SDK reads the other standard `
 - **Once per process.** The pipeline is installed once at startup and shut down when the server exits, which first flushes spans still waiting to be sent.
 - **Existing provider.** If another tracer provider is already installed in the process (for example by `opentelemetry-instrument`), the server leaves it in place, adds no exporter of its own and prints `trace export: a tracer provider is already installed`. That pipeline, and what it exports, is then yours to configure: **the allowlist below does not apply** to it, so FastMCP's raw span attributes (caller identity, MCP session id, resource URIs, tool names and error text) and any spans from auto-instrumentation (including the server's UniFi HTTP requests with their full URLs) reach whatever that pipeline exports.
 
-**What is exported.** Only these span attributes leave the process: `mcp.method.name`, `mcp.protocol.version`, `gen_ai.operation.name`, `gen_ai.tool.name`, `gen_ai.prompt.name`, `jsonrpc.request.id`, `error.type`, `rpc.response.status_code`, `fastmcp.server.name`, `fastmcp.component.type`, `fastmcp.provider.type` and `fastmcp.span.seam`; exception events keep only `exception.type`. Everything else is dropped before export, including the caller identity (`enduser.id`, `enduser.scope`), the MCP session id, resource URIs (`mcp.resource.uri` and `fastmcp.component.key`), URLs and headers. Text a caller chooses is exported only from a closed set: `mcp.method.name` only for a method defined by the MCP specification (otherwise `unknown`), `gen_ai.tool.name` and `gen_ai.prompt.name` only for a tool or prompt this server has registered (otherwise omitted), `mcp.protocol.version` only as a date (otherwise `unknown`), and `jsonrpc.request.id` only when it is an integer. A caller's W3C `tracestate` is not exported (the trace and span ids and the `traceparent` flags are). Status descriptions, exception messages and stack traces are never exported, so neither API keys, authorization headers, request headers nor response bodies reach the collector. Spans name the MCP method and a registered tool (`tools/call list_hosts`), never a resource URI or an unrecognized name; spans from other instrumentation keep their names with configured secrets masked. Tool arguments and results are never recorded in spans. Span and trace ids, timing, kind and status codes are exported unchanged, and an incoming W3C trace context in a request's `_meta` continues the caller's trace. The resource attributes sent with every batch are `service.name`, `service.version`, `service.instance.id` (a random id for the process) and `telemetry.sdk.*`, plus anything you set in `OTEL_RESOURCE_ATTRIBUTES`.
+**Exit and backpressure.** At shutdown the SDK waits up to 30 s for pending spans (its own default, not a server cap), so a collector that accepts connections but never answers can delay exit by that long. Set `OTEL_BSP_MAX_QUEUE_SIZE` to size the span queue: once it is full the SDK logs one warning per dropped span, so while a collector is down the volume of those lines tracks your request rate.
+
+**Resource detectors.** The default resource adds only `service.instance.id` and the `telemetry.sdk.*` attributes. Turning on the OpenTelemetry `host` or `process` detectors (`OTEL_EXPERIMENTAL_RESOURCE_DETECTORS`) also exports the host name and the process command line.
+
+**What is exported.** Only these span attributes leave the process, when the server framework sets them (`gen_ai.operation.name`, `rpc.response.status_code` and `jsonrpc.request.id` are allowed but FastMCP's server spans do not currently set them): `mcp.method.name`, `mcp.protocol.version`, `gen_ai.operation.name`, `gen_ai.tool.name`, `gen_ai.prompt.name`, `jsonrpc.request.id`, `error.type`, `rpc.response.status_code`, `fastmcp.server.name`, `fastmcp.component.type`, `fastmcp.provider.type` and `fastmcp.span.seam`; exception events keep only `exception.type`. Everything else is dropped before export, including the caller identity (`enduser.id`, `enduser.scope`), the MCP session id, resource URIs (`mcp.resource.uri` and `fastmcp.component.key`), URLs and headers. Text a caller chooses is exported only from a closed set: `mcp.method.name` only for a method defined by the MCP specification (otherwise `unknown`), `gen_ai.tool.name` and `gen_ai.prompt.name` only for a tool or prompt this server has registered (otherwise omitted), `mcp.protocol.version` only as a date (otherwise `unknown`), and `jsonrpc.request.id` only when it is an integer. A caller's W3C `tracestate` is not exported (the trace and span ids and the `traceparent` flags are). Status descriptions, exception messages and stack traces are never exported, so neither API keys, authorization headers, request headers nor response bodies reach the collector. Spans name the MCP method and a registered tool (`tools/call list_hosts`), never a resource URI or an unrecognized name; spans from other instrumentation keep their names with configured secrets masked. Tool arguments and results are never recorded in spans. Span and trace ids, timing, kind and status codes are exported unchanged, and an incoming W3C trace context in a request's `_meta` continues the caller's trace. The resource attributes sent with every batch are `service.name`, `service.version`, `service.instance.id` (a random id for the process) and `telemetry.sdk.*`, plus anything you set in `OTEL_RESOURCE_ATTRIBUTES`.
 
 **Trust boundary.** Trace export is configured only by the server's own environment at startup. No tool argument, request `_meta` field or request header can select a collector or change the export settings, and trace export changes no tool list, annotation, authorization or write policy.
 
@@ -877,6 +1031,8 @@ The audit file is **tamper-evident, not tamper-proof**. With `UNIFI_AUDIT_CHAIN=
 
 **Verifying.** `unifi-fabric-audit-verify FILE...` (or `python -m unifi_fabric.audit_verify`) checks the files offline, oldest first, using the Python standard library only. The key comes from `UNIFI_AUDIT_CHAIN_KEY` or from `--key-file PATH`, a file with one key per line that must be a regular file you own, not a symlink, with no group or other permission bits (`0600` or `0400`). No option takes a key. The command exits 0 when it finds no tamper evidence, 1 when it finds some, and 2 on a usage or key error. Its findings are `BAD_MAC`, `SEQ_GAP`, `PREV_MISMATCH`, `DUP_SEQ`, `UNCHAINED_LINE`, `MISSING_SEAL`, `ORPHAN_SEAL`, `MALFORMED_LINE`, `UNKNOWN_KID`, `CHAIN_PREFIX_MISSING`, `ANCHOR_MISSING` and `ANCHOR_MISMATCH`. Lines before the first chained record are counted as unverified legacy lines. A record cut short by a write fault, or a policy line whose seal the fault lost, is accepted only when an `audit.recovered` record follows it, and only as many such lines as that record's `lost_records` count; any further unsealed or malformed line before it is a finding. A chain whose start is not in the files given (an earlier rotated file left out, or a deleted prefix) is `CHAIN_PREFIX_MISSING`; `--allow-rotated-prefix` reports it as a warning instead and still prints the count. The verifier is a separate command: it is not an MCP tool, and the server never runs it.
 
+**Recoveries and `--strict`.** An `audit.recovered` record excuses at most as many unsealed or cut lines as the records it says were lost. Those excused lines are warnings by default (exit 0), so a forged line that fits inside that count passes too: the file alone cannot tell it from what a real fault left. `unifi-fabric-audit-verify --strict` reports every excused line as a finding (exit 1), for an operator who wants to review each recovery.
+
 **Anchors.** The server logs the chain head (`CHAIN:SEQ:MAC`, not secret) at INFO when a chain starts, every 100 records and at clean shutdown. If `UNIFI_LOG_LEVEL` is above INFO, startup warns that these lines are not logged. Collect the server log separately from the audit file, or run `unifi-fabric-audit-verify --print-head` on a schedule and keep its output where the server host cannot rewrite it (another host, a write-once bucket). `--expect-head CHAIN:SEQ:MAC` then reports `ANCHOR_MISSING` or `ANCHOR_MISMATCH` if that record is gone or changed. Heads are not published anywhere automatically. With `UNIFI_AUDIT_LOG=/dev/stderr` the head lines and the records share one stream, so the head lines are not an independent anchor.
 
 **What it does not detect.**
@@ -890,6 +1046,15 @@ The audit file is **tamper-evident, not tamper-proof**. With `UNIFI_AUDIT_CHAIN=
 
 **Rotation.** Use `create`-style rotation (logrotate `create`): the server opens the file for every record, so the chain continues into the new file, and the verifier checks the files together, oldest first. `copytruncate` can lose lines written between the copy and the truncate; the loss shows up as `SEQ_GAP`. The file sink assumes single-host `O_APPEND` writes, so NFS and other shared volumes are outside this feature.
 
+### Audit record fields
+
+Every value in an audit record comes from a fixed list or a validated shape, so nothing the caller typed or the upstream returned reaches the record as free text.
+
+- `path` keeps its shape. A segment stays only when it is a route word the server knows, a validated identifier (an ObjectId, a UUID, a MAC, a small number or an IPv4 address), or the site or console in its own position. Every other segment is written as `***`, on every route, so a credential in a path segment does not depend on the route having been listed. A route whose identifier-shaped segment is itself a credential (a UUID share token) is listed in the server and scrubbed by value first; an identifier-shaped value on a route not listed there is written as is.
+- `route_template` names the route of a known tool as `family.resource.verb`, for example `firewall.policies.create`. A tool the server does not know gets no template.
+- `reason` is a fixed code: a setting or gate name (`UNIFI_WRITE_POLICY`, `family:<id>=deny`, `tool:<name>=deny`), a refusal code (`empty_update`, `missing_api_key_header`, `unsafe_path`, `masked_body`), or `other`. The text of an `other` reason is not in the record; it goes to the server log.
+- `ref` is the request id, the same on every record of one call. The server log line carrying the matching detail (an `other` reason, or an upstream write error) is tagged `ref=<id>`.
+
 ### Remote audit sink (`UNIFI_AUDIT_SINK=remote`)
 
 `UNIFI_AUDIT_SINK=remote` sends every audit record (the same JSON records, policy records included) to a log collector. With `UNIFI_AUDIT_LOG` also set (recommended), the local file is written first, synchronously, with the file sink's usual fail-open behaviour, and the same line is then handed to the collector queue: a collector outage, stall or drop never loses a local record. Without `UNIFI_AUDIT_LOG`, the collector copy is the only one. It needs `UNIFI_AUDIT_LOG_FORMAT=json` and `UNIFI_AUDIT_REMOTE_URL`. The server POSTs batches of up to 100 records as NDJSON (`Content-Type: application/x-ndjson`, one canonical JSON record per line, each ending in a newline) with these headers: `X-Audit-Schema-Version` (`1`), `X-Audit-Stream-Id` (random per server start), `X-Audit-Batch-Id` (random per batch, unchanged on a retry), `X-Audit-First-Seq` and `X-Audit-Record-Count`. A `2xx` response acknowledges the whole batch. Redirects are not followed.
@@ -902,7 +1067,7 @@ The audit file is **tamper-evident, not tamper-proof**. With `UNIFI_AUDIT_CHAIN=
 
 **What never leaves.** Errors, log lines and records name the collector only as `scheme://host:port` (the startup record's `remote_endpoint`). They never include the URL path, the TLS file paths or contents, request bodies or collector responses. A configuration error names the setting, never its value.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db support=0.7.2 citation=file:src/unifi_fabric/config.py@sha256:caa830b748df7d33902ce9aeedbedbcc81066ba0b9f5e6908764426b497cb5db -->
+<!-- doc-provenance: source=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef citation=file:src/unifi_fabric/config.py@sha256:39e121789d02dd084fccb523aa215df68c69ae72ac7f4f80bedd4ae74feca9ef -->
 ```yaml
     environment:
       UNIFI_AUDIT_SINK: "remote"

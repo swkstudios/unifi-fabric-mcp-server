@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
-
-from fastmcp import FastMCP
 
 from ...client import (
     UniFiClient,
@@ -22,6 +19,7 @@ from ...read_post_routes import post_read
 from ...registry import Registry
 from ...selector_args import check_selector
 from ...shared_shapes._classic_objects import v2_site
+from ...shared_shapes._clients_shared import resolve_list_source, v2_flag_params
 from ...shared_shapes._history_common import (
     epoch_warnings,
     require_epoch_seconds,
@@ -29,20 +27,24 @@ from ...shared_shapes._history_common import (
     translate_host_not_found,
     with_warnings,
 )
-from ...shared_shapes._keys import with_context
-from ...tool_annotations import READ_ONLY
-from ..clients.clients import resolve_list_source, v2_flag_params
+from ...shared_shapes._statistics_shared import (  # noqa: F401  (shared)
+    health_summary as health_summary,
+)
+from ...shared_shapes._statistics_shared import (
+    with_health_summary as with_health_summary,
+)
+from .schemas import (  # the family's shapes (family-owned layout)
+    _DEVICE_STP_KEYS,
+    _DEVICE_THERMAL_POWER_KEYS,
+    _MODERN_STATS_BASE,
+    _PORT_STP_KEYS,
+    KNOWN_CLIENTS_SOURCES,
+    REPORT_INTERVALS,
+    REPORT_SCOPES,
+    SESSION_TYPES,
+)
 
 _CLASSIC_STAT_BASE = "/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat"
-_MODERN_STATS_BASE = "/v1/connector/consoles/{host_id}/proxy/network/v2/api/stats"
-
-# /stat/report path is "{interval}.{scope}", e.g. "hourly.ap". Every interval and scope
-# the controller accepts, from live read-only probes of each candidate on Network 11.0.81:
-# each value here answered 200 rc "ok" in every interval x scope pair; every other candidate was
-# refused (an unknown interval with HTTP 400 api.err.InvalidArgs, an unknown scope with an
-# HTTP 500 HTML page), so it is rejected here with this full list instead.
-REPORT_INTERVALS = ("minute", "5minutes", "hourly", "daily", "monthly", "archive")
-REPORT_SCOPES = ("site", "ap", "user", "gw", "sw", "device", "speedtest", "isp")
 
 
 def _classic_stat(host_id: str, site_slug: str, path: str) -> str:
@@ -80,36 +82,6 @@ def _narrowed(response: dict[str, Any], records: list[dict[str, Any]]) -> dict[s
     return {**response, "data": records}
 
 
-def health_summary(response: Any) -> dict[str, Any] | None:
-    """A compact digest of a Classic ``/stat/health`` body, or ``None`` when it has none.
-
-    ``{subsystems: {subsystem: status}, notOk: [subsystem...], allOk}`` from the ``data[]``
-    records that carry a string ``subsystem`` (first record wins for a repeated name);
-    ``status`` is copied verbatim (``None`` when a record has none) and ``notOk`` lists, in
-    upstream order, every subsystem whose status is not exactly ``"ok"``. It is derived
-    from the body only: the body itself is never changed.
-    """
-    data = response.get("data") if isinstance(response, dict) else None
-    if not isinstance(data, list):
-        return None
-    statuses: dict[str, Any] = {}
-    for record in data:
-        if isinstance(record, dict) and isinstance(record.get("subsystem"), str):
-            statuses.setdefault(record["subsystem"], record.get("status"))
-    if not statuses:
-        return None
-    not_ok = [name for name, status in statuses.items() if status != "ok"]
-    return {"subsystems": statuses, "notOk": not_ok, "allOk": not not_ok}
-
-
-def with_health_summary(response: Any) -> Any:
-    """``response`` plus the additive ``_healthSummary`` digest (unchanged when it has none)."""
-    summary = health_summary(response)
-    if summary is None or not isinstance(response, dict):
-        return response
-    return with_context(response, {"_healthSummary": summary})
-
-
 async def _get_site_statistics(
     client: UniFiClient, registry: Registry, host: str, site: str
 ) -> Any:
@@ -142,10 +114,6 @@ async def _list_device_stats(client: UniFiClient, registry: Registry, host: str,
     host_id = await registry.resolve_host_id(host, key=key)
     site_slug = await registry.resolve_site_slug(site, host_id, key=key)
     return await client.get(_classic_stat(host_id, site_slug, "/device"), key=key)
-
-
-#: The session classes of Classic ``stat/session`` ``type``, as UniFi documents them.
-SESSION_TYPES = ("all", "user", "guest", "voucher")
 
 
 async def _list_client_sessions(
@@ -271,12 +239,6 @@ async def _list_speedtest_results(
         raise translate_host_not_found(exc, host) from exc
 
 
-#: ``list_known_clients`` sources: Classic ``/stat/alluser`` (default) and the controller's
-#: v2 client history (Network 11.0.81 web UI, GET
-#: /proxy/network/v2/api/site/{site}/clients/history).
-KNOWN_CLIENTS_SOURCES = ("classic", "v2")
-
-
 async def _list_known_clients(
     client: UniFiClient,
     registry: Registry,
@@ -352,23 +314,6 @@ async def _list_known_clients(
 # selector is compared against in-memory record fields only and is never interpolated into
 # a URL path, so it needs no path-safety validation. Upstream operational fields are
 # preserved verbatim; the list_* tools remain the faithful raw pass-throughs.
-
-
-# Device-level thermal/power summary keys surfaced by the device view of
-# get_device_port_state. Values are copied verbatim under their upstream names.
-_DEVICE_THERMAL_POWER_KEYS = (
-    "general_temperature",
-    "fan_level",
-    "overheating",
-    "total_used_power",
-    "total_max_power",
-)
-
-# Device- and port-level STP keys surfaced by get_device_stp_state. Any additional ``stp_*``
-# key present upstream is also carried through, so these are a floor, not a whitelist that
-# could silently drop a future field.
-_DEVICE_STP_KEYS = ("stp_version", "stp_priority", "root_switch", "root")
-_PORT_STP_KEYS = ("stp_state", "stp_role", "stp_pathcost", "stp_path_cost")
 
 
 def _normalize_mac(value: str) -> str:
@@ -624,467 +569,3 @@ async def _get_device_stp_state(
         "_ports": ports_out,
         "_device_record": device,
     }
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register all statistics MCP tools."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_controller_stat_schemas(host: str) -> Any:
-        """List schemas supported by a controller's Network 11.x statistics engine.
-
-        GET /v2/api/stats/schemas through the selected console. Each upstream schema can
-        describe its name, keys, values, and nested groups. Returns the upstream body verbatim;
-        FastMCP wraps an array in result for MCP clients.
-        Network versions without the modern statistics engine may return an upstream 404.
-
-        Required argument: host (see the parameter description).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-        """
-        client, registry = deps_fn()
-        return await _list_controller_stat_schemas(client, registry, host)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_site_statistics(
-        host: str,
-        site: str,
-    ) -> Any:
-        """Get site health statistics: latency, throughput, and client counts per subsystem.
-
-        Returns the Classic REST /stat/health envelope {meta: {rc}, data: [subsystem health…]}
-        verbatim, plus an additive _healthSummary {subsystems: {subsystem: status}, notOk:
-        [subsystem…], allOk} derived from data[] (omitted when data has no subsystem records).
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-        """
-        client, registry = deps_fn()
-        return await _get_site_statistics(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_system_info(
-        host: str,
-        site: str,
-    ) -> Any:
-        """Get controller/console system info: version, uptime, and memory.
-
-        Returns the Classic REST /stat/sysinfo envelope {meta: {rc}, data: [system info…]}
-        verbatim.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-        """
-        client, registry = deps_fn()
-        return await _get_system_info(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_active_clients_stats(
-        host: str,
-        site: str,
-    ) -> Any:
-        """List detailed per-client statistics: traffic, signal strength, and experience score.
-
-        Returns the Classic REST /stat/sta envelope {meta: {rc}, data: [client stats…]}
-        verbatim.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-        """
-        client, registry = deps_fn()
-        return await _list_active_clients_stats(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_device_stats(
-        host: str,
-        site: str,
-    ) -> Any:
-        """List per-device statistics: CPU load, memory, uptime, and port throughput.
-
-        Returns the Classic REST /stat/device envelope {meta: {rc}, data: [device stats…]}
-        verbatim.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-        """
-        client, registry = deps_fn()
-        return await _list_device_stats(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_client_link_diagnostics(
-        host: str,
-        site: str,
-        client_id: str | None = None,
-        client_ids: list[str] | None = None,
-    ) -> Any:
-        """Get first-class per-client link/policy diagnostics for one or more clients.
-
-        Read-only and Fabric-only: reuses the same Classic REST
-        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/sta request as
-        list_active_clients_stats, then selects the requested client(s) from that payload in
-        memory. Surfaces link quality (rssi, signal, noise, channel, radio_name),
-        rx_rate/tx_rate and retry counters, satisfaction_reason, network/VLAN identity, QoS,
-        fixed-IP, and virtual-network override fields when upstream provides them — the
-        matching record is returned unchanged, so unknown/future fields survive.
-
-        Returns: the /stat/sta envelope {meta: {rc}, data: [client…]} with data narrowed to the
-        selected client(s), in the requested order (one entry for client_id).
-
-        `client_id`: a single client selector — the client's MAC address (case- and
-          separator-insensitive) or its classic /stat/sta _id. The Integration API client id
-          from list_clients data[].id does not match. Provide EITHER client_id OR client_ids,
-          not both.
-        `client_ids`: an explicit list of client selectors (any length) for multi-client
-          selection, from one /stat/sta read. A selector that matches no client fails listing
-          every valid client (name, mac, _id) rather than being silently skipped.
-
-        Example call (get_client_link_diagnostics):
-            {"host": "my-console", "site": "Default", "client_id": "aa:bb:cc:dd:ee:ff"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            client_id: Single client MAC address or classic /stat/sta _id. Pass this OR
-                client_ids, not both. The MAC is matched case- and separator-insensitively:
-                macAddress from list_clients, or mac from list_active_clients_stats. The _id is
-                the _id from list_active_clients_stats. The Integration API client id
-                (list_clients data[].id, as used by get_client) is a different identifier and
-                does not match.
-            client_ids: Client selectors (any number), each a MAC address or classic /stat/sta
-                _id (same sources as client_id). Pass this OR client_id, not both. An empty
-                list applies no filter: the whole /stat/sta envelope is returned verbatim (with
-                client_id also given, client_id selects).
-                Shape: string[]
-        """
-        client, registry = deps_fn()
-        return await _get_client_link_diagnostics(
-            client, registry, host, site, client_id, client_ids
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_device_port_state(
-        host: str,
-        site: str,
-        device_id: str,
-        port_idx: int | None = None,
-    ) -> Any:
-        """Get switch port health, PoE, optics, and LLDP telemetry for a device.
-
-        Returns, for the device view, an object with the keys _device, _port_idx (null),
-        _source, _thermal_power and _device_record, plus port_table and lldp_table only when the
-        selected record has them and meta only when the upstream envelope has it; with port_idx,
-        _device, _port_idx, _source and _port, plus meta only when the envelope has it. An
-        absent table or meta is left out, never returned as null. meta, port_table, lldp_table
-        and the _device_record / _port rows are upstream values verbatim; _device / _port_idx
-        echo the arguments, _source names the read route (/stat/device) and _thermal_power is a
-        summary of the record's thermal and power fields (only those it has; {} when none).
-
-        Read-only and Fabric-only: reuses the same Classic REST
-        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device request
-        as list_device_stats (one call, no new route), then projects the selected device's
-        port telemetry from that payload. Upstream operational fields are preserved
-        verbatim — link state/speed/duplex, rx/tx byte/packet/error/drop counters, PoE state
-        and draw (poe_enable/poe_good/poe_power/poe_voltage/poe_current/poe_class/poe_mode),
-        SFP/optics fields where present, and port config identity — nothing is renamed or
-        dropped.
-
-        `port_idx`: optional port_table[].port_idx (ports count from 1; any non-negative
-          value, 0 included, is matched as given). Omit it for the device view
-          (port_table and lldp_table verbatim when the record has them, a thermal/power
-          summary, and the complete selected /stat/device record verbatim under
-          _device_record); set it to return that single port_table row verbatim (under _port).
-          An unknown port_idx fails listing the valid port_idx values.
-          Both views carry the upstream envelope's meta verbatim when it has one; an unknown
-          device fails listing every valid device (name, mac, _id).
-
-        Example call (get_device_port_state):
-            {"host": "my-console", "site": "Default", "device_id": "aa:bb:cc:dd:ee:ff"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            device_id: Device MAC address or classic /stat/device _id. The MAC is matched case- and
-                separator-insensitively: macAddress from list_site_devices, mac from list_devices
-                or list_device_stats. The _id is the _id from list_device_stats. The Integration
-                API device id (list_site_devices data[].id, as used by get_device) is a different
-                identifier and does not match.
-            port_idx: Optional port_table[].port_idx (switch ports count from 1; any non-negative
-                value, 0 included, is matched as given); omit for the whole device view.
-        """
-        client, registry = deps_fn()
-        return await _get_device_port_state(client, registry, host, site, device_id, port_idx)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_device_stp_state(
-        host: str,
-        site: str,
-        device_id: str,
-    ) -> Any:
-        """Get per-device STP/RSTP state and per-port STP role/state/path-cost.
-
-        The result's top-level keys are {meta, _device, _source, _stp, _ports, _device_record}:
-        _device echoes the device_id argument and _source names the read route (/stat/device).
-
-        Read-only and Fabric-only: reads the same Classic REST
-        /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device payload
-        as list_device_stats and projects the selected device's STP fields. Returns the
-        device-level stp_version, stp_priority, root_switch/root (and any other stp_* field
-        present) plus per-port STP role/state/path-cost where upstream provides them, all
-        verbatim (under _stp and _ports), the complete selected /stat/device record verbatim
-        under _device_record, and
-        the upstream envelope's meta verbatim. An unknown device fails listing every valid
-        device (name, mac, _id). This tool is read-only: no write is performed.
-
-        Example call (get_device_stp_state):
-            {"host": "my-console", "site": "Default", "device_id": "aa:bb:cc:dd:ee:ff"}
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            device_id: Device MAC address or classic /stat/device _id. The MAC is matched case- and
-                separator-insensitively: macAddress from list_site_devices, mac from list_devices
-                or list_device_stats. The _id is the _id from list_device_stats. The Integration
-                API device id (list_site_devices data[].id, as used by get_device) is a different
-                identifier and does not match.
-        """
-        client, registry = deps_fn()
-        return await _get_device_stp_state(client, registry, host, site, device_id)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_client_sessions(
-        host: str,
-        site: str,
-        start: int,
-        end: int,
-        session_type: str = "all",
-    ) -> Any:
-        """List historical client connection sessions from the Classic REST /stat/session endpoint.
-
-        This is the highest-value history tool: retention is ~90 days, so it covers
-        far more than the currently-connected client list.
-
-        Each session includes mac, is_wired, assoc_time (session start, epoch seconds),
-        duration (seconds), ap_mac, rx_bytes, tx_bytes, satisfaction, hostname, ip, _id, and
-        roaming_sessions[]. Two things that surprise callers:
-        - There is NO explicit disconnect timestamp — session end is assoc_time + duration.
-        - Radio band lives ONLY inside roaming_sessions[] (radio_band: na/ng/6e), never at the
-          top level. Wired sessions have ap_mac=null and carry sw_mac/sw_port instead.
-
-        Returns the Classic REST envelope {meta: {rc}, data: [session…]} verbatim, including
-        identifiers (MAC/IP/hostname).
-
-        Required arguments: host, site, start, end (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            start: epoch SECONDS (UTC). This endpoint uses seconds natively — passing milliseconds
-                returns HTTP 200 with an EMPTY array and no error. A negative or
-                millisecond-magnitude value (>= 1e11) is sent as given and the result carries a
-                _warnings entry saying so.
-            end: epoch SECONDS (UTC). This endpoint uses seconds natively — passing milliseconds
-                returns HTTP 200 with an EMPTY array and no error. A negative or
-                millisecond-magnitude value (>= 1e11) is sent as given and the result carries a
-                _warnings entry saying so.
-            session_type: session class filter. The values that actually narrow the result are "all"
-                (default — the full unfiltered set), "user" (regular clients), and "guest"
-                (guest-network clients). Valid values: "all", "user", "guest", "voucher"; any
-                other value fails before any request, listing them (the endpoint itself ignores an
-                unknown value and returns the full "all" set, so a typo would otherwise yield
-                everything). (UniFi documents "voucher" as a fourth class; on tested firmware it
-                returned the full set, so prefer "user"/"guest" for real narrowing.)
-        """
-        client, registry = deps_fn()
-        return await _list_client_sessions(client, registry, host, site, start, end, session_type)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_historical_stats(
-        host: str,
-        site: str,
-        interval: str,
-        scope: str,
-        start: int,
-        end: int,
-        attrs: list[str] | None = None,
-    ) -> Any:
-        """Get bucketed historical statistics from the Classic REST /stat/report endpoint.
-
-        Output "time" is epoch milliseconds. Note: rx_bytes/tx_bytes come back as JSON
-        floats in scientific notation (e.g. 5.27e9) — treat them as floats, not ints.
-
-        Returns the Classic REST envelope {meta: {rc}, data: [bucket…]} verbatim.
-
-        An empty data array means the controller has no report rows, not a malformed request:
-        Network 11.x controllers (verified on 11.0.81) answer every /stat/report request —
-        each interval and scope, with or without attrs/start/end — with
-        {"meta": {"rc": "ok"}, "data": []}, while sibling stat routes such as /stat/session
-        still return rows. On those releases the dashboard history is served by the v2
-        aggregated dashboard; read it with fabric_connector_get, path
-        "network/v2/api/site/{site}/aggregated-dashboard".
-
-        Required arguments: host, site, interval, scope, start, end (see each parameter's
-        description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            interval: one of "minute", "5minutes", "hourly", "daily", "monthly", "archive" (every
-                interval the controller accepts; another value fails listing these).
-            scope: one of "site", "ap", "user", "gw", "sw", "device", "speedtest", "isp" (every
-                scope the controller accepts; another value fails listing these). The "ap" scope
-                carries num_sta per AP per bucket.
-            start: epoch SECONDS (UTC). Unlike /stat/session, this endpoint requires MILLISECONDS —
-                the tool converts seconds to milliseconds internally, so callers always pass seconds
-                for a consistent interface.
-            end: epoch SECONDS (UTC). Unlike /stat/session, this endpoint requires MILLISECONDS —
-                the tool converts seconds to milliseconds internally, so callers always pass seconds
-                for a consistent interface.
-            attrs: optional report metrics to aggregate, e.g. ["num_sta", "rx_bytes",
-                "tx_bytes"]. Sent as the request's attrs exactly as given; when omitted no attrs
-                key is sent and the controller decides which fields each bucket carries.
-                Shape: string[]
-        """
-        client, registry = deps_fn()
-        return await _get_historical_stats(
-            client, registry, host, site, interval, scope, start, end, attrs
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_speedtest_results(
-        host: str,
-        site: str,
-        start: int,
-        end: int,
-    ) -> Any:
-        """List archived WAN speed-test results for a site and time window.
-
-        Reads the private Classic REST POST /stat/report/archive.speedtest route. It
-        requests download/upload throughput, latency, result time, interface name and WAN
-        network group. Network 11 may keep its current history on a newer private v2 route;
-        an empty archive is returned unchanged.
-
-        Returns the controller's complete response body verbatim. No fields are filtered,
-        masked, projected or truncated.
-
-        Required arguments: host, site, start, end (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts
-                (data[].reportedState.hostname or reportedState.name, case-insensitive,
-                e.g. "my-console") or the long data[].id (MAC:numericId composite).
-            site: Network site name or UUID; resolved server-side. Get it from
-                list_local_sites (name or id). Names like "Default" work.
-            start: Inclusive window start as an integer epoch-seconds timestamp. The tool
-                converts it to the route's required epoch milliseconds.
-            end: Inclusive window end as an integer epoch-seconds timestamp. The tool
-                converts it to the route's required epoch milliseconds.
-        """
-        client, registry = deps_fn()
-        return await _list_speedtest_results(client, registry, host, site, start, end)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_known_clients(
-        host: str,
-        site: str,
-        source: str | None = None,
-        within_hours: int | None = None,
-        only_blocked: bool | None = None,
-        only_non_blocked: bool | None = None,
-        include_matter_thread_clients: bool | None = None,
-        include_traffic_usage: bool | None = None,
-        include_unifi_devices: bool | None = None,
-    ) -> Any:
-        """List the full per-site client roster incl. offline history (Classic REST /stat/alluser).
-
-        Unlike list_active_clients_stats (currently-connected only), this includes clients
-        seen historically — typically far more entries. (Distinct from the fleet-wide
-        list_all_clients aggregation tool, which spans every console.) This endpoint accepts GET.
-
-        Each entry includes mac, first_seen, last_seen, disconnect_timestamp (all epoch
-        seconds), is_wired, oui, last_ip, last_radio, hostname, and device-fingerprint fields.
-
-        Returns the Classic REST envelope {meta: {rc}, data: [client…]} verbatim, including
-        identifiers (MAC/IP/hostname/name). With source "v2" (or any of the v2
-        arguments) the controller's v2 client history (GET
-        network/v2/api/site/{site}/clients/history, the web UI's route) is returned verbatim
-        instead; Classic stays the default because the v2 rows lack name, note, fixed_ip,
-        network_id, local_dns_record, virtual_network_override_id and disconnect_timestamp.
-
-        Required arguments: host, site (see each parameter's description).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            source: Optional route: "classic" (default, /stat/alluser) or "v2". Every
-                other argument below applies only to "v2" and selects it.
-                Example: `v2`.
-            within_hours: Optional v2 query withinHours: clients seen in the last N hours,
-                sent as given. Example: `24`.
-            only_blocked: Optional v2 query onlyBlocked: true lists blocked clients only.
-                Example: `true`.
-            only_non_blocked: Optional v2 query onlyNonBlocked: true lists non-blocked clients
-                only. Example: `true`.
-            include_matter_thread_clients: Optional v2 query includeMatterThreadClients: true
-                also lists Matter/Thread clients. Example: `true`.
-            include_traffic_usage: Optional v2 query includeTrafficUsage: true asks the
-                controller to include traffic usage. Example: `true`.
-            include_unifi_devices: Optional v2 query includeUnifiDevices: true asks the
-                controller to include UniFi devices. Example: `false`.
-        """
-        client, registry = deps_fn()
-        return await _list_known_clients(
-            client,
-            registry,
-            host,
-            site,
-            source=source,
-            within_hours=within_hours,
-            only_blocked=only_blocked,
-            only_non_blocked=only_non_blocked,
-            include_matter_thread_clients=include_matter_thread_clients,
-            include_traffic_usage=include_traffic_usage,
-            include_unifi_devices=include_unifi_devices,
-        )

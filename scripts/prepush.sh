@@ -8,7 +8,7 @@
 # fixture and changelog checks; then the fast jobs of the other
 # workflows that run for a pull request (documentation checks, changelog size). Each job
 # runs when its CI condition holds for a pull request from HEAD into the base branch; the
-# full suite runs in CI's test and test-locked jobs on main, not in this default run (see
+# full suite runs in CI's test job (and install-proof, the locked install) on main, not in this default run (see
 # --full below). The secret scan,
 # the image build and the other jobs scripts/ci_fast_jobs.py lists in CI_ONLY also stay
 # in CI. The test files in its PREPUSH_GUARDS run on every pre-push, whatever the change.
@@ -72,6 +72,10 @@ if [ "$full" = true ]; then
   trap 'rm -f -- "$workers_file"' EXIT
   mode=(--full --full-workers-output "$workers_file")
 fi
+# Name the README contracts a README.md change touches (advice only; the jobs below are the
+# gate). A prose-only edit prints that it needs no test, generator or source edit.
+"$python" scripts/readme_contracts.py --base "$base" --head "$head"
+
 "$python" scripts/ci_fast_jobs.py \
   --base "$base" --base-ref "$base_branch" \
   --head "$head" --head-ref "$head_ref" \

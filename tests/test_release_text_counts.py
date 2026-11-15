@@ -55,9 +55,15 @@ def test_spec_limit_tools_are_listed_in_the_migration_guide():
     # change-085 and CHANGELOG describe shipped 0.7.0; later additions are listed
     # separately so current-table coverage cannot rewrite released history.
     assert int(match.group(1)) == len(listed)
-    additions = re.search(r"Additional tools in 0[.]7[.]1: (.*?)\. ", entry, re.S)
+    additions = re.search(r"Additional tools: (.*?)\. The ", entry, re.S)
     assert additions, "the migration guide must name the later spec-limit additions"
     added = re.findall(r"`([a-z_0-9]+)`", additions.group(1))
+    assert "`list_integration_device_tags` (0.7.1)" in additions.group(1)
+    assert (
+        "`create_external_arm_profile` and `update_external_arm_profile` (0.7.3)"
+        in additions.group(1)
+    )
+    assert f"current spec-limit table covers {len(SPEC_LIMITS)} tools" in entry
     assert listed == sorted(listed)
     assert not (set(listed) & set(added))
     assert len(listed) + len(added) == len(SPEC_LIMITS)

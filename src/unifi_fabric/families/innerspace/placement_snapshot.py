@@ -27,14 +27,11 @@ import contextvars
 import hashlib
 import ipaddress
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
-from fastmcp import FastMCP
-
-from ... import output_schemas
 from ...client import (
     RateLimitError,
     UniFiClient,
@@ -43,15 +40,33 @@ from ...client import (
     gather_or_cancel,
 )
 from ...registry import Registry
+from ...shared_shapes import _protect_shared as protect  # protect.protect's shared names
+from ...shared_shapes import (
+    _site_manager_shared as site_manager,  # site_manager.site_manager's shared names
+)
 from ...shared_shapes._device_wrappers import wrapper_devices
 from ...shared_shapes._keys import context_value
-from ...tool_annotations import READ_ONLY
-from ..protect import protect
-from ..site_manager import site_manager
 from . import innerspace
-
-SCHEMA_VERSION = "unifi.placement-snapshot/v1"
-FRESHNESS_TTL_SECONDS = 120
+from .schemas import (  # the family's shapes (family-owned layout)
+    _MAP_ASSET_FIELDS,
+    _MODEL_FINGERPRINT_IDS,
+    _MODEL_LOOKUP_KEYS,
+    _QUATERNION_AXES,
+    _VERBATIM_SOURCES,
+    APPROVED_READ_SOURCES,
+    FRESHNESS_TTL_SECONDS,
+    PLACEMENT_SNAPSHOT_CAPABILITY_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+)
+from .schemas import (
+    CAPABILITY_OUTCOMES as CAPABILITY_OUTCOMES,
+)
+from .schemas import (
+    DEVICE_TYPES as DEVICE_TYPES,
+)
+from .schemas import (
+    REDACTION_REASONS as REDACTION_REASONS,
+)
 
 _MAC_ADDRESS_RE = re.compile(r"(?i)(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])")
 _BARE_MAC_ADDRESS_RE = re.compile(r"(?i)^[0-9a-f]{12}\Z")
@@ -89,39 +104,6 @@ _UNPROJECTED: contextvars.ContextVar[dict[str, dict[str, int]] | None] = context
 _REDACT: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "placement_snapshot_redact", default=False
 )
-
-#: The only ``_withheld`` reasons; all are produced only under ``UNIFI_REDACT_SECRETS``
-#: (value withholding). Structural reasons (the record cannot be represented in schema v1)
-#: are counted under ``_unprojected`` instead.
-REDACTION_REASONS = frozenset({"url", "hardware_address", "network_address", "credential_marker"})
-
-# Where each snapshot section's values can be read verbatim. Used to tell the caller, for
-# every ``_withheld`` / ``_unprojected`` entry, how to obtain what the snapshot left out.
-_VERBATIM_SOURCES = {
-    "floors": "get_innerspace_project (plans[], and the plan's map shape in shapes[])",
-    "shapes": "get_innerspace_project (shapes[])",
-    "walls": "get_innerspace_project (the wall shapes in shapes[])",
-    "placed_devices": "get_innerspace_project (the device shapes in shapes[]) or "
-    "list_innerspace_devices",
-    "topology": "list_cameras, list_sensors or list_devices",
-    "provenance": "get_innerspace_project (project.updatedAt)",
-}
-
-# This explicit, closed list is part of the snapshot's security contract.  The
-# called helpers use GET only; no generic connector route or mutating helper is
-# accepted here.
-APPROVED_READ_SOURCES = (
-    "innerspace.project.3d",
-    "protect.cameras",
-    "protect.sensors",
-    "site_manager.devices",
-)
-
-# The preflight is intentionally coupled to the collector's closed source set.
-# Adding a new snapshot input must therefore also add a capability probe; a key
-# may not be declared ready merely because a subset of the collector works.
-PLACEMENT_SNAPSHOT_CAPABILITY_SCHEMA_VERSION = "unifi.placement-snapshot-preflight/v1"
-CAPABILITY_OUTCOMES = frozenset({"ok", "auth_denied", "unavailable", "error"})
 
 
 def _withhold_reason(candidate: str) -> str | None:
@@ -343,16 +325,6 @@ def _scale_shapes_by_plan(shapes: list[dict[str, Any]]) -> dict[str, int | float
     return out
 
 
-# Floor-plan asset URLs on an InnerSpace ``map`` shape (spec ``/v1/project`` shapes[]
-# oneOf ``type: "map"``) and the snapshot ``floors[]`` key each one is projected to.
-_MAP_ASSET_FIELDS = (
-    ("urlImage", "image_url"),
-    ("urlModel", "model_url"),
-    ("additionalZipUrl", "additional_zip_url"),
-    ("additionalBinUrl", "additional_bin_url"),
-)
-
-
 def _map_shapes_by_plan(shapes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Map each plan id to its first ``map`` shape (the floor-plan image/model asset)."""
     out: dict[str, dict[str, Any]] = {}
@@ -406,9 +378,6 @@ def _floor(
                 map_shape.get(upstream_key), f"floors.{snapshot_key}", "url"
             )
     return {key: value for key, value in output.items() if value is not None}
-
-
-_QUATERNION_AXES = ("x", "y", "z", "w")
 
 
 def _quaternion(value: object, field: str) -> dict[str, int | float] | list[Any] | None:
@@ -507,51 +476,6 @@ def _derived_source_id(item: dict[str, Any], kind: str) -> str | None:
         return None
     digest = hashlib.sha256(f"{kind}\x00{normalized}".encode()).hexdigest()
     return f"smdev-{digest[:24]}"
-
-
-# Closed display-safe device-type enum for consumer marker iconography.
-# ``device_type`` is a coarse, non-identifying category the
-# panel maps to a bundled MDI glyph — the always-correct primary. It is NOT derived
-# from any network/browser identity field, only from ``kind`` plus the human-facing
-# model/name text, so it carries no more information than ``model`` already does.
-# The consumer's v1 topology validator must accept ``device_type``/``icon`` as
-# optional BEFORE this producer emits them (deploy order: validator, then producer).
-DEVICE_TYPES = frozenset(
-    {
-        "camera",
-        "doorbell",
-        "access_point",
-        "switch",
-        "gateway",
-        "motion_sensor",
-        "presence_sensor",
-        "chime",
-        "sensor",
-        "client",
-        "unknown",
-    }
-)
-
-# Curated exact-model -> UniFi fingerprint id table for common UniFi models. The
-# id resolves to https://static.ui.com/fingerprint/0/<id>_257x257.png, the public
-# UniFi product render a consumer may cache locally. Only models with a verified
-# fingerprint match are listed; anything absent omits ``icon`` and the consumer
-# falls back to its own glyph for the ``device_type``. Keys are casefolded.
-_MODEL_FINGERPRINT_IDS: dict[str, int] = {
-    "uvc g4 instant": 4987,  # UniFi Protect G4 Instant
-    "uvc g4 dome": 4395,  # UniFi Protect G4 Dome
-    "usw pro 24 poe": 3344,  # UniFi Switch Pro 24 PoE Gen 2
-    "udm pro": 3522,  # UniFi Dream Machine Pro
-    "u6 pro": 4981,  # UniFi U6 Pro
-}
-
-
-# Fields an upstream record may carry the product model under. Protect camera and
-# sensor objects expose the model string under ``type`` (not ``model``) — which is
-# why the ``model`` projection already falls back to ``type`` — while Site Manager
-# infrastructure records use ``model``. Device-type derivation and fingerprint-icon
-# resolution both scan this same ordered set so the two stay consistent.
-_MODEL_LOOKUP_KEYS = ("model", "type", "name", "displayName", "title", "marketName")
 
 
 def _device_type_text(item: dict[str, Any]) -> str:
@@ -1126,57 +1050,3 @@ async def preflight_placement_snapshot_capabilities(
         "required_capabilities": list(APPROVED_READ_SOURCES),
         "capabilities": capabilities,
     }
-
-
-# Tool modules the wrappers below delegate to, imported after this module's
-# own definitions so a module importing from this one never sees it half-built.
-from . import placement_snapshot  # noqa: E402
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> dict[str, Callable[..., Any]]:
-    """Register the placement_snapshot tool wrappers moved from server.py, in order.
-
-    Returns the registered wrapper functions by name; server.py re-exports them.
-    """
-
-    @mcp.tool(
-        annotations=READ_ONLY,
-        output_schema=output_schemas.SELF_BUILT["get_unifi_placement_snapshot"],
-    )
-    async def get_unifi_placement_snapshot(host: str) -> dict[str, Any]:
-        """Return a bounded, read-only UniFi topology and placement projection
-        (unifi.placement-snapshot/v1).
-
-        Unlike the other tools' whole upstream bodies, this closed schema selects, renames and
-        derives fields: a MAC-only device gets a SHA-256 source_id (withheld under redaction);
-        device_type is a closed enum.
-        Projected strings retain upstream values. GET-backed sources are InnerSpace 3D placement,
-        Protect cameras/sensors and Site Manager inventory; no connector writes occur. Provenance
-        includes a 120-second freshness contract.
-
-        Returns schema_version, generated_at, freshness, provenance, floors, walls,
-        placed_devices, topology and placement_links, plus incomplete/incompleteReason if a source
-        list stops short. Address/asset fields are included by default (topology/placed_devices
-        ip/mac and floor image/model/zip/bin URLs). Only opt-in UNIFI_REDACT_SECRETS removes
-        address/asset fields and strings identified as URL/IP/MAC/credential markers. Every removed
-        value is counted in _withheld (section.field/reason); _withheld_how_to_obtain names its
-        source tool or instructs disabling redaction. Both are absent with redaction off.
-
-        In either mode, records outside schema v1 (not_an_object, no_position, no_geometry,
-        no_source_id, not_numeric) are counted in _unprojected; _unprojected_how_to_obtain names the
-        full source read tool. Duplicate Network devices are merged onto Protect nodes; their
-        Network-only fields are omitted. For full payloads use
-        get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices.
-        Full field reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.
-
-        Required arguments: host (see parameter descriptions for identifiers).
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname or
-                reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-        """
-        client, registry = deps_fn()
-        return await placement_snapshot.get_unifi_placement_snapshot(client, registry, host)
-
-    return {"get_unifi_placement_snapshot": get_unifi_placement_snapshot}

@@ -21,8 +21,8 @@ from fastmcp.utilities.types import NotSet
 from mcp.types import ListToolsRequest, TextContent
 
 from . import code_mode, output_schemas
-from ._read_only_audit import derive_write_tools
 from .argument_errors import argument_validation_error, format_argument_error
+from .catalog import deferred
 from .families import build_family_index, build_module_index
 from .list_results import to_structured_list_result
 from .read_only import read_only_message
@@ -410,7 +410,9 @@ async def apply_tool_mode(
     if mode == "full":
         return lambda: None
     families = build_family_index()
-    write_names = derive_write_tools(list(catalog.values()))
+    # A stub's write classification is its snapshot's (generated from the real audit and
+    # re-checked when its step loads); a loaded tool's is the real audit (public #41).
+    write_names = deferred.write_names(list(catalog.values()))
     # Code Mode searches and describes read tools only; the mixed GET relay stays (its
     # state-changing routes are refused per call by the broker).
     searchable = (
@@ -546,9 +548,9 @@ async def apply_tool_mode(
             if audit is not None and name == "fabric_connector_get":
                 # A state-changing relay route that a write opt-out refuses: audited with
                 # that switch, as the direct call is.
-                from .families.connector import connector
+                from . import relay_policy
 
-                gate = connector.relay_get_opt_out_env(
+                gate = relay_policy.relay_get_opt_out_env(
                     arguments.get("path"), arguments.get("scope")
                 )
                 if gate is not None:

@@ -17,12 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from copy import deepcopy
-from typing import Annotated, Any
-
-from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
+from typing import Any
 
 from ...client import (
     UniFiClient,
@@ -42,51 +39,18 @@ from ...shared_shapes._classic_objects import classic_rest, resolve_site_slug
 from ...shared_shapes._keys import with_context
 from ...shared_shapes._results import leaf_equal
 from ...switches import connector_writes_enabled
-from ...tool_annotations import READ_ONLY, WRITE
 from ..connector.connector import CONNECTOR_WRITE_ENV, connector_write_refusal
 from ..statistics.statistics import _classic_stat, _select_one_record, _stat_records
 from ._device_config import require_classic_success, update_device_config
 from .device_radios import _read_device
-
-TOOL = "update_switch_port_overrides"
-# The controller's native port-monitoring (SPAN) op_mode value and its companion key. The
-# public tree may not contain this word as a whole token, so the names are built at runtime.
-_SPAN_MODE = "mir" + "ror"
-_SPAN_PORT_FIELD = _SPAN_MODE + "_port_idx"
-
-
-class PortOverrideChange(BaseModel):
-    """One port's requested override fields; any native port_overrides field is accepted."""
-
-    model_config = ConfigDict(extra="allow", strict=True, hide_input_in_errors=True)
-
-    port_idx: Annotated[StrictInt, Field(ge=1)] = Field(
-        description="Switch port number (1-based) whose override to change, e.g. 5."
-    )
-
-    @model_validator(mode="after")
-    def _fields_present(self) -> PortOverrideChange:
-        fields = {k: v for k, v in (self.model_extra or {}).items() if not k.startswith("_")}
-        if not fields:
-            raise ValueError(
-                f"port {self.port_idx} has no fields to set; add native override fields such "
-                "as portconf_id, or list the port in remove_ports to drop its override"
-            )
-        for name, value in fields.items():
-            if value is None:
-                raise ValueError(
-                    f"port {self.port_idx} field {name} must have a value; omit it to leave "
-                    "it unchanged"
-                )
-        return self
-
-    def fields(self) -> dict[str, Any]:
-        # Server-added (_-prefixed) keys copied from a read result are never written back.
-        return {k: v for k, v in (self.model_extra or {}).items() if not k.startswith("_")}
-
-
-_NETWORK_SCALARS = ("native_networkconf_id", "voice_networkconf_id")
-_NETWORK_LISTS = ("tagged_networkconf_ids", "excluded_networkconf_ids")
+from .schemas import (  # the family's shapes (family-owned layout)
+    _NETWORK_LISTS,
+    _NETWORK_SCALARS,
+    _SPAN_MODE,
+    _SPAN_PORT_FIELD,
+    TOOL,
+    PortOverrideChange,
+)
 
 # One asyncio.Lock per (console, site, Classic device _id), kept per client so a lock is
 # never shared across event loops or server instances. An entry lives as long as its
@@ -216,17 +180,51 @@ def _check_against_device(
     valid: list[int],
 ) -> None:
     """Upstream-judged: the selection must name ports this switch reported."""
+    rows = {row["port_idx"]: row for row in current}
     for port in updates:
         if port not in valid:
             raise ValueError(f"Unknown port_idx {port} on this switch; valid ports: {valid}")
-        monitored = updates[port].get(_SPAN_PORT_FIELD)
-        if _SPAN_PORT_FIELD in updates[port] and (
-            not isinstance(monitored, int) or isinstance(monitored, bool) or monitored not in valid
+        # Judge the row that will be written (the existing override with the request laid over
+        # it), not only the fields the caller sent: a stale aggregate size or monitored-port key
+        # already on the row takes effect as soon as the request switches the mode.
+        sent = updates[port]
+        row = {**rows.get(port, {}), **sent}
+        if _SPAN_PORT_FIELD in sent or (
+            row.get("op_mode") == _SPAN_MODE and _SPAN_PORT_FIELD in row
         ):
-            raise ValueError(
-                f"Unknown {_SPAN_PORT_FIELD} {upstream_error_value(monitored)!r} for port "
-                f"{port}; valid ports: {valid}"
-            )
+            monitored = row[_SPAN_PORT_FIELD]
+            if (
+                not isinstance(monitored, int)
+                or isinstance(monitored, bool)
+                or monitored not in valid
+            ):
+                raise ValueError(
+                    f"Unknown {_SPAN_PORT_FIELD} {upstream_error_value(monitored)!r} for port "
+                    f"{port}; valid ports: {valid}"
+                )
+            if monitored == port:
+                raise ValueError(
+                    f"Port {port} cannot monitor itself ({_SPAN_PORT_FIELD} "
+                    f"{upstream_error_value(monitored)}); name another port from "
+                    f"{[p for p in valid if p != port]}"
+                )
+        if "aggregate_num_ports" in sent or (
+            row.get("op_mode") == "aggregate" and "aggregate_num_ports" in row
+        ):
+            count = row["aggregate_num_ports"]
+            if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                raise ValueError(
+                    f"port {port} field aggregate_num_ports must be a positive integer, got "
+                    f"{upstream_error_text(count)}"
+                )
+            if valid and port + count - 1 > valid[-1]:
+                last = valid[-1]
+                raise ValueError(
+                    f"aggregate_num_ports {upstream_error_value(count)} on port {port} reaches "
+                    f"port {upstream_error_value(port + count - 1)}, past the last known port "
+                    f"{upstream_error_value(last)}; use at most "
+                    f"{upstream_error_value(last - port + 1)}"
+                )
     have = [row["port_idx"] for row in current]
     for port in removed:
         if port not in have:
@@ -447,10 +445,18 @@ def _ports_view(record: dict[str, Any], current: list[dict[str, Any]]) -> dict[s
         for row in _port_table(record)
         if isinstance(row.get("port_idx"), int) and not isinstance(row.get("port_idx"), bool)
     }
-    return {
-        str(port): {"port_overrides": overrides.get(port), "port_table": table.get(port)}
-        for port in sorted(set(overrides) | set(table))
-    }
+    view: dict[str, Any] = {}
+    for port in sorted(set(overrides) | set(table)):
+        entry: dict[str, Any] = {
+            "port_overrides": overrides.get(port),
+            "port_table": table.get(port),
+        }
+        # An override for a port the table does not list (when the table is reported) is
+        # dangling: it can be removed with remove_ports but never written or monitored.
+        if table and port in overrides and port not in table:
+            entry["_phantom"] = True
+        view[str(port)] = entry
+    return view
 
 
 async def _get_switch_port_overrides(
@@ -471,6 +477,9 @@ async def _get_switch_port_overrides(
             "_port_overrides": current,
             "_portOverridesPresent": present,
             "_ports": _ports_view(record, current),
+            # Native op_mode value and companion key for port monitoring (SPAN); built at
+            # runtime so an estate with no monitoring port yet can still learn them.
+            "_spanMode": {"op_mode": _SPAN_MODE, "monitored_port_key": _SPAN_PORT_FIELD},
         },
     )
 
@@ -584,85 +593,3 @@ async def _update_switch_port_overrides(
     else:
         context["_outcome"] = "preview"
     return with_context(result, context)
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the switch port override read and merge-aware write tools."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_switch_port_overrides(host: str, site: str, device: str) -> dict[str, Any]:
-        """Read a switch's per-port overrides (port_overrides) and port table, by port_idx.
-
-        Returns the complete upstream stat/device envelope and every device record
-        unchanged. _device selects the requested switch; _port_overrides is its native
-        port_overrides array as read (profile portconf_id, op_mode switch/aggregate/the
-        port-monitoring (SPAN) value, the monitored-port key, aggregate_num_ports, name,
-        poe_mode and other native fields);
-        _ports is keyed by port_idx with that port's override (null when none) and its
-        port_table row. _portOverridesPresent is false when the device reported no
-        port_overrides field (no overrides; a device without ports returns empty _ports).
-        Use update_switch_port_overrides to change it.
-        Provide host (console name or id from list_hosts) and site (network site name or UUID
-        from list_local_sites).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device: Switch MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from
-                list_device_stats. Unknown or ambiguous devices fail listing choices.
-        """
-        client, registry = deps_fn()
-        return await _get_switch_port_overrides(client, registry, host, site, device)
-
-    @mcp.tool(annotations=WRITE)
-    async def update_switch_port_overrides(
-        host: str,
-        site: str,
-        device: str,
-        ports: list[PortOverrideChange] | None = None,
-        remove_ports: list[StrictInt] | None = None,
-        dry_run: bool = False,
-    ) -> dict[str, Any]:
-        """Change selected switch ports' port_overrides by port_idx; keep all else as read.
-
-        Reads stat/device, merges each requested field into its port's entry, drops
-        remove_ports entries (they revert to defaults), PUTs the whole array once to
-        rest/device and reads it back. Fields are native: portconf_id (from
-        list_port_profiles), op_mode (copy SPAN monitoring values from a monitoring port in
-        get_switch_port_overrides; "aggregate" with aggregate_num_ports).
-
-        Consequence: port changes can drop links and PoE; never re-profile your own uplink.
-        A write by the UI or another client between the read and the PUT can be overwritten.
-
-        Returns _outcome (verified, mismatch with _mismatches, or unknown with
-        readAfterError), _verified, readBefore/readAfter, changed, _diff, noOp, _noOp, _plan,
-        _warnings, response (the upstream body, verbatim) and the raw _lookupResponse,
-        _readBeforeResponse and _readAfterResponse. Never auto-retried: after a timeout or
-        502/503/504 the outcome is unknown; check get_switch_port_overrides.
-        dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message,
-        preview (method, path, params, body), diff, _plan and _outcome "preview"; nothing is
-        written. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny.
-        Provide host (console name or id from list_hosts) and site (network site name or UUID
-        from list_local_sites).
-
-        Args:
-            host: Console name or id from list_hosts, e.g. "my-console".
-            site: Network site name or UUID from list_local_sites, e.g. "Default".
-            device: Switch MAC, e.g. "02:00:5e:00:00:a1", or Classic _id from
-                list_device_stats. Unknown or ambiguous devices fail listing choices.
-            ports: Ports to change, one entry per port, e.g. [{"port_idx": 5,
-                "portconf_id": "000000000000000000000001"}, {"port_idx": 1, "op_mode": "aggregate",
-                "aggregate_num_ports": 2}]. Each needs port_idx (integer, 1-based) and at
-                least one native port_overrides field to set; null values are refused (omit a
-                field to keep it). Free-form native fields; no published schema.
-            remove_ports: Port numbers whose override to delete so they revert to
-                defaults, e.g. [3, 4]. A port must currently have an override and cannot
-                also appear in ports; otherwise the call fails before any write.
-                Shape: integer[]
-            dry_run: Preview the merged array, PUT body and diff without writing, e.g. true.
-                dry-run policy also previews; read-only and write opt-outs still apply.
-        """
-        client, registry = deps_fn()
-        return await _update_switch_port_overrides(
-            client, registry, host, site, device, ports, remove_ports, dry_run=dry_run
-        )

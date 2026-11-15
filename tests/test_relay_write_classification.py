@@ -29,7 +29,7 @@ class TestRelayWritesUnderDryRun:
         await client.close()
         assert is_dry_run_preview(resp.json())
         lines = audit.read_text().splitlines()
-        assert len(lines) == 1 and "stat/anything/delete" in lines[0] and "dry_run" in lines[0]
+        assert len(lines) == 1 and "/stat/***/" in lines[0] and "dry_run" in lines[0]
 
     async def test_typed_read_post_stays_a_read(self, monkeypatch):
         monkeypatch.setenv("UNIFI_WRITE_POLICY", "dry-run")

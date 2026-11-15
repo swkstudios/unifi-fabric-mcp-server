@@ -136,10 +136,10 @@ def test_outcome_vocabulary_matches_the_chokepoint_labels():
 def test_text_audit_line_keeps_the_070_shape_and_other_events_name_themselves(tmp_path):
     stream, log = _stream(tmp_path, fmt="text")
     stream.startup("0.0.0-test")
-    stream.record(method="DELETE", path="/x/1", outcome="success", status=204)
+    stream.record(method="DELETE", path="/sites/1", outcome="success", status=204)
     startup, rec = _lines(log)
     assert " event=startup " in startup
-    assert re.fullmatch(r"\S+ method=DELETE path=/x/1 outcome=success status=204", rec)
+    assert re.fullmatch(r"\S+ method=DELETE path=/sites/1 outcome=success status=204 ref=\S+", rec)
 
 
 # ------------------------------------------------------------------------------- levels
@@ -515,7 +515,8 @@ def test_reason_cuts_quoted_queries_and_masks_echoed_inputs(tmp_path, fmt):
     )
     text = log.read_text()
     assert UNREG not in text
-    assert "input_value=***" in text
+    assert "reason" in text and "other" in text
+    assert "input_value" not in text
 
 
 @pytest.mark.parametrize("fmt", ["json", "text"])
@@ -716,12 +717,12 @@ def test_a_cut_record_does_not_swallow_the_next_one(tmp_path, monkeypatch):
         return real_write(fd, data)
 
     monkeypatch.setattr(audit.os, "write", cutting_write)
-    stream.record(method="POST", path="/cut", outcome="success", status=200)
-    stream.record(method="POST", path="/next", outcome="success", status=200)
+    stream.record(method="POST", path="/sites", outcome="success", status=200)
+    stream.record(method="POST", path="/hosts", outcome="success", status=200)
     lines = _lines(log)
     assert len(lines) == 3  # the fragment, then the recovery record and the record
     assert json.loads(lines[1])["event"] == "audit.recovered"
-    assert json.loads(lines[2])["path"] == "/next"
+    assert json.loads(lines[2])["path"] == "/hosts"
 
 
 async def test_error_response_carries_the_notice_while_the_sink_fails(monkeypatch, tmp_path):

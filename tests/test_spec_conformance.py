@@ -133,7 +133,7 @@ _V2_CLASSIC_LOOKUP = (
 UNSPECCED_EXEMPT: dict[str, str] = {
     "list_controller_stat_schemas": _V2,  # GET /v2/api/stats/schemas
     "list_speedtest_results": _CLASSIC,  # POST /api/s/{site}/stat/report/archive.speedtest
-    "reboot_unifi_os_console": _CLASSIC,  # POST /api/system/reboot
+    "reboot_unifi_os_console": _CLASSIC,  # POST /proxy/network/api/system/reboot
     "get_camera_private": _PROTECT_PRIVATE,
     "update_camera_private": _PROTECT_PRIVATE,
     "list_ptz_presets": _PROTECT_PRIVATE,
@@ -209,6 +209,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "get_channel_plan": _CLASSIC,
     "get_client_link_diagnostics": _CLASSIC,
     "get_device_port_state": _CLASSIC,
+    "diagnose_wifi": _V2_AND_CLASSIC,
     "get_device_radios": _CLASSIC,
     "get_device_stp_state": _CLASSIC,
     "get_door_lock": _PROTECT_PRIVATE,
@@ -227,6 +228,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "get_system_info": _CLASSIC,
     "get_system_log": _V2,
     "get_thumbnail": _PROTECT_PRIVATE,
+    "get_port_automation": _V2,
     "get_traffic_route": _V2,
     "get_user": _CLASSIC,
     "get_wlan_config": _CLASSIC,
@@ -282,7 +284,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "update_vpn_server": _CLASSIC_UI_WRITE,
     "update_wan_interface": _CLASSIC_UI_WRITE,
     "update_wlan_config": _CLASSIC,
-    # GS3 P03 (protect_camera_recording): the Protect 7.3.74 spec has none of these routes.
+    # protect_camera_recording: the Protect 7.3.74 spec has none of these routes.
     "configure_camera_wifi": _PROTECT_PRIVATE,
     "delete_recordings": _PROTECT_PRIVATE,
     "export_edge_recording": _PROTECT_PRIVATE,
@@ -300,7 +302,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "transfer_camera_management": _PROTECT_PRIVATE,
     "turn_on_camera_flashlight": _PROTECT_PRIVATE,
     "update_edge_recording_settings": _PROTECT_PRIVATE,
-    # GS3 P02 (protect_ptz_doorbell): Protect UI 5.3.18 private routes; ptz_home is specced.
+    # protect_ptz_doorbell: Protect UI 5.3.18 private routes; ptz_home is specced.
     "move_ptz_camera": _PROTECT_PRIVATE,
     "set_ptz_event_control_window": _PROTECT_PRIVATE,
     "create_ptz_patrol": _PROTECT_PRIVATE,
@@ -326,6 +328,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "generate_vlan_plan": _V2,
     "get_bgp_status": _V2,
     "get_global_network_config": _V2,
+    "get_hotspot_guest_webhook_delivery": _V2,
     "get_loop_detection_status": _V2,
     "get_mdns_settings": _V2,
     "get_ospf_status": _V2,
@@ -419,6 +422,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "create_content_filter": _V2,
     "create_dhcp_option": _CLASSIC,
     "create_energy_saving_policy": _V2,
+    "create_port_automation": _V2,
     "create_hotspot_package": _CLASSIC,
     "create_nat_rule": _V2,
     "create_network_members_group": _V2,
@@ -447,6 +451,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "delete_dhcp_option": _CLASSIC,
     "delete_digital_twin_layout": _V2,
     "delete_energy_saving_policy": _V2,
+    "delete_port_automation": _V2,
     "delete_guest_portal_file": _CLASSIC,
     "delete_hotspot_package": _CLASSIC,
     "delete_liveview": _PROTECT_PRIVATE,
@@ -578,6 +583,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "list_door_lock_unlock_events": _PROTECT_PRIVATE,
     "list_door_locks": _PROTECT_PRIVATE,
     "list_energy_saving_policies": _V2,
+    "list_port_automations": _V2,
     "list_firewall_app_blocks": _V2,
     "list_gateway_routes": _V2,
     "list_hotspot_authorizations": _CLASSIC,
@@ -691,6 +697,7 @@ UNSPECCED_EXEMPT: dict[str, str] = {
     "update_dhcp_option": _CLASSIC,
     "update_digital_twin_layout": _V2,
     "update_energy_saving_policy": _V2,
+    "update_port_automation": _V2,
     "update_hotspot_package": _CLASSIC,
     "update_ips_signatures": _V2,
     "update_ipsec_settings": _V2,

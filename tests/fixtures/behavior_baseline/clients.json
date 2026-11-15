@@ -1,0 +1,2686 @@
+{
+ "tools": [
+  {
+   "name": "list_clients",
+   "description": "List connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients).\n\nReturns {data, totalCount}: by default every page is drained; data holds the client records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept, and incomplete/incompleteReason are added when a capped drain stopped short. A limit without offset requests a total gathered in batches; an explicit offset returns one upstream page with its envelope and page-size accounting and totalCount so you can advance.\n\nThe client_type shorthand: WIRED, WIRELESS, VPN, TELEPORT or ALL (default all), translated into the upstream `type.eq(...)` filter (the raw type query parameter is ignored by the UniFi API).\n\nRequired arguments: host, site (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "offset": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional zero-based offset for fetching one page manually. Omit both offset and\nlimit to drain every page and get the complete list.\nExample: `25`."
+     },
+     "limit": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is sent\nunchanged as one page. The console clamps that page to 200, so fewer can\nreturn while more exist (compare _pageSize requested and returned). Omit\noffset and limit to drain all.\nExample: `25`."
+     },
+     "client_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional shorthand WIRED, WIRELESS, VPN, TELEPORT (every type the spec\nlists) or ALL (default: all types), translated into the upstream `type.eq(...)`\nfilter. Mutually exclusive with filter. An empty or whitespace value applies no\ntype filter (like ALL)."
+     },
+     "filter": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "optional Network Integration API filter expression, forwarded unchanged as the\nupstream `filter` query parameter for server-side filtering (e.g.\n`type.eq('WIRED')`, `macAddress.eq('aa:bb:cc:dd:ee:ff')`); omitted entirely when\nunset. client_type and an explicit filter are mutually exclusive (the upstream\ngrammar has no conjunction operator to compose them); passing both raises an error\nrather than silently returning wrong results. A capped drain returns the clients\ngathered so far with incomplete=true rather than truncating silently.\nExample: `type.eq('WIRED')`."
+     }
+    },
+    "required": [
+     "host",
+     "site"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Clients",
+   "_meta": {
+    "unifi/apiSource": "network/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_active_clients",
+   "description": "Retrieve the private v2 active-client roster and optional Matter/Thread rows.\n\nReturns the upstream body verbatim from GET\nnetwork/v2/api/site/{site}/clients/active. FastMCP wraps a top-level array in\nresult for MCP clients. This is the private-route counterpart\nto the official Integration API list_clients tool. Use it when the v2-specific\nflags or Matter/Thread client rows are required.\n\nRequired arguments: host, site (see each parameter's description).",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or slug; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "include_matter_thread_clients": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional v2 flag (query includeMatterThreadClients):\ntrue also lists Matter/Thread clients. Example: `true`."
+     },
+     "include_traffic_usage": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional v2 flag (query includeTrafficUsage): true asks the\ncontroller to include traffic usage. Example: `true`."
+     },
+     "include_unifi_devices": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional v2 flag (query includeUnifiDevices): true asks the\ncontroller to include UniFi devices. Example: `false`."
+     }
+    },
+    "required": [
+     "host",
+     "site"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "List Active Clients",
+   "_meta": {
+    "unifi/apiSource": "network/private.v2/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "get_client",
+   "description": "Get details for a single client.\n\nReturns the upstream client object verbatim, exactly as the API answers it.\n\nExample call (get_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\na MAC is resolved to the client id with list_clients (macAddress filter), so the\nclient must be connected; an unknown MAC fails listing the connected clients.\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\na Protect id."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Get Client",
+   "_meta": {
+    "unifi/apiSource": "network/official/read",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "execute_client_action",
+   "description": "Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client.\n\nConsequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now; UNAUTHORIZE_GUEST_ACCESS revokes access and disconnects the guest.\n\n`action` is the body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions): {\"action\": ...}; AUTHORIZE_GUEST_ACCESS also takes optional integers timeLimitMinutes (1-1000000; omitted, the site default applies), dataUsageLimitMBytes (1-1048576), rxRateLimitKbps and txRateLimitKbps (2-100000). Returns the action-result object verbatim (under dry-run policy, the dry-run preview).\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (execute_client_action):\n    {\"host\": \"my-console\", \"site\": \"Default\",\n     \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"action\": {\"action\": \"AUTHORIZE_GUEST_ACCESS\", \"timeLimitMinutes\": 60}}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\na MAC is resolved to the client id with list_clients (macAddress filter), so the\nclient must be connected; an unknown MAC fails listing the connected clients.\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\na Protect id."
+     },
+     "action": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "Action body; spec Client action request. Required: action. 'action' selects\nvariant: AUTHORIZE_GUEST_ACCESS|UNAUTHORIZE_GUEST_ACCESS. AUTHORIZE_GUEST_ACCESS\noptionally takes timeLimitMinutes, dataUsageLimitMBytes, rxRateLimitKbps and\ntxRateLimitKbps.\nAdvisory spec fields; any JSON passes. Required: action. Variants by action: AUTHORIZE_GUEST_ACCESS (dataUsageLimitMBytes, rxRateLimitKbps, timeLimitMinutes, txRateLimitKbps); UNAUTHORIZE_GUEST_ACCESS.",
+      "properties": {
+       "action": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {}
+        ],
+        "description": "Variant tag; one of: 'AUTHORIZE_GUEST_ACCESS', 'UNAUTHORIZE_GUEST_ACCESS'."
+       },
+       "dataUsageLimitMBytes": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {}
+        ],
+        "description": "(Optional) data usage limit in megabytes"
+       },
+       "rxRateLimitKbps": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {}
+        ],
+        "description": "(Optional) download rate limit in kilobits per second"
+       },
+       "timeLimitMinutes": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {}
+        ],
+        "description": "(Optional) how long (in minutes) the guest will be authorized to access the network."
+       },
+       "txRateLimitKbps": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {}
+        ],
+        "description": "(Optional) upload rate limit in kilobits per second"
+       }
+      }
+     },
+     "confirm": {
+      "default": false,
+      "type": "boolean",
+      "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to dry-run policy (then nothing\nis sent upstream and a preview of the request is returned)."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id",
+     "action"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Execute Client Action",
+   "_meta": {
+    "unifi/apiSource": "network/official/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "block_client",
+   "description": "Block a client on a site: any client the controller knows, connected or not (an\noffline client can be pre-blocked by its MAC).\n\nConsequence: the client is disconnected and cannot rejoin the site until unblocked with\nunblock_client.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"block-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (block_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Block Client",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "unblock_client",
+   "description": "Unblock a previously blocked client on a site: any client the controller knows,\nconnected or not. A blocked client is offline and absent from list_clients: pass its\nMAC (list_known_clients mac).\n\nConsequence: the client may connect to the site again.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"unblock-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (unblock_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"aa:bb:cc:dd:ee:ff\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Unblock Client",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "reconnect_client",
+   "description": "Force a client to reconnect on a site (addressed by MAC; a MAC given is sent as\nis, with no client list read).\n\nConsequence: the client is disconnected and has to reconnect, briefly interrupting its\ntraffic.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"kick-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (reconnect_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Reconnect Client",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "wake_client",
+   "description": "Wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later).\n\nConsequence: the controller broadcasts a magic packet on the machine's network; a\nmachine that has Wake-on-LAN enabled powers on. Waking an unwanted machine has no undo.\nThe packet only reaches machines on the same layer-2 segment as the gateway or switch\nthat relays it, and the machine firmware must have the feature switched on; the\ncontroller answers success whether or not the machine woke.\n\nReturns the upstream body verbatim (under dry-run policy, the dry-run preview {status:\n\"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query\nparameters), body}} instead). An older Network application answers 404.\n\nRequest body: none is passed by the caller. Tool sends an empty JSON object {} with\nPOST /proxy/network/v2/api/site/{site}/wake-on-lan/{CLIENT_MAC} (CLIENT_MAC is the\nclient's lowercase colon MAC), the route the Network 11.1.47 web application calls\n(no published spec). Never auto-retried.\n\nExample call (wake_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"aa:bb:cc:dd:ee:ff\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client_id": {
+      "type": "string",
+      "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nis sent to the controller as is (lowercase colon form) with no list lookup, so\nan offline machine can be woken. A UUID is resolved to the MAC with the client\nGET, which answers only while the machine is online; an unknown UUID fails\nasking for the MAC. Network-app id, not a Protect id."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client_id"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Wake Client",
+   "_meta": {
+    "unifi/apiSource": "network/private.v2/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "forget_client",
+   "description": "Forget clients: delete the controller's record of each client (the UI's \"Forget\").\n\nConsequence: the client's whole list_users record is deleted with everything on it (name, note, fixed-IP reservation, user group, blocked flag). There is no undo.\n\nNo published spec covers this; it uses the Classic station manager: POST network/api/s/{site}/cmd/stamgr with {\"cmd\": \"forget-sta\", \"macs\": [MAC, ...]} (lowercase colon form, duplicates collapsed), ONE request for every MAC. Verified on Network 11.0.81: the record is gone on the next read. A MAC the controller does not know is accepted (rc ok) and changes nothing.\n\nReturns the Classic body verbatim {meta: {rc}, data: [...]}, one envelope for one MAC or a list (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Not auto-retried on HTTP 429: a retry could repeat the action.\n\nExample call (forget_client):\n    {\"host\": \"my-console\", \"site\": \"Default\",\n     \"mac\": [\"aa:bb:cc:dd:ee:ff\", \"aa:bb:cc:dd:ee:01\"]}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "mac": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      ],
+      "description": "Client MAC (any separator style, e.g. \"aa:bb:cc:dd:ee:ff\" or \"AABBCCDDEEFF\") or\na list of MACs to forget several clients in one request. Get them from\nlist_known_clients (mac; includes offline and blocked clients) or list_users\n(mac).\nShape: string|string[]"
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "mac"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Forget Client",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "list_guests",
+   "description": "List guest authorizations (hotspot / guest-portal guests) of a site.\n\nEach record is one authorization: {_id, mac, start, end (epoch seconds), expired, authorized_by, bytes, rx_bytes, tx_bytes, qos_overwrite, ...} as the controller reports it. The _id is what extend_guest takes.\n\nClassic REST network/api/s/{site}/stat/guest: a GET when within_hours is unset (the controller's own window), else a POST {\"within\": within_hours}. Returns the upstream body verbatim: {meta: {rc}, data: [guest, ...]}; a scalar POST response is returned verbatim after the write, while a malformed Classic GET envelope raises with the shape received. With source \"v2\", GET network/v2/api/site/{site}/hotspot/clients (the web UI's hotspot client list) is returned verbatim instead.\n\nThe POST form is a write pending a separately approved read-POST allowlist PR. Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny hides the whole tool, including both GET forms. With dry-run policy, the POST returns {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}} without sending it; the GET form returns the usual response.\n\nExample call (list_guests):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"within_hours\": 24}\n\nWrite class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "within_hours": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional window in hours: only authorizations active within the last\nwithin_hours hours (e.g. 24, or 8760 for a year). Omitted, the request carries no\nwindow and the controller applies its own. Classic source only.\nExample: `24`."
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional route: \"classic\" (default, stat/guest) or \"v2\" (the v2\nhotspot client list, a GET; within_hours does not apply).\nExample: `v2`."
+     }
+    },
+    "required": [
+     "host",
+     "site"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "List Guests",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "extend_guest",
+   "description": "Extend a guest authorization (the UI's \"Extend\").\n\nConsequence: the guest keeps network access longer; the controller adds its own increment (24 hours on Network 11.0.81). Network 11.0.89 also stored qos_usage_quota: -1 on a guest record that had none; the tool sends only the extend command and returns the controller's answer.\n\nThe guest is resolved in list_guests first by _id, or by MAC (its one active authorization, else its only one). An unknown value, or a MAC with several matching authorizations, fails listing the guests and nothing is sent. Then POST network/api/s/{site}/cmd/hotspot with {\"cmd\": \"extend\", \"_id\": GUEST_ID} (Classic REST, no published spec).\n\nReturns the Classic body verbatim {meta: {rc}, data: [...]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Read list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could extend twice.\n\nExample call (extend_guest):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"guest\": \"aa:bb:cc:dd:ee:ff\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "guest": {
+      "type": "string",
+      "description": "The guest authorization _id from list_guests (data[]._id, e.g.\n\"000000000000000000000102\") or the guest's MAC (any separator style)."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "guest"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Extend Guest",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "set_client_name",
+   "description": "Set the display name (alias) the controller shows for a known client.\n\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\nlisting the records; nothing is sent then. Then Classic REST PUT\nnetwork/api/s/{site}/rest/user/{_id} with {\"name\": name}, sent as given (verified on\nNetwork 11.0.81: the name reads back).\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\n(under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false,\nmessage,\npreview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_name):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client\": \"aa:bb:cc:dd:ee:ff\",\n      \"name\": \"Living room TV\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client": {
+      "type": "string",
+      "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+     },
+     "name": {
+      "type": "string",
+      "description": "The new display name, e.g. \"Living room TV\"; sent as given."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client",
+     "name"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Set Client Name",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "set_client_note",
+   "description": "Set the free-text note the controller keeps on a known client.\n\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\nlisting the records; nothing is sent then. Then Classic REST PUT\nnetwork/api/s/{site}/rest/user/{_id} with {\"note\": note}, sent as given (verified on\nNetwork 11.0.81: the note reads back and the controller sets noted to true).\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\n(under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false,\nmessage,\npreview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_note):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client\": \"aa:bb:cc:dd:ee:ff\",\n      \"note\": \"Kids' tablet, bedtime schedule\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client": {
+      "type": "string",
+      "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+     },
+     "note": {
+      "type": "string",
+      "description": "The note text, e.g. \"Kids' tablet\"; sent as given."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client",
+     "note"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Set Client Note",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "set_client_fixed_ip",
+   "description": "Reserve a fixed IP (DHCP reservation) for a known client.\n\nConsequence: the gateway's DHCP server reserves this address for the client; it gets it when it next renews its lease.\n\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation); network, when given, is resolved to its networkconf _id by _id, Integration id or name (an unknown one fails listing the networks). Then Classic REST PUT network/api/s/{site}/rest/user/{_id} with {\"use_fixedip\": true, \"fixed_ip\": fixed_ip} plus network_id when given (verified on Network 11.0.81). The controller validates the address; an upstream error gets a hint.\n\nReturns the Classic body verbatim: {meta: {rc}, data: [the updated record]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_fixed_ip):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"client\": \"aa:bb:cc:dd:ee:ff\",\n     \"fixed_ip\": \"192.168.1.50\", \"network\": \"Default\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client": {
+      "type": "string",
+      "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+     },
+     "fixed_ip": {
+      "type": "string",
+      "description": "The IPv4 address to reserve, inside the network's subnet, e.g.\n\"192.168.1.50\"."
+     },
+     "network": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional network the address belongs to: its name (e.g. \"Default\"), its\nIntegration id (list_networks data[].id) or its networkconf _id. Omitted, no\nnetwork_id is sent and the record keeps the one it has."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client",
+     "fixed_ip"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Set Client Fixed IP",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "remove_client_fixed_ip",
+   "description": "Remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease.\n\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation). Then Classic PUT network/api/s/{site}/rest/user/{_id} with {\"use_fixedip\": false} (the controller keeps the last fixed_ip, unused); the body is {meta: {rc}, data: [the updated record]}. deleted is true only when the returned record shows use_fixedip: false; otherwise it is false and message says why. The PUT is sent once, never retried: read with get_user before retrying. Under dry-run policy nothing is sent: {status: \"dry_run\", deleted: false, message, response (the dry-run preview)}.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (remove_client_fixed_ip):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"client\": \"aa:bb:cc:dd:ee:ff\"}\n\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "client": {
+      "type": "string",
+      "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "client"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "title": "Remove Client Fixed IP",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  },
+  {
+   "name": "create_client_reservation",
+   "description": "Create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect.\n\nClassic REST POST network/api/s/{site}/rest/user with {\"mac\": MAC} plus name/note when given, {\"use_fixedip\": true, \"fixed_ip\": fixed_ip} when fixed_ip is given, and network_id when network is given (resolved by _id, Integration id or name; an unknown one fails listing the networks). Verified on Network 11.0.81: the record appears in list_users. For a client that already has a record use set_client_name, set_client_note or set_client_fixed_ip. The controller judges a duplicate MAC; an upstream error gets a hint.\n\nReturns the Classic body verbatim: {meta: {rc}, data: [the created record]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\n\nExample call (create_client_reservation):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"mac\": \"aa:bb:cc:dd:ee:ff\", \"name\": \"Printer\",\n     \"fixed_ip\": \"192.168.1.60\", \"network\": \"Default\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+   "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "host": {
+      "type": "string",
+      "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+     },
+     "site": {
+      "type": "string",
+      "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+     },
+     "mac": {
+      "type": "string",
+      "description": "The client's MAC (any separator style; sent in lowercase colon form), e.g.\n\"aa:bb:cc:dd:ee:ff\"."
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional display name, e.g. \"Printer\"; omitted when unset."
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional note text; omitted when unset."
+     },
+     "fixed_ip": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional IPv4 address to reserve, e.g. \"192.168.1.60\"; sets use_fixedip."
+     },
+     "network": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional network for the reservation: name (e.g. \"Default\"), Integration id\n(list_networks data[].id) or networkconf _id."
+     },
+     "fields": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional further native rest/user keys (e.g. usergroup_id,\nlocal_dns_record_enabled, local_dns_record), merged into the body; mac and the\nexplicit arguments take precedence.\nFree-form JSON object; no fixed body shape is published."
+     }
+    },
+    "required": [
+     "host",
+     "site",
+     "mac"
+    ]
+   },
+   "outputSchema": null,
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "title": "Create Client Reservation",
+   "_meta": {
+    "unifi/apiSource": "network/private.classic/write",
+    "fastmcp": {
+     "tags": []
+    }
+   }
+  }
+ ],
+ "describe": {
+  "list_clients": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_clients\",\"title\":\"List Clients\",\"description\":\"List connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients).\\n\\nReturns {data, totalCount}: by default every page is drained; data holds the client records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept, and incomplete/incompleteReason are added when a capped drain stopped short. A limit without offset requests a total gathered in batches; an explicit offset returns one upstream page with its envelope and page-size accounting and totalCount so you can advance.\\n\\nThe client_type shorthand: WIRED, WIRELESS, VPN, TELEPORT or ALL (default all), translated into the upstream `type.eq(...)` filter (the raw type query parameter is ignored by the UniFi API).\\n\\nRequired arguments: host, site (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"offset\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional zero-based offset for fetching one page manually. Omit both offset and\\nlimit to drain every page and get the complete list.\\nExample: `25`.\"},\"limit\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Without offset, the record count gathered from the start in pages of at\\nmost 200; fewer only when the collection ends. With offset, limit is sent\\nunchanged as one page. The console clamps that page to 200, so fewer can\\nreturn while more exist (compare _pageSize requested and returned). Omit\\noffset and limit to drain all.\\nExample: `25`.\"},\"client_type\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional shorthand WIRED, WIRELESS, VPN, TELEPORT (every type the spec\\nlists) or ALL (default: all types), translated into the upstream `type.eq(...)`\\nfilter. Mutually exclusive with filter. An empty or whitespace value applies no\\ntype filter (like ALL).\"},\"filter\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"optional Network Integration API filter expression, forwarded unchanged as the\\nupstream `filter` query parameter for server-side filtering (e.g.\\n`type.eq('WIRED')`, `macAddress.eq('aa:bb:cc:dd:ee:ff')`); omitted entirely when\\nunset. client_type and an explicit filter are mutually exclusive (the upstream\\ngrammar has no conjunction operator to compose them); passing both raises an error\\nrather than silently returning wrong results. A capped drain returns the clients\\ngathered so far with incomplete=true rather than truncating silently.\\nExample: `type.eq('WIRED')`.\"}},\"required\":[\"host\",\"site\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_clients",
+    "title": "List Clients",
+    "description": "List connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients).\n\nReturns {data, totalCount}: by default every page is drained; data holds the client records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept, and incomplete/incompleteReason are added when a capped drain stopped short. A limit without offset requests a total gathered in batches; an explicit offset returns one upstream page with its envelope and page-size accounting and totalCount so you can advance.\n\nThe client_type shorthand: WIRED, WIRELESS, VPN, TELEPORT or ALL (default all), translated into the upstream `type.eq(...)` filter (the raw type query parameter is ignored by the UniFi API).\n\nRequired arguments: host, site (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "offset": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional zero-based offset for fetching one page manually. Omit both offset and\nlimit to drain every page and get the complete list.\nExample: `25`."
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Without offset, the record count gathered from the start in pages of at\nmost 200; fewer only when the collection ends. With offset, limit is sent\nunchanged as one page. The console clamps that page to 200, so fewer can\nreturn while more exist (compare _pageSize requested and returned). Omit\noffset and limit to drain all.\nExample: `25`."
+      },
+      "client_type": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional shorthand WIRED, WIRELESS, VPN, TELEPORT (every type the spec\nlists) or ALL (default: all types), translated into the upstream `type.eq(...)`\nfilter. Mutually exclusive with filter. An empty or whitespace value applies no\ntype filter (like ALL)."
+      },
+      "filter": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "optional Network Integration API filter expression, forwarded unchanged as the\nupstream `filter` query parameter for server-side filtering (e.g.\n`type.eq('WIRED')`, `macAddress.eq('aa:bb:cc:dd:ee:ff')`); omitted entirely when\nunset. client_type and an explicit filter are mutually exclusive (the upstream\ngrammar has no conjunction operator to compose them); passing both raises an error\nrather than silently returning wrong results. A capped drain returns the clients\ngathered so far with incomplete=true rather than truncating silently.\nExample: `type.eq('WIRED')`."
+      }
+     },
+     "required": [
+      "host",
+      "site"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_active_clients": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_active_clients\",\"title\":\"List Active Clients\",\"description\":\"Retrieve the private v2 active-client roster and optional Matter/Thread rows.\\n\\nReturns the upstream body verbatim from GET\\nnetwork/v2/api/site/{site}/clients/active. FastMCP wraps a top-level array in\\nresult for MCP clients. This is the private-route counterpart\\nto the official Integration API list_clients tool. Use it when the v2-specific\\nflags or Matter/Thread client rows are required.\\n\\nRequired arguments: host, site (see each parameter's description).\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or slug; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"include_matter_thread_clients\":{\"anyOf\":[{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional v2 flag (query includeMatterThreadClients):\\ntrue also lists Matter/Thread clients. Example: `true`.\"},\"include_traffic_usage\":{\"anyOf\":[{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional v2 flag (query includeTrafficUsage): true asks the\\ncontroller to include traffic usage. Example: `true`.\"},\"include_unifi_devices\":{\"anyOf\":[{\"type\":\"boolean\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional v2 flag (query includeUnifiDevices): true asks the\\ncontroller to include UniFi devices. Example: `false`.\"}},\"required\":[\"host\",\"site\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.v2/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_active_clients",
+    "title": "List Active Clients",
+    "description": "Retrieve the private v2 active-client roster and optional Matter/Thread rows.\n\nReturns the upstream body verbatim from GET\nnetwork/v2/api/site/{site}/clients/active. FastMCP wraps a top-level array in\nresult for MCP clients. This is the private-route counterpart\nto the official Integration API list_clients tool. Use it when the v2-specific\nflags or Matter/Thread client rows are required.\n\nRequired arguments: host, site (see each parameter's description).",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or slug; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "include_matter_thread_clients": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional v2 flag (query includeMatterThreadClients):\ntrue also lists Matter/Thread clients. Example: `true`."
+      },
+      "include_traffic_usage": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional v2 flag (query includeTrafficUsage): true asks the\ncontroller to include traffic usage. Example: `true`."
+      },
+      "include_unifi_devices": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional v2 flag (query includeUnifiDevices): true asks the\ncontroller to include UniFi devices. Example: `false`."
+      }
+     },
+     "required": [
+      "host",
+      "site"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.v2/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "get_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"get_client\",\"title\":\"Get Client\",\"description\":\"Get details for a single client.\\n\\nReturns the upstream client object verbatim, exactly as the API answers it.\\n\\nExample call (get_client):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"\\n    }\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\\na MAC is resolved to the client id with list_clients (macAddress filter), so the\\nclient must be connected; an unknown MAC fails listing the connected clients.\\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\\na Protect id.\"}},\"required\":[\"host\",\"site\",\"client_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/official/read\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "get_client",
+    "title": "Get Client",
+    "description": "Get details for a single client.\n\nReturns the upstream client object verbatim, exactly as the API answers it.\n\nExample call (get_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\na MAC is resolved to the client id with list_clients (macAddress filter), so the\nclient must be connected; an unknown MAC fails listing the connected clients.\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\na Protect id."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": true,
+     "destructiveHint": false,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/official/read",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "execute_client_action": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"execute_client_action\",\"title\":\"Execute Client Action\",\"description\":\"Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client.\\n\\nConsequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now; UNAUTHORIZE_GUEST_ACCESS revokes access and disconnects the guest.\\n\\n`action` is the body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions): {\\\"action\\\": ...}; AUTHORIZE_GUEST_ACCESS also takes optional integers timeLimitMinutes (1-1000000; omitted, the site default applies), dataUsageLimitMBytes (1-1048576), rxRateLimitKbps and txRateLimitKbps (2-100000). Returns the action-result object verbatim (under dry-run policy, the dry-run preview).\\n\\nDry-run preview: {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nExample call (execute_client_action):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\",\\n     \\\"client_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\",\\n     \\\"action\\\": {\\\"action\\\": \\\"AUTHORIZE_GUEST_ACCESS\\\", \\\"timeLimitMinutes\\\": 60}}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\\na MAC is resolved to the client id with list_clients (macAddress filter), so the\\nclient must be connected; an unknown MAC fails listing the connected clients.\\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\\na Protect id.\"},\"action\":{\"additionalProperties\":true,\"type\":\"object\",\"description\":\"Action body; spec Client action request. Required: action. 'action' selects\\nvariant: AUTHORIZE_GUEST_ACCESS|UNAUTHORIZE_GUEST_ACCESS. AUTHORIZE_GUEST_ACCESS\\noptionally takes timeLimitMinutes, dataUsageLimitMBytes, rxRateLimitKbps and\\ntxRateLimitKbps.\\nAdvisory spec fields; any JSON passes. Required: action. Variants by action: AUTHORIZE_GUEST_ACCESS (dataUsageLimitMBytes, rxRateLimitKbps, timeLimitMinutes, txRateLimitKbps); UNAUTHORIZE_GUEST_ACCESS.\",\"properties\":{\"action\":{\"anyOf\":[{\"type\":\"string\"},{}],\"description\":\"Variant tag; one of: 'AUTHORIZE_GUEST_ACCESS', 'UNAUTHORIZE_GUEST_ACCESS'.\"},\"dataUsageLimitMBytes\":{\"anyOf\":[{\"type\":\"integer\"},{}],\"description\":\"(Optional) data usage limit in megabytes\"},\"rxRateLimitKbps\":{\"anyOf\":[{\"type\":\"integer\"},{}],\"description\":\"(Optional) download rate limit in kilobits per second\"},\"timeLimitMinutes\":{\"anyOf\":[{\"type\":\"integer\"},{}],\"description\":\"(Optional) how long (in minutes) the guest will be authorized to access the network.\"},\"txRateLimitKbps\":{\"anyOf\":[{\"type\":\"integer\"},{}],\"description\":\"(Optional) upload rate limit in kilobits per second\"}}},\"confirm\":{\"default\":false,\"type\":\"boolean\",\"description\":\"Ignored; accepted for backward compatibility. The call executes immediately\\nwhen made unless the operator opted in to dry-run policy (then nothing\\nis sent upstream and a preview of the request is returned).\"}},\"required\":[\"host\",\"site\",\"client_id\",\"action\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/official/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "execute_client_action",
+    "title": "Execute Client Action",
+    "description": "Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client.\n\nConsequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now; UNAUTHORIZE_GUEST_ACCESS revokes access and disconnects the guest.\n\n`action` is the body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions): {\"action\": ...}; AUTHORIZE_GUEST_ACCESS also takes optional integers timeLimitMinutes (1-1000000; omitted, the site default applies), dataUsageLimitMBytes (1-1048576), rxRateLimitKbps and txRateLimitKbps (2-100000). Returns the action-result object verbatim (under dry-run policy, the dry-run preview).\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (execute_client_action):\n    {\"host\": \"my-console\", \"site\": \"Default\",\n     \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n     \"action\": {\"action\": \"AUTHORIZE_GUEST_ACCESS\", \"timeLimitMinutes\": 60}}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Connected client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF);\na MAC is resolved to the client id with list_clients (macAddress filter), so the\nclient must be connected; an unknown MAC fails listing the connected clients.\nGet it from list_clients (data[].id or data[].macAddress). Network-app id — not\na Protect id."
+      },
+      "action": {
+       "additionalProperties": true,
+       "type": "object",
+       "description": "Action body; spec Client action request. Required: action. 'action' selects\nvariant: AUTHORIZE_GUEST_ACCESS|UNAUTHORIZE_GUEST_ACCESS. AUTHORIZE_GUEST_ACCESS\noptionally takes timeLimitMinutes, dataUsageLimitMBytes, rxRateLimitKbps and\ntxRateLimitKbps.\nAdvisory spec fields; any JSON passes. Required: action. Variants by action: AUTHORIZE_GUEST_ACCESS (dataUsageLimitMBytes, rxRateLimitKbps, timeLimitMinutes, txRateLimitKbps); UNAUTHORIZE_GUEST_ACCESS.",
+       "properties": {
+        "action": {
+         "anyOf": [
+          {
+           "type": "string"
+          },
+          {}
+         ],
+         "description": "Variant tag; one of: 'AUTHORIZE_GUEST_ACCESS', 'UNAUTHORIZE_GUEST_ACCESS'."
+        },
+        "dataUsageLimitMBytes": {
+         "anyOf": [
+          {
+           "type": "integer"
+          },
+          {}
+         ],
+         "description": "(Optional) data usage limit in megabytes"
+        },
+        "rxRateLimitKbps": {
+         "anyOf": [
+          {
+           "type": "integer"
+          },
+          {}
+         ],
+         "description": "(Optional) download rate limit in kilobits per second"
+        },
+        "timeLimitMinutes": {
+         "anyOf": [
+          {
+           "type": "integer"
+          },
+          {}
+         ],
+         "description": "(Optional) how long (in minutes) the guest will be authorized to access the network."
+        },
+        "txRateLimitKbps": {
+         "anyOf": [
+          {
+           "type": "integer"
+          },
+          {}
+         ],
+         "description": "(Optional) upload rate limit in kilobits per second"
+        }
+       }
+      },
+      "confirm": {
+       "default": false,
+       "type": "boolean",
+       "description": "Ignored; accepted for backward compatibility. The call executes immediately\nwhen made unless the operator opted in to dry-run policy (then nothing\nis sent upstream and a preview of the request is returned)."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id",
+      "action"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/official/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "block_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"block_client\",\"title\":\"Block Client\",\"description\":\"Block a client on a site: any client the controller knows, connected or not (an\\noffline client can be pre-blocked by its MAC).\\n\\nConsequence: the client is disconnected and cannot rejoin the site until unblocked with\\nunblock_client.\\n\\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\\ndry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message,\\npreview: {method, path, params (query parameters), body}} instead).\\n\\nRequest body: none is passed by the caller. Tool sends\\n{\\\"cmd\\\": \\\"block-sta\\\", \\\"mac\\\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\\nclassic cmd/stamgr (no published spec).\\n\\nExample call (block_client):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\\nmay be that of any client the controller knows, connected or not: it is sent\\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\\nresolved to the MAC with the client GET, which finds connected clients only;\\nan unknown UUID fails asking for the MAC. For a connected client,\\nget it from list_clients (data[].macAddress or data[].id); for any known client,\\nthe mac from list_known_clients (includes offline and blocked clients).\\nNetwork-app id — not a Protect id.\"}},\"required\":[\"host\",\"site\",\"client_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "block_client",
+    "title": "Block Client",
+    "description": "Block a client on a site: any client the controller knows, connected or not (an\noffline client can be pre-blocked by its MAC).\n\nConsequence: the client is disconnected and cannot rejoin the site until unblocked with\nunblock_client.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"block-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (block_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "unblock_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"unblock_client\",\"title\":\"Unblock Client\",\"description\":\"Unblock a previously blocked client on a site: any client the controller knows,\\nconnected or not. A blocked client is offline and absent from list_clients: pass its\\nMAC (list_known_clients mac).\\n\\nConsequence: the client may connect to the site again.\\n\\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\\ndry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message,\\npreview: {method, path, params (query parameters), body}} instead).\\n\\nRequest body: none is passed by the caller. Tool sends\\n{\\\"cmd\\\": \\\"unblock-sta\\\", \\\"mac\\\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\\nclassic cmd/stamgr (no published spec).\\n\\nExample call (unblock_client):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client_id\\\": \\\"aa:bb:cc:dd:ee:ff\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\\nmay be that of any client the controller knows, connected or not: it is sent\\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\\nresolved to the MAC with the client GET, which finds connected clients only;\\nan unknown UUID fails asking for the MAC. For a connected client,\\nget it from list_clients (data[].macAddress or data[].id); for any known client,\\nthe mac from list_known_clients (includes offline and blocked clients).\\nNetwork-app id — not a Protect id.\"}},\"required\":[\"host\",\"site\",\"client_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "unblock_client",
+    "title": "Unblock Client",
+    "description": "Unblock a previously blocked client on a site: any client the controller knows,\nconnected or not. A blocked client is offline and absent from list_clients: pass its\nMAC (list_known_clients mac).\n\nConsequence: the client may connect to the site again.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"unblock-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (unblock_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"aa:bb:cc:dd:ee:ff\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "reconnect_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"reconnect_client\",\"title\":\"Reconnect Client\",\"description\":\"Force a client to reconnect on a site (addressed by MAC; a MAC given is sent as\\nis, with no client list read).\\n\\nConsequence: the client is disconnected and has to reconnect, briefly interrupting its\\ntraffic.\\n\\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\\ndry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message,\\npreview: {method, path, params (query parameters), body}} instead).\\n\\nRequest body: none is passed by the caller. Tool sends\\n{\\\"cmd\\\": \\\"kick-sta\\\", \\\"mac\\\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\\nclassic cmd/stamgr (no published spec).\\n\\nExample call (reconnect_client):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client_id\\\": \\\"3fa85f64-5717-4562-b3fc-2c963f66afa6\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\\nmay be that of any client the controller knows, connected or not: it is sent\\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\\nresolved to the MAC with the client GET, which finds connected clients only;\\nan unknown UUID fails asking for the MAC. For a connected client,\\nget it from list_clients (data[].macAddress or data[].id); for any known client,\\nthe mac from list_known_clients (includes offline and blocked clients).\\nNetwork-app id — not a Protect id.\"}},\"required\":[\"host\",\"site\",\"client_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "reconnect_client",
+    "title": "Reconnect Client",
+    "description": "Force a client to reconnect on a site (addressed by MAC; a MAC given is sent as\nis, with no client list read).\n\nConsequence: the client is disconnected and has to reconnect, briefly interrupting its\ntraffic.\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under\ndry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message,\npreview: {method, path, params (query parameters), body}} instead).\n\nRequest body: none is passed by the caller. Tool sends\n{\"cmd\": \"kick-sta\", \"mac\": CLIENT_MAC} (CLIENT_MAC is the client MAC address) to\nclassic cmd/stamgr (no published spec).\n\nExample call (reconnect_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nmay be that of any client the controller knows, connected or not: it is sent\nto the controller as is (lowercase colon form) with no list lookup. A UUID is\nresolved to the MAC with the client GET, which finds connected clients only;\nan unknown UUID fails asking for the MAC. For a connected client,\nget it from list_clients (data[].macAddress or data[].id); for any known client,\nthe mac from list_known_clients (includes offline and blocked clients).\nNetwork-app id — not a Protect id."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "wake_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"wake_client\",\"title\":\"Wake Client\",\"description\":\"Wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later).\\n\\nConsequence: the controller broadcasts a magic packet on the machine's network; a\\nmachine that has Wake-on-LAN enabled powers on. Waking an unwanted machine has no undo.\\nThe packet only reaches machines on the same layer-2 segment as the gateway or switch\\nthat relays it, and the machine firmware must have the feature switched on; the\\ncontroller answers success whether or not the machine woke.\\n\\nReturns the upstream body verbatim (under dry-run policy, the dry-run preview {status:\\n\\\"dry_run\\\", dryRun: true, sent: false, message, preview: {method, path, params (query\\nparameters), body}} instead). An older Network application answers 404.\\n\\nRequest body: none is passed by the caller. Tool sends an empty JSON object {} with\\nPOST /proxy/network/v2/api/site/{site}/wake-on-lan/{CLIENT_MAC} (CLIENT_MAC is the\\nclient's lowercase colon MAC), the route the Network 11.1.47 web application calls\\n(no published spec). Never auto-retried.\\n\\nExample call (wake_client):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client_id\\\": \\\"aa:bb:cc:dd:ee:ff\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client_id\":{\"type\":\"string\",\"description\":\"Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\\nis sent to the controller as is (lowercase colon form) with no list lookup, so\\nan offline machine can be woken. A UUID is resolved to the MAC with the client\\nGET, which answers only while the machine is online; an unknown UUID fails\\nasking for the MAC. Network-app id, not a Protect id.\"}},\"required\":[\"host\",\"site\",\"client_id\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.v2/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "wake_client",
+    "title": "Wake Client",
+    "description": "Wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later).\n\nConsequence: the controller broadcasts a magic packet on the machine's network; a\nmachine that has Wake-on-LAN enabled powers on. Waking an unwanted machine has no undo.\nThe packet only reaches machines on the same layer-2 segment as the gateway or switch\nthat relays it, and the machine firmware must have the feature switched on; the\ncontroller answers success whether or not the machine woke.\n\nReturns the upstream body verbatim (under dry-run policy, the dry-run preview {status:\n\"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query\nparameters), body}} instead). An older Network application answers 404.\n\nRequest body: none is passed by the caller. Tool sends an empty JSON object {} with\nPOST /proxy/network/v2/api/site/{site}/wake-on-lan/{CLIENT_MAC} (CLIENT_MAC is the\nclient's lowercase colon MAC), the route the Network 11.1.47 web application calls\n(no published spec). Never auto-retried.\n\nExample call (wake_client):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client_id\": \"aa:bb:cc:dd:ee:ff\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client_id": {
+       "type": "string",
+       "description": "Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC\nis sent to the controller as is (lowercase colon form) with no list lookup, so\nan offline machine can be woken. A UUID is resolved to the MAC with the client\nGET, which answers only while the machine is online; an unknown UUID fails\nasking for the MAC. Network-app id, not a Protect id."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client_id"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.v2/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "forget_client": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"forget_client\",\"title\":\"Forget Client\",\"description\":\"Forget clients: delete the controller's record of each client (the UI's \\\"Forget\\\").\\n\\nConsequence: the client's whole list_users record is deleted with everything on it (name, note, fixed-IP reservation, user group, blocked flag). There is no undo.\\n\\nNo published spec covers this; it uses the Classic station manager: POST network/api/s/{site}/cmd/stamgr with {\\\"cmd\\\": \\\"forget-sta\\\", \\\"macs\\\": [MAC, ...]} (lowercase colon form, duplicates collapsed), ONE request for every MAC. Verified on Network 11.0.81: the record is gone on the next read. A MAC the controller does not know is accepted (rc ok) and changes nothing.\\n\\nReturns the Classic body verbatim {meta: {rc}, data: [...]}, one envelope for one MAC or a list (under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Not auto-retried on HTTP 429: a retry could repeat the action.\\n\\nExample call (forget_client):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\",\\n     \\\"mac\\\": [\\\"aa:bb:cc:dd:ee:ff\\\", \\\"aa:bb:cc:dd:ee:01\\\"]}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"mac\":{\"anyOf\":[{\"type\":\"string\"},{\"items\":{\"type\":\"string\"},\"type\":\"array\"}],\"description\":\"Client MAC (any separator style, e.g. \\\"aa:bb:cc:dd:ee:ff\\\" or \\\"AABBCCDDEEFF\\\") or\\na list of MACs to forget several clients in one request. Get them from\\nlist_known_clients (mac; includes offline and blocked clients) or list_users\\n(mac).\\nShape: string|string[]\"}},\"required\":[\"host\",\"site\",\"mac\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "forget_client",
+    "title": "Forget Client",
+    "description": "Forget clients: delete the controller's record of each client (the UI's \"Forget\").\n\nConsequence: the client's whole list_users record is deleted with everything on it (name, note, fixed-IP reservation, user group, blocked flag). There is no undo.\n\nNo published spec covers this; it uses the Classic station manager: POST network/api/s/{site}/cmd/stamgr with {\"cmd\": \"forget-sta\", \"macs\": [MAC, ...]} (lowercase colon form, duplicates collapsed), ONE request for every MAC. Verified on Network 11.0.81: the record is gone on the next read. A MAC the controller does not know is accepted (rc ok) and changes nothing.\n\nReturns the Classic body verbatim {meta: {rc}, data: [...]}, one envelope for one MAC or a list (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Not auto-retried on HTTP 429: a retry could repeat the action.\n\nExample call (forget_client):\n    {\"host\": \"my-console\", \"site\": \"Default\",\n     \"mac\": [\"aa:bb:cc:dd:ee:ff\", \"aa:bb:cc:dd:ee:01\"]}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "mac": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        }
+       ],
+       "description": "Client MAC (any separator style, e.g. \"aa:bb:cc:dd:ee:ff\" or \"AABBCCDDEEFF\") or\na list of MACs to forget several clients in one request. Get them from\nlist_known_clients (mac; includes offline and blocked clients) or list_users\n(mac).\nShape: string|string[]"
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "mac"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "list_guests": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"list_guests\",\"title\":\"List Guests\",\"description\":\"List guest authorizations (hotspot / guest-portal guests) of a site.\\n\\nEach record is one authorization: {_id, mac, start, end (epoch seconds), expired, authorized_by, bytes, rx_bytes, tx_bytes, qos_overwrite, ...} as the controller reports it. The _id is what extend_guest takes.\\n\\nClassic REST network/api/s/{site}/stat/guest: a GET when within_hours is unset (the controller's own window), else a POST {\\\"within\\\": within_hours}. Returns the upstream body verbatim: {meta: {rc}, data: [guest, ...]}; a scalar POST response is returned verbatim after the write, while a malformed Classic GET envelope raises with the shape received. With source \\\"v2\\\", GET network/v2/api/site/{site}/hotspot/clients (the web UI's hotspot client list) is returned verbatim instead.\\n\\nThe POST form is a write pending a separately approved read-POST allowlist PR. Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny hides the whole tool, including both GET forms. With dry-run policy, the POST returns {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}} without sending it; the GET form returns the usual response.\\n\\nExample call (list_guests):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"within_hours\\\": 24}\\n\\nWrite class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"within_hours\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional window in hours: only authorizations active within the last\\nwithin_hours hours (e.g. 24, or 8760 for a year). Omitted, the request carries no\\nwindow and the controller applies its own. Classic source only.\\nExample: `24`.\"},\"source\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional route: \\\"classic\\\" (default, stat/guest) or \\\"v2\\\" (the v2\\nhotspot client list, a GET; within_hours does not apply).\\nExample: `v2`.\"}},\"required\":[\"host\",\"site\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "list_guests",
+    "title": "List Guests",
+    "description": "List guest authorizations (hotspot / guest-portal guests) of a site.\n\nEach record is one authorization: {_id, mac, start, end (epoch seconds), expired, authorized_by, bytes, rx_bytes, tx_bytes, qos_overwrite, ...} as the controller reports it. The _id is what extend_guest takes.\n\nClassic REST network/api/s/{site}/stat/guest: a GET when within_hours is unset (the controller's own window), else a POST {\"within\": within_hours}. Returns the upstream body verbatim: {meta: {rc}, data: [guest, ...]}; a scalar POST response is returned verbatim after the write, while a malformed Classic GET envelope raises with the shape received. With source \"v2\", GET network/v2/api/site/{site}/hotspot/clients (the web UI's hotspot client list) is returned verbatim instead.\n\nThe POST form is a write pending a separately approved read-POST allowlist PR. Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny hides the whole tool, including both GET forms. With dry-run policy, the POST returns {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}} without sending it; the GET form returns the usual response.\n\nExample call (list_guests):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"within_hours\": 24}\n\nWrite class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "within_hours": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional window in hours: only authorizations active within the last\nwithin_hours hours (e.g. 24, or 8760 for a year). Omitted, the request carries no\nwindow and the controller applies its own. Classic source only.\nExample: `24`."
+      },
+      "source": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional route: \"classic\" (default, stat/guest) or \"v2\" (the v2\nhotspot client list, a GET; within_hours does not apply).\nExample: `v2`."
+      }
+     },
+     "required": [
+      "host",
+      "site"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "extend_guest": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"extend_guest\",\"title\":\"Extend Guest\",\"description\":\"Extend a guest authorization (the UI's \\\"Extend\\\").\\n\\nConsequence: the guest keeps network access longer; the controller adds its own increment (24 hours on Network 11.0.81). Network 11.0.89 also stored qos_usage_quota: -1 on a guest record that had none; the tool sends only the extend command and returns the controller's answer.\\n\\nThe guest is resolved in list_guests first by _id, or by MAC (its one active authorization, else its only one). An unknown value, or a MAC with several matching authorizations, fails listing the guests and nothing is sent. Then POST network/api/s/{site}/cmd/hotspot with {\\\"cmd\\\": \\\"extend\\\", \\\"_id\\\": GUEST_ID} (Classic REST, no published spec).\\n\\nReturns the Classic body verbatim {meta: {rc}, data: [...]} (under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Read list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could extend twice.\\n\\nExample call (extend_guest):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"guest\\\": \\\"aa:bb:cc:dd:ee:ff\\\"}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"guest\":{\"type\":\"string\",\"description\":\"The guest authorization _id from list_guests (data[]._id, e.g.\\n\\\"000000000000000000000102\\\") or the guest's MAC (any separator style).\"}},\"required\":[\"host\",\"site\",\"guest\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "extend_guest",
+    "title": "Extend Guest",
+    "description": "Extend a guest authorization (the UI's \"Extend\").\n\nConsequence: the guest keeps network access longer; the controller adds its own increment (24 hours on Network 11.0.81). Network 11.0.89 also stored qos_usage_quota: -1 on a guest record that had none; the tool sends only the extend command and returns the controller's answer.\n\nThe guest is resolved in list_guests first by _id, or by MAC (its one active authorization, else its only one). An unknown value, or a MAC with several matching authorizations, fails listing the guests and nothing is sent. Then POST network/api/s/{site}/cmd/hotspot with {\"cmd\": \"extend\", \"_id\": GUEST_ID} (Classic REST, no published spec).\n\nReturns the Classic body verbatim {meta: {rc}, data: [...]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Read list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could extend twice.\n\nExample call (extend_guest):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"guest\": \"aa:bb:cc:dd:ee:ff\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "guest": {
+       "type": "string",
+       "description": "The guest authorization _id from list_guests (data[]._id, e.g.\n\"000000000000000000000102\") or the guest's MAC (any separator style)."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "guest"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "set_client_name": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"set_client_name\",\"title\":\"Set Client Name\",\"description\":\"Set the display name (alias) the controller shows for a known client.\\n\\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\\nlisting the records; nothing is sent then. Then Classic REST PUT\\nnetwork/api/s/{site}/rest/user/{_id} with {\\\"name\\\": name}, sent as given (verified on\\nNetwork 11.0.81: the name reads back).\\n\\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\\n(under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false,\\nmessage,\\npreview: {method, path, params (query parameters), body}} instead).\\n\\nExample call (set_client_name):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client\\\": \\\"aa:bb:cc:dd:ee:ff\\\",\\n      \\\"name\\\": \\\"Living room TV\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client\":{\"type\":\"string\",\"description\":\"The client's MAC (any separator style) or its known-client record _id from\\nlist_users (_id), e.g. \\\"aa:bb:cc:dd:ee:ff\\\". Not the list_clients UUID.\"},\"name\":{\"type\":\"string\",\"description\":\"The new display name, e.g. \\\"Living room TV\\\"; sent as given.\"}},\"required\":[\"host\",\"site\",\"client\",\"name\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "set_client_name",
+    "title": "Set Client Name",
+    "description": "Set the display name (alias) the controller shows for a known client.\n\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\nlisting the records; nothing is sent then. Then Classic REST PUT\nnetwork/api/s/{site}/rest/user/{_id} with {\"name\": name}, sent as given (verified on\nNetwork 11.0.81: the name reads back).\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\n(under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false,\nmessage,\npreview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_name):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client\": \"aa:bb:cc:dd:ee:ff\",\n      \"name\": \"Living room TV\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client": {
+       "type": "string",
+       "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+      },
+      "name": {
+       "type": "string",
+       "description": "The new display name, e.g. \"Living room TV\"; sent as given."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client",
+      "name"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "set_client_note": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"set_client_note\",\"title\":\"Set Client Note\",\"description\":\"Set the free-text note the controller keeps on a known client.\\n\\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\\nlisting the records; nothing is sent then. Then Classic REST PUT\\nnetwork/api/s/{site}/rest/user/{_id} with {\\\"note\\\": note}, sent as given (verified on\\nNetwork 11.0.81: the note reads back and the controller sets noted to true).\\n\\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\\n(under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false,\\nmessage,\\npreview: {method, path, params (query parameters), body}} instead).\\n\\nExample call (set_client_note):\\n    {\\n      \\\"host\\\": \\\"my-console\\\",\\n      \\\"site\\\": \\\"Default\\\",\\n      \\\"client\\\": \\\"aa:bb:cc:dd:ee:ff\\\",\\n      \\\"note\\\": \\\"Kids' tablet, bedtime schedule\\\"\\n    }\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client\":{\"type\":\"string\",\"description\":\"The client's MAC (any separator style) or its known-client record _id from\\nlist_users (_id), e.g. \\\"aa:bb:cc:dd:ee:ff\\\". Not the list_clients UUID.\"},\"note\":{\"type\":\"string\",\"description\":\"The note text, e.g. \\\"Kids' tablet\\\"; sent as given.\"}},\"required\":[\"host\",\"site\",\"client\",\"note\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "set_client_note",
+    "title": "Set Client Note",
+    "description": "Set the free-text note the controller keeps on a known client.\n\nThe client's known-client record (list_users) is resolved by MAC or _id first; a MAC\nwith no record fails pointing at create_client_reservation, and an unknown _id fails\nlisting the records; nothing is sent then. Then Classic REST PUT\nnetwork/api/s/{site}/rest/user/{_id} with {\"note\": note}, sent as given (verified on\nNetwork 11.0.81: the note reads back and the controller sets noted to true).\n\nReturns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}\n(under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false,\nmessage,\npreview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_note):\n    {\n      \"host\": \"my-console\",\n      \"site\": \"Default\",\n      \"client\": \"aa:bb:cc:dd:ee:ff\",\n      \"note\": \"Kids' tablet, bedtime schedule\"\n    }\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client": {
+       "type": "string",
+       "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+      },
+      "note": {
+       "type": "string",
+       "description": "The note text, e.g. \"Kids' tablet\"; sent as given."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client",
+      "note"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "set_client_fixed_ip": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"set_client_fixed_ip\",\"title\":\"Set Client Fixed IP\",\"description\":\"Reserve a fixed IP (DHCP reservation) for a known client.\\n\\nConsequence: the gateway's DHCP server reserves this address for the client; it gets it when it next renews its lease.\\n\\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation); network, when given, is resolved to its networkconf _id by _id, Integration id or name (an unknown one fails listing the networks). Then Classic REST PUT network/api/s/{site}/rest/user/{_id} with {\\\"use_fixedip\\\": true, \\\"fixed_ip\\\": fixed_ip} plus network_id when given (verified on Network 11.0.81). The controller validates the address; an upstream error gets a hint.\\n\\nReturns the Classic body verbatim: {meta: {rc}, data: [the updated record]} (under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\\n\\nExample call (set_client_fixed_ip):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"client\\\": \\\"aa:bb:cc:dd:ee:ff\\\",\\n     \\\"fixed_ip\\\": \\\"192.168.1.50\\\", \\\"network\\\": \\\"Default\\\"}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client\":{\"type\":\"string\",\"description\":\"The client's MAC (any separator style) or its known-client record _id from\\nlist_users (_id), e.g. \\\"aa:bb:cc:dd:ee:ff\\\". Not the list_clients UUID.\"},\"fixed_ip\":{\"type\":\"string\",\"description\":\"The IPv4 address to reserve, inside the network's subnet, e.g.\\n\\\"192.168.1.50\\\".\"},\"network\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional network the address belongs to: its name (e.g. \\\"Default\\\"), its\\nIntegration id (list_networks data[].id) or its networkconf _id. Omitted, no\\nnetwork_id is sent and the record keeps the one it has.\"}},\"required\":[\"host\",\"site\",\"client\",\"fixed_ip\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "set_client_fixed_ip",
+    "title": "Set Client Fixed IP",
+    "description": "Reserve a fixed IP (DHCP reservation) for a known client.\n\nConsequence: the gateway's DHCP server reserves this address for the client; it gets it when it next renews its lease.\n\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation); network, when given, is resolved to its networkconf _id by _id, Integration id or name (an unknown one fails listing the networks). Then Classic REST PUT network/api/s/{site}/rest/user/{_id} with {\"use_fixedip\": true, \"fixed_ip\": fixed_ip} plus network_id when given (verified on Network 11.0.81). The controller validates the address; an upstream error gets a hint.\n\nReturns the Classic body verbatim: {meta: {rc}, data: [the updated record]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\n\nExample call (set_client_fixed_ip):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"client\": \"aa:bb:cc:dd:ee:ff\",\n     \"fixed_ip\": \"192.168.1.50\", \"network\": \"Default\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client": {
+       "type": "string",
+       "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+      },
+      "fixed_ip": {
+       "type": "string",
+       "description": "The IPv4 address to reserve, inside the network's subnet, e.g.\n\"192.168.1.50\"."
+      },
+      "network": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional network the address belongs to: its name (e.g. \"Default\"), its\nIntegration id (list_networks data[].id) or its networkconf _id. Omitted, no\nnetwork_id is sent and the record keeps the one it has."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client",
+      "fixed_ip"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "remove_client_fixed_ip": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"remove_client_fixed_ip\",\"title\":\"Remove Client Fixed IP\",\"description\":\"Remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease.\\n\\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation). Then Classic PUT network/api/s/{site}/rest/user/{_id} with {\\\"use_fixedip\\\": false} (the controller keeps the last fixed_ip, unused); the body is {meta: {rc}, data: [the updated record]}. deleted is true only when the returned record shows use_fixedip: false; otherwise it is false and message says why. The PUT is sent once, never retried: read with get_user before retrying. Under dry-run policy nothing is sent: {status: \\\"dry_run\\\", deleted: false, message, response (the dry-run preview)}.\\n\\nDry-run preview: {status: \\\"dry_run\\\", dryRun, sent: false, message, preview: {method, path, params, body}}.\\n\\nExample call (remove_client_fixed_ip):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"client\\\": \\\"aa:bb:cc:dd:ee:ff\\\"}\\n\\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"client\":{\"type\":\"string\",\"description\":\"The client's MAC (any separator style) or its known-client record _id from\\nlist_users (_id), e.g. \\\"aa:bb:cc:dd:ee:ff\\\". Not the list_clients UUID.\"}},\"required\":[\"host\",\"site\",\"client\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":true,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "remove_client_fixed_ip",
+    "title": "Remove Client Fixed IP",
+    "description": "Remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease.\n\nThe known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation). Then Classic PUT network/api/s/{site}/rest/user/{_id} with {\"use_fixedip\": false} (the controller keeps the last fixed_ip, unused); the body is {meta: {rc}, data: [the updated record]}. deleted is true only when the returned record shows use_fixedip: false; otherwise it is false and message says why. The PUT is sent once, never retried: read with get_user before retrying. Under dry-run policy nothing is sent: {status: \"dry_run\", deleted: false, message, response (the dry-run preview)}.\n\nDry-run preview: {status: \"dry_run\", dryRun, sent: false, message, preview: {method, path, params, body}}.\n\nExample call (remove_client_fixed_ip):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"client\": \"aa:bb:cc:dd:ee:ff\"}\n\nReturns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "client": {
+       "type": "string",
+       "description": "The client's MAC (any separator style) or its known-client record _id from\nlist_users (_id), e.g. \"aa:bb:cc:dd:ee:ff\". Not the list_clients UUID."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "client"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": true,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  },
+  "create_client_reservation": {
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"name\":\"create_client_reservation\",\"title\":\"Create Client Reservation\",\"description\":\"Create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect.\\n\\nClassic REST POST network/api/s/{site}/rest/user with {\\\"mac\\\": MAC} plus name/note when given, {\\\"use_fixedip\\\": true, \\\"fixed_ip\\\": fixed_ip} when fixed_ip is given, and network_id when network is given (resolved by _id, Integration id or name; an unknown one fails listing the networks). Verified on Network 11.0.81: the record appears in list_users. For a client that already has a record use set_client_name, set_client_note or set_client_fixed_ip. The controller judges a duplicate MAC; an upstream error gets a hint.\\n\\nReturns the Classic body verbatim: {meta: {rc}, data: [the created record]} (under dry-run policy, the dry-run preview {status: \\\"dry_run\\\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\\n\\nExample call (create_client_reservation):\\n    {\\\"host\\\": \\\"my-console\\\", \\\"site\\\": \\\"Default\\\", \\\"mac\\\": \\\"aa:bb:cc:dd:ee:ff\\\", \\\"name\\\": \\\"Printer\\\",\\n     \\\"fixed_ip\\\": \\\"192.168.1.60\\\", \\\"network\\\": \\\"Default\\\"}\\n\\nSet UNIFI_WRITE_POLICY=dry-run.\",\"inputSchema\":{\"additionalProperties\":false,\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Console name (case-insensitive reportedState.hostname/name, e.g. \\\"my-console\\\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\"},\"site\":{\"type\":\"string\",\"description\":\"Network site name or UUID; resolved server-side. Get it from list_local_sites\\n(name or id). Names like \\\"Default\\\" work.\"},\"mac\":{\"type\":\"string\",\"description\":\"The client's MAC (any separator style; sent in lowercase colon form), e.g.\\n\\\"aa:bb:cc:dd:ee:ff\\\".\"},\"name\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional display name, e.g. \\\"Printer\\\"; omitted when unset.\"},\"note\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional note text; omitted when unset.\"},\"fixed_ip\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional IPv4 address to reserve, e.g. \\\"192.168.1.60\\\"; sets use_fixedip.\"},\"network\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional network for the reservation: name (e.g. \\\"Default\\\"), Integration id\\n(list_networks data[].id) or networkconf _id.\"},\"fields\":{\"anyOf\":[{\"additionalProperties\":true,\"type\":\"object\"},{\"type\":\"null\"}],\"default\":null,\"description\":\"Optional further native rest/user keys (e.g. usergroup_id,\\nlocal_dns_record_enabled, local_dns_record), merged into the body; mac and the\\nexplicit arguments take precedence.\\nFree-form JSON object; no fixed body shape is published.\"}},\"required\":[\"host\",\"site\",\"mac\"],\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false,\"openWorldHint\":true},\"_meta\":{\"unifi/apiSource\":\"network/private.classic/write\",\"fastmcp\":{\"tags\":[]}}}"
+    }
+   ],
+   "structuredContent": {
+    "name": "create_client_reservation",
+    "title": "Create Client Reservation",
+    "description": "Create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect.\n\nClassic REST POST network/api/s/{site}/rest/user with {\"mac\": MAC} plus name/note when given, {\"use_fixedip\": true, \"fixed_ip\": fixed_ip} when fixed_ip is given, and network_id when network is given (resolved by _id, Integration id or name; an unknown one fails listing the networks). Verified on Network 11.0.81: the record appears in list_users. For a client that already has a record use set_client_name, set_client_note or set_client_fixed_ip. The controller judges a duplicate MAC; an upstream error gets a hint.\n\nReturns the Classic body verbatim: {meta: {rc}, data: [the created record]} (under dry-run policy, the dry-run preview {status: \"dry_run\", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).\n\nExample call (create_client_reservation):\n    {\"host\": \"my-console\", \"site\": \"Default\", \"mac\": \"aa:bb:cc:dd:ee:ff\", \"name\": \"Printer\",\n     \"fixed_ip\": \"192.168.1.60\", \"network\": \"Default\"}\n\nSet UNIFI_WRITE_POLICY=dry-run.",
+    "inputSchema": {
+     "additionalProperties": false,
+     "properties": {
+      "host": {
+       "type": "string",
+       "description": "Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect."
+      },
+      "site": {
+       "type": "string",
+       "description": "Network site name or UUID; resolved server-side. Get it from list_local_sites\n(name or id). Names like \"Default\" work."
+      },
+      "mac": {
+       "type": "string",
+       "description": "The client's MAC (any separator style; sent in lowercase colon form), e.g.\n\"aa:bb:cc:dd:ee:ff\"."
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional display name, e.g. \"Printer\"; omitted when unset."
+      },
+      "note": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional note text; omitted when unset."
+      },
+      "fixed_ip": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional IPv4 address to reserve, e.g. \"192.168.1.60\"; sets use_fixedip."
+      },
+      "network": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional network for the reservation: name (e.g. \"Default\"), Integration id\n(list_networks data[].id) or networkconf _id."
+      },
+      "fields": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional further native rest/user keys (e.g. usergroup_id,\nlocal_dns_record_enabled, local_dns_record), merged into the body; mac and the\nexplicit arguments take precedence.\nFree-form JSON object; no fixed body shape is published."
+      }
+     },
+     "required": [
+      "host",
+      "site",
+      "mac"
+     ],
+     "type": "object"
+    },
+    "annotations": {
+     "readOnlyHint": false,
+     "destructiveHint": true,
+     "idempotentHint": false,
+     "openWorldHint": true
+    },
+    "_meta": {
+     "unifi/apiSource": "network/private.classic/write",
+     "fastmcp": {
+      "tags": []
+     }
+    }
+   }
+  }
+ },
+ "calls": {
+  "read": {
+   "tool": "list_clients",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default"
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"totalCount\":48,\"data\":[{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-b000-000000000017\",\"name\":\"name-0030\",\"connectedAt\":\"2026-10-03T09:02:15Z\",\"ipAddress\":\"10.0.2.26\",\"macAddress\":\"02:00:5e:00:00:04\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000000019\",\"name\":\"name-9001\",\"connectedAt\":\"2026-10-03T09:02:15Z\",\"ipAddress\":\"10.0.2.22\",\"macAddress\":\"02:00:5e:00:00:05\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-a000-000000fa0018\",\"name\":\"name-9002\",\"connectedAt\":\"2026-10-03T09:02:15Z\",\"ipAddress\":\"10.0.3.2\",\"macAddress\":\"02:00:5e:00:00:06\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000fa0019\",\"name\":\"name-9003\",\"connectedAt\":\"2026-10-03T09:02:15Z\",\"ipAddress\":\"10.0.2.14\",\"macAddress\":\"02:00:5e:00:00:07\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-8000-000000fa001a\",\"name\":\"name-0031\",\"connectedAt\":\"2026-10-03T09:02:15Z\",\"ipAddress\":\"10.0.4.20\",\"macAddress\":\"02:00:5e:00:00:08\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-8000-000000fa001b\",\"name\":\"name-0032\",\"connectedAt\":\"2026-10-03T09:02:16Z\",\"ipAddress\":\"10.0.2.2\",\"macAddress\":\"02:00:5e:00:00:0e\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-b000-000000fa001c\",\"name\":\"name-9006\",\"connectedAt\":\"2026-10-03T09:02:18Z\",\"ipAddress\":\"10.0.5.2\",\"macAddress\":\"02:00:5e:00:00:0f\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000fa001d\",\"name\":\"name-9007\",\"connectedAt\":\"2026-10-03T09:02:18Z\",\"ipAddress\":\"10.0.6.2\",\"macAddress\":\"02:00:5e:00:00:10\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-a000-000000fa001e\",\"name\":\"name-9008\",\"connectedAt\":\"2026-10-03T09:02:18Z\",\"ipAddress\":\"10.0.2.6\",\"macAddress\":\"02:00:5e:00:00:11\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-b000-000000000030\",\"name\":\"name-0033\",\"connectedAt\":\"2026-10-03T09:05:15Z\",\"ipAddress\":\"10.0.1.130\",\"macAddress\":\"02:00:5e:00:00:12\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000032\",\"name\":\"name-0034\",\"connectedAt\":\"2026-10-06T08:27:37Z\",\"ipAddress\":\"10.0.7.108\",\"macAddress\":\"02:00:5e:00:00:13\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000032\",\"name\":\"name-0035\",\"connectedAt\":\"2026-10-06T08:33:00Z\",\"ipAddress\":\"10.0.7.189\",\"macAddress\":\"02:00:5e:00:00:14\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000034\",\"name\":\"name-0036\",\"connectedAt\":\"2026-10-06T08:34:55Z\",\"ipAddress\":\"10.0.8.63\",\"macAddress\":\"02:00:5e:00:00:15\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000000034\",\"name\":\"name-0037\",\"connectedAt\":\"2026-10-06T08:34:56Z\",\"ipAddress\":\"10.0.8.179\",\"macAddress\":\"02:00:5e:00:00:16\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000000035\",\"name\":\"name-0038\",\"connectedAt\":\"2026-10-06T08:35:09Z\",\"ipAddress\":\"10.0.8.124\",\"macAddress\":\"02:00:5e:00:00:17\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000000036\",\"name\":\"name-0039\",\"connectedAt\":\"2026-10-06T08:35:15Z\",\"ipAddress\":\"10.0.1.85\",\"macAddress\":\"02:00:5e:00:00:18\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000000037\",\"name\":\"name-0040\",\"connectedAt\":\"2026-10-06T08:35:18Z\",\"ipAddress\":\"10.0.8.186\",\"macAddress\":\"02:00:5e:00:00:19\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000000038\",\"name\":\"name-0041\",\"connectedAt\":\"2026-10-06T08:35:18Z\",\"ipAddress\":\"10.0.1.125\",\"macAddress\":\"02:00:5e:00:00:1a\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000039\",\"name\":\"name-0042\",\"connectedAt\":\"2026-10-06T08:35:18Z\",\"ipAddress\":\"10.0.8.7\",\"macAddress\":\"02:00:5e:00:00:1b\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-b000-000000fa001f\",\"name\":\"name-0043\",\"connectedAt\":\"2026-10-06T08:35:19Z\",\"ipAddress\":\"10.0.1.20\",\"macAddress\":\"02:00:5e:00:00:1c\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000fa0020\",\"name\":\"name-0044\",\"connectedAt\":\"2026-10-06T08:35:19Z\",\"ipAddress\":\"10.0.8.168\",\"macAddress\":\"02:00:5e:00:00:1d\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-8000-000000fa0021\",\"name\":\"name-0045\",\"connectedAt\":\"2026-10-06T08:35:20Z\",\"ipAddress\":\"10.0.1.167\",\"macAddress\":\"02:00:5e:00:00:1e\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000fa0022\",\"name\":\"name-0046\",\"connectedAt\":\"2026-10-06T08:35:28Z\",\"ipAddress\":\"10.0.1.89\",\"macAddress\":\"02:00:5e:00:00:1f\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000fa0023\",\"name\":\"name-0047\",\"connectedAt\":\"2026-10-06T08:38:33Z\",\"ipAddress\":\"10.0.7.135\",\"macAddress\":\"02:00:5e:00:00:20\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000fa0024\",\"name\":\"name-0048\",\"connectedAt\":\"2026-10-06T08:43:15Z\",\"ipAddress\":\"10.0.7.109\",\"macAddress\":\"02:00:5e:00:00:21\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000000040\",\"name\":\"name-0049\",\"connectedAt\":\"2026-10-06T15:58:45Z\",\"ipAddress\":\"10.0.7.88\",\"macAddress\":\"02:00:5e:00:00:22\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000000041\",\"name\":\"name-0050\",\"connectedAt\":\"2026-10-06T21:56:28Z\",\"ipAddress\":\"10.0.7.147\",\"macAddress\":\"02:00:5e:00:00:23\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000042\",\"name\":\"name-0051\",\"connectedAt\":\"2026-10-07T05:41:43Z\",\"ipAddress\":\"10.0.7.99\",\"macAddress\":\"02:00:5e:00:00:24\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000043\",\"name\":\"name-0052\",\"connectedAt\":\"2026-10-08T01:16:57Z\",\"ipAddress\":\"10.0.1.75\",\"macAddress\":\"02:00:5e:00:00:25\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000044\",\"name\":\"name-0053\",\"connectedAt\":\"2026-10-08T07:10:52Z\",\"ipAddress\":\"10.0.7.100\",\"macAddress\":\"02:00:5e:00:00:26\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-8000-000000000045\",\"name\":\"name-9030\",\"connectedAt\":\"2026-10-09T03:21:26Z\",\"ipAddress\":\"10.0.9.2\",\"macAddress\":\"02:00:5e:00:00:27\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-b000-000000000046\",\"name\":\"name-0054\",\"connectedAt\":\"2026-10-09T06:39:40Z\",\"ipAddress\":\"10.0.7.140\",\"macAddress\":\"02:00:5e:00:00:28\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000047\",\"name\":\"name-0055\",\"connectedAt\":\"2026-10-10T06:38:04Z\",\"ipAddress\":\"10.0.7.114\",\"macAddress\":\"02:00:5e:00:00:29\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000000048\",\"name\":\"name-0056\",\"connectedAt\":\"2026-10-10T17:15:54Z\",\"ipAddress\":\"10.0.1.53\",\"macAddress\":\"02:00:5e:00:00:2a\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000000049\",\"name\":\"name-0057\",\"connectedAt\":\"2026-10-10T23:08:24Z\",\"ipAddress\":\"10.0.8.195\",\"macAddress\":\"02:00:5e:00:00:2b\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000fa0025\",\"name\":\"name-0058\",\"connectedAt\":\"2026-10-11T02:21:03Z\",\"ipAddress\":\"10.0.7.186\",\"macAddress\":\"02:00:5e:00:00:2c\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000fa0026\",\"name\":\"name-0059\",\"connectedAt\":\"2026-10-11T03:08:05Z\",\"ipAddress\":\"10.0.7.175\",\"macAddress\":\"02:00:5e:00:00:2d\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-b000-000000fa0027\",\"name\":\"name-0060\",\"connectedAt\":\"2026-10-11T03:26:48Z\",\"ipAddress\":\"10.0.7.65\",\"macAddress\":\"02:00:5e:00:00:2e\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-9000-000000fa0028\",\"name\":\"name-0061\",\"connectedAt\":\"2026-10-11T04:08:24Z\",\"ipAddress\":\"10.0.8.90\",\"macAddress\":\"02:00:5e:00:00:2f\",\"uplinkDeviceId\":\"00000000-0000-3000-8000-000000000034\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000fa0029\",\"name\":\"name-0062\",\"connectedAt\":\"2026-10-11T05:14:58Z\",\"ipAddress\":\"10.0.1.202\",\"macAddress\":\"02:00:5e:00:00:30\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000fa002a\",\"name\":\"name-0063\",\"connectedAt\":\"2026-10-11T08:26:59Z\",\"ipAddress\":\"10.0.7.190\",\"macAddress\":\"02:00:5e:00:00:31\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000000050\",\"name\":\"name-0064\",\"connectedAt\":\"2026-10-11T10:00:43Z\",\"ipAddress\":\"10.0.7.102\",\"macAddress\":\"02:00:5e:00:00:32\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000000051\",\"name\":\"name-0065\",\"connectedAt\":\"2026-10-11T13:57:50Z\",\"ipAddress\":\"10.0.7.188\",\"macAddress\":\"02:00:5e:00:00:33\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRED\",\"id\":\"00000000-0000-3000-9000-000000000052\",\"name\":\"name-9043\",\"connectedAt\":\"2026-10-11T14:25:08Z\",\"ipAddress\":\"10.0.10.2\",\"macAddress\":\"02:00:5e:00:00:34\",\"uplinkDeviceId\":\"00000000-0000-3000-9000-000000000033\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000053\",\"name\":\"name-0066\",\"connectedAt\":\"2026-10-11T16:59:20Z\",\"ipAddress\":\"10.0.7.200\",\"macAddress\":\"02:00:5e:00:00:35\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-8000-000000000054\",\"name\":\"name-0067\",\"connectedAt\":\"2026-10-11T17:07:01Z\",\"ipAddress\":\"10.0.7.182\",\"macAddress\":\"02:00:5e:00:00:36\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000055\",\"name\":\"name-9046\",\"connectedAt\":\"2026-10-11T17:24:40Z\",\"ipAddress\":\"10.0.7.154\",\"macAddress\":\"02:00:5e:00:00:37\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}},{\"type\":\"WIRELESS\",\"id\":\"00000000-0000-3000-a000-000000000056\",\"name\":\"name-0068\",\"connectedAt\":\"2026-10-11T18:40:00Z\",\"ipAddress\":\"10.0.8.155\",\"macAddress\":\"02:00:5e:00:00:38\",\"uplinkDeviceId\":\"00000000-0000-3000-b000-000000fa0016\",\"access\":{\"type\":\"DEFAULT\"}}]}"
+     }
+    ],
+    "structuredContent": {
+     "totalCount": 48,
+     "data": [
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-b000-000000000017",
+       "name": "name-0030",
+       "connectedAt": "2026-10-03T09:02:15Z",
+       "ipAddress": "10.0.2.26",
+       "macAddress": "02:00:5e:00:00:04",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000000019",
+       "name": "name-9001",
+       "connectedAt": "2026-10-03T09:02:15Z",
+       "ipAddress": "10.0.2.22",
+       "macAddress": "02:00:5e:00:00:05",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-a000-000000fa0018",
+       "name": "name-9002",
+       "connectedAt": "2026-10-03T09:02:15Z",
+       "ipAddress": "10.0.3.2",
+       "macAddress": "02:00:5e:00:00:06",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000fa0019",
+       "name": "name-9003",
+       "connectedAt": "2026-10-03T09:02:15Z",
+       "ipAddress": "10.0.2.14",
+       "macAddress": "02:00:5e:00:00:07",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-8000-000000fa001a",
+       "name": "name-0031",
+       "connectedAt": "2026-10-03T09:02:15Z",
+       "ipAddress": "10.0.4.20",
+       "macAddress": "02:00:5e:00:00:08",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-8000-000000fa001b",
+       "name": "name-0032",
+       "connectedAt": "2026-10-03T09:02:16Z",
+       "ipAddress": "10.0.2.2",
+       "macAddress": "02:00:5e:00:00:0e",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-b000-000000fa001c",
+       "name": "name-9006",
+       "connectedAt": "2026-10-03T09:02:18Z",
+       "ipAddress": "10.0.5.2",
+       "macAddress": "02:00:5e:00:00:0f",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000fa001d",
+       "name": "name-9007",
+       "connectedAt": "2026-10-03T09:02:18Z",
+       "ipAddress": "10.0.6.2",
+       "macAddress": "02:00:5e:00:00:10",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-a000-000000fa001e",
+       "name": "name-9008",
+       "connectedAt": "2026-10-03T09:02:18Z",
+       "ipAddress": "10.0.2.6",
+       "macAddress": "02:00:5e:00:00:11",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-b000-000000000030",
+       "name": "name-0033",
+       "connectedAt": "2026-10-03T09:05:15Z",
+       "ipAddress": "10.0.1.130",
+       "macAddress": "02:00:5e:00:00:12",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000032",
+       "name": "name-0034",
+       "connectedAt": "2026-10-06T08:27:37Z",
+       "ipAddress": "10.0.7.108",
+       "macAddress": "02:00:5e:00:00:13",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000032",
+       "name": "name-0035",
+       "connectedAt": "2026-10-06T08:33:00Z",
+       "ipAddress": "10.0.7.189",
+       "macAddress": "02:00:5e:00:00:14",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000034",
+       "name": "name-0036",
+       "connectedAt": "2026-10-06T08:34:55Z",
+       "ipAddress": "10.0.8.63",
+       "macAddress": "02:00:5e:00:00:15",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000000034",
+       "name": "name-0037",
+       "connectedAt": "2026-10-06T08:34:56Z",
+       "ipAddress": "10.0.8.179",
+       "macAddress": "02:00:5e:00:00:16",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000000035",
+       "name": "name-0038",
+       "connectedAt": "2026-10-06T08:35:09Z",
+       "ipAddress": "10.0.8.124",
+       "macAddress": "02:00:5e:00:00:17",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000000036",
+       "name": "name-0039",
+       "connectedAt": "2026-10-06T08:35:15Z",
+       "ipAddress": "10.0.1.85",
+       "macAddress": "02:00:5e:00:00:18",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000000037",
+       "name": "name-0040",
+       "connectedAt": "2026-10-06T08:35:18Z",
+       "ipAddress": "10.0.8.186",
+       "macAddress": "02:00:5e:00:00:19",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000000038",
+       "name": "name-0041",
+       "connectedAt": "2026-10-06T08:35:18Z",
+       "ipAddress": "10.0.1.125",
+       "macAddress": "02:00:5e:00:00:1a",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000039",
+       "name": "name-0042",
+       "connectedAt": "2026-10-06T08:35:18Z",
+       "ipAddress": "10.0.8.7",
+       "macAddress": "02:00:5e:00:00:1b",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-b000-000000fa001f",
+       "name": "name-0043",
+       "connectedAt": "2026-10-06T08:35:19Z",
+       "ipAddress": "10.0.1.20",
+       "macAddress": "02:00:5e:00:00:1c",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000fa0020",
+       "name": "name-0044",
+       "connectedAt": "2026-10-06T08:35:19Z",
+       "ipAddress": "10.0.8.168",
+       "macAddress": "02:00:5e:00:00:1d",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-8000-000000fa0021",
+       "name": "name-0045",
+       "connectedAt": "2026-10-06T08:35:20Z",
+       "ipAddress": "10.0.1.167",
+       "macAddress": "02:00:5e:00:00:1e",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000fa0022",
+       "name": "name-0046",
+       "connectedAt": "2026-10-06T08:35:28Z",
+       "ipAddress": "10.0.1.89",
+       "macAddress": "02:00:5e:00:00:1f",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000fa0023",
+       "name": "name-0047",
+       "connectedAt": "2026-10-06T08:38:33Z",
+       "ipAddress": "10.0.7.135",
+       "macAddress": "02:00:5e:00:00:20",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000fa0024",
+       "name": "name-0048",
+       "connectedAt": "2026-10-06T08:43:15Z",
+       "ipAddress": "10.0.7.109",
+       "macAddress": "02:00:5e:00:00:21",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000000040",
+       "name": "name-0049",
+       "connectedAt": "2026-10-06T15:58:45Z",
+       "ipAddress": "10.0.7.88",
+       "macAddress": "02:00:5e:00:00:22",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000000041",
+       "name": "name-0050",
+       "connectedAt": "2026-10-06T21:56:28Z",
+       "ipAddress": "10.0.7.147",
+       "macAddress": "02:00:5e:00:00:23",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000042",
+       "name": "name-0051",
+       "connectedAt": "2026-10-07T05:41:43Z",
+       "ipAddress": "10.0.7.99",
+       "macAddress": "02:00:5e:00:00:24",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000043",
+       "name": "name-0052",
+       "connectedAt": "2026-10-08T01:16:57Z",
+       "ipAddress": "10.0.1.75",
+       "macAddress": "02:00:5e:00:00:25",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000044",
+       "name": "name-0053",
+       "connectedAt": "2026-10-08T07:10:52Z",
+       "ipAddress": "10.0.7.100",
+       "macAddress": "02:00:5e:00:00:26",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-8000-000000000045",
+       "name": "name-9030",
+       "connectedAt": "2026-10-09T03:21:26Z",
+       "ipAddress": "10.0.9.2",
+       "macAddress": "02:00:5e:00:00:27",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-b000-000000000046",
+       "name": "name-0054",
+       "connectedAt": "2026-10-09T06:39:40Z",
+       "ipAddress": "10.0.7.140",
+       "macAddress": "02:00:5e:00:00:28",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000047",
+       "name": "name-0055",
+       "connectedAt": "2026-10-10T06:38:04Z",
+       "ipAddress": "10.0.7.114",
+       "macAddress": "02:00:5e:00:00:29",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000000048",
+       "name": "name-0056",
+       "connectedAt": "2026-10-10T17:15:54Z",
+       "ipAddress": "10.0.1.53",
+       "macAddress": "02:00:5e:00:00:2a",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000000049",
+       "name": "name-0057",
+       "connectedAt": "2026-10-10T23:08:24Z",
+       "ipAddress": "10.0.8.195",
+       "macAddress": "02:00:5e:00:00:2b",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000fa0025",
+       "name": "name-0058",
+       "connectedAt": "2026-10-11T02:21:03Z",
+       "ipAddress": "10.0.7.186",
+       "macAddress": "02:00:5e:00:00:2c",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000fa0026",
+       "name": "name-0059",
+       "connectedAt": "2026-10-11T03:08:05Z",
+       "ipAddress": "10.0.7.175",
+       "macAddress": "02:00:5e:00:00:2d",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-b000-000000fa0027",
+       "name": "name-0060",
+       "connectedAt": "2026-10-11T03:26:48Z",
+       "ipAddress": "10.0.7.65",
+       "macAddress": "02:00:5e:00:00:2e",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-9000-000000fa0028",
+       "name": "name-0061",
+       "connectedAt": "2026-10-11T04:08:24Z",
+       "ipAddress": "10.0.8.90",
+       "macAddress": "02:00:5e:00:00:2f",
+       "uplinkDeviceId": "00000000-0000-3000-8000-000000000034",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000fa0029",
+       "name": "name-0062",
+       "connectedAt": "2026-10-11T05:14:58Z",
+       "ipAddress": "10.0.1.202",
+       "macAddress": "02:00:5e:00:00:30",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000fa002a",
+       "name": "name-0063",
+       "connectedAt": "2026-10-11T08:26:59Z",
+       "ipAddress": "10.0.7.190",
+       "macAddress": "02:00:5e:00:00:31",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000000050",
+       "name": "name-0064",
+       "connectedAt": "2026-10-11T10:00:43Z",
+       "ipAddress": "10.0.7.102",
+       "macAddress": "02:00:5e:00:00:32",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000000051",
+       "name": "name-0065",
+       "connectedAt": "2026-10-11T13:57:50Z",
+       "ipAddress": "10.0.7.188",
+       "macAddress": "02:00:5e:00:00:33",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRED",
+       "id": "00000000-0000-3000-9000-000000000052",
+       "name": "name-9043",
+       "connectedAt": "2026-10-11T14:25:08Z",
+       "ipAddress": "10.0.10.2",
+       "macAddress": "02:00:5e:00:00:34",
+       "uplinkDeviceId": "00000000-0000-3000-9000-000000000033",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000053",
+       "name": "name-0066",
+       "connectedAt": "2026-10-11T16:59:20Z",
+       "ipAddress": "10.0.7.200",
+       "macAddress": "02:00:5e:00:00:35",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-8000-000000000054",
+       "name": "name-0067",
+       "connectedAt": "2026-10-11T17:07:01Z",
+       "ipAddress": "10.0.7.182",
+       "macAddress": "02:00:5e:00:00:36",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000055",
+       "name": "name-9046",
+       "connectedAt": "2026-10-11T17:24:40Z",
+       "ipAddress": "10.0.7.154",
+       "macAddress": "02:00:5e:00:00:37",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      },
+      {
+       "type": "WIRELESS",
+       "id": "00000000-0000-3000-a000-000000000056",
+       "name": "name-0068",
+       "connectedAt": "2026-10-11T18:40:00Z",
+       "ipAddress": "10.0.8.155",
+       "macAddress": "02:00:5e:00:00:38",
+       "uplinkDeviceId": "00000000-0000-3000-b000-000000fa0016",
+       "access": {
+        "type": "DEFAULT"
+       }
+      }
+     ]
+    }
+   }
+  },
+  "write_dry_run": {
+   "tool": "block_client",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "client_id": "00000000-0000-4000-8000-0000000000aa"
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "dry-run"
+   },
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"status\":\"dry_run\",\"dryRun\":true,\"sent\":false,\"message\":\"DRY RUN - no upstream write was performed\",\"preview\":{\"method\":\"POST\",\"path\":\"/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/stamgr\",\"params\":null,\"body\":{\"cmd\":\"block-sta\",\"mac\":\"02:00:5e:00:00:04\"},\"keyLabel\":\"default\"}}"
+     }
+    ],
+    "structuredContent": {
+     "status": "dry_run",
+     "dryRun": true,
+     "sent": false,
+     "message": "DRY RUN - no upstream write was performed",
+     "preview": {
+      "method": "POST",
+      "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/stamgr",
+      "params": null,
+      "body": {
+       "cmd": "block-sta",
+       "mac": "02:00:5e:00:00:04"
+      },
+      "keyLabel": "default"
+     }
+    }
+   }
+  },
+  "write_confirm": {
+   "tool": "block_client",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "client_id": "00000000-0000-4000-8000-0000000000aa",
+    "confirm": true
+   },
+   "env": {},
+   "result": {
+    "isError": false,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"meta\":{\"rc\":\"ok\"},\"data\":[{\"id\":\"00000000-0000-4000-8000-0000000000aa\",\"_id\":\"0000000000000000000000aa\",\"mac\":\"02:00:5e:00:00:aa\",\"macAddress\":\"02:00:5e:00:00:aa\",\"key\":\"probe-object\",\"name\":\"probe-object\",\"subsystem\":\"wan\",\"hostId\":\"00000000-0000-4000-8000-0000000000aa\",\"nested\":{\"list\":[1,\"two\",{\"three\":null}],\"flag\":false,\"ratio\":1.25},\"probe\":\"POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/stamgr#0\"}]}"
+     }
+    ],
+    "structuredContent": {
+     "meta": {
+      "rc": "ok"
+     },
+     "data": [
+      {
+       "id": "00000000-0000-4000-8000-0000000000aa",
+       "_id": "0000000000000000000000aa",
+       "mac": "02:00:5e:00:00:aa",
+       "macAddress": "02:00:5e:00:00:aa",
+       "key": "probe-object",
+       "name": "probe-object",
+       "subsystem": "wan",
+       "hostId": "00000000-0000-4000-8000-0000000000aa",
+       "nested": {
+        "list": [
+         1,
+         "two",
+         {
+          "three": null
+         }
+        ],
+        "flag": false,
+        "ratio": 1.25
+       },
+       "probe": "POST /v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/api/s/default/cmd/stamgr#0"
+      }
+     ]
+    }
+   }
+  },
+  "write_denied": {
+   "tool": "block_client",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default",
+    "client_id": "00000000-0000-4000-8000-0000000000aa"
+   },
+   "env": {
+    "UNIFI_WRITE_POLICY": "deny"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"write_denied\", \"message\": \"block_client refused: the server is in read-only mode because UNIFI_WRITE_POLICY=deny is set. Every write and action tool across all areas (Network create/update/delete, device/client actions, Protect, the connector relay, Carrier Fabric, Mobility, port-profiles, vouchers, etc.) is refused; read tools are unaffected. To allow writes, unset UNIFI_WRITE_POLICY (the default is allow) or set it to allow or dry-run where you set it: the server's `env` block in your MCP client's configuration (or set the plugin's Write policy option to allow), or the service's `environment:` block of the docker-compose file that deploys this server. Then restart the server (recreate the container for Docker). See Read-only mode in docs/CONFIGURATION.md#read-only-mode.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "validation_error": {
+   "tool": "list_clients",
+   "arguments": {
+    "baseline_unknown_argument": 1
+   },
+   "env": {},
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "Invalid arguments for tool 'list_clients':\n- host: missing required argument. Console name (case-insensitive reportedState.hostname/name, e.g. \"my-console\") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect.\n- site: missing required argument. Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like \"Default\" work.\n- baseline_unknown_argument: not a parameter of this tool.\nValid parameters: host (required), site (required), offset, limit, client_type, filter.\nCall shape (required arguments): {\"host\": \"STRING\", \"site\": \"STRING\"}"
+     }
+    ],
+    "structuredContent": null
+   }
+  },
+  "tool_not_exposed": {
+   "tool": "list_clients",
+   "arguments": {
+    "host": "hostname-0001",
+    "site": "Default"
+   },
+   "env": {
+    "UNIFI_EXCLUDE": "family:clients"
+   },
+   "result": {
+    "isError": true,
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"error\": {\"code\": \"tool_not_exposed\", \"message\": \"'list_clients' is not exposed: the operator's UNIFI_FAMILY_ALLOW or UNIFI_EXCLUDE removes it. No request was sent. Use search_tools to list the exposed tools.\"}}"
+     }
+    ],
+    "structuredContent": null
+   }
+  }
+ }
+}

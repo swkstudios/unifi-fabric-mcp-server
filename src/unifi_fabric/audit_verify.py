@@ -3,7 +3,7 @@
 Usage::
 
     unifi-fabric-audit-verify [--key-file PATH]... [--expect-head CHAIN:SEQ:MAC]...
-        [--allow-rotated-prefix] [--print-head] [--json] FILE [FILE...]
+        [--allow-rotated-prefix] [--strict] [--print-head] [--json] FILE [FILE...]
     python -m unifi_fabric.audit_verify ...
 
 Files are given oldest first (a rotated ``audit.log.1`` before ``audit.log``).
@@ -17,6 +17,12 @@ key-derived value ever printed is a ``kid`` (a keyed 32-bit fingerprint).
 
 Exit status: 0 no tamper evidence, 1 tamper evidence (one finding or more), 2 usage or
 key error.
+
+A genuine ``audit.recovered`` record excuses at most as many unsealed or cut lines as the
+records it says were lost. Those excused lines are warnings by default, so a forged line
+that fits inside that budget also passes with exit status 0: the file alone cannot tell it
+from the lines a real fault left. ``--strict`` makes every excused line a finding for an
+operator who would rather review each recovery.
 
 What this proves, and what it does not: the chain is tamper-evident, not tamper-proof.
 Without an anchor held elsewhere (``--expect-head``) it cannot see a cut tail or a whole
@@ -75,6 +81,8 @@ FINDINGS = (
     "ANCHOR_MISSING",
     "ANCHOR_MISMATCH",
 )
+#: The excused-line warnings ``--strict`` turns into findings.
+STRICT_FINDINGS = ("UNSEALED_POLICY_RECOVERED", "MALFORMED_LINE_RECOVERED")
 #: Reported, exit status unchanged.
 WARNINGS = (
     "UNLINKED_CHAIN_START",
@@ -416,6 +424,7 @@ def verify(
     *,
     expect_heads: Sequence[tuple[str, int, str]] = (),
     allow_rotated_prefix: bool = False,
+    strict: bool = False,
 ) -> Report:
     """Check the files (oldest first) in one linear pass after a link-target pre-pass.
     Memory is bounded by the number of chains, links, anchors and pending items."""
@@ -572,14 +581,15 @@ def verify(
                 if event == RECOVERED and budget > 0:
                     item.excused = True
                     budget -= 1
+    excused = finding if strict else warning
     for item in pending:
         if item.code == "MISSING_SEAL":
             if item.excused:
-                warning("UNSEALED_POLICY_RECOVERED", item.where, "followed by audit.recovered")
+                excused("UNSEALED_POLICY_RECOVERED", item.where, "followed by audit.recovered")
             else:
                 finding("MISSING_SEAL", item.where, "a policy line with no audit.seal")
         elif item.excused:
-            warning("MALFORMED_LINE_RECOVERED", item.where, "a cut record (fail-open)")
+            excused("MALFORMED_LINE_RECOVERED", item.where, "a cut record (fail-open)")
         else:
             finding("MALFORMED_LINE", item.where, "not one JSON object")
     for cid, seq, mac in expect_heads:
@@ -640,6 +650,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="report a chain whose start is not in the files as a warning (still counted)",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="treat a line excused by audit.recovered as a finding (exit 1), not a warning",
+    )
     parser.add_argument("--print-head", action="store_true", help="print each chain's head")
     parser.add_argument("--json", action="store_true", help="one JSON report on stdout")
     parser.add_argument("files", nargs="+", metavar="FILE", help="audit files, oldest first")
@@ -696,6 +711,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ring,
             expect_heads=anchors,
             allow_rotated_prefix=args.allow_rotated_prefix,
+            strict=args.strict,
         )
     except UsageError as exc:
         sys.stderr.write(f"unifi-fabric-audit-verify: {exc}\n")

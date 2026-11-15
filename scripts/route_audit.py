@@ -18,11 +18,12 @@ from pathlib import Path
 import httpx
 from fastmcp import FastMCP
 
+from unifi_fabric.families.site_manager import registrar as site_manager_registrar
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from unifi_fabric.config import Settings  # noqa: E402
 from unifi_fabric.families.innerspace.innerspace_internal import get_innerspace_stats  # noqa: E402
 from unifi_fabric.families.network.network import get_network_application_info  # noqa: E402
-from unifi_fabric.families.site_manager import aggregation  # noqa: E402
 from unifi_fabric.families.site_manager.site_manager import get_host  # noqa: E402
 
 MANIFEST = (
@@ -127,7 +128,7 @@ async def audit(host_id: str, settings: Settings, manifest: dict) -> tuple[list[
             def _key_configs(self):
                 return keys
 
-        aggregation.register(app, lambda: (LocalClient(), None))
+        site_manager_registrar.register_2(app, lambda: (LocalClient(), None))
         await app.call_tool("list_configured_api_keys", {})
         local_verdict = "AVAILABLE"
     except Exception:

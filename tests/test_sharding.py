@@ -26,6 +26,14 @@ part = importlib.util.module_from_spec(_spec)
 sys.modules.setdefault(_spec.name, part)
 _spec.loader.exec_module(part)
 
+
+def test_rerun_shards_lists_only_shards_kept_from_a_later_attempt():
+    """Issue 962 F8: a shard counted from attempt 2 or later is named in the aggregate."""
+    reports = [{"k": 1, "attempt": "1"}, {"k": 2, "attempt": "2"}, {"k": 3, "attempt": 3}]
+    assert part.rerun_shards(reports) == [(2, 2), (3, 3)]
+    assert part.rerun_shards([{"k": 1, "attempt": "1"}]) == []
+
+
 N = 4
 COMMIT = "a" * 40
 IDS = [f"tests/test_mod_{i % 7}.py::test_case[{i}]" for i in range(200)]
@@ -307,9 +315,9 @@ def test_a_newer_attempt_replaces_a_failed_older_one():
 
 def test_negative_cross_suite_artifact():
     reports = make_reports()
-    reports[2] = make_reports(suite="test-locked")[2]
+    reports[2] = make_reports(suite="locked-suite")[2]
     errors = check(reports)
-    assert any("is for suite 'test-locked', not 'test'" in e for e in errors)
+    assert any("is for suite 'locked-suite', not 'test'" in e for e in errors)
     assert any("expected 4 shard reports, found 3" in e for e in errors)
     assert any("shard 3/4 appears 0 times" in e for e in errors)
 
@@ -351,7 +359,7 @@ def test_outcome_totals_are_summed_over_the_kept_reports():
     assert sum(s["totals"]["total"] for s in record["shards"]) == len(IDS)
 
 
-# -- environment identity (test-locked) ----------------------------------------------------
+# -- environment identity (a locked suite) ----------------------------------------------------
 
 
 def test_proof_record_carries_ok_and_errors():
@@ -512,17 +520,27 @@ SUITE = {
 def suite(tmp_path):
     for name, body in SUITE.items():
         (tmp_path / name).write_text(textwrap.dedent(body))
-    (tmp_path / "pytest.ini").write_text("[pytest]\nmarkers = slow\naddopts = -m 'not slow'\n")
+    (tmp_path / "pytest.ini").write_text(
+        "[pytest]\nmarkers =\n    slow\n    tls\naddopts = -m 'not slow'\n"
+    )
     return tmp_path
 
 
-def run_pytest(cwd, *args, check=True):
+def run_pytest(cwd, *args, check=True, cache=False):
     env = {**os.environ, "PYTHONPATH": str(ROOT), "PYTEST_DISABLE_PLUGIN_AUTOLOAD": ""}
     env.pop("PYTEST_DISABLE_PLUGIN_AUTOLOAD")
     env.pop("COVERAGE_PROCESS_START", None)
     env.update(GITHUB_RUN_ID=RUN, GITHUB_RUN_ATTEMPT="1")
     result = subprocess.run(  # noqa: S603 - this interpreter, test-built arguments
-        [sys.executable, "-m", "pytest", "-p", "tests._sharding", "-p", "no:cacheprovider", *args],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-p",
+            "tests._sharding",
+            *(["-o", f"cache_dir={cwd / '.cache'}"] if cache else ["-p", "no:cacheprovider"]),
+            *args,
+        ],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -600,7 +618,7 @@ def test_reports_pass_the_verifier_end_to_end(suite, workers):
     broken[0]["outcomes"][broken[0]["selected"][0]] = "failed"
     assert part.verify(anchor, broken, **verify_args())
     assert part.verify(anchor, reports, **verify_args(n=4))
-    assert part.verify(anchor, reports, **verify_args(suite="test-locked"))
+    assert part.verify(anchor, reports, **verify_args(suite="locked-suite"))
 
 
 def test_a_report_needs_a_suite_and_a_shard(suite):
@@ -720,7 +738,7 @@ def test_command_line_verify_exits_nonzero_on_a_defect(suite):
     assert failed["ok"] is False
     assert any("the matrix has 3 jobs but N is 4" in error for error in failed["errors"])
     assert "matrix has 4 jobs" in run(with_value("--job-total", "4")).stderr
-    assert run(with_value("--suite", "test-locked")).returncode == 1
+    assert run(with_value("--suite", "locked-suite")).returncode == 1
     no_identity = [a for a in base if a not in ("--anchor-identity", str(identity))]
     assert "anchor carries no environment identity" in run(no_identity).stderr
     (reports / "r2.json").unlink()
@@ -894,7 +912,12 @@ def test_select_artifacts_keeps_the_newest_attempt_of_each_shard():
             "outside 1..3",
         ),
         (
-            ("test-shard-1-7-1", "test-shard-2-7-1", "test-shard-3-7-1", "test-locked-shard-1-7-1"),
+            (
+                "test-shard-1-7-1",
+                "test-shard-2-7-1",
+                "test-shard-3-7-1",
+                "scrub-oracle-shard-1-7-1",
+            ),
             "unexpected artifact",
         ),
         (
@@ -998,14 +1021,15 @@ def test_shard_ci_aggregate_refuses_a_missing_prep_anchor(tmp_path):
     assert "no anchor list from test-prep" in result.stderr
     (tmp_path / "anchor").mkdir()
     (tmp_path / "anchor" / "anchor.txt").write_text("tests/test_a.py::test_a\n")
-    locked = _shard_ci("aggregate", "test-locked", "python", "4", "4", "--locked", env=env)
-    assert locked.returncode == 1
-    assert "no anchor identity from test-locked-prep" in locked.stderr
+    # The locked suite is gone (install-proof replaced it): its aggregate and --locked are
+    # refused as usage errors, not silently accepted.
+    assert _shard_ci("aggregate", "test-locked", "python", "4", "4", env=env).returncode == 2
+    assert _shard_ci("aggregate", "test", "python", "4", "4", "--locked", env=env).returncode == 2
 
 
 def test_summary_markdown_lists_every_shard():
     record = {
-        "suite": "test-locked",
+        "suite": "locked-suite",
         "n": 2,
         "anchor_count": 3,
         "anchor_sha256": "f" * 64,
@@ -1016,7 +1040,7 @@ def test_summary_markdown_lists_every_shard():
         ],
     }
     text = part.summary_markdown(record, {"percent": 97.5, "statements": 10, "missed": 1})
-    assert "### Shard proof: test-locked (2 shards)" in text
+    assert "### Shard proof: locked-suite (2 shards)" in text
     assert "Combined coverage 97.5000% of 10 statements, 1 missed." in text
     assert "| 1 | 1 | 2 | 2 | 0 | 31 |" in text and "| 2 | 2 | 1 | 0 | 1 | - |" in text
 
@@ -1205,3 +1229,299 @@ def test_shard_ci_scrub_aggregate_fails_closed_on_a_missing_shard(tmp_path):
     assert sorted(rest) == sorted([SCRUB_CHUNK.format(c) for c in range(50)] + [SCRUB_FLOOR])
     assert not (tmp_path / "scrub-evidence").exists()
     assert not (tmp_path / "proof" / "floor.xml").exists()
+
+
+DEAD_ITEM_PROBE = """
+import gc, json, os
+import pytest
+from _pytest.python import Function
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_finish(session):
+    gc.collect()
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    with open(os.environ["ITEMS_OUT"], "w") as fh:
+        json.dump(
+            {
+                "kept": len(session.items),
+                "alive": sum(1 for obj in gc.get_objects() if isinstance(obj, Function)),
+                "deselected": len(reporter.stats.get("deselected", [])),
+            },
+            fh,
+        )
+"""
+
+
+def test_a_shard_does_not_keep_the_other_shards_items_alive(suite, monkeypatch):
+    """The terminal reporter holds every deselected item for its summary count; each worker
+    then held the whole suite's items (about 7 KiB each) to run one shard of it."""
+    plain = len(collected(suite))
+    (suite / "conftest.py").write_text(DEAD_ITEM_PROBE)
+    out = suite / "items.json"
+    monkeypatch.setenv("ITEMS_OUT", str(out))
+    result = run_pytest(suite, "--shard", "1/3", "--collect-only", "-q")
+    counts = json.loads(out.read_text())
+    assert counts["kept"] < plain
+    assert counts["alive"] == counts["kept"], counts
+    # the summary line still counts them (the other shards' items and the one -m deselected)
+    assert counts["deselected"] == plain - counts["kept"] + 1, counts
+    assert f"{counts['deselected']} deselected" in result.stdout, result.stdout
+
+
+COLLECT_PROBE = """
+import gc, json, os
+import pytest
+from _pytest.python import Function
+
+_alive = []
+
+def _count():
+    gc.collect()
+    return sum(1 for obj in gc.get_objects() if isinstance(obj, Function))
+
+def pytest_collectstart(collector):
+    if collector.nodeid.endswith("test_gamma.py"):  # the last module, before it is collected
+        _alive.append(_count())
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, items):
+    with open(os.environ["ITEMS_OUT"], "w") as fh:
+        json.dump({"kept": len(items), "before_last_module": _alive[0], "after": _count()}, fh)
+"""
+
+
+def test_a_shard_drops_the_other_shards_items_as_each_module_is_collected(suite, monkeypatch):
+    """Items of other shards were all built and held until collection ended (about 7 KiB
+    each, the whole suite in every worker); now a module's items of other shards are gone
+    before the next module is collected."""
+    plain = len(collected(suite))
+    (suite / "conftest.py").write_text(COLLECT_PROBE)
+    out = suite / "items.json"
+    monkeypatch.setenv("ITEMS_OUT", str(out))
+    run_pytest(suite, "--shard", "1/3", "--collect-only", "-q")
+    early = json.loads(out.read_text())
+    assert 0 < early["kept"] < plain
+    assert early["after"] == early["kept"], early
+    run_pytest(suite, "--shard", "1/3", "--shard-prune-late", "--collect-only", "-q")
+    late = json.loads(out.read_text())  # the control: everything is held until the end
+    assert late["kept"] >= plain, late  # the shard is cut after this point
+    assert late["after"] >= plain, late
+    assert early["before_last_module"] < late["before_last_module"], (early, late)
+
+
+def _shard_reports(suite, tag, *args, workers=()):
+    reports = []
+    for k in (1, 2, 3):
+        path = suite / f"{tag}{k}.json"
+        run_pytest(suite, "-q", *workers, *args, *shard_args(k, 3, path))
+        reports.append(json.loads(path.read_text()))
+    return reports
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [[], ["-k", "test_b or test_c or alpha or grouped"], ["-m", "slow or not tls"]],
+    ids=["default", "keyword", "marker"],
+)
+@pytest.mark.parametrize(
+    "workers",
+    [[], ["-n", "2", "--dist", "loadgroup", "--max-worker-restart=0"]],
+    ids=["serial", "n2"],
+)
+def test_pruning_while_collecting_selects_what_pruning_afterwards_selects(suite, workers, extra):
+    """Same shard, same proof: the report fields the verifier reads and the deselected count."""
+    early = _shard_reports(suite, "early", *extra, workers=workers)
+    late = _shard_reports(suite, "late", "--shard-prune-late", *extra, workers=workers)
+    for mine, theirs in zip(early, late, strict=True):
+        for field in ("full_sha256", "full_count", "selected", "groups", "outcomes"):
+            assert mine[field] == theirs[field], field
+    assert (
+        part.verify(
+            collected(suite, *extra), early, coverage_files=["a", "b", "c"], **verify_args()
+        )
+        == []
+    )
+
+
+def test_the_deselected_and_collected_counts_are_the_same_early_and_late(suite):
+    def summary(*args):
+        lines = run_pytest(suite, "-q", *args, "--shard", "2/3").stdout.strip().splitlines()
+        return lines[-1].split(" in ")[0]
+
+    def collect_summary(*args):
+        out = run_pytest(suite, "--collect-only", "-q", "--shard", "2/3", *args).stdout
+        return out.strip().splitlines()[-1].split(" in ")[0]
+
+    early = summary()
+    assert early == summary("--shard-prune-late")
+    assert "deselected" in early
+    counts = collect_summary()
+    assert counts == collect_summary("--shard-prune-late")
+    # selected/collected (N deselected): the collected count is every item, as without --shard
+    # (the suite's 19 tests and the one the -m expression removes)
+    assert f"/{len(collected(suite)) + 1} tests collected" in counts, counts
+
+
+def test_a_run_that_reshapes_the_item_list_falls_back_to_pruning_afterwards(suite):
+    """--deselect (and --lf, --ff, --sw) also cut the list; they are applied before the shard."""
+    victim = "test_gamma.py::test_c1"
+    plain = collected(suite, "--shard", "1/1")
+    cut = collected(suite, "--shard", "1/1", "--deselect", victim)
+    assert [i for i in plain if i not in cut] == [victim]
+
+
+MODE_PROBE = """
+import json, os
+
+def pytest_collection_finish(session):
+    shard = session.config.pluginmanager.get_plugin("unifi-shard")
+    with open(os.environ["MODE_OUT"], "w") as fh:
+        json.dump({"early": shard._early}, fh)
+"""
+
+
+@pytest.mark.parametrize(
+    ("args", "early"),
+    [
+        ([], True),
+        (["-m", "slow or not tls"], True),
+        (["-m", "not slow and (not mutating or integration)"], True),
+        # -m naming a marker a plugin adds (hypothesis adds it in its own modifyitems)
+        (["-m", "hypothesis"], False),
+        (["-m", "slow or hypothesis"], False),
+        (["-m", "not xdist_group"], False),
+        (["-k", "test_b"], False),
+        # a node id: pytest narrows to it only after the module has been reported
+        (["test_gamma.py::test_c1"], False),
+        (["--deselect", "test_gamma.py::test_c1"], False),
+        (["--lf"], False),
+        (["--ff"], False),
+        (["--sw"], False),
+        # stepwise turns itself on for these in its own pytest_configure, after the shard
+        # plugin was built
+        (["--sw-skip"], False),
+        (["--sw-reset"], False),
+        (["--shard-prune-late"], False),
+    ],
+    ids=lambda value: " ".join(value) if isinstance(value, list) else str(value),
+)
+def test_which_invocations_cut_the_shard_while_collecting(suite, monkeypatch, args, early):
+    (suite / "conftest.py").write_text(MODE_PROBE)
+    out = suite / "mode.json"
+    monkeypatch.setenv("MODE_OUT", str(out))
+    # (an empty shard exits 5, which is not what this test is about)
+    run_pytest(suite, "--shard", "1/3", "--collect-only", "-q", *args, cache=True, check=False)
+    assert json.loads(out.read_text()) == {"early": early}
+
+
+def test_a_node_id_argument_leaves_the_proof_list_as_long_as_the_run(suite):
+    """pytest reports the whole module before it narrows to ``file::name``: the full list a
+    shard records must still be the one a plain collection of the same arguments gives."""
+    target = "test_gamma.py::test_c1"
+    counts = {}
+    for mode in ([], ["--shard-prune-late"]):
+        path = suite / f"node{len(mode)}.json"
+        run_pytest(suite, "--collect-only", "-q", target, *mode, *shard_args(1, 1, path))
+        report = json.loads(path.read_text())
+        counts[len(mode)] = (report["full_count"], report["selected"])
+    assert counts[0] == counts[1] == (1, [target])
+
+
+PLUGIN_MARK_SUITE = """
+from hypothesis import given, strategies as st
+
+{tests}
+
+def test_plain():
+    pass
+"""
+
+
+def test_a_marker_a_plugin_adds_is_seen_by_the_shard(tmp_path):
+    """hypothesis adds its ``hypothesis`` marker in its own modifyitems, after the early cut:
+    ``-m hypothesis`` must select the same tests in every shard either way."""
+    tests = "\n".join(
+        f"@given(st.integers())\ndef test_prop_{i}(x):\n    pass\n" for i in range(12)
+    )
+    (tmp_path / "test_prop.py").write_text(PLUGIN_MARK_SUITE.format(tests=tests))
+    (tmp_path / "pytest.ini").write_text("[pytest]\n")
+    anchor = collected(tmp_path, "-m", "hypothesis")
+    assert len(anchor) == 12
+    early, late = [], []
+    for k in (1, 2, 3):
+        for mode, out in (([], early), (["--shard-prune-late"], late)):
+            path = tmp_path / f"r{len(mode)}{k}.json"
+            run_pytest(
+                tmp_path, "--collect-only", "-q", "-m", "hypothesis", *mode, *shard_args(k, 3, path)
+            )
+            out.append(json.loads(path.read_text()))
+    assert sorted(i for r in early for i in r["selected"]) == sorted(anchor)
+    for mine, theirs in zip(early, late, strict=True):
+        for field in ("full_sha256", "full_count", "selected", "groups"):
+            assert mine[field] == theirs[field], field
+    assert {r["full_sha256"] for r in early} == {part.ids_digest(anchor)}  # the plain list
+
+
+def test_the_static_markers_are_the_repos_decorator_markers():
+    declared = {
+        line.split(":", 1)[0].strip().strip('"')
+        for line in (ROOT / "pyproject.toml")
+        .read_text()
+        .split("markers = [", 1)[1]
+        .split("]\n")[0]
+        .splitlines()
+        if ":" in line
+    }
+    assert _sharding.STATIC_MARKERS <= declared, declared
+
+
+HEAVY_CONFTEST = """
+import json, os
+from pathlib import Path
+
+import pytest
+
+from tests import _sharding
+
+_sharding.HEAVY_UNITS = Path(os.environ["HEAVY_LIST"])
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items):
+    # after the early cut, before the shard plugin's own (last) hook
+    with open(os.environ["BEFORE_LATE"] + os.environ["SHARD_K"], "w") as fh:
+        json.dump([_sharding.canonical_id(item) for item in items], fh)
+"""
+
+
+def test_heavy_units_are_held_until_the_late_hook_places_them(suite, monkeypatch):
+    """A heavy unit's shard depends on which heavy units exist, so its items are never cut
+    early: every shard holds them until the late hook, and the result is the late path's."""
+    heavy = {"alpha-group": 100, "test_gamma.py::test_c2": 50}
+    (suite / "heavy.json").write_text(json.dumps({"format": 1, "note": "t", "units": heavy}))
+    (suite / "conftest.py").write_text(HEAVY_CONFTEST)
+    monkeypatch.setenv("HEAVY_LIST", str(suite / "heavy.json"))
+    monkeypatch.setenv("BEFORE_LATE", str(suite / "before-late."))
+    monkeypatch.setenv("SHARD_K", "0")
+    held_ids = {i for i in collected(suite) if "test_alpha.py" in i or i.endswith("test_c2")}
+    assert len(held_ids) == 6
+    early, late = [], []
+    for k in (1, 2, 3):
+        monkeypatch.setenv("SHARD_K", str(k))
+        for mode, out in (([], early), (["--shard-prune-late"], late)):
+            path = suite / f"h{len(mode)}{k}.json"
+            run_pytest(suite, "--collect-only", "-q", *mode, *shard_args(k, 3, path))
+            out.append(json.loads(path.read_text()))
+            if not mode:
+                before = set(json.loads((suite / f"before-late.{k}").read_text()))
+                assert held_ids <= before, (k, sorted(held_ids - before))
+                light = before - held_ids
+                # (the one light xdist_group is "beta-group"; every other light unit is its id)
+                units = {"beta-group" if i.endswith("test_grouped") else i for i in light}
+                assert all(part.hash_shard(unit, 3) == k for unit in units), (k, sorted(units))
+    for mine, theirs in zip(early, late, strict=True):
+        for field in ("full_sha256", "full_count", "selected", "groups"):
+            assert mine[field] == theirs[field], field
+    placed = {i: r["k"] for r in early for i in r["selected"]}
+    assert len({placed[i] for i in held_ids if "test_alpha.py" in i}) == 1  # a group stays whole
+    assert {r["full_sha256"] for r in early} == {part.ids_digest(collected(suite))}

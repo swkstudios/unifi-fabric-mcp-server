@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import random
+import subprocess
+import sys
+import textwrap
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +18,28 @@ from tests import test_spec_conformance as sc
 from tests import tool_shapes_gen as gen
 
 BASE = Path(__file__).parent / "fixtures/tool_input_schemas_pre_shapes.json"
+ROOT = Path(__file__).resolve().parents[1]
+
+#: Run outside pytest, as ``python -m tests.tool_shapes_gen --write`` runs: no conftest has
+#: loaded the deferred steps (public #41), so the server starts with snapshot stubs.
+_OUTSIDE_PYTEST = textwrap.dedent(
+    """
+    import asyncio, json, sys
+    from unifi_fabric import server
+    from unifi_fabric.catalog import deferred
+    from tests import test_spec_conformance as sc, tool_shapes_gen as gen
+
+    cold = asyncio.run(server.mcp.list_tools())
+    tools = sc._tools()
+    name, arg = sys.argv[1].split(".")
+    model = gen.handler_model(tools[name], arg)
+    print(json.dumps({
+        "cold_stubs": sum(isinstance(t, deferred.DeferredTool) for t in cold),
+        "stubs": sorted(n for n, t in tools.items() if isinstance(t, deferred.DeferredTool)),
+        "model": f"{model.__module__}.{model.__qualname__}",
+    }))
+    """
+)
 
 
 def object_branch(schema: dict[str, Any]) -> dict[str, Any]:
@@ -21,16 +48,41 @@ def object_branch(schema: dict[str, Any]) -> dict[str, Any]:
     return next(b for b in schema["anyOf"] if b.get("type") == "object")
 
 
+def test_the_generator_reads_handlers_without_the_test_conftest() -> None:
+    """``python -m tests.tool_shapes_gen --write`` failed with "'DeferredTool' object has no
+    attribute 'fn'": the suite passed only because conftest loads every deferred step. The
+    catalog the generator reads must be the loaded one in a fresh interpreter too."""
+    from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES
+
+    key = next(k for k, v in SHAPE_SOURCES.items() if v["classification"] == "handler-typed")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("UNIFI_", "MCP_", "FASTMCP_"))}
+    done = subprocess.run(  # noqa: S603 - fixed interpreter and test-controlled code
+        [sys.executable, "-c", _OUTSIDE_PYTEST, key],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[-4000:]
+    out = json.loads(done.stdout.strip().splitlines()[-1])
+    assert out["cold_stubs"] > 0, "the server registered eagerly: nothing deferred was tested"
+    assert out["stubs"] == []
+    assert out["model"] == SHAPE_SOURCES[key]["model"]
+
+
 def test_every_spec_backed_body_has_generated_properties() -> None:
     table, inventory = gen.derive()
     # 40 spec-backed bodies: the 39 of 505843cf plus update_predefined_firewall_policy
     # (7ac16050). The inventory is every object parameter of the registered catalog:
-    # 231 since 0.7.2, down from 236 by the five object parameters of removed tools
+    # 231 since 0.7.2 (236 with the two port-automation bodies, the two Protect 7.4.96 external
+    # arm profile bodies and diagnose_wifi.thresholds), down from 236 by the five
+    # object parameters of removed tools
     # (calibrate_door_lock.options, set_door_lock_auto_close.options,
     # create_traffic_rule.payload, update_traffic_rule.payload and
     # update_protect_user_notifications.changes).
-    assert len(table) == 40
-    assert len(inventory) == 231
+    assert len(table) == 42
+    assert len(inventory) == 236
     tools = sc._tools()
     for name, args in table.items():
         for arg, shape in args.items():
@@ -41,7 +93,7 @@ def test_every_spec_backed_body_has_generated_properties() -> None:
 
 def test_free_form_params_are_explicit_and_remain_unshaped() -> None:
     _, inventory = gen.derive()
-    assert len(inventory) == 231  # see test_every_spec_backed_body_has_generated_properties
+    assert len(inventory) == 236  # see test_every_spec_backed_body_has_generated_properties
     assert any(source["classification"] == "free-form" for source in inventory.values())
     # Typed selectors coexist with retained native bodies in the merged caller contract.
     for key in (
@@ -132,7 +184,7 @@ def test_shape_provenance_names_spec_route_and_pointer() -> None:
     from unifi_fabric.generated_api_facts._tool_shapes_table import SHAPE_SOURCES
 
     shaped = {k: v for k, v in SHAPE_SOURCES.items() if v["classification"] == "shaped"}
-    assert len(shaped) == 40  # one per spec-backed body (test above)
+    assert len(shaped) == 42  # one per spec-backed body (test above)
     for key, source in shaped.items():
         assert {"file", "sha256", "source_url", "path", "method", "pointer", "schema"} <= set(
             source
@@ -161,6 +213,13 @@ def _json_value(rng: random.Random, depth: int = 0) -> Any:
     return {f"key{i}": _json_value(rng, depth + 1) for i in range(rng.randrange(4))}
 
 
+#: Spec-shaped bodies of tools added after the immutable pre-shape oracle (Protect 7.4.96).
+SHAPED_AFTER_ORACLE = {
+    "create_external_arm_profile.settings",
+    "update_external_arm_profile.settings",
+}
+
+
 def test_every_previously_accepted_body_still_passes_input_validator() -> None:
     # Immutable pre-shape oracle, independent of the regenerated fixture.
     before = json.loads(BASE.read_text())["schemas"]
@@ -169,6 +228,8 @@ def test_every_previously_accepted_body_still_passes_input_validator() -> None:
     rng = random.Random(17)  # noqa: S311 - reproducible non-security test data
     for name, shaped in table.items():
         for arg, shape in shaped.items():
+            if f"{name}.{arg}" in SHAPED_AFTER_ORACLE:
+                continue
             old = before[name]["properties"][arg]
             new = tools[name].parameters["properties"][arg]
             samples = [{}, sc.conformance_args(name)[arg], {"unknown": "passed-through"}]
@@ -203,15 +264,28 @@ def test_original_body_validation_contract_is_preserved_for_whole_catalog() -> N
     additions = {
         key
         for key in inventory
-        if key.split(".")[0] not in baseline
-        or key.split(".")[1] not in baseline[key.split(".")[0]]["properties"]
+        if key not in SHAPED_AFTER_ORACLE
+        and (
+            key.split(".")[0] not in baseline
+            or key.split(".")[1] not in baseline[key.split(".")[0]]["properties"]
+        )
     }
-    assert additions == {"get_multicast_insights.body", "create_firewall_rule.rule"}
+    for key in SHAPED_AFTER_ORACLE:
+        assert inventory[key]["classification"] == "shaped", key
+    assert additions == {
+        "get_multicast_insights.body",
+        "create_firewall_rule.rule",
+        "diagnose_wifi.thresholds",
+        "create_port_automation.automation",
+        "update_port_automation.automation",
+    }
     # Scope the immutable oracle to all body/object parameters, including free-form
     # ones. Unrelated scalar parameters may evolve deliberately in other changes.
     for key in inventory:
         name, arg = key.split(".")
         current = json.loads(json.dumps(tools[name].parameters["properties"][arg]))
+        if key in SHAPED_AFTER_ORACLE:
+            continue
         if key == "create_firewall_rule.rule":
             # This tool postdates the immutable pre-shapes oracle. Its private EA
             # request has no fixed schema: require an object but permit every field.
@@ -227,7 +301,8 @@ def test_original_body_validation_contract_is_preserved_for_whole_catalog() -> N
                 {"future": {"nested": [1, None, True]}, "x_passphrase": "***REDACTED***"},
             ):
                 assert validator.is_valid(value), value
-            assert validator.is_valid(None) == (key == "get_multicast_insights.body")
+            optional = {"get_multicast_insights.body", "diagnose_wifi.thresholds"}
+            assert validator.is_valid(None) == (key in optional)
             continue
         if inventory[key]["classification"] == "recorded-typed":
             assert key == "update_device_radio.radios"
@@ -398,3 +473,33 @@ def test_note_preserves_abbreviations():
 
     assert note("Currency, e.g. USD. Another sentence.") == "Currency, e.g. USD."
     assert note("Currency, i.e. USD. Another sentence.") == "Currency, i.e. USD."
+
+
+def test_the_generator_cli_runs_on_an_instant_pacing_clock():
+    # python -m tests.tool_shapes_gen sends hundreds of stubbed calls to one console; on the
+    # real clock the connector pacer would wait out a minute after 95 sends (the move tool runs
+    # the generator this way). The suite's conftest installs the same clock for pytest. The
+    # command line starts on the real clock; here that clock's sleeper fails at once, so the
+    # burst passes only if install_instant_pacing replaced it.
+    import asyncio
+
+    from tests import tool_shapes_gen
+    from unifi_fabric import pacing
+
+    async def real_sleep(seconds: float) -> None:
+        raise AssertionError(f"the pacer slept {seconds:.1f}s on the real clock")
+
+    try:
+        pacing.set_time_source(time.monotonic, real_sleep)  # the command line starts here
+        pacing.reset_registry()
+        tool_shapes_gen.install_instant_pacing()
+        limiter = pacing.limiter_for("console-a", 5)
+
+        async def burst() -> None:
+            for _ in range(12):
+                await limiter.acquire()
+
+        asyncio.run(burst())
+    finally:
+        pacing.set_time_source(None, None)
+        pacing.reset_registry()

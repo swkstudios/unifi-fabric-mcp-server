@@ -2,10 +2,10 @@
 """Check example provenance without installing the server or contacting upstream APIs.
 
 Each fenced example in public docs/plugins and each README installation example has
-an adjacent comment naming a source file and its SHA-256, support version and case; any
+an adjacent comment naming a source file and its SHA-256, and a case; any
 other README example that carries a doc-provenance marker is checked the same way.
 Relative file:<path>@sha256:<digest> pins resolve from the repository root and survive
-public mirroring without private Git history. A citation may replace an install case,
+a public release without private Git history. A citation may replace an install case,
 except for an executed install example: one whose install-case marker names an
 executable mode must name that same case with case=, so its provenance is tied to the
 launcher the install smoke runs. A case= that names a different adjacent case fails.
@@ -40,7 +40,6 @@ PIN = re.compile(
     r"(?:file:[^@\s]+@sha256:[0-9a-f]{64}|git:[0-9a-f]{40}|https://[^\s]+/"
     r"(?:[0-9a-f]{40}|v?\d+\.\d+\.\d+)/[^\s]+)$"
 )
-VERSION = re.compile(r"\d+\.\d+\.\d+(?:[a-zA-Z0-9.+-]*)$")
 SUPPORTED_PLATFORMS = frozenset({"Linux", "Darwin", "Windows"})
 INSTALL_HEADING = re.compile(
     r"install|quick.?start|use with|running locally|docker|from source|"
@@ -302,8 +301,11 @@ def check(root: Path = ROOT, cases: set[str] | None = None) -> list[str]:
                     resolved_commits[commit] = git_object_exists(root, commit)
                 if not resolved_commits[commit]:
                     failures.append(f"{prefix}: source commit does not resolve in Git: {commit}")
-            if not VERSION.fullmatch(value.get("support", "")):
-                failures.append(f"{prefix}: support must name a semantic version")
+            if "support" in value:
+                failures.append(
+                    f"{prefix}: support= was removed (nothing read it, and every release"
+                    " rewrote it); delete the field"
+                )
             case = value.get("case")
             citation = value.get("citation", "")
             if case_required and case is None:

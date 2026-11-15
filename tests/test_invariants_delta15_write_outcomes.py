@@ -50,14 +50,16 @@ class UncertainUpstream(uh.FakeUpstream):
     """Fails the first non-GET or state-changing GET (a status or an exception); reads are
     served normally."""
 
-    def __init__(self, failure: int | type[httpx.HTTPError]):
+    def __init__(self, failure: int | type[httpx.HTTPError], spare_read_posts: bool = False):
         super().__init__()
         self.failure = failure
+        # A write tool that reads with a read-POST before it writes (a tool lists
+        # the stored backups first): that read is served, the write is what fails.
+        self.spare_read_posts = spare_read_posts
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
-        if req.method != "GET" or uh.is_write_request(
-            req.method, req.url.path, uh.request_json(req)
-        ):
+        write = uh.is_write_request(req.method, req.url.path, uh.request_json(req))
+        if (req.method != "GET" and (write or not self.spare_read_posts)) or write:
             self._record(req, self.failure if isinstance(self.failure, int) else 0, REASON, False)
             if isinstance(self.failure, int):
                 return httpx.Response(
@@ -76,7 +78,7 @@ def _named_read_tools_exist(text: str) -> None:
 
 @class_axis("name", lambda: sorted(cti.TOOLS), failure=lambda: FAILURES)
 async def test_catalog_uncertain_write(monkeypatch: Any, name: str, failure: Any) -> None:
-    up = UncertainUpstream(failure)
+    up = UncertainUpstream(failure, spare_read_posts=name in cti.WRITE_TOOLS)
     try:
         result = await cti._call(monkeypatch, name, up)
         payload = uh.result_payload(result)
@@ -87,7 +89,8 @@ async def test_catalog_uncertain_write(monkeypatch: Any, name: str, failure: Any
     sent = [
         entry
         for entry in up.served
-        if entry.method != "GET" or uh.is_write_request(entry.method, entry.path, entry.sent_json)
+        if uh.is_write_request(entry.method, entry.path, entry.sent_json)
+        or (entry.method != "GET" and not up.spare_read_posts)
     ]
     if not sent:
         # Read tools have no non-GET route; every write tool must reach its write.

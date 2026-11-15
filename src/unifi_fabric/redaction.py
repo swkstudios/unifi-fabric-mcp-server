@@ -143,6 +143,8 @@ CREDENTIAL_FIELDS: frozenset[str] = frozenset(
         "x_access_token",
         "x_refresh_token",
         "x_pppoe_password",
+        # Protect 7.4.96 external arm profile PIN (write-only; the profile reports has_pin)
+        "pin_code",
         # Generic named credential fields (WLAN, Dynamic DNS, hotspot operator,
         # RADIUS account, settings objects)
         "passphrase",
@@ -273,6 +275,47 @@ def _should_mask(key: Any, value: Any) -> bool:
     return isinstance(value, str) and _is_pattern_credential_key(lowered)
 
 
+def _may_mask_key(key: str) -> bool:
+    """False when :func:`_should_mask` is False for ``key`` whatever its value."""
+    lowered = key.lower()
+    if lowered in CURSOR_FIELDS:
+        return False
+    return (
+        lowered in CREDENTIAL_FIELDS
+        or lowered in CREDENTIAL_STRING_FIELDS
+        or _is_pattern_credential_key(lowered)
+    )
+
+
+#: Keys that name a field in a validation echo (``{"field": "x_passphrase", "value": v}``)
+#: and the keys that carry its value. Lower case; matched case-insensitively.
+_ECHO_NAME_KEYS = frozenset({"field", "fieldname", "field_name", "property", "parameter", "param"})
+_ECHO_VALUE_KEYS = frozenset({"value", "rejectedvalue", "rejected_value", "invalidvalue"})
+
+
+def _echoed_credential_keys(obj: dict) -> frozenset[Any]:
+    """The value keys of ``obj`` to mask because a sibling names a credential field.
+
+    An upstream validation error can echo a rejected credential as
+    ``{"field": "x_passphrase", "value": "<v>"}``: the credential name is a value, not a
+    key, so the key rules alone never see it.
+    """
+    named = [
+        value
+        for key, value in obj.items()
+        if isinstance(key, str) and key.lower() in _ECHO_NAME_KEYS and isinstance(value, str)
+    ]
+    if not named:
+        return frozenset()
+    return frozenset(
+        key
+        for key, value in obj.items()
+        if isinstance(key, str)
+        and key.lower() in _ECHO_VALUE_KEYS
+        and any(_should_mask(name, value) for name in named)
+    )
+
+
 def redact_credentials(obj: Any) -> Any:
     """Return a deep copy of ``obj`` with every documented credential field masked.
 
@@ -283,8 +326,9 @@ def redact_credentials(obj: Any) -> Any:
     input object is never mutated.
     """
     if isinstance(obj, dict):
+        echoed = _echoed_credential_keys(obj)
         return {
-            k: (REDACTION_MASK if _should_mask(k, v) else redact_credentials(v))
+            k: (REDACTION_MASK if k in echoed or _should_mask(k, v) else redact_credentials(v))
             for k, v in obj.items()
         }
     if isinstance(obj, list):
@@ -320,6 +364,38 @@ _ERROR_ESCAPE_ITERATIONS = 128
 _ERROR_WITHHELD = (
     "upstream error withheld: it contained credential-shaped content (UNIFI_REDACT_SECRETS)"
 )
+#: The work one :func:`mask_error_text` call may do, in characters scanned or parsed per
+#: input character (plus a floor for short texts). Ordinary messages use a small
+#: multiple; only shapes built to defeat the scans reach it.
+_ERROR_WORK_PER_CHAR = 64
+_ERROR_WORK_FLOOR = 1 << 16
+_ERROR_OVER_BUDGET = (
+    "error text withheld: it is too large or too deeply structured to mask within the "
+    "work bound (UNIFI_REDACT_SECRETS)"
+)
+#: The work left in the current :func:`mask_error_text` call (None outside one).
+_error_work: ContextVar[list[int] | None] = ContextVar("unifi_error_mask_work", default=None)
+
+
+class _MaskBudgetExceeded(Exception):
+    """The masking work bound was reached: the whole text is withheld (fail closed)."""
+
+
+def _charge(units: int) -> None:
+    """Spend ``units`` of the current call's work budget; raise when it runs out."""
+    left = _error_work.get()
+    if left is None:
+        return
+    left[0] -= units
+    if left[0] < 0:
+        raise _MaskBudgetExceeded
+
+
+#: The separator after a key token in the fallback scan, and a tool-header name.
+_FALLBACK_SEPARATOR = re.compile(r"[\"']?\s*[:=]\s*")
+_FALLBACK_TOOL_HEADER = re.compile(r"[\w.-]+':")
+_FALLBACK_TOKEN = re.compile(r"[\w./@$+-]+")
+_FALLBACK_SEGMENT = re.compile(r"[./@$+-]")
 #: One JSON or Python string escape: ``\uXXXX``, ``\UXXXXXXXX``, ``\xXX``, ``\N{name}``,
 #: an octal escape, or a backslash before any other character.
 _KEY_ESCAPE = re.compile(
@@ -376,8 +452,10 @@ def _quoted_value_end(
         while first > start and text[first - 1] == "\\":
             first -= 1
         if (found - first - depth) % (2 * escape_scale) == 0:
+            _charge(found + 1 - start)
             return found - depth, found + 1
         cursor = found + 1
+    _charge(limit - start + 1)
     return limit, limit
 
 
@@ -474,16 +552,24 @@ def _bare_value(token: str) -> Any:
         return token
 
 
-def _literal_end(text: str, start: int) -> int | None:
+def _literal_end(text: str, start: int, unclosed: set[int] | None = None) -> int | None:
     """Scan one balanced literal with local quote and backslash state.
 
     Prose apostrophes never establish representation depth. Only completely
     parsed literals may decode an enclosing representation.
+
+    A failed scan adds to ``unclosed`` every start it proves fails too: each bracket
+    still open when it failed (a scan from it meets the same mismatch or the same end of
+    text) and the quote it ended inside. A caller scanning many starts skips those, so
+    a run of unclosed openers costs one scan, not one per opener.
     """
     stack: list[str] = []
+    opened: list[int] = []
     quote = ""
+    quote_at = -1
     cursor = start
-    while cursor < len(text):
+    end = len(text)
+    while cursor < end:
         char = text[cursor]
         if quote:
             if char == "\\":
@@ -492,25 +578,39 @@ def _literal_end(text: str, start: int) -> int | None:
             if char == quote:
                 quote = ""
                 if not stack:
+                    _charge(cursor + 1 - start)
                     return cursor + 1
         elif char in "\"'":
             quote = char
+            quote_at = cursor
         elif char in "{[(":
             stack.append({"{": "}", "[": "]", "(": ")"}[char])
+            opened.append(cursor)
         elif char in "}])":
-            if not stack or stack.pop() != char:
-                return None
+            if not stack or stack[-1] != char:
+                break
+            stack.pop()
+            opened.pop()
             if not stack:
+                _charge(cursor + 1 - start)
                 return cursor + 1
         cursor += 1
+    _charge(min(cursor, end) + 1 - start)
+    if unclosed is not None:
+        unclosed.update(opened)
+        if quote:
+            unclosed.add(quote_at)
     return None
 
 
 def _mask_literal_value(value: Any, depth: int) -> Any:
     """Apply the shared predicate, including structures encoded inside strings."""
     if isinstance(value, dict):
+        echoed = _echoed_credential_keys(value)
         return {
-            key: REDACTION_MASK if _should_mask(key, item) else _mask_literal_value(item, depth)
+            key: REDACTION_MASK
+            if key in echoed or _should_mask(key, item)
+            else _mask_literal_value(item, depth)
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -529,6 +629,7 @@ def _split_string_container(value: str) -> bool:
     prose, only the first container matters: its quoted values may contain
     arbitrary unmatched braces.
     """
+    _charge(2 * len(value))
     try:
         json.loads(value)
         return False
@@ -549,6 +650,7 @@ def _mask_embedded_json(text: str, depth: int) -> str:
     its escape grammar and expose the remainder of a credential value.
     """
     literals: list[tuple[int, int, str]] = []
+    unclosed: set[int] = set()
     position = 0
     while position < len(text):
         char = text[position]
@@ -559,11 +661,12 @@ def _mask_embedded_json(text: str, depth: int) -> str:
         ):
             position += 1
             continue
-        end = _literal_end(text, position)
+        end = None if position in unclosed else _literal_end(text, position, unclosed)
         if end is None:
             position += 1
             continue
         span = text[position:end]
+        _charge(2 * len(span))
         try:
             value = json.loads(span)
             is_json = True
@@ -580,6 +683,7 @@ def _mask_embedded_json(text: str, depth: int) -> str:
             position += 1
             continue
         if isinstance(value, str):
+            _charge(len(value))
             try:
                 inner = ast.literal_eval(value)
             except (ValueError, TypeError, SyntaxError, RecursionError):
@@ -591,6 +695,7 @@ def _mask_embedded_json(text: str, depth: int) -> str:
         masked = _mask_literal_value(value, depth)
         if masked != value:
             rendered = json.dumps(masked, ensure_ascii=False) if is_json else repr(masked)
+            _charge(len(rendered))
             # Render before the quoting-agnostic final fallback scan.
             literals.append((position, end, rendered))
             position = end
@@ -639,11 +744,21 @@ def mask_error_text(text: str) -> str:
     Single-level JSON/repr diagnostics are preserved. Nested strings are decoded
     up to six layers; ambiguous credential spans fail closed through the end of
     the message and may discard following identifiers and reasons. Parser errors
-    never escape this boundary. Masking is idempotent.
+    never escape this boundary. Masking is idempotent. The work is linear in the
+    text: a text that would need more than :data:`_ERROR_WORK_PER_CHAR` steps per
+    character is withheld whole (:data:`_ERROR_OVER_BUDGET`).
     """
     if not isinstance(text, str) or not text:
         return text
-    return _mask_error_text(text, 0)
+    # Linear time: every scan and parse draws on one budget proportional to the text, and
+    # a text that exhausts it is withheld whole, never returned partly masked.
+    token = _error_work.set([_ERROR_WORK_FLOOR + _ERROR_WORK_PER_CHAR * len(text)])
+    try:
+        return _mask_error_text(text, 0)
+    except _MaskBudgetExceeded:
+        return _ERROR_OVER_BUDGET
+    finally:
+        _error_work.reset(token)
 
 
 def _fail_closed_error_text(text: str) -> str:
@@ -658,39 +773,55 @@ def _fail_closed_error_text(text: str) -> str:
     offsets = list(range(len(text)))
     earliest = len(text)
     for iteration in range(_ERROR_ESCAPE_ITERATIONS + 1):
-        for token in re.finditer(r"[\w./@$+-]+", decoded):
+        _charge(len(decoded))
+        unclosed: set[int] = set()
+        for token in _FALLBACK_TOKEN.finditer(decoded):
             # Only keys qualify; prose and longer tool identifiers are preserved.
-            separator = re.match(r"[\"']?\s*[:=]\s*", decoded[token.end() :])
+            separator = _FALLBACK_SEPARATOR.match(decoded, token.end())
             if separator is None:
                 continue
-            if decoded[: token.start()].endswith("Error calling tool '") and re.match(
-                r"[\w.-]+':", decoded[token.start() :]
-            ):
+            if decoded.endswith(
+                "Error calling tool '", 0, token.start()
+            ) and _FALLBACK_TOOL_HEADER.match(decoded, token.start()):
                 continue  # Only a complete, identifier-only tool header is exempt.
-            value_start = token.end() + separator.end()
-            value: Any = decoded[value_start:]
+            value_start = separator.end()
+            word = token.group()
+            starts = [0, *(match.end() for match in _FALLBACK_SEGMENT.finditer(word))]
+            _charge(sum(len(word) - start + 1 for start in starts))
+            keys = [word[start:] for start in starts]
+            if not any(_may_mask_key(key) for key in keys):
+                continue  # _should_mask is False for these keys whatever the value.
+            # Unless a narrower form below matches, the value runs to the end of the text.
+            # _should_mask reads only its type and emptiness, so its first character (or
+            # "" at the end) stands in for it: copying the rest of the text for every
+            # token is quadratic in the number of tokens.
+            value: Any = decoded[value_start : value_start + 1]
             if (quote := _ERROR_QUOTE.match(decoded, value_start)) is not None:
                 last, end = _quoted_value_end(decoded, quote.end(), quote.group())
-                quoted = decoded[quote.end() : last]
-                if last != end and quoted == REDACTION_MASK:
-                    continue  # Proven masked value, not a trusted container span.
-                # Empty quoted values are valid; a third quote is ambiguous.
-                closed = last != end
-                triple = not quoted and decoded.startswith(quote.group(), end)
-                value = quoted if closed and not triple else decoded[value_start:]
+                if last != end:  # closed: the quoted content, already charged by the scan
+                    quoted = decoded[quote.end() : last]
+                    if quoted == REDACTION_MASK:
+                        continue  # Proven masked value, not a trusted container span.
+                    # Empty quoted values are valid; a third quote is ambiguous.
+                    if quoted or not decoded.startswith(quote.group(), end):
+                        value = quoted
             elif value_start < len(decoded) and decoded[value_start] in "{[(":
-                literal_end = _literal_end(decoded, value_start)
+                literal_end = (
+                    None
+                    if value_start in unclosed
+                    else _literal_end(decoded, value_start, unclosed)
+                )
                 if literal_end is not None:
+                    _charge(literal_end - value_start)
                     try:
                         value = ast.literal_eval(decoded[value_start:literal_end])
                     except (ValueError, TypeError, SyntaxError, RecursionError):
                         pass
             elif (bare := _ERROR_BARE_VALUE.match(decoded, value_start)) is not None:
+                _charge(bare.end() - value_start)
                 value = _bare_value(bare.group())
-            word = token.group()
-            starts = [0, *(match.end() for match in re.finditer(r"[./@$+-]", word))]
-            for start in starts:
-                if _should_mask(word[start:], value):
+            for start, key in zip(starts, keys, strict=True):
+                if _should_mask(key, value):
                     earliest = min(earliest, offsets[token.start() + start])
         matches = list(_KEY_ESCAPE.finditer(decoded))
         if not matches:
@@ -724,9 +855,13 @@ def _mask_error_text(text: str, depth: int) -> str:
         if depth >= _ERROR_KEY_DEPTH:
             return _fail_closed_error_text(text)
         return _mask_embedded_json(text, depth)
+    except _MaskBudgetExceeded:
+        raise
     except Exception:
         try:
             return _fail_closed_error_text(text)
+        except _MaskBudgetExceeded:
+            raise
         except Exception:
             return REDACTION_MASK
 
@@ -881,6 +1016,13 @@ def note_dropped_fields(paths: list[str]) -> None:
     sink = _dropped_masked_fields.get()
     if sink is not None:
         sink.extend(p for p in paths if p not in sink)
+
+
+def unnote_dropped_fields(paths: list[str]) -> None:
+    """Withdraw paths from the current call's report: their stored value was sent."""
+    sink = _dropped_masked_fields.get()
+    if sink is not None:
+        sink[:] = [p for p in sink if p not in paths]
 
 
 def drop_and_note_masked_fields(body: Any) -> Any:

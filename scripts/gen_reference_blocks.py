@@ -29,6 +29,8 @@ finding is rewritten. The blocks:
   ``families.build_family_index()``;
 * ``search-tools-limit`` (docs/TOOL-USAGE.md): the ``limit`` default of the registered
   ``search_tools`` meta-tool;
+* ``filter-tools`` (docs/PAGINATION.md): the count and names of the registered tools that take a
+  ``filter`` argument, from the full-mode catalog;
 * ``tool-mode-choices`` (README.md): the accepted ``UNIFI_TOOL_MODE`` values, from the
   ``Settings.tool_mode`` annotation;
 * ``code-mode`` (README.md, AGENTS.md, llms.txt): what ``UNIFI_TOOL_MODE=codemode`` advertises
@@ -57,6 +59,7 @@ import functools
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, get_args, get_origin
@@ -153,6 +156,9 @@ def _accepted(field: Any, name: str = "") -> str:
     if field.annotation is bool:
         return "boolean"
     minimums = [m.ge for m in field.metadata if hasattr(m, "ge")]
+    maximums = [m.le for m in field.metadata if hasattr(m, "le")]
+    if minimums and maximums:
+        return f"integer, {minimums[0]} to {maximums[0]}"
     if minimums:
         return f"integer, {minimums[0]} or more"
     if name in config._MIN_ONE_INTS:  # validated at construction, no Field(ge=...)
@@ -299,6 +305,37 @@ def search_tools_limit() -> str:
     )
 
 
+def filter_tools() -> str:
+    """The count and names of the registered tools that accept a ``filter`` argument."""
+    import asyncio
+    import os
+    import textwrap
+
+    # A first import of the server reads UNIFI_* settings: build the full catalog from a
+    # clean environment, as gen_tools_doc does, and put the caller's environment back.
+    saved = dict(os.environ)
+    try:
+        for name in [k for k in os.environ if k.startswith(("UNIFI_", "MCP_", "FASTMCP_"))]:
+            del os.environ[name]
+        os.environ["UNIFI_API_KEY"] = "reference-blocks-placeholder-key"
+        os.environ["UNIFI_TOOL_MODE"] = "full"
+        import unifi_fabric.server as server
+
+        tools = asyncio.run(server.mcp.list_tools())
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    names = sorted(t.name for t in tools if "filter" in (t.parameters.get("properties") or {}))
+    refs = [f"`{n}`" for n in names]
+    listed = ", ".join(refs[:-1]) + f" and {refs[-1]}"
+    return "\n".join(
+        [
+            f"These {len(names)} Network tools accept an optional `filter` argument:",
+            *textwrap.wrap(listed + ".", width=100, break_long_words=False, break_on_hyphens=False),
+        ]
+    )
+
+
 #: Family IDs as the README's family table titles them. ``carrier`` and ``mobility`` are the
 #: ISP and mobile-routing products the table leaves out; a new family must be added to one
 #: of these two structures or ``tool_families`` fails the run.
@@ -357,6 +394,7 @@ RENDERERS = {
     "code-mode": code_mode_text,
     "audit-schema": audit_schema,
     "search-tools-limit": search_tools_limit,
+    "filter-tools": filter_tools,
     "settings-reference": settings_reference,
     "write-switches": write_switches,
     "write-switch-names": write_switch_names,
@@ -382,7 +420,7 @@ def render_file(path: Path, text: str) -> tuple[str, list[Finding]]:
     rel = path.relative_to(ROOT).as_posix()
     renderers = {name: RENDERERS[name] for name in BLOCKS[path]}
     new, found = doc_blocks.fill(rel, text, OWNER, renderers)
-    return new, [Finding(path, block, message) for block, message in found]
+    return fix_default_cells(path, new), [Finding(path, block, message) for block, message in found]
 
 
 def stale_blocks(path: Path, text: str) -> list[str]:
@@ -394,9 +432,8 @@ def stale_blocks(path: Path, text: str) -> list[str]:
     ]
 
 
-def _default_agrees(field: Any, cell: str) -> bool:
+def _value_agrees(value: Any, cell: str) -> bool:
     cell = cell.strip().strip("`").lower().replace(",", "")
-    value = _default(field)
     if isinstance(value, bool):
         return cell.startswith(("true", "on")) if value else cell.startswith(("false", "off"))
     if _is_unset(value):
@@ -406,25 +443,127 @@ def _default_agrees(field: Any, cell: str) -> bool:
     return bool(re.search(r"(?<![\w.])" + re.escape(str(value).lower()) + r"(?![\w.])", cell))
 
 
-def default_findings(path: Path, text: str) -> list[Finding]:
-    """Rows of the hand-written environment table whose Default cell disagrees with the code."""
+def _default_agrees(field: Any, cell: str) -> bool:
+    return _value_agrees(_default(field), cell)
+
+
+@dataclass(frozen=True)
+class Target:
+    """What one row of the hand-written table must say: the test, and the cell a fix writes."""
+
+    agrees: Callable[[str], bool]
+    cell: Callable[[str], str]  # the old cell in, the cell a fix writes out
+    shown: str
+
+
+def _value_target(value: Any) -> Target:
+    def cell(old: str) -> str:
+        if isinstance(value, bool) and old.strip().strip("`").lower().startswith(("on", "off")):
+            return "`on`" if value else "`off`"  # the table's own on/off wording
+        return _show_default(value)
+
+    return Target(lambda c: _value_agrees(value, c), cell, _show_default(value))
+
+
+def _dockerfile_env(name: str) -> str:
+    found = re.search(rf"(?m)^ENV {re.escape(name)}=(\S+)", (ROOT / "Dockerfile").read_text())
+    if found is None:
+        raise RuntimeError(f"Dockerfile sets no ENV {name}")
+    return found[1]
+
+
+def _from_source_and_image(name: str, source: Any) -> Target:
+    image = _dockerfile_env(name)
+    want = f"`{source}` from source, `{image}` in the image"
+    wanted = (str(source), image)
+    return Target(
+        lambda c: all(re.search(r"(?<![\w.])" + re.escape(v) + r"(?![\w.])", c) for v in wanted),
+        lambda _old: want,
+        want,
+    )
+
+
+def default_targets() -> dict[str, Target]:
+    """Every environment variable the hand-written table lists, and what its Default says.
+
+    ``Settings`` fields, ``MCPTransportSettings`` fields (their own alias, else ``MCP_`` and
+    the name), the credential mode (the default constant in ``header_credentials``) and the
+    two bind settings, whose defaults are FastMCP's from source and the Dockerfile's in the
+    image.
+    """
+    import fastmcp
+
+    from unifi_fabric import header_credentials
+
+    targets = {_env(n): _value_target(_default(f)) for n, f in Settings.model_fields.items()}
+    for name, field in config.MCPTransportSettings.model_fields.items():
+        alias = field.validation_alias
+        env = alias.upper() if isinstance(alias, str) else f"MCP_{name.upper()}"
+        targets[env] = _value_target(_default(field))
+    targets[header_credentials.KEY_MODE_ENV] = _value_target(header_credentials.ENVIRONMENT_MODE)
+    fm = type(fastmcp.settings).model_fields
+    targets["FASTMCP_HOST"] = _from_source_and_image("FASTMCP_HOST", _default(fm["host"]))
+    targets["FASTMCP_PORT"] = _from_source_and_image("FASTMCP_PORT", _default(fm["port"]))
+    return targets
+
+
+def _table_rows(path: Path, text: str) -> tuple[int, int, int] | None:
+    """(start, end, Default column index) of the hand-written table in ``text``."""
     header, column = DEFAULT_TABLES[path]
     start = text.find(header)
-    if start < 0:
+    return None if start < 0 else (start, text.find("\n\n", start), column)
+
+
+def fix_default_cells(path: Path, text: str) -> str:
+    """``text`` with every disagreeing Default cell of the hand-written environment table set
+    to the code default. A cell that already agrees keeps its wording (``unset (unlimited)``,
+    ``discovery (default)``); the Required and Description columns are prose and never touched.
+    """
+    if path not in DEFAULT_TABLES or (located := _table_rows(path, text)) is None:
+        return text
+    start, end, column = located
+    targets = default_targets()
+
+    def row(m: re.Match[str]) -> str:
+        target = targets.get(m.group(1))
+        cells = m.group(2).split("|")
+        if target is None or target.agrees(cells[column - 1]):
+            return m.group(0)
+        cells[column - 1] = f" {target.cell(cells[column - 1])} "
+        return f"| `{m.group(1)}` |{'|'.join(cells)}|"
+
+    return text[:start] + _ROW_RE.sub(row, text[start:end]) + text[end:]
+
+
+def default_findings(path: Path, text: str) -> list[Finding]:
+    """Rows of the hand-written environment table whose Default cell disagrees with the code,
+    and rows with no code default to compare with (a new variable must be mapped)."""
+    header, _column = DEFAULT_TABLES[path]
+    located = _table_rows(path, text)
+    if located is None:
         return [Finding(path, "(env table)", f"table with header {header!r} not found")]
-    end = text.find("\n\n", start)
-    fields = {_env(n): f for n, f in Settings.model_fields.items()}
+    start, end, column = located
+    targets = default_targets()
     out = []
     for m in _ROW_RE.finditer(text[start:end]):
-        field = fields.get(m.group(1))
+        target = targets.get(m.group(1))
         cells = [c.strip() for c in m.group(2).split("|")]
-        if field is not None and not _default_agrees(field, cells[column - 1]):
+        if target is None:
+            out.append(
+                Finding(
+                    path,
+                    m.group(1),
+                    "no code default to compare this row with; map it in default_targets() "
+                    "in scripts/gen_reference_blocks.py",
+                )
+            )
+        elif not target.agrees(cells[column - 1]):
             out.append(
                 Finding(
                     path,
                     m.group(1),
                     f"Default cell {cells[column - 1]!r} disagrees with the code default "
-                    f"{_show_default(_default(field))}; edit the cell in the hand-written table",
+                    f"{target.shown}; run {FIX_COMMAND}",
                 )
             )
     return out

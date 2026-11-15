@@ -28,11 +28,11 @@ def test_existing_audit_file_keeps_its_mode_and_appends(tmp_path):
     path.write_text("first\n", encoding="utf-8")
     path.chmod(0o640)
     AuditSink(path=str(path), fmt="json").record(
-        method="DELETE", path="/y?k=v", outcome="ok", status=204
+        method="DELETE", path="/sites?k=v", outcome="ok", status=204
     )
     assert stat.S_IMODE(path.stat().st_mode) == 0o640
     lines = path.read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "first" and '"path":"/y"' in lines[1]
+    assert lines[0] == "first" and '"path":"/sites"' in lines[1]
 
 
 def test_unwritable_audit_path_is_not_fatal(tmp_path, caplog):

@@ -9,6 +9,7 @@ imports it: the runtime reads the committed file through :mod:`unifi_fabric.cata
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import Mapping
 from typing import Any
@@ -31,14 +32,33 @@ from .catalog import (
 #: The api source of the meta tools that have no row in the baseline source table.
 META_SOURCE = "server/local"
 
+#: The frozen behaviour baseline of one family (tests/test_behavior_baseline.py): it pins
+#: every full-mode ``tools/list`` entry of the family, its ``outputSchema`` included. A tool
+#: with an output schema lists its family's file as its fixture (``missing_fixture``).
+BASELINE_FIXTURE = "tests/fixtures/behavior_baseline/{family}.json"
+
+#: The test that validates every self-built result against its advertised output schema.
+SELF_BUILT_FIXTURE = "tests/test_output_schemas.py"
+
+#: The ``tools/list`` entry fields the catalog records, as ``(catalog field, entry key)``.
+LISTED_FIELDS: tuple[tuple[str, str], ...] = (
+    ("description", "description"),
+    ("input_schema", "inputSchema"),
+    ("output_schema", "outputSchema"),
+)
+
 
 async def registered_tools() -> list[Any]:
     """Every catalog tool object: the full-mode roster plus the discovery meta tools."""
     previous_mode = os.environ.get("UNIFI_TOOL_MODE")
     os.environ["UNIFI_TOOL_MODE"] = "full"
     try:
+        from .catalog.deferred import load_all
         from .discovery import apply_tool_mode
         from .server import mcp
+
+        # Every step is loaded first: the derivation reads each tool's ``fn`` (public #41).
+        load_all(mcp)
 
         # Catalog generation is the bootstrap for the policy tables used by the
         # tools/list middleware itself. Enumerate the local provider directly so a
@@ -100,6 +120,54 @@ def derivation(tools: list[Any], sources: Mapping[str, str]) -> dict[str, dict[s
     return out
 
 
+def client_listing() -> dict[str, dict[str, Any]]:
+    """``name -> tools/list entry`` as an MCP client receives it (generation time)."""
+    from .catalog.inventory import client_listing as listing
+
+    return {entry["name"]: entry for entry in asyncio.run(listing())}
+
+
+def output_schema_fixtures(name: str) -> list[str]:
+    """The fixtures that pin ``name``'s advertised output schema (``missing_fixture``).
+
+    The family's behaviour-baseline file freezes the full-mode ``tools/list`` entry, its
+    ``outputSchema`` included (the baseline groups tools by the selection family index and
+    holds no discovery meta tool); :data:`SELF_BUILT_FIXTURE` validates the results the
+    server builds itself against their schemas, the discovery meta tools' among them.
+    """
+    from .families import build_family_index
+    from .output_schemas import SELF_BUILT
+
+    family = build_family_index().get(name)
+    found = [] if family is None else [BASELINE_FIXTURE.format(family=family)]
+    if name in SELF_BUILT:
+        found.append(SELF_BUILT_FIXTURE)
+    return found
+
+
+def client_view_drift(catalog: Catalog, listed: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    """Where ``catalog`` disagrees with the client-visible ``tools/list`` (``listed``).
+
+    Each recorded field is compared as JSON text, so key order counts: a client is sent
+    the entry exactly as listed. Empty when the catalog equals the client view.
+    """
+    problems: list[str] = []
+    for spec in catalog.tools:
+        entry = listed.get(spec.name)
+        if entry is None:
+            problems.append(f"{spec.name}: in catalog.json but not in tools/list")
+            continue
+        data = spec.to_dict()
+        for field, key in LISTED_FIELDS:
+            if json.dumps(data[field]) != json.dumps(entry.get(key)):
+                problems.append(f"{spec.name}: {field} differs from tools/list {key}")
+    names = {spec.name for spec in catalog.tools}
+    problems.extend(
+        f"{name}: in tools/list but not in catalog.json" for name in listed if name not in names
+    )
+    return problems
+
+
 def _versions(previous: Catalog | None) -> dict[str, ToolSpec]:
     return {} if previous is None else {spec.id: spec for spec in previous.tools}
 
@@ -127,7 +195,7 @@ def build_catalog(previous: Catalog | None = None) -> Catalog:
     ``previous`` (default: the committed catalog, when present) supplies per-tool versions
     and fixture lists, so regeneration is stable and only a schema change moves a version.
     """
-    from .families import derive_family_index
+    from .catalog.membership import MEMBERS
 
     if previous is None:
         try:
@@ -137,10 +205,11 @@ def build_catalog(previous: Catalog | None = None) -> Catalog:
     old = _versions(previous)
     old_by_name = {spec.name: spec for spec in old.values()}
     tools = asyncio.run(registered_tools())
+    listed = client_listing()
     names = [tool.name for tool in tools]
     sources = classified_sources(names)
     derived = derivation(tools, sources)
-    families = derive_family_index()
+    families = {member.name: member.family for member in MEMBERS}
     specs: list[ToolSpec] = []
     for tool in tools:
         family = META_FAMILY if tool.name in META_TOOL_NAMES else families[tool.name]
@@ -157,18 +226,23 @@ def build_catalog(previous: Catalog | None = None) -> Catalog:
             "api_status": status,
             "read_only": bool(derived[tool.name]["readOnlyHint"]),
             "annotations": derived[tool.name],
-            "description": tool.description or "",
-            "input_schema": tool.parameters,
-            # Pass-through by default: no invented output schema.
-            "output_schema": None,
+            # The client view: what tools/list sends, key order included.
+            "description": listed[tool.name].get("description") or "",
+            "input_schema": listed[tool.name].get("inputSchema") or {},
+            "output_schema": listed[tool.name].get("outputSchema"),
             "version": INITIAL_TOOL_VERSION,
             "fixtures": [],
             "handler": handler_ref(family, tool.name),
         }
         prior = old.get(data["id"]) or old_by_name.get(tool.name)
         if prior is not None:
-            data["output_schema"] = prior.to_dict()["output_schema"]
             data["fixtures"] = list(prior.fixtures)
+        if data["output_schema"] is not None and not data["fixtures"]:
+            data["fixtures"] = output_schema_fixtures(tool.name)
+            if not data["fixtures"]:
+                raise CatalogError(
+                    "missing_fixture", f"{tool.name}: an output schema that no fixture pins"
+                )
         data["version"] = _bump(prior, data)
         specs.append(ToolSpec.from_dict(data))
     return Catalog(

@@ -1,0 +1,58 @@
+{
+ "radio_details": [
+  {
+   "bytes": 33149581939,
+   "client_signal_avg": -49.279664364597096,
+   "device_mac": "02:00:5e:00:00:a1",
+   "interference_avg": 29.4,
+   "radio_name": "wifi0",
+   "tx_retries_percentage": 11.7,
+   "utilization_avg": 55.9
+  },
+  {
+   "bytes": 48750551646,
+   "client_signal_avg": -61.071646960533386,
+   "device_mac": "02:00:5e:00:00:a1",
+   "interference_avg": 1.2,
+   "radio_name": "wifi1",
+   "tx_retries_percentage": 9.7,
+   "utilization_avg": 8
+  },
+  {
+   "bytes": 119785708181,
+   "client_signal_avg": -79.27237037310313,
+   "device_mac": "02:00:5e:00:00:a1",
+   "interference_avg": 0.8,
+   "radio_name": "wifi2",
+   "tx_retries_percentage": 12.9,
+   "utilization_avg": 10.4
+  },
+  {
+   "bytes": 21206022828,
+   "client_signal_avg": -64.54584265391709,
+   "device_mac": "02:00:5e:00:00:a2",
+   "interference_avg": 24.1,
+   "radio_name": "wifi0",
+   "tx_retries_percentage": 16.7,
+   "utilization_avg": 43.3
+  },
+  {
+   "bytes": 229459289734,
+   "client_signal_avg": -62.491958676671985,
+   "device_mac": "02:00:5e:00:00:a2",
+   "interference_avg": 1.9,
+   "radio_name": "wifi1",
+   "tx_retries_percentage": 5.8,
+   "utilization_avg": 33.2
+  },
+  {
+   "bytes": 200060228,
+   "client_signal_avg": -69.94428027008078,
+   "device_mac": "02:00:5e:00:00:a2",
+   "interference_avg": 0.3,
+   "radio_name": "wifi2",
+   "tx_retries_percentage": 11.4,
+   "utilization_avg": 2.9
+  }
+ ]
+}

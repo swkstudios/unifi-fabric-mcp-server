@@ -1,4 +1,4 @@
-"""Protect events, event media, favorites, cases and stream URLs (GS3 lane P04).
+"""Protect events, event media, favorites, cases and stream URLs.
 
 Every tool is exercised against the real ``UniFiClient`` with only the HTTP transport
 mocked: routes, query parameters and bodies sent, verbatim pass-through, binary media as
@@ -28,6 +28,7 @@ from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.protect import protect_events_cases as pec
+from unifi_fabric.families.protect import registrar as protect_registrar
 from unifi_fabric.redaction import REDACTION_MASK
 
 HOST = "console-p04"
@@ -879,7 +880,7 @@ async def test_multikey_data_requests_ride_the_owning_key(multikey_client, multi
 
 def _registered() -> dict[str, Any]:
     mcp = FastMCP("p04-test")
-    pec.register(mcp, lambda: (None, None))
+    protect_registrar.register_6(mcp, lambda: (None, None))
     res = mcp.list_tools()
     tools = asyncio.run(res) if inspect.isawaitable(res) else res
     return {t.name: t for t in tools}

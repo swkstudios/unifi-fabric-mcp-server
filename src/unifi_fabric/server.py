@@ -17,8 +17,6 @@ import re
 import ssl
 import sys
 
-from .tool_annotations import install_tool_annotations
-
 # Suppress pydantic version URLs in validation error messages (information disclosure).
 os.environ.setdefault("PYDANTIC_ERRORS_INCLUDE_URL", "0")
 
@@ -32,12 +30,20 @@ from fastmcp.server.auth import AuthProvider
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
 
-from . import policy, protect_resources, request_policy, route_secrets, stream_buffers, switches
-from .api_sources import install_api_sources
+from . import (
+    background_tasks,
+    policy,
+    protect_resources,
+    relay_policy,
+    request_policy,
+    route_secrets,
+    stream_buffers,
+    switches,
+)
 from .argument_errors import ArgumentErrorMiddleware
 from .argument_values import ArgumentValueMiddleware
 from .audit import AUDIT_UNAVAILABLE, NOTICE_META_KEY, audit_call
-from .catalog_descriptions import install_compact_selector_descriptions
+from .catalog import deferred, membership
 from .client import UniFiClient, UniFiHTTPError
 from .config import MCPTransportSettings, Settings, known_setting_names
 from .confirm_compat import ConfirmIgnoredMiddleware
@@ -45,55 +51,6 @@ from .contracts import EffectivePolicy
 from .discovery import _BROKER_CALL as _code_mode_broker
 from .discovery import apply_tool_mode
 from .entrypoint import _version
-from .families.carrier import carrier_fabric
-from .families.clients import client_records, clients
-from .families.connector import connector
-from .families.devices import (
-    device_commands,
-    device_mgmt,
-    device_radios,
-    scheduled_tasks,
-    switch_port_overrides,
-)
-from .families.hotspot import hotspot
-from .families.innerspace import innerspace, innerspace_internal, placement_snapshot
-from .families.mobility import mobility
-from .families.network import (
-    firewall_proxy,
-    matter,
-    network,
-    network_clients_guests,
-    network_controller_admin,
-    network_controller_insights,
-    network_device_operations,
-    network_dpi_policy,
-    network_mobile_wan,
-    network_nat_qos_traffic,
-    network_proav_sandbox,
-    network_routing_topology,
-    network_security_diagnostics,
-    network_services_proxy,
-    network_switching_power,
-    network_wifi_radio,
-    site_admin,
-    site_config,
-)
-from .families.protect import (
-    protect,
-    protect_automation_backup,
-    protect_camera_recording,
-    protect_device_lifecycle,
-    protect_door_locks,
-    protect_events_cases,
-    protect_private,
-    protect_ptz_doorbell,
-    protect_recognition_search,
-    protect_users_assets,
-    recognition,
-)
-from .families.site_manager import aggregation, site_manager
-from .families.statistics import event_streams, statistics, system_log
-from .families.vpn import network_vpn_dns, radius_profiles, vpn, vpn_clients
 from .header_credentials import (
     HEADER_MODE,
     CredentialLeaseMiddleware,
@@ -104,6 +61,7 @@ from .header_credentials import (
     set_policy_provider,
     set_process_key_mode,
 )
+from .lane import LaneMiddleware
 from .list_results import install_structured_list_results
 from .read_only_tools import (
     AreaOptOutMiddleware,
@@ -114,13 +72,11 @@ from .read_only_tools import (
 )
 from .redaction import (
     RedactionScopeMiddleware,
-    install_response_redaction,
     mask_error_text,
     write_redaction_enabled,
 )
 from .refusal_audit import RefusedWriteAuditMiddleware, credential_values
 from .registry import Registry
-from .resolution_state import install_resolution_state
 from .secret_scrub import (
     configured_secrets,
     install_log_scrubber,
@@ -135,8 +91,6 @@ from .shared_shapes._shared import (  # noqa: F401  (re-exported for server-leve
     _validate_optional_site,
 )
 from .spec_limits import SpecLimitMiddleware
-from .tool_shapes import install_tool_shapes
-from .tool_titles import install_tool_titles
 from .tracing import configure_trace_export, register_component_names, shutdown_trace_export
 from .transport_security import (
     HTTP_TRANSPORTS,
@@ -248,6 +202,11 @@ async def lifespan(app: FastMCP) -> AsyncIterator[None]:
         hidden_area_writes = await apply_area_opt_out_tool_filter(
             app, switches.connector_writes_enabled()
         )
+        # Deferred loading (public #41): UNIFI_PRELOAD loads the selected exposed steps now,
+        # through the same path a first call takes; a hidden or excluded step never loads.
+        controller = deferred.controller_for(app)
+        if controller is not None:
+            await controller.preload(settings.preload)
         # Tool-mode selection (UNIFI_TOOL_MODE): discovery, the default, advertises the
         # meta-tools and reaches every registered tool through them; full advertises every
         # registered tool.
@@ -273,9 +232,17 @@ async def lifespan(app: FastMCP) -> AsyncIterator[None]:
         if restore_tool_mode is not None:
             restore_tool_mode()
         listed = {tool.name for tool in await app.list_tools(run_middleware=False)}
-        for name in (hidden_writes | set(hidden_area_writes) | excluded) - listed:
-            if name in registered:
-                app.add_tool(registered[name])
+        hidden = (hidden_writes | set(hidden_area_writes) | excluded) - listed
+        order = [name for name in registered if name in listed or name in hidden]
+        # Put the hidden tools back where they were registered, not at the end: from the
+        # first one on, the roster is re-added in registration order, so the next session
+        # lists the same tools in the same order.
+        first = next((i for i, name in enumerate(order) if name in hidden), len(order))
+        for name in order[first:]:
+            if name in listed:
+                app.local_provider.remove_tool(name)
+        for name in order[first:]:
+            app.add_tool(registered[name])
         policy.clear_exposure()
         close_error: BaseException | None = None
         if _client.audit_stream is not None:
@@ -457,6 +424,22 @@ _cache_ttl: int | None = None
 _RESULT_STATEMENT = re.compile(r"\breturn(?:s|ed)?\b", re.IGNORECASE)
 
 
+def _prepare_tool_fn(fn: Any, kwargs: dict[str, Any]) -> Any:
+    """Give a tool docstring with no result statement the short pass-through line
+    (:meth:`FabricMCP.tool`); also applied to a deferred step's staged tools."""
+    if kwargs.get("description") is None:
+        doc = inspect.getdoc(fn)
+        prose, marker, args = (doc or "").partition("\n\nArgs:\n")
+        if doc and _RESULT_STATEMENT.search(prose) is None:
+            returns = "Returns: the upstream response body verbatim."
+            fn.__doc__ = (
+                f"{prose.rstrip()}\n\n{returns}{marker}{args}"
+                if marker
+                else f"{doc.rstrip()}\n\n{returns}"
+            )
+    return fn
+
+
 class FabricMCP(FastMCP):
     """FastMCP with this server's Host/Origin policy on every HTTP app it builds.
 
@@ -487,6 +470,19 @@ class FabricMCP(FastMCP):
                 error.add_note(note)
             raise error from exc
 
+    async def get_tool(self, name: str, version: Any = None) -> Any:
+        """Resolve a tool, loading its deferred step first (public #41).
+
+        Every call path resolves its target here (the call core and each middleware that
+        reads a target), so the first of them loads the step before anything reads ``fn``
+        or validates arguments. A failed load raises ``family_load_failed``; it never
+        returns ``None``, which the write guards would read as "not a write".
+        """
+        controller = deferred.controller_for(self)
+        if controller is not None:
+            await controller.resolve(name)
+        return await super().get_tool(name, version)
+
     def tool(self, name_or_fn: Any = None, **kwargs: Any) -> Any:
         """Register a tool after preserving result prose in its public description.
 
@@ -502,17 +498,7 @@ class FabricMCP(FastMCP):
         """
 
         def prepare(fn: Any) -> Any:
-            if kwargs.get("description") is None:
-                doc = inspect.getdoc(fn)
-                prose, marker, args = (doc or "").partition("\n\nArgs:\n")
-                if doc and _RESULT_STATEMENT.search(prose) is None:
-                    returns = "Returns: the upstream response body verbatim."
-                    fn.__doc__ = (
-                        f"{prose.rstrip()}\n\n{returns}{marker}{args}"
-                        if marker
-                        else f"{doc.rstrip()}\n\n{returns}"
-                    )
-            return fn
+            return _prepare_tool_fn(fn, kwargs)
 
         if callable(name_or_fn) and not isinstance(name_or_fn, str):
             return super().tool(prepare(name_or_fn), **kwargs)
@@ -597,417 +583,60 @@ def _require() -> tuple[UniFiClient, Registry]:
     return _client, _registry
 
 
-# --- Site Manager Tools ---
-
-
-_site_manager_tools = site_manager.register(mcp, lambda: _require())
-list_hosts = _site_manager_tools["list_hosts"]
-get_host = _site_manager_tools["get_host"]
-list_sites = _site_manager_tools["list_sites"]
-list_devices = _site_manager_tools["list_devices"]
-get_isp_metrics = _site_manager_tools["get_isp_metrics"]
-query_isp_metrics = _site_manager_tools["query_isp_metrics"]
-list_sdwan_configs = _site_manager_tools["list_sdwan_configs"]
-get_sdwan_config = _site_manager_tools["get_sdwan_config"]
-get_sdwan_config_status = _site_manager_tools["get_sdwan_config_status"]
-list_all_sites_aggregated = _site_manager_tools["list_all_sites_aggregated"]
-get_site_health_summary = _site_manager_tools["get_site_health_summary"]
-compare_site_performance = _site_manager_tools["compare_site_performance"]
-search_across_sites = _site_manager_tools["search_across_sites"]
-get_site_inventory = _site_manager_tools["get_site_inventory"]
-
-
-# --- Network Tools ---
-
-
-_network_tools = network.register(mcp, lambda: _require())
-get_network_application_info = _network_tools["get_network_application_info"]
-list_local_sites = _network_tools["list_local_sites"]
-list_networks = _network_tools["list_networks"]
-create_network = _network_tools["create_network"]
-get_network = _network_tools["get_network"]
-update_network = _network_tools["update_network"]
-delete_network = _network_tools["delete_network"]
-get_network_references = _network_tools["get_network_references"]
-list_lags = _network_tools["list_lags"]
-get_lag = _network_tools["get_lag"]
-list_mc_lag_domains = _network_tools["list_mc_lag_domains"]
-get_mc_lag_domain = _network_tools["get_mc_lag_domain"]
-list_switch_stacks = _network_tools["list_switch_stacks"]
-get_switch_stack = _network_tools["get_switch_stack"]
-list_wifi_broadcasts = _network_tools["list_wifi_broadcasts"]
-create_wifi_broadcast = _network_tools["create_wifi_broadcast"]
-get_wifi_broadcast = _network_tools["get_wifi_broadcast"]
-update_wifi_broadcast = _network_tools["update_wifi_broadcast"]
-delete_wifi_broadcast = _network_tools["delete_wifi_broadcast"]
-list_wan_interfaces = _network_tools["list_wan_interfaces"]
-update_wan_interface = _network_tools["update_wan_interface"]
-
-
-protect_private.register(mcp, _require)
-device_mgmt.register(mcp, _require)
-device_commands.register(mcp, _require)
-scheduled_tasks.register(mcp, _require)
-device_radios.register(mcp, _require)
-switch_port_overrides.register(mcp, _require)
-network_wifi_radio.register(mcp, _require)
-network_nat_qos_traffic.register(mcp, _require)
-clients.register(mcp, _require)
-network_clients_guests.register(mcp, _require)
-network_switching_power.register(mcp, _require)
-protect_camera_recording.register(mcp, _require)
-network_controller_admin.register(mcp, _require)
-network_routing_topology.register(mcp, _require)
-matter.register(mcp, _require)
-
-
-# --- Firewall Policy Tools ---
-
-
-_firewall_proxy_tools = firewall_proxy.register(mcp, lambda: _require())
-list_firewall_policies = _firewall_proxy_tools["list_firewall_policies"]
-create_firewall_policy = _firewall_proxy_tools["create_firewall_policy"]
-get_firewall_policy = _firewall_proxy_tools["get_firewall_policy"]
-update_firewall_policy = _firewall_proxy_tools["update_firewall_policy"]
-patch_firewall_policy = _firewall_proxy_tools["patch_firewall_policy"]
-delete_firewall_policy = _firewall_proxy_tools["delete_firewall_policy"]
-get_firewall_policy_ordering = _firewall_proxy_tools["get_firewall_policy_ordering"]
-set_firewall_policy_ordering = _firewall_proxy_tools["set_firewall_policy_ordering"]
-list_firewall_zones_proxy = _firewall_proxy_tools["list_firewall_zones_proxy"]
-create_firewall_zone_proxy = _firewall_proxy_tools["create_firewall_zone_proxy"]
-get_firewall_zone_proxy = _firewall_proxy_tools["get_firewall_zone_proxy"]
-update_firewall_zone_proxy = _firewall_proxy_tools["update_firewall_zone_proxy"]
-delete_firewall_zone_proxy = _firewall_proxy_tools["delete_firewall_zone_proxy"]
-list_acl_rules = _firewall_proxy_tools["list_acl_rules"]
-create_acl_rule = _firewall_proxy_tools["create_acl_rule"]
-get_acl_rule = _firewall_proxy_tools["get_acl_rule"]
-update_acl_rule = _firewall_proxy_tools["update_acl_rule"]
-delete_acl_rule = _firewall_proxy_tools["delete_acl_rule"]
-get_acl_rule_ordering = _firewall_proxy_tools["get_acl_rule_ordering"]
-set_acl_rule_ordering = _firewall_proxy_tools["set_acl_rule_ordering"]
-
-
-# --- DNS Policy Tools ---
-
-
-_network_services_proxy_tools = network_services_proxy.register(mcp, lambda: _require())
-list_dns_policies = _network_services_proxy_tools["list_dns_policies"]
-create_dns_policy = _network_services_proxy_tools["create_dns_policy"]
-get_dns_policy = _network_services_proxy_tools["get_dns_policy"]
-update_dns_policy = _network_services_proxy_tools["update_dns_policy"]
-delete_dns_policy = _network_services_proxy_tools["delete_dns_policy"]
-list_traffic_matching_lists = _network_services_proxy_tools["list_traffic_matching_lists"]
-create_traffic_matching_list = _network_services_proxy_tools["create_traffic_matching_list"]
-get_traffic_matching_list = _network_services_proxy_tools["get_traffic_matching_list"]
-update_traffic_matching_list = _network_services_proxy_tools["update_traffic_matching_list"]
-delete_traffic_matching_list = _network_services_proxy_tools["delete_traffic_matching_list"]
-list_vpn_servers = _network_services_proxy_tools["list_vpn_servers"]
-list_site_to_site_tunnels = _network_services_proxy_tools["list_site_to_site_tunnels"]
-list_radius_profiles = _network_services_proxy_tools["list_radius_profiles"]
-list_hotspot_vouchers = _network_services_proxy_tools["list_hotspot_vouchers"]
-create_hotspot_vouchers = _network_services_proxy_tools["create_hotspot_vouchers"]
-get_hotspot_voucher = _network_services_proxy_tools["get_hotspot_voucher"]
-delete_hotspot_voucher = _network_services_proxy_tools["delete_hotspot_voucher"]
-bulk_delete_hotspot_vouchers = _network_services_proxy_tools["bulk_delete_hotspot_vouchers"]
-list_device_tags = _network_services_proxy_tools["list_device_tags"]
-list_countries = _network_services_proxy_tools["list_countries"]
-
-
-# --- Protect Camera Management Tools ---
-
-
-_protect_tools = protect.register(mcp, lambda: _require())
-list_cameras = _protect_tools["list_cameras"]
-get_camera = _protect_tools["get_camera"]
-update_camera = _protect_tools["update_camera"]
-enable_camera_share_link = _protect_tools["enable_camera_share_link"]
-get_camera_share_link = _protect_tools["get_camera_share_link"]
-disable_camera_share_link = _protect_tools["disable_camera_share_link"]
-get_camera_snapshot = _protect_tools["get_camera_snapshot"]
-get_rtsps_stream = _protect_tools["get_rtsps_stream"]
-create_rtsps_stream = _protect_tools["create_rtsps_stream"]
-delete_rtsps_stream = _protect_tools["delete_rtsps_stream"]
-start_talkback_session = _protect_tools["start_talkback_session"]
-disable_camera_mic_permanently = _protect_tools["disable_camera_mic_permanently"]
-ptz_goto_preset = _protect_tools["ptz_goto_preset"]
-ptz_patrol_start = _protect_tools["ptz_patrol_start"]
-ptz_patrol_stop = _protect_tools["ptz_patrol_stop"]
-list_sensors = _protect_tools["list_sensors"]
-get_sensor = _protect_tools["get_sensor"]
-update_sensor = _protect_tools["update_sensor"]
-list_protect_events = _protect_tools["list_protect_events"]
-collect_protect_events = _protect_tools["collect_protect_events"]
-collect_protect_device_changes = _protect_tools["collect_protect_device_changes"]
-
-
-# --- Protect Face/Vehicle Recognition (private REST path) ---
-
-
-_recognition_tools = recognition.register(mcp, lambda: _require())
-list_recognition_groups = _recognition_tools["list_recognition_groups"]
-get_recognition_group_counts = _recognition_tools["get_recognition_group_counts"]
-get_recognition_group_image = _recognition_tools["get_recognition_group_image"]
-list_recognition_detections = _recognition_tools["list_recognition_detections"]
-get_thumbnail = _recognition_tools["get_thumbnail"]
-
-
-# --- Protect Light Tools ---
-
-
-_protect_tools_2 = protect.register_2(mcp, lambda: _require())
-list_lights = _protect_tools_2["list_lights"]
-get_light = _protect_tools_2["get_light"]
-update_light = _protect_tools_2["update_light"]
-list_chimes = _protect_tools_2["list_chimes"]
-get_chime = _protect_tools_2["get_chime"]
-update_chime = _protect_tools_2["update_chime"]
-list_viewers = _protect_tools_2["list_viewers"]
-get_viewer = _protect_tools_2["get_viewer"]
-update_viewer = _protect_tools_2["update_viewer"]
-list_liveviews = _protect_tools_2["list_liveviews"]
-get_liveview = _protect_tools_2["get_liveview"]
-create_liveview = _protect_tools_2["create_liveview"]
-update_liveview = _protect_tools_2["update_liveview"]
-get_nvr = _protect_tools_2["get_nvr"]
-list_protect_files = _protect_tools_2["list_protect_files"]
-upload_protect_file = _protect_tools_2["upload_protect_file"]
-trigger_alarm_webhook = _protect_tools_2["trigger_alarm_webhook"]
-list_arm_profiles = _protect_tools_2["list_arm_profiles"]
-get_arm_profile = _protect_tools_2["get_arm_profile"]
-create_arm_profile = _protect_tools_2["create_arm_profile"]
-update_arm_profile = _protect_tools_2["update_arm_profile"]
-delete_arm_profile = _protect_tools_2["delete_arm_profile"]
-update_arm_profile_settings = _protect_tools_2["update_arm_profile_settings"]
-enable_arm = _protect_tools_2["enable_arm"]
-disable_arm = _protect_tools_2["disable_arm"]
-list_sirens = _protect_tools_2["list_sirens"]
-get_siren = _protect_tools_2["get_siren"]
-update_siren = _protect_tools_2["update_siren"]
-siren_play = _protect_tools_2["siren_play"]
-siren_stop = _protect_tools_2["siren_stop"]
-siren_test_sound = _protect_tools_2["siren_test_sound"]
-list_fobs = _protect_tools_2["list_fobs"]
-get_fob = _protect_tools_2["get_fob"]
-update_fob = _protect_tools_2["update_fob"]
-list_relays = _protect_tools_2["list_relays"]
-get_relay = _protect_tools_2["get_relay"]
-update_relay = _protect_tools_2["update_relay"]
-relay_activate_output = _protect_tools_2["relay_activate_output"]
-list_speakers = _protect_tools_2["list_speakers"]
-get_speaker = _protect_tools_2["get_speaker"]
-update_speaker = _protect_tools_2["update_speaker"]
-speaker_test_sound = _protect_tools_2["speaker_test_sound"]
-list_bridges = _protect_tools_2["list_bridges"]
-get_bridge = _protect_tools_2["get_bridge"]
-update_bridge = _protect_tools_2["update_bridge"]
-list_link_stations = _protect_tools_2["list_link_stations"]
-get_link_station = _protect_tools_2["get_link_station"]
-update_link_station = _protect_tools_2["update_link_station"]
-list_alarm_hubs = _protect_tools_2["list_alarm_hubs"]
-get_alarm_hub = _protect_tools_2["get_alarm_hub"]
-update_alarm_hub = _protect_tools_2["update_alarm_hub"]
-alarm_hub_trigger_output = _protect_tools_2["alarm_hub_trigger_output"]
-list_protect_users = _protect_tools_2["list_protect_users"]
-get_protect_user = _protect_tools_2["get_protect_user"]
-get_protect_application_info = _protect_tools_2["get_protect_application_info"]
-list_ulp_users = _protect_tools_2["list_ulp_users"]
-get_ulp_user = _protect_tools_2["get_ulp_user"]
-pos_ingest_transaction = _protect_tools_2["pos_ingest_transaction"]
-
-
-# --- Port Forwarding Tools ---
-
-
-_network_services_proxy_tools_2 = network_services_proxy.register_2(mcp, lambda: _require())
-list_port_forwards = _network_services_proxy_tools_2["list_port_forwards"]
-create_port_forward = _network_services_proxy_tools_2["create_port_forward"]
-update_port_forward = _network_services_proxy_tools_2["update_port_forward"]
-delete_port_forward = _network_services_proxy_tools_2["delete_port_forward"]
-list_traffic_rules = _network_services_proxy_tools_2["list_traffic_rules"]
-
-
-vpn.register(mcp, _require)
-network_vpn_dns.register(mcp, _require)
-site_config.register(mcp, _require)
-radius_profiles.register(mcp, _require)
-hotspot.register(mcp, _require)
-aggregation.register(mcp, _require)
-statistics.register(mcp, _require)
-protect_events_cases.register(mcp, _require)
-network_controller_insights.register(mcp, _require)
-network_dpi_policy.register(mcp, lambda: _require())
-protect_users_assets.register(mcp, _require)
-protect_automation_backup.register(mcp, _require)
-network_security_diagnostics.register(mcp, _require)
-network_proav_sandbox.register(mcp, _require)
-protect_ptz_doorbell.register(mcp, _require)
-protect_recognition_search.register(mcp, _require)
-protect_device_lifecycle.register(mcp, _require)
-protect_door_locks.register(mcp, _require)
-network_mobile_wan.register(mcp, _require)
-network_device_operations.register(mcp, _require)
-client_records.register(mcp, _require)
-system_log.register(mcp, _require)
-event_streams.register(mcp, _require)
-vpn_clients.register(mcp, _require)
-site_admin.register(mcp, _require)
-
-
-# --- User / DHCP Reservation Tools ---
-
-
-_network_services_proxy_tools_3 = network_services_proxy.register_3(mcp, lambda: _require())
-list_users = _network_services_proxy_tools_3["list_users"]
-get_user = _network_services_proxy_tools_3["get_user"]
-update_user = _network_services_proxy_tools_3["update_user"]
-list_traffic_routes = _network_services_proxy_tools_3["list_traffic_routes"]
-create_traffic_route = _network_services_proxy_tools_3["create_traffic_route"]
-get_traffic_route = _network_services_proxy_tools_3["get_traffic_route"]
-update_traffic_route = _network_services_proxy_tools_3["update_traffic_route"]
-delete_traffic_route = _network_services_proxy_tools_3["delete_traffic_route"]
-list_settings = _network_services_proxy_tools_3["list_settings"]
-get_setting = _network_services_proxy_tools_3["get_setting"]
-update_setting = _network_services_proxy_tools_3["update_setting"]
-list_dynamic_dns = _network_services_proxy_tools_3["list_dynamic_dns"]
-get_dynamic_dns = _network_services_proxy_tools_3["get_dynamic_dns"]
-update_dynamic_dns = _network_services_proxy_tools_3["update_dynamic_dns"]
-list_port_profiles = _network_services_proxy_tools_3["list_port_profiles"]
-get_port_profile = _network_services_proxy_tools_3["get_port_profile"]
-update_port_profile = _network_services_proxy_tools_3["update_port_profile"]
-allow_network_on_port_profile = _network_services_proxy_tools_3["allow_network_on_port_profile"]
-exclude_network_on_port_profile = _network_services_proxy_tools_3["exclude_network_on_port_profile"]
-list_routing_entries = _network_services_proxy_tools_3["list_routing_entries"]
-list_wlan_configs = _network_services_proxy_tools_3["list_wlan_configs"]
-get_wlan_config = _network_services_proxy_tools_3["get_wlan_config"]
-update_wlan_config = _network_services_proxy_tools_3["update_wlan_config"]
-list_wlan_groups = _network_services_proxy_tools_3["list_wlan_groups"]
-get_wlan_group = _network_services_proxy_tools_3["get_wlan_group"]
-get_channel_plan = _network_services_proxy_tools_3["get_channel_plan"]
-list_rogue_aps = _network_services_proxy_tools_3["list_rogue_aps"]
-list_firewall_rules = _network_services_proxy_tools_3["list_firewall_rules"]
-get_firewall_rule = _network_services_proxy_tools_3["get_firewall_rule"]
-list_firewall_groups = _network_services_proxy_tools_3["list_firewall_groups"]
-get_firewall_group = _network_services_proxy_tools_3["get_firewall_group"]
-list_accounts = _network_services_proxy_tools_3["list_accounts"]
-get_account = _network_services_proxy_tools_3["get_account"]
-list_hotspot_packages = _network_services_proxy_tools_3["list_hotspot_packages"]
-get_hotspot_package = _network_services_proxy_tools_3["get_hotspot_package"]
-list_scheduled_tasks = _network_services_proxy_tools_3["list_scheduled_tasks"]
-get_scheduled_task = _network_services_proxy_tools_3["get_scheduled_task"]
-list_dpi_categories = _network_services_proxy_tools_3["list_dpi_categories"]
-list_dpi_applications = _network_services_proxy_tools_3["list_dpi_applications"]
-
-
-# --- InnerSpace Floor-Plan Tools ---
-
-
-_placement_snapshot_tools = placement_snapshot.register(mcp, lambda: _require())
-get_unifi_placement_snapshot = _placement_snapshot_tools["get_unifi_placement_snapshot"]
-
-
-_innerspace_tools = innerspace.register(mcp, lambda: _require())
-get_innerspace_summary = _innerspace_tools["get_innerspace_summary"]
-get_innerspace_project = _innerspace_tools["get_innerspace_project"]
-list_innerspace_devices = _innerspace_tools["list_innerspace_devices"]
-list_innerspace_floor_plans = _innerspace_tools["list_innerspace_floor_plans"]
-list_innerspace_access_points = _innerspace_tools["list_innerspace_access_points"]
-list_innerspace_switches = _innerspace_tools["list_innerspace_switches"]
-list_innerspace_inventory = _innerspace_tools["list_innerspace_inventory"]
-get_innerspace_asset = _innerspace_tools["get_innerspace_asset"]
-
-
-innerspace_internal.register(mcp, _require)
-
-
-# --- Carrier / ISP Fabric Tools (org-scoped identity; no host/site resolution) ---
+# --- Tool registration ---
 #
-# Spec-conformance tested only: the UniFi Carrier / ISP Fabric tools (published Subscriber
-# API v1.0.0, developer.ui.com/carrier-fabric/v1.0.0) are verified against the OpenAPI
-# request/response shapes with hermetic fixtures, not against a live Carrier Fabric. The
-# seven writes use read-before/no-op/read-after and the family:carrier=deny
-# opt-out (writes enabled by default; add family:carrier=deny to UNIFI_WRITE_EXCEPTIONS,
-# or set UNIFI_WRITE_POLICY=deny, for a read-only deployment).
-
-
-_carrier_fabric_tools = carrier_fabric.register(mcp, lambda: _require())
-list_carrier_subscribers = _carrier_fabric_tools["list_carrier_subscribers"]
-get_carrier_subscriber = _carrier_fabric_tools["get_carrier_subscriber"]
-list_carrier_service_plans = _carrier_fabric_tools["list_carrier_service_plans"]
-get_carrier_service_plan = _carrier_fabric_tools["get_carrier_service_plan"]
-create_carrier_subscriber = _carrier_fabric_tools["create_carrier_subscriber"]
-update_carrier_subscriber = _carrier_fabric_tools["update_carrier_subscriber"]
-attach_carrier_subscriber_host = _carrier_fabric_tools["attach_carrier_subscriber_host"]
-detach_carrier_subscriber_host = _carrier_fabric_tools["detach_carrier_subscriber_host"]
-assign_carrier_subscriber_plan = _carrier_fabric_tools["assign_carrier_subscriber_plan"]
-suspend_carrier_subscriber = _carrier_fabric_tools["suspend_carrier_subscriber"]
-resume_carrier_subscriber = _carrier_fabric_tools["resume_carrier_subscriber"]
-
-
-# --- Guarded generic Fabric connector relay ---
+# Every family registers through the explicit loader map (catalog/loaders.py), in its
+# order, which is the tools/list order. Deferred loading (public #41,
+# catalog/deferred.py): at import each tool is a fn-less stub built from the committed
+# snapshot catalog/deferred.json, so tools/list, describe_tool and exposure are unchanged
+# and no family module is imported. A tool's step loads on its first resolution: the step
+# registers on a private staging app, the per-tool install passes run there in this order
+# (resolution state, opt-in credential redaction (public issue
+# https://github.com/swkstudios/unifi-fabric-mcp-server/issues/26), acronym-aware titles,
+# source-derived annotations, compact selector descriptions, generated body shapes and
+# API-source metadata), every staged tool is checked against its stub, and only then is it
+# swapped into this server. No family tool is ever callable here without the redaction and
+# resolution wrappers. When the snapshot was generated under another Python, fastmcp or
+# pydantic version, every step registers eagerly at import, as before.
 #
-# An ordinary GET is always available (a GET of a state-changing route is a write).
-# POST/PUT/PATCH/DELETE are mutations gated by the
-# UNIFI_WRITE_EXCEPTIONS entry family:connector=deny (writes enabled by default;
-# add the entry, or set UNIFI_WRITE_POLICY=deny, for a read-only deployment).
-# The confirm argument is accepted for
-# compatibility and no longer required. See
-# families/connector/connector.py for the full guard model (Registry-only
-# identity, namespace allowlist, positive-charset path validation, read-before/
-# write/read-after, scope guard, verbatim bodies, structured audit).
+# The registration must then be exactly the explicit inventory (catalog/membership.py,
+# public #42 step 6): every tool it lists, registered once (a stub by the step index it
+# carries), by the step it names, in its order. A missing, duplicate or unknown tool
+# refuses startup, naming it. No family module is imported for the check.
+#
+# The re-exports (server.<tool>, server.<module>) resolve through __getattr__ below.
+globals().update(
+    deferred.install(
+        mcp,
+        late=lambda: _require(),
+        bound=_require,
+        should_redact=lambda: get_settings().redact_secrets,
+        prepare=_prepare_tool_fn,
+    )
+)
+membership.verify(mcp)
 
 
-_connector_tools = connector.register(mcp, lambda: _require())
-fabric_connector_get = _connector_tools["fabric_connector_get"]
-fabric_connector_post = _connector_tools["fabric_connector_post"]
-fabric_connector_put = _connector_tools["fabric_connector_put"]
-fabric_connector_patch = _connector_tools["fabric_connector_patch"]
-fabric_connector_delete = _connector_tools["fabric_connector_delete"]
+def __getattr__(name: str) -> Any:
+    """``server.<tool>`` and ``server.<module>``: load that step (or import that module)
+    on first use, through the deferred loader's one load path."""
+    controller = deferred.controller_for(globals().get("mcp"))
+    if controller is None or name.startswith("__"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = controller.attribute(name)
+    globals()[name] = value
+    return value
 
-
-# --- Mobility Tools (workspace-scoped identity; no host/site resolution) ---
-
-
-_mobility_tools = mobility.register(mcp, lambda: _require())
-list_mobility_workspaces = _mobility_tools["list_mobility_workspaces"]
-list_mobility_admins = _mobility_tools["list_mobility_admins"]
-list_mobility_devices = _mobility_tools["list_mobility_devices"]
-get_mobility_device = _mobility_tools["get_mobility_device"]
-list_mobility_clients = _mobility_tools["list_mobility_clients"]
-update_mobility_device_name = _mobility_tools["update_mobility_device_name"]
-update_mobility_device_network = _mobility_tools["update_mobility_device_network"]
-update_mobility_device_wireless = _mobility_tools["update_mobility_device_wireless"]
-
-
-# Install opt-in credential redaction (public issue
-# https://github.com/swkstudios/unifi-fabric-mcp-server/issues/26) at one shared point: every
-# registered tool handler is wrapped so that, when UNIFI_REDACT_SECRETS is enabled,
-# the documented credential fields are masked in the response. The flag is read at
-# call time; when disabled the wrapper is a byte-identical pass-through.
-install_resolution_state(mcp)
-install_response_redaction(mcp, lambda: get_settings().redact_secrets)
 
 # Explicit, structured list results: FastMCP turns an empty list into content: []
 # with no structuredContent, so a client cannot tell "zero items" from "no output".
 # Every list-shaped result is returned as a JSON text block plus
 # structuredContent: {"result": [...]}; items are unchanged. Installed through the
 # public add_transform() API (raises at startup if that API is missing); tools whose
-# advertised outputSchema does not admit {"result": [...]} are served unchanged. The
-# redaction wrapper replaces handlers at registration, so it runs inside this one.
+# advertised outputSchema does not admit {"result": [...]} are served unchanged (a stub
+# passes through). The redaction wrapper replaces handlers at registration, so it runs
+# inside this one.
 install_structured_list_results(mcp)
-
-# Display titles with acronyms and product names spelled correctly (``List ISP
-# Metrics``, not ``List Isp Metrics``). Title metadata only; names, schemas and
-# behaviour are unchanged.
-install_tool_titles(mcp)
-install_tool_annotations(mcp)
-install_compact_selector_descriptions(mcp)
-
-# Generated, permissive pinned-spec body shapes for AI clients.
-install_tool_shapes(mcp)
-
-# API-source class (app/source/access) as tool metadata (unifi/apiSource), derived from
-# each tool's routes. Metadata only.
-install_api_sources(mcp)
 
 
 # Actionable argument errors: a call that omits a required argument, passes an unknown
@@ -1157,6 +786,7 @@ mcp.add_middleware(RedactionScopeMiddleware(_redaction_scope_enabled))
 mcp.add_middleware(ConfirmIgnoredMiddleware())
 # The scrubber wraps every tool error inside the redaction setting scope.
 mcp.add_middleware(SecretScrubMiddleware())
+mcp.add_middleware(LaneMiddleware())
 mcp.add_middleware(AuditContextMiddleware())
 
 
@@ -1210,7 +840,7 @@ protect_resources.register(
     evaluator=_request_policy,
     broker=lambda: _code_mode_broker.set(True),
 )
-mcp.add_middleware(connector.RelayBodyPresenceMiddleware())
+mcp.add_middleware(relay_policy.RelayBodyPresenceMiddleware())
 
 
 mcp.add_middleware(ArgumentErrorMiddleware(mcp))
@@ -1296,6 +926,11 @@ mcp.add_middleware(
         lambda: _client._credential_cache if _client is not None else None  # noqa: SLF001
     )
 )
+
+# Opt-in MCP background tasks (UNIFI_BACKGROUND_TASKS=on; off by default): outermost, so
+# a client that opts in per request runs the long multi-site reads as a task with every
+# middleware above inside it. Off, nothing is installed and every call is unchanged.
+background_tasks.install(mcp)
 
 
 def _reconcile_stateless_http() -> None:

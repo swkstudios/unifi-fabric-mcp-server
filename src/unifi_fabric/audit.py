@@ -66,6 +66,7 @@ import re
 import stat
 import sys
 import threading
+import uuid
 from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -81,7 +82,9 @@ from .audit_chain import (
     ChainState,
     sealed_digest,
 )
-from .redaction import REDACTION_MASK, redact_credentials
+from .audit_vocabulary import mask_path, reason_code, route_template
+from .lane import current_lane
+from .redaction import REDACTION_MASK, mask_error_text, redact_credentials
 from .refusal_audit import note_refused_record
 from .secret_scrub import configured_secrets, scrub, scrub_json_strings
 
@@ -134,21 +137,24 @@ EVENT_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
         "required": (*_ENVELOPE, "method", "path", "outcome", "status"),
         "optional": (
             "tool",
+            "route_template",
             "reason",
+            "ref",
             "resolvedHost",
             "resolvedSite",
             "duration_ms",
             "body",
             "via",
+            "lane",
         ),
     },
     "call": {
         "required": (*_ENVELOPE, "tool", "outcome", "duration_ms"),
-        "optional": ("arguments",),
+        "optional": ("arguments", "ref"),
     },
     "error": {
         "required": (*_ENVELOPE, "tool", "error_type", "duration_ms"),
-        "optional": ("message",),
+        "optional": ("message", "ref"),
     },
     "audit.recovered": {
         "required": (*_ENVELOPE, "lost_records", "fault"),
@@ -177,6 +183,7 @@ _AUDIT_TOOL: ContextVar[str | None] = ContextVar("audit_tool", default=None)
 _AUDIT_HOST: ContextVar[str | None] = ContextVar("audit_host", default=None)
 _AUDIT_SITE: ContextVar[str | None] = ContextVar("audit_site", default=None)
 _AUDIT_START: ContextVar[float | None] = ContextVar("audit_start", default=None)
+_AUDIT_REF: ContextVar[str | None] = ContextVar("audit_ref", default=None)
 
 
 @contextmanager
@@ -191,10 +198,12 @@ def audit_call(tool: str | None):
         _AUDIT_HOST.set(None),
         _AUDIT_SITE.set(None),
         _AUDIT_START.set(perf_counter()),
+        _AUDIT_REF.set(None),
     )
     try:
         yield
     finally:
+        _AUDIT_REF.reset(tokens[4])
         _AUDIT_START.reset(tokens[3])
         _AUDIT_SITE.reset(tokens[2])
         _AUDIT_HOST.reset(tokens[1])
@@ -212,6 +221,21 @@ def set_audit_resolution(*, host: str | None = None, site: str | None = None) ->
         _AUDIT_HOST.set(host)
     if site is not None:
         _AUDIT_SITE.set(site)
+
+
+def audit_ref() -> str:
+    """The request id tying this call's audit records to its server-log lines.
+
+    The HTTP request id when there is one, else one id for the whole tool call; written
+    on the record as ``ref``, and on the log line that carries the matching error text.
+    """
+    ref = _AUDIT_REF.get()
+    if ref is None:
+        from .header_credentials import current_request_id
+
+        ref = current_request_id() or uuid.uuid4().hex
+        _AUDIT_REF.set(ref)
+    return ref
 
 
 def elapsed_ms() -> float | None:
@@ -635,10 +659,23 @@ class AuditStream:
             "outcome": outcome,
             "status": status,
         }
+        ref = audit_ref()
+        code, detail = reason_code(reason) if reason is not None else (None, None)
+        if detail is not None:
+            # Free text never reaches the record: it stays in the server log, under the
+            # id the record carries as ``ref``.
+            _logger.info(
+                "audit reason detail ref=%s: %s",
+                ref,
+                mask_error_text(_safe_reason(detail, secrets)),
+            )
         optional = {
             "tool": tool,
+            "route_template": route_template(tool),
             "via": _AUDIT_VIA.get(),
-            "reason": _safe_reason(reason, secrets) if reason is not None else None,
+            "lane": current_lane(),
+            "reason": code,
+            "ref": ref,
             "resolvedHost": _AUDIT_HOST.get(),
             "resolvedSite": _AUDIT_SITE.get(),
             "duration_ms": elapsed_ms(),
@@ -650,7 +687,12 @@ class AuditStream:
 
     def _call(self, tool: str | None, arguments: Any) -> None:
         secrets = self._secrets()
-        rec: dict[str, Any] = {"tool": tool, "outcome": "ok", "duration_ms": elapsed_ms()}
+        rec: dict[str, Any] = {
+            "tool": tool,
+            "outcome": "ok",
+            "duration_ms": elapsed_ms(),
+            "ref": audit_ref(),
+        }
         if self.level == "debug" and arguments is not None:
             rec["arguments"] = self._scrub_object(arguments, secrets)
         self._emit("call", rec, secrets=secrets)
@@ -661,6 +703,7 @@ class AuditStream:
             "tool": tool,
             "error_type": type(exc).__name__,
             "duration_ms": elapsed_ms(),
+            "ref": audit_ref(),
         }
         if self.level == "debug":
             rec["message"] = _cap_text(_safe_reason(str(exc), secrets))
@@ -865,7 +908,8 @@ def _scrub_value(value: Any, secrets: tuple[str, ...]) -> Any:
 
 
 def _safe_path(path: str, secrets: tuple[str, ...]) -> str:
-    """The path without query or fragment, scrubbed; ``***`` if a secret spans the cut."""
+    """The path without query or fragment, scrubbed, with every segment that is not a
+    known route word or identifier masked; ``***`` if a secret spans the cut."""
     prefix = path.partition("?")[0].partition("#")[0]
     safe_prefix = scrub(prefix, secrets)
     safe_path = scrub(path, secrets)
@@ -873,7 +917,7 @@ def _safe_path(path: str, secrets: tuple[str, ...]) -> str:
     # its leading fragment; fail closed if the boundary moved.
     if len(prefix) < len(path) and not safe_path.startswith(safe_prefix + path[len(prefix)]):
         return "***"
-    return safe_prefix
+    return mask_path(safe_prefix)
 
 
 #: A URL or path followed by a query inside free text (a refusal message that quotes

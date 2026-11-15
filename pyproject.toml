@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unifi-fabric-mcp-server"
-version = "0.7.2"
+version = "0.7.3"
 description = "MCP server for UniFi Fabric: Network, Protect, Site Manager, InnerSpace, Carrier Fabric, Mobility."
 readme = "README.md"
 license = {text = "MIT"}
@@ -105,17 +105,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"src/unifi_fabric/families/protect/protect.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/network/network_services_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/network/firewall_proxy.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/network/network.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/protect/recognition.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/site_manager/site_manager.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/carrier/carrier_fabric.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/innerspace/innerspace.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/mobility/mobility.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/innerspace/placement_snapshot.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
-"src/unifi_fabric/families/connector/connector.py" = ["E501"]  # wrappers moved from server.py keep their docstrings
+"src/unifi_fabric/families/**/*.py" = ["E501"]  # wrappers moved from server.py keep their docstrings; moves lengthen paths
+"src/unifi_fabric/shared_shapes/_*_shared.py" = ["E501"]  # helpers moved verbatim out of family modules
 "docs/**/test_*.py" = ["S101", "S105", "S106", "S110", "B017", "ANN"]
 "scripts/**" = [
     "S603",  # subprocess calls are intentional git invocations
@@ -133,7 +124,6 @@ ignore = [
 ]
 "docs/**/live_sweep.py" = ["E501"]  # the family move lengthened cited paths
 "docs/**/write_acceptance_templates.py" = ["E501"]  # the family move lengthened cited paths
-"src/unifi_fabric/families/protect/protect_ptz_doorbell.py" = ["E501"]  # the family move lengthened cited paths
 "tests/spec_limits_gen.py" = ["E501"]  # the family move lengthened cited paths
 "tests/test_classic_resolution.py" = ["E501"]  # the family move lengthened cited paths
 "tests/test_connector.py" = ["E501"]  # the family move lengthened cited paths

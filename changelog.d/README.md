@@ -39,7 +39,10 @@ the detail lives; it never explains.
   would pick this release for.
 - **What stays out.** Internal names, CI, test and release tooling, contributor-only changes,
   fixes to code the last public release did not have, route paths, implementation mechanics and
-  credits. A change that only contributors see needs no fragment.
+  credits. A change that only contributors see needs no fragment: label the pull request
+  `skip-changelog` (a family layout move, a generator or check change, a test). There is no internal category:
+  the lint rejects release-tooling wording (CI jobs and tiers, runners, CodeQL, the release
+  process, workflows and scripts) in a `changed` fragment, so such a change gets no fragment.
 
 The `area:` and `highlight:` lines are read when the fragment is folded and never published:
 the entry is filed under its `#### <area>` heading, and a highlight becomes a bullet of the

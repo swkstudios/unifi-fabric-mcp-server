@@ -4,13 +4,13 @@ This folder is an OpenAI Codex plugin. It runs the open-source UniFi Fabric MCP 
 
 ## What it runs
 
-`uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
+`uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp` over stdio. It needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.12 or later for you.
 
 ## Where the key comes from
 
 The plugin stores no key. It forwards `UNIFI_API_KEY` (and the optional `UNIFI_WRITE_POLICY` and `UNIFI_TOOL_MODE`) from the environment of the process that starts Codex, using Codex's `env_vars` setting. Export the key in the shell before you start `codex`:
 
-<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe support=0.7.2 citation=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe -->
+<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:27ca6373decc3fb8fd4effeea4f25fa76ce16c11e82ca535f8a7bfa53a2e3d3f citation=file:plugins/codex/.mcp.json@sha256:27ca6373decc3fb8fd4effeea4f25fa76ce16c11e82ca535f8a7bfa53a2e3d3f -->
 <!-- install-case: codex-readme-1 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
@@ -25,7 +25,7 @@ Some tools depend on console-internal paths that Ubiquiti can restrict without n
 
 ## Install
 
-<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe support=0.7.2 citation=file:plugins/codex/.mcp.json@sha256:1e09ec72e180adbf7689bc06efbcbc8d8ab18e3d7e7aa14e5964e5fb945093fe -->
+<!-- doc-provenance: source=file:plugins/codex/.mcp.json@sha256:27ca6373decc3fb8fd4effeea4f25fa76ce16c11e82ca535f8a7bfa53a2e3d3f citation=file:plugins/codex/.mcp.json@sha256:27ca6373decc3fb8fd4effeea4f25fa76ce16c11e82ca535f8a7bfa53a2e3d3f -->
 <!-- install-case: codex-readme-2 mode=non-executable reason=deployment-or-client-interaction -->
 ```bash
 codex plugin marketplace add swkstudios/unifi-fabric-mcp-server

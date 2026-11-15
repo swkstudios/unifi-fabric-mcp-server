@@ -39,10 +39,7 @@ KNOWN_NO_CONSEQUENCE_WRITES = frozenset(
         "get_multicast_insights",
         "get_rolling_upgrade_plan",
         "get_sites_overview",
-        "get_system_log",
         "list_guests",
-        "list_ips_events",
-        "list_network_events",
         "query_app_traffic_rates",
         "query_port_system_logs",
         "query_power_supervisor_logs",
@@ -199,5 +196,22 @@ def test_shipped_source_carries_no_multi_letter_lane_id():
         for path in sorted((ROOT / "src").rglob("*.py"))
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if _TWO_LETTER_LANE.search(line)
+    ]
+    assert hits == []
+
+
+_WAVE_ID = re.compile(r"\bGS[0-9]+ [A-Z0-9]")
+
+
+def test_shipped_source_and_tests_carry_no_wave_id():
+    """Planning wave ids are internal vocabulary; the release verifier blocks them."""
+    me = Path(__file__).resolve()
+    hits = [
+        f"{path.relative_to(ROOT)}:{n}"
+        for tree in ("src", "tests")
+        for path in sorted((ROOT / tree).rglob("*.py"))
+        if path.resolve() != me and path.name != "test_public_release" + "_verify.py"
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if _WAVE_ID.search(line)
     ]
     assert hits == []

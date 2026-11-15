@@ -417,8 +417,30 @@ _PROVIDER_STARTUP = (
 )
 
 #: Raise sites that are not pre-upstream argument refusals: {module.py:qualname: reason}.
+_DEFERRED_INTERNAL = (
+    "deferred loading (public #41) internals: a snapshot or loader-map inconsistency, an "
+    "unknown server attribute, or a stub/real tool comparison, raised at import, in the "
+    "generator or inside a step build, where it becomes family_load_failed"
+)
+_PRELOAD_SETTING = "startup setting validation (UNIFI_PRELOAD), refused before any call"
+_LANE_HEADER = (
+    "a malformed or repeated X-UF-Lane accounting label is refused before any upstream call; the "
+    "label carries no policy, credential or routing, so it is not a policy refusal"
+)
+
 NON_REFUSAL_RAISES: dict[str, str] = {
+    "catalog/deferred.py:Controller.__init__": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:Controller._verify": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:Controller.attribute": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:Controller.register_stubs": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:read_snapshot": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:tool_record": _DEFERRED_INTERNAL,
+    "catalog/deferred.py:parse_preload": _PRELOAD_SETTING,
+    "server.py:__getattr__": _DEFERRED_INTERNAL,
     "audit.py:AuditStream._put": _CHAIN_STARTUP,
+    "lane.py:LaneMiddleware.on_call_tool": _LANE_HEADER,
+    "lane.py:parse_lane": _LANE_HEADER,
+    "pacing.py:validate_max_rpm": "start-up settings validation of UNIFI_CONNECTOR_MAX_RPM (1-100)",
     "audit.py:_build_chain": _CHAIN_STARTUP,
     "audit_verify.py:_Parser.error": _VERIFY_CLI,
     "audit_verify.py:_anchor": _VERIFY_CLI,
@@ -476,12 +498,12 @@ NON_REFUSAL_RAISES: dict[str, str] = {
         "re-raises an observed upstream archive.speedtest error; only a 403 host-not-found "
         "response gets host-id guidance appended, with status and request_sent preserved"
     ),
-    "families/site_manager/site_manager.py:register.query_isp_metrics": (
+    "families/site_manager/registrar.py:register.query_isp_metrics": (
         "re-raises a selector-resolution failure gathered from the per-key resolvers: an "
         "invalid selector fails the whole call before any metrics request, a partial or "
         "failed listing is scoped to its key, and a cancellation propagates"
     ),
-    "families/site_manager/site_manager.py:register.query_isp_metrics._query": (
+    "families/site_manager/registrar.py:register.query_isp_metrics._query": (
         "re-raises an already-observed host/site selector-resolution failure through the "
         "existing per-key fan-out; selector ValueErrors propagate before metrics requests"
     ),
@@ -543,11 +565,48 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "audit_unavailable notice appended while the audit sink is failing",
     "profiles.py:Profile.__post_init__": "configuration (a profile naming unknown families)",
     "profiles.py:selection_profile": "configuration (family allowlist / exclusion list)",
-    "catalog.py:Catalog.from_dict": "catalog generation/validation (startup:catalog), "
+    "catalog/__init__.py:Catalog.from_dict": "catalog generation/validation (startup:catalog), "
     "never a tool call",
-    "catalog.py:overlay": "catalog contract fixture overlay (startup:catalog), never a tool call",
-    "catalog.py:validate_catalog": "catalog validation at startup/generation "
+    "catalog/loaders.py:load.add": (
+        "the loader map binds a server name to two objects; import-time registration, "
+        "never a tool call"
+    ),
+    "catalog/membership.py:verify": (
+        "the registration differs from the explicit inventory; import-time registration "
+        "refuses startup, never a tool call"
+    ),
+    "catalog/__init__.py:overlay": (
+        "catalog contract fixture overlay (startup:catalog), never a tool call"
+    ),
+    "catalog/__init__.py:validate_catalog": "catalog validation at startup/generation "
     "(startup:catalog:<reason>), never a tool call",
+    "catalog/inventory.py:": "the inventory check command exits with its status, never a tool call",
+    "catalog/inventory.py:inventory_from": "catalog inventory build (generation/test time), "
+    "never a tool call",
+    "catalog/inventory.py:sample_arguments": "catalog inventory check invariant (its sample "
+    "routes), generation/test time, never a tool call",
+    "catalog/inventory.py:_check_membership": "catalog inventory validation (generation/test "
+    "time), never a tool call",
+    "catalog/inventory.py:_check_fields": "catalog inventory validation (generation/test time), "
+    "never a tool call",
+    "catalog/inventory.py:_check_families": "catalog inventory validation (generation/test "
+    "time), never a tool call",
+    "catalog/inventory.py:_check_policy": "catalog inventory validation (generation/test time), "
+    "never a tool call",
+    # MCP background tasks (UNIFI_BACKGROUND_TASKS, public #45): protocol errors of the
+    # tasks/* methods, never a tool call's refusal (a task runs the tool call unchanged).
+    "background_tasks.py:BackgroundTasksExtension._task": "tasks/* JSON-RPC error: the "
+    "request did not declare the tasks extension (-32021), never a tool call",
+    "background_tasks.py:TaskStore.get": "tasks/* JSON-RPC error: an unknown or expired task "
+    "id, or another caller's (-32602), never a tool call",
+    "background_tasks.py:_check_name_header": "tasks/* JSON-RPC error: the Mcp-Name header "
+    "does not match the taskId (-32020), never a tool call",
+    "background_tasks.py:_call_result": "internal invariant: a finished call returned no tool "
+    "result; recorded as the task's failure, never raised to a caller",
+    "catalog/models.py:CallPolicy.__post_init__": "a malformed catalog inventory policy record "
+    "(generation/test time), never a tool call",
+    "catalog/models.py:Inventory.family": "catalog inventory lookup of an unknown family id "
+    "(generation/test time), never a tool call",
     "catalog_build.py:registered_tools": "catalog generation invariant (discovery meta tools "
     "registered), never a tool call",
     "catalog_build.py:build_catalog": "catalog generation (unclassified source), never a tool call",
@@ -616,6 +675,7 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     # (startup), plus the invariants of the closed policy record; none is a tool-call refusal.
     "policy.py:Catalog.build": "policy catalog construction (startup), never a tool call",
     "policy.py:_family_id": "configuration grammar (family id in UNIFI_WRITE_EXCEPTIONS)",
+    "policy.py:_module_id": "configuration grammar (module:<module> in UNIFI_EXCLUDE)",
     "policy.py:_tokens": "configuration grammar (list separators and empty items)",
     "policy.py:_tool_target": "configuration grammar (tool:<name> in UNIFI_WRITE_EXCEPTIONS)",
     "policy.py:check_retired_settings": "configuration (a retired setting refuses startup)",
@@ -730,12 +790,12 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "families/network/network.py:list_wan_interfaces": "upstream shape",
     "families/network/network_services_proxy.py:_classic_records": "upstream shape",
     "families/network/network_services_proxy.py:_setting_state": "upstream shape",
-    "families/protect/protect.py:_as_list": "upstream shape",
+    "shared_shapes/_protect_shared.py:_as_list": "upstream shape",
     "families/protect/protect.py:_require_object": "upstream shape",
     "families/site_manager/site_manager.py:_object_body": "upstream shape",
     "families/site_manager/site_manager.py:isp_metric_records": "upstream shape",
     "families/site_manager/site_manager.py:search_across_sites._search_site": "upstream field of the wrong type",
-    "families/network/site_config.py:_config_rows": "upstream shape",
+    "shared_shapes/_site_config_shared.py:_config_rows": "upstream shape",
     "families/statistics/statistics.py:_stat_records": "upstream shape",
     "shared_shapes/_pagination.py:collect_batch": "upstream page shape / pagination protocol",
     "shared_shapes/_pagination.py:PageSizeBatch.observe": "upstream page-size metadata shape",
@@ -747,7 +807,7 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "families/site_manager/aggregation.py:_fleet_devices": "every API key failed upstream",
     "families/site_manager/aggregation.py:_fleet_summary": "every API key failed upstream",
     "families/site_manager/aggregation.py:_list_all_clients_fleet": "every key / site failed upstream",
-    "families/site_manager/site_manager.py:_aggregate_lists_over_keys": "every API key failed upstream",
+    "shared_shapes/_site_manager_shared.py:_aggregate_lists_over_keys": "every API key failed upstream",
     "families/site_manager/site_manager.py:compare_site_performance": "every site failed upstream",
     "families/site_manager/site_manager.py:search_across_sites": "no site could be searched upstream",
     "families/innerspace/innerspace.py:_fetch_integration_list": "upstream error re-raised with context",
@@ -794,6 +854,8 @@ NON_REFUSAL_RAISES: dict[str, str] = {
     "re-raised as outcome unknown",
     "redaction.py:install_response_redaction": "server construction: UNIFI_REDACT_SECRETS "
     "is on but no tool handler could be wrapped; fails closed, never a tool call",
+    "redaction.py:_charge": "internal signal of the error-mask work bound, always caught by "
+    "mask_error_text, which withholds the text; never reaches a caller",
     "families/innerspace/innerspace_internal.py:get_innerspace_ucore_manifest": "upstream 403 re-raised "
     "with a permission hint",
     "families/innerspace/innerspace_internal.py:list_innerspace_doors": "upstream 502 re-raised with a "
@@ -1173,6 +1235,6 @@ def test_retired_collector_window_is_not_registered_as_a_current_control():
 def test_legacy_reset_compatibility_calls_have_no_refusal_entry(message):
     assert refusals.classify(message) is None
     assert (
-        "families/network/network_device_operations.py:register.reset_switch_port"
+        "families/network/registrar.py:register_17.reset_switch_port"
         not in refusals.registered_sites()
     )

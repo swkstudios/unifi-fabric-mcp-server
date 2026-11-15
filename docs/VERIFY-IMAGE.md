@@ -9,7 +9,7 @@ store their signature and attestations as Sigstore bundles attached through OCI 
 older cosign releases do not read.
 
 <!-- install-case: verify-image-01 mode=non-executable reason=verification requires a published digest -->
-<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:d61e8426577d0a31a4318a0956768ba2a99505313e4a3719f9378eade9d00bb6 support=0.7.2 case=verify-image-01 -->
+<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:20549ecb6633ba65855cb45e52008f9114dd4f487f20ae73a2f8b36071a1cee3 case=verify-image-01 -->
 ```bash
 IMAGE=ghcr.io/swkstudios/unifi-fabric-mcp-server@sha256:<digest>
 IDENTITY='^https://github\.com/swkstudios/unifi-fabric-mcp-server/\.github/workflows/publish\.yml@refs/tags/v.*$'
@@ -33,7 +33,7 @@ verify the index digest with the commands above, then list the images that index
 the per-platform digest must appear next to its platform:
 
 <!-- install-case: verify-image-02 mode=non-executable reason=verification requires a published digest -->
-<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:d61e8426577d0a31a4318a0956768ba2a99505313e4a3719f9378eade9d00bb6 support=0.7.2 case=verify-image-02 -->
+<!-- doc-provenance: source=file:.github/workflows/publish.yml@sha256:20549ecb6633ba65855cb45e52008f9114dd4f487f20ae73a2f8b36071a1cee3 case=verify-image-02 -->
 ```bash
 docker buildx imagetools inspect "$IMAGE"
 ```

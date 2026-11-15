@@ -332,16 +332,46 @@ def client_settings(case: dict) -> dict[str, str]:
 CLI_ADD = re.compile(r"^(claude|codex) mcp add ")
 #: The environment flag each client CLI documents for `mcp add`.
 CLI_ENV_FLAGS = {"claude": {"-e", "--env"}, "codex": {"--env"}}
-CLI_ENV_NAMES = {"UNIFI_API_KEY", "UNIFI_WRITE_POLICY", "UNIFI_TOOL_MODE"}
+CLI_ENV_NAMES = {"UNIFI_API_KEY", "UNIFI_API_KEY_FILE", "UNIFI_WRITE_POLICY", "UNIFI_TOOL_MODE"}
+#: The key file the documented Codex and Antigravity one-liners create and register.
+DOCUMENTED_KEY_FILE = "$HOME/.config/unifi-fabric/api-key"
+
+
+def require_documented_key_file(body: str, env: dict[str, str]) -> None:
+    """The documented key file is registered by path and created private."""
+    if env.get("UNIFI_API_KEY_FILE") != DOCUMENTED_KEY_FILE:
+        raise ValueError("registration must name the documented UNIFI_API_KEY_FILE path")
+    if "umask 077" not in body or f'> "{DOCUMENTED_KEY_FILE}"' not in body:
+        raise ValueError("registration must create the key file with umask 077")
+
+
+def registers_key_file(case: dict) -> bool:
+    """Whether a client registration names a key file instead of the key."""
+    return case["mode"] in {"cli", "antigravity"} and "UNIFI_API_KEY_FILE=" in case["body"]
+
+
+def with_key_files(target: dict, directory: Path) -> dict:
+    """``target`` with each ``UNIFI_API_KEY`` moved into a real private key file."""
+    directory.mkdir(parents=True, exist_ok=True)
+    moved = {}
+    for name, env in target.items():
+        path = directory / f"{name}-key"
+        path.touch(mode=0o600)
+        path.chmod(0o600)
+        path.write_text(env["UNIFI_API_KEY"] + "\n")
+        rest = {key: value for key, value in env.items() if key != "UNIFI_API_KEY"}
+        moved[name] = {**rest, "UNIFI_API_KEY_FILE": str(path)}
+    return moved
 
 
 def cli_launcher(body: str, wheel: Path, version: str, *, published: str = "") -> list[str]:
     """The MCP launcher of a documented `claude mcp add` or `codex mcp add` registration.
 
-    The key must reach the CLI from the shell variable the documented `read -rs` prompt
-    fills (`UNIFI_API_KEY="$UNIFI_API_KEY"`), never as a literal value in the example. The
-    client stores the value and starts the launcher with it, which the smoke reproduces by
-    running the launcher with the target environment.
+    The key must never be on the command line. Claude Code takes the literal reference
+    `UNIFI_API_KEY=${UNIFI_API_KEY}`, which it expands from its own environment when it
+    starts the launcher. Codex has no reference form, so its example saves the key to a
+    private file and registers only the path as `UNIFI_API_KEY_FILE`. The smoke reproduces
+    both by running the launcher with the target environment or a real key file.
     """
     lines = [line for line in body.splitlines() if CLI_ADD.match(line)]
     if len(lines) != 1:
@@ -367,8 +397,12 @@ def cli_launcher(body: str, wheel: Path, version: str, *, published: str = "") -
             names.append(option)
     if names != ["unifi-fabric"]:
         raise ValueError("CLI registration must name the unifi-fabric server")
-    if env.get("UNIFI_API_KEY") != "$UNIFI_API_KEY":
-        raise ValueError("CLI registration must pass UNIFI_API_KEY from the shell variable")
+    if client == "claude" and env.get("UNIFI_API_KEY") != "${UNIFI_API_KEY}":
+        raise ValueError("CLI registration must pass UNIFI_API_KEY as a shell-safe reference")
+    if client == "codex":
+        if "UNIFI_API_KEY" in env:
+            raise ValueError("CLI registration must not pass UNIFI_API_KEY on the command line")
+        require_documented_key_file(body, env)
     return repin(argv[split + 1 :], wheel, version, published=published)
 
 
@@ -385,6 +419,11 @@ def parsed_launcher(case: dict, wheel: Path, version: str, *, published: str = "
         for line in body.splitlines():
             if line.startswith("agy mcp add "):
                 argv = shlex.split(line, comments=True)
+                if "--env" in argv:
+                    key, _, value = argv[argv.index("--env") + 1].partition("=")
+                    if key != "UNIFI_API_KEY_FILE":
+                        raise ValueError("Antigravity registration must name only a key file")
+                    require_documented_key_file(body, {key: value})
                 if "--" not in argv:
                     raise ValueError("Antigravity command must declare its MCP launcher")
                 return repin(argv[argv.index("--") + 1 :], wheel, version, published=published)
@@ -1043,6 +1082,10 @@ def main() -> int:
                         configured_target = {
                             key: {**value, **settings} for key, value in target.items()
                         }
+                        if registers_key_file(case):
+                            configured_target = with_key_files(
+                                configured_target, work / f"{case['id']}-keys"
+                            )
                         result = check_row(
                             case["id"],
                             cmd,

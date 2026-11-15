@@ -1135,6 +1135,7 @@ def public_ip_hits(text):
 # Normalize case/separators so JSON camelCase, HTTP headers and env spellings agree.
 _CREDENTIAL_NAMES = {
     "accesstoken",
+    "pincode",
     "apikey",
     "apitoken",
     "authorization",

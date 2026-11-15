@@ -61,7 +61,7 @@ class DocumentationMutations(unittest.TestCase):
             cwd=self.root,
             text=True,
         ).strip()
-        self.marker = f"<!-- doc-provenance: source=git:{self.pin} support=0.6.4 case=pip-wheel -->"
+        self.marker = f"<!-- doc-provenance: source=git:{self.pin} case=pip-wheel -->"
         self.valid = (
             self.marker
             + "\n<!-- install-case: pip-wheel mode=pip -->\n```bash\npip install package.whl\n```\n"
@@ -185,8 +185,7 @@ class DocumentationMutations(unittest.TestCase):
         digest = hashlib.sha256((self.root / "source.py").read_bytes()).hexdigest()
         pin = f"file:source.py@sha256:{digest}"
         example = (
-            f"<!-- doc-provenance: source={pin} support=0.6.4 citation={pin} -->\n"
-            "```yaml\nservices: {}\n```\n"
+            f"<!-- doc-provenance: source={pin} citation={pin} -->\n```yaml\nservices: {{}}\n```\n"
         )
         readme = self.root / "README.md"
         readme.write_text("# t\n" + REGION_HEADINGS + "## Read-only mode\n" + example)
@@ -241,9 +240,18 @@ class DocumentationMutations(unittest.TestCase):
         failures = provenance.check(self.root, {"pip-wheel", "other-case"})
         self.assertTrue(any("does not match install-case pip-wheel" in f for f in failures))
 
+    def test_support_field_is_rejected(self):
+        """support= was removed: it named a release, nothing read it, and every release
+        rewrote it. A marker that still carries it fails and says to delete it."""
+        self.doc.write_text(self.valid.replace("case=pip-wheel", "support=0.6.4 case=pip-wheel"))
+        failures = provenance.check(self.root, {"pip-wheel"})
+        self.assertTrue(any("support= was removed" in f for f in failures), failures)
+        self.doc.write_text(self.valid)
+        self.assertEqual(provenance.check(self.root, {"pip-wheel"}), [])
+
     def test_unmarked_install_example_with_citation_is_not_accepted(self):
         self.doc.write_text(
-            f"<!-- doc-provenance: source=git:{self.pin} support=0.6.4 "
+            f"<!-- doc-provenance: source=git:{self.pin} "
             f"citation=git:source.py@{self.pin} -->\n```bash\npip install package.whl\n```\n"
         )
         self.assertTrue(
@@ -483,7 +491,6 @@ class DocumentationMutations(unittest.TestCase):
                             "section": identity[1],
                             "body_sha256": identity[2],
                             "source": f"git:{self.pin}",
-                            "support": "0.6.4",
                             "citation": f"git:source.py@{self.pin}",
                         }
                     ]

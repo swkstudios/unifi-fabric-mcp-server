@@ -18,6 +18,8 @@ OPERATIONS = {
     ("carrier-fabric", "post", "/v1/carrier/subscribers"): "create_carrier_subscriber",
     ("carrier-fabric", "patch", "/v1/carrier/subscribers/{id}"): "update_carrier_subscriber",
     ("protect", "patch", "/v1/viewers/{id}"): "update_viewer",
+    ("protect", "post", "/v1/external/arm-profiles"): "create_external_arm_profile",
+    ("protect", "patch", "/v1/external/arm-profiles/{id}"): "update_external_arm_profile",
     ("protect", "patch", "/v1/cameras/{id}"): "update_camera",
     ("protect", "patch", "/v1/sensors/{id}"): "update_sensor",
     (
@@ -110,7 +112,13 @@ async def test_spec_nullable_fields_preserve_omission_and_null(
     args = tool_args.generated_args(TOOLS[name])
     for env, value in tool_args.TOOL_ENV.get(name, {}).items():
         monkeypatch.setenv(env, value)
-    if name in {"update_camera", "update_sensor", "update_viewer"}:
+    if name in {
+        "update_camera",
+        "update_sensor",
+        "update_viewer",
+        "create_external_arm_profile",
+        "update_external_arm_profile",
+    }:
         args["settings"] = {"name": "nullable-probe-renamed"}
         if explicit:
             _set_path(args["settings"], path, None)

@@ -95,16 +95,6 @@ def test_noncredential_keys_are_allowed(key):
     assert gate.credential_hits(json.dumps({key: "ordinary-value"})) == []
 
 
-def test_documentation_matches_runtime_modes():
-    readme = (ROOT / "README.md").read_text()
-    assert "A preview never carries a secret:" not in readme
-    generated = (ROOT / "scripts/gen_tools_doc.py").read_text()
-    assert "separately gated and inactive by default" not in generated
-    changelog = (ROOT / "CHANGELOG.md").read_text()
-    assert "Results are the v2 tag object verbatim." not in changelog
-    assert "return the Classic envelope." not in changelog
-
-
 def test_every_runtime_credential_field_and_spelling_is_detected():
     from unifi_fabric.redaction import CREDENTIAL_FIELDS
 

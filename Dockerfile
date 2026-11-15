@@ -100,6 +100,9 @@ ENV LANG=C.UTF-8
 ENV UNIFI_API_BASE_URL=https://api.ui.com
 ENV UNIFI_CACHE_TTL_SECONDS=900
 ENV UNIFI_MAX_CONCURRENCY=10
+# Load every exposed tool family at startup: a long-running server answers its first
+# call of each family without a load (docs/CONFIGURATION.md, Startup loading).
+ENV UNIFI_PRELOAD=all
 # FastMCP transport protocol; override at docker run time with -e FASTMCP_TRANSPORT=sse|stdio
 ENV FASTMCP_TRANSPORT=streamable-http
 # Stateless streamable HTTP: every request is served on its own, with no MCP session to

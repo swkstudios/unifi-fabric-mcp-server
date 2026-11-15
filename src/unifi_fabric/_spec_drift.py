@@ -426,6 +426,7 @@ SUPPORTED_KEYWORDS = frozenset(
         "maximum",
         "minItems",
         "minLength",
+        "minProperties",
         "minimum",
         "nullable",
         "oneOf",

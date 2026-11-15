@@ -11,22 +11,16 @@ anything; this server sends no MCP push notifications for events.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Annotated, Any, Literal
-
-from fastmcp import FastMCP
-from pydantic import Field
+from typing import Any
 
 from ... import stream_buffers
 from ...registry import Registry
 from ...stream_buffers import StreamKey
-from ...tool_annotations import READ_ONLY
-
-Product = Literal["network", "protect"]
-
-_PUSH_NOTE = (
-    "Reading a buffer never subscribes the MCP client to notifications; this server sends "
-    "no MCP push notifications for events."
+from .schemas import (
+    _PUSH_NOTE,
+)
+from .schemas import (  # the family's shapes (family-owned layout)
+    Product as Product,
 )
 
 
@@ -123,125 +117,3 @@ async def read_recent_event_buffer(
             f"events: {', '.join(record.fallback_tools)}."
         )
     return out
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the event-stream tools."""
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_event_stream_status(
-        product: Annotated[
-            Product | None,
-            Field(
-                description=(
-                    "Optional product: 'network' or 'protect'. Omit for both. Example: \"protect\"."
-                )
-            ),
-        ] = None,
-    ) -> dict[str, Any]:
-        """Report whether live Network and Protect event streams are available, and listener health.
-
-        Reads this server's own state only; no console request is made. For each product it
-        returns the recorded transport compatibility and the evidence behind it, and every
-        listener this server process holds. Network and Protect publish live events only over
-        WebSocket, and the UniFi Fabric connector this server uses is a request/response relay
-        that does not carry WebSocket. Both products are therefore reported with state
-        "unsupported" and supported false, and use_instead names the history and polling
-        tools (list_network_events, get_system_log, list_ips_events; list_protect_events,
-        collect_protect_events, collect_protect_device_changes). Nothing here subscribes the
-        MCP client to notifications.
-
-        Returns {products: [{product, supported, state, transport, stream, summary, checked,
-        evidence: [{request, observed}], fallback_tools, listeners: [...]}], note}. state is
-        "unsupported" (no reachable stream), "inactive" (supported, no listener), or the state
-        of a listener: "connecting", "connected", "reconnecting", "error" or "closed". Each
-        listener reports {product, console_id, site, state, attached, coverage_started_at,
-        connects, disconnects, reconnect_attempts, last_error, gaps: [{after_seq, started_at,
-        ended_at, reason}], buffered, capacity, evicted, oldest_seq, last_seq}; times are epoch
-        seconds.
-
-        Example call (get_event_stream_status):
-            {"product": "protect"}
-
-        Args:
-            product: Optional product, "network" or "protect"; omit for both. Example: "protect".
-        """
-        return event_stream_status(product)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def read_recent_events(
-        product: Annotated[
-            Product,
-            Field(description="Product whose event buffer to read: 'network' or 'protect'."),
-        ],
-        host: Annotated[
-            str,
-            Field(
-                description=(
-                    "Console name or id from list_hosts (reportedState.hostname or name, or "
-                    'the long data[].id). Example: "my-console".'
-                )
-            ),
-        ],
-        site: Annotated[
-            str | None,
-            Field(
-                description=(
-                    'Network site name or id from list_local_sites (e.g. "Default"); '
-                    "required for 'network', omit for 'protect'."
-                )
-            ),
-        ] = None,
-        after_seq: Annotated[
-            int | None,
-            Field(
-                ge=0,
-                description=(
-                    "Cursor: return events with seq greater than this, oldest first. Pass the "
-                    "next_after_seq of the previous read. Omit to get the newest events."
-                ),
-            ),
-        ] = None,
-        max_events: Annotated[
-            int | None,
-            Field(
-                ge=1,
-                description=(
-                    "Optional maximum number of events to return. Omit to return every "
-                    "matching buffered event. Example: 100."
-                ),
-            ),
-        ] = None,
-    ) -> dict[str, Any]:
-        """Read recent live events for one console; both products answer unsupported today.
-
-        Network and Protect live event streams are not reachable through the UniFi Fabric
-        connector this server uses (see get_event_stream_status). For both products this tool
-        resolves host (and site; an unknown one fails listing the valid choices) and opens no
-        stream. Returns {product, host, site, console_id, site_key, state: "unsupported",
-        supported: false, attached: false, reason, compatibility, use_instead, note} with no
-        events key, so an unsupported stream is never mistaken for a quiet one. Use the tools
-        in use_instead for event history: list_network_events / get_system_log /
-        list_ips_events for Network, list_protect_events / collect_protect_events /
-        collect_protect_device_changes for Protect.
-
-        A supported stream would be read from a bounded in-memory buffer by after_seq cursor;
-        none is supported, so after_seq and max_events have no effect today. Reading never
-        subscribes the MCP client to notifications.
-
-        Example call (read_recent_events):
-            {"product": "protect", "host": "my-console"}
-
-        Args:
-            product: "network" or "protect". Example: "protect".
-            host: Console name or id from list_hosts. Example: "my-console".
-            site: Network site name or id from list_local_sites (e.g. "Default"); required for
-                "network", omit for "protect".
-            after_seq: Cursor; events with a greater seq, oldest first. Pass next_after_seq from
-                the previous read. Omit for the newest events. Example: 120.
-            max_events: Optional maximum number of events returned; omit for all. Example: 100.
-        """
-        client, registry = deps_fn()
-        return await read_recent_event_buffer(
-            registry, client, product, host, site, after_seq, max_events
-        )

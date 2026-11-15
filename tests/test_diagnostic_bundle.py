@@ -31,7 +31,7 @@ from unifi_fabric import _read_only_audit, diagnostic_bundle
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.site_manager import site_manager
-from unifi_fabric.families.site_manager.aggregation import register
+from unifi_fabric.families.site_manager.registrar import register_2 as register
 from unifi_fabric.registry import Registry
 
 TOOL = "get_server_diagnostic_bundle"
@@ -545,6 +545,7 @@ _DATA_KEYS: dict[str, set[str]] = {
         "logLevel",
         "audit",
         "keyMode",
+        "traceExport",
     },
     "policy": {"effectivePolicy", "digest"},
     "transport": {
@@ -570,7 +571,15 @@ _DATA_KEYS: dict[str, set[str]] = {
 }
 _API_KEYS_KEYS = {"count", "organizationKeys", "providers"}
 _PROVIDER_KEYS = {"keyFile", "keysFile", "keyCommand", "keysCommand"}
-_AUDIT_KEYS = {"logFileConfigured", "format", "sink", "level", "calls"}
+_AUDIT_KEYS = {
+    "logFileConfigured",
+    "format",
+    "sink",
+    "level",
+    "calls",
+    "remoteSinkConfigured",
+    "remotePlaintext",
+}
 _PROBE_ENTRY_KEYS = {"key", "status", "records", "reason", "durationMs"}
 #: The closed vocabulary of a probe ``reason``: an upstream status, an exception type
 #: name, or one of these fixed tokens.
@@ -790,3 +799,48 @@ def test_the_bundle_names_every_audit_sink_the_server_accepts(tmp_path) -> None:
         settings = _two_key_settings(audit_sink=sink, **extra)
         data = diagnostic_bundle._configuration(UniFiClient(settings))
         assert data["audit"]["sink"] == sink
+
+
+async def test_the_default_bundle_opens_no_socket_and_writes_no_file(
+    multikey_client, monkeypatch, tmp_path
+):
+    """Acceptance: the bundle is reviewed by the caller; nothing is transmitted or saved."""
+    import builtins
+    import socket
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the local bundle must not open a connection")
+
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.chdir(tmp_path)
+    real_open = builtins.open
+
+    def no_write_open(file, mode="r", *args, **kwargs):  # noqa: ANN001
+        if any(c in mode for c in "wax+"):
+            raise AssertionError(f"the bundle must not write a file: {file!r}")
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", no_write_open)
+    registry = Registry(multikey_client, ttl_seconds=900)
+    mcp = FastMCP("t")
+    register(mcp, lambda: (multikey_client, registry))
+    bundle = await _call(mcp)
+    assert "review" in bundle
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_bundle_reports_trace_export_and_remote_sink_as_flags_only(monkeypatch):
+    client = UniFiClient(
+        Settings(
+            api_key="synthetic-only",
+            audit_sink="remote",
+            audit_remote_url="https://example.invalid/x",
+        )
+    )
+    try:
+        data = diagnostic_bundle._configuration(client)  # noqa: SLF001
+    finally:
+        await client.close()
+    assert data["traceExport"] in {"on", "off"}
+    assert data["audit"]["remoteSinkConfigured"] is True
+    assert "example.invalid" not in str(data)

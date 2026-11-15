@@ -22,6 +22,7 @@ from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.protect import protect_door_locks as pdk
+from unifi_fabric.families.protect import registrar as protect_registrar
 
 HOST = "console-dl"
 PRIV = f"/v1/connector/consoles/{HOST}/proxy/protect/api"
@@ -430,7 +431,7 @@ def _registered() -> dict[str, Any]:
     import asyncio
 
     mcp = FastMCP("t")
-    pdk.register(mcp, lambda: (None, None))
+    protect_registrar.register_12(mcp, lambda: (None, None))
     return {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
 
 

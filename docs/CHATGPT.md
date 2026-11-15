@@ -25,7 +25,7 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
 
 1. **Run the server with OAuth on HTTP.** Use the Docker image or `uvx` with these variables (the `/mcp` path matters: the advertised resource is `MCP_OAUTH_BASE_URL` plus `/mcp`):
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b support=0.7.2 citation=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:d5467f196a2db4df70c4258f8fd24a1e712a27e93c06bb471fb80cf0975cd1a3 citation=file:src/unifi_fabric/server.py@sha256:d5467f196a2db4df70c4258f8fd24a1e712a27e93c06bb471fb80cf0975cd1a3 -->
 <!-- install-case: docs-chatgpt-1 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    export UNIFI_API_KEY="your-api-key-here"
@@ -37,7 +37,7 @@ ChatGPT connects only to remote servers over HTTPS and authenticates with **OAut
    export MCP_OAUTH_JWKS_URI="https://idp.example.com/.well-known/jwks.json"
 export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host header your proxy forwards
    export MCP_OAUTH_REQUIRED_SCOPES="fabric:read"                    # optional; advertised to ChatGPT
-   uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+   uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
    ```
 
    `MCP_ALLOWED_HOSTS` matters when the server listens on loopback behind a reverse proxy: the Host check then refuses any other host name with `421 Misdirected Request`. List your public host name (see [Host and Origin validation](AUTH-TLS.md#host-and-origin-validation)).
@@ -46,7 +46,7 @@ export MCP_ALLOWED_HOSTS="unifi-mcp.example.com"                  # the Host hea
 
 2. **Check discovery from outside.** Both must work over HTTPS:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b support=0.7.2 citation=file:src/unifi_fabric/server.py@sha256:decbac150700e676eb3e9863e12056845473cc864922f3c71411bc8d44673d4b -->
+<!-- doc-provenance: source=file:src/unifi_fabric/server.py@sha256:d5467f196a2db4df70c4258f8fd24a1e712a27e93c06bb471fb80cf0975cd1a3 citation=file:src/unifi_fabric/server.py@sha256:d5467f196a2db4df70c4258f8fd24a1e712a27e93c06bb471fb80cf0975cd1a3 -->
 <!-- install-case: docs-chatgpt-2 mode=non-executable reason=remote-deployment-requires-user-host -->
    ```bash
    curl -s https://unifi-mcp.example.com/.well-known/oauth-protected-resource/mcp

@@ -29,7 +29,7 @@ mode (the default) run each tool below through `call_read_tool` or `call_write_t
 | Tool | Mode | Required arguments (optional) | Return shape and source |
 |---|---|---|---|
 | `get_channel_plan` | read | `host`, `site` | `{meta, data}` verbatim; `families/network/network_services_proxy.py::get_channel_plan` → `families/network/network_services_proxy.py::get_channel_plan`; `readOnlyHint: true` |
-| `get_device_radios` | read | `host`, `site`, `device` | envelope plus `_device`, `_radio_table`, `_radio_table_stats`, `_radios`; `families/devices/device_radios.py::get_device_radios`; `readOnlyHint: true` |
-| `update_device_radio` | write | `host`, `site`, `device`, `radios` (`dry_run`) | `readBefore`, `readAfter`, `changed`, `noOp`, `_verified`, `response`, or `{status, dryRun, message, preview, diff}`; `families/devices/device_radios.py::update_device_radio`; `readOnlyHint: false` |
+| `get_device_radios` | read | `host`, `site`, `device` | envelope plus `_device`, `_radio_table`, `_radio_table_stats`, `_radios`; `families/devices/registrar.py::get_device_radios`; `readOnlyHint: true` |
+| `update_device_radio` | write | `host`, `site`, `device`, `radios` (`dry_run`) | `readBefore`, `readAfter`, `changed`, `noOp`, `_verified`, `response`, or `{status, dryRun, message, preview, diff}`; `families/devices/registrar.py::update_device_radio`; `readOnlyHint: false` |
 
 The server never retries a radio write; after a timeout, read back before trying again.

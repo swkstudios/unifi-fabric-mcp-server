@@ -1,4 +1,4 @@
-"""GS3 P02: Protect PTZ control, presets/patrols, camera shortcuts, calibration and doorbell.
+"""Protect PTZ control, presets/patrols, camera shortcuts, calibration and doorbell.
 
 Hermetic: a real ``UniFiClient`` over ``respx`` (every request is observable), a stubbed
 host resolution, and synthetic records only (zero-padded ids, documentation names).
@@ -23,6 +23,7 @@ from unifi_fabric._read_only_audit import classify_tool_verbs, derive_write_tool
 from unifi_fabric.client import UniFiClient
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.protect import protect_ptz_doorbell as p02
+from unifi_fabric.families.protect import registrar as protect_registrar
 from unifi_fabric.refusals import classify
 
 HOST_ID = "000000000000000000000000000000000000000000:1"
@@ -194,7 +195,7 @@ def test_descriptions_document_every_argument_with_examples():
 
 def test_register_on_a_fresh_server_uses_the_deps_function():
     mcp = FastMCP("p02")
-    p02.register(mcp, lambda: (None, None))
+    protect_registrar.register_9(mcp, lambda: (None, None))
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == set(TOOLS)
 

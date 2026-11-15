@@ -1494,7 +1494,36 @@ def install(
     monkeypatch.setattr(server, "_registry", Registry(client, ttl_seconds=s.cache_ttl_seconds))
     # never actually sleep in collectors / retries
     monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    instant_pacing(monkeypatch)
     return client
+
+
+def instant_pacing(monkeypatch: Any) -> None:
+    """Put the connector pacer on a clock whose sleep advances it instantly, for this install.
+
+    The pacer (``unifi_fabric.pacing``) holds its sleeper from import time, so the
+    ``asyncio.sleep`` patch above does not reach it. A hermetic capture sends hundreds of
+    stubbed requests to one synthetic console; on the real clock the 96th would wait out a
+    real minute, which is how a generator script (``tool_map.py``, ``dump_tool_baseline.py``,
+    ``regen_docs.py``) stalled for tens of minutes. ``tests/conftest.py`` installs the same
+    instant clock for pytest; this covers every script that installs the harness. A time
+    source a test already installed (not the real clock) is left alone. Undone with the
+    ``monkeypatch``.
+    """
+    import time
+
+    from unifi_fabric import pacing
+
+    if pacing._clock is not time.monotonic:  # noqa: SLF001 - a test's own source stays
+        return
+    state = {"now": 1000.0}
+
+    async def sleep(seconds: float) -> None:
+        state["now"] += max(seconds, 0.0)
+
+    pacing.reset_registry()
+    monkeypatch.setattr(pacing, "_clock", lambda: state["now"])
+    monkeypatch.setattr(pacing, "_sleep", sleep)
 
 
 _real_sleep = asyncio.sleep

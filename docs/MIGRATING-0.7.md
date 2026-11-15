@@ -170,14 +170,14 @@ restored exactly only with read-only mode off.
 
 ### change-019
 
-- Tool input schemas describe 40 pinned-spec body shapes. Each body's top-level fields
+- Tool input schemas describe 42 pinned-spec body shapes. Each body's top-level fields
   carry an advisory type and a one-line spec note (enum values, required keys, and the
   discriminator values with each variant's fields); nested fields are summarised as a
   compact TypeScript-like outline in the field description, for example
   `{zoneId:string(uuid),trafficFilter?:...}`. Local aliases such as `T1` refer to
   definitions in the outline's trailing `where T1=...` clause. Unknown fields remain allowed;
-  no new validation constraints are added. The other 187 object parameters are
-  explicitly described as free-form. The shapes are 69,295 bytes of compact JSON, and a
+  no new validation constraints are added. The other 190 object parameters are
+  explicitly described as free-form. The shapes are 71,338 bytes of compact JSON, and a
   size-budget test (`tests/test_catalog_size_budget.py`) holds the catalog to an average
   of 2,400 bytes per tool, any one tool's input schema to 10,000 bytes, the shapes to an
   average of 2,000 bytes and any one shape to 10,000 bytes.
@@ -414,7 +414,7 @@ restored exactly only with read-only mode off.
   returned the PATCH body and always sent it). The verified updates and
   `update_arm_profile` / `update_arm_profile_settings` include the PATCH body under
   `response`, and `update_arm_profile_settings` reports its no-op object under `resource`
-  (was `arm_mode`).
+  (was the `armMode` key).
 
   Affected tools: `update_alarm_hub`, `update_arm_profile`, `update_arm_profile_settings`,
   `update_bridge`, `update_camera`, `update_chime`, `update_fob`, `update_light`,
@@ -1067,8 +1067,8 @@ changes.
 
 ### change-073
 
-- Tool annotations: the 343 read-only tools advertise `readOnlyHint: true` and
-  `destructiveHint: false`; the 455 write tools advertise `readOnlyHint: false` and
+- Tool annotations: the 352 read-only tools advertise `readOnlyHint: true` and
+  `destructiveHint: false`; the 462 write tools advertise `readOnlyHint: false` and
   `destructiveHint: true`. 0.6.2 sent none, so clients showed every tool as a
   destructive write. Fifteen tools with read-style names are still annotated as writes
   because their upstream route is a POST not yet proven read-only: `get_inactive_sim_slot`,
@@ -1207,8 +1207,8 @@ changes.
   never the raw one. The limit table is generated from the specs and test-pinned.
   The 68 tools: `alarm_hub_trigger_output`, `attach_carrier_subscriber_host`, `create_acl_rule`, `create_arm_profile`, `create_carrier_subscriber`, `create_firewall_policy`, `create_hotspot_vouchers`, `create_liveview`, `create_network`, `create_rtsps_stream`, `create_traffic_matching_list`, `create_wifi_broadcast`, `delete_rtsps_stream`, `get_camera_snapshot`, `get_innerspace_asset`, `list_acl_rules`, `list_carrier_subscribers`, `list_clients`, `list_countries`, `list_dns_policies`, `list_dpi_applications`, `list_dpi_categories`, `list_firewall_policies`, `list_firewall_zones_proxy`, `list_hotspot_vouchers`, `list_lags`, `list_local_sites`, `list_mc_lag_domains`, `list_mobility_clients`, `list_mobility_devices`, `list_networks`, `list_pending_devices`, `list_protect_files`, `list_radius_profiles`, `list_site_devices`, `list_site_to_site_tunnels`, `list_switch_stacks`, `list_traffic_matching_lists`, `list_vpn_servers`, `list_wan_interfaces`, `list_wifi_broadcasts`, `pos_ingest_transaction`, `ptz_goto_preset`, `ptz_patrol_start`, `relay_activate_output`, `siren_play`, `siren_test_sound`, `speaker_test_sound`, `suspend_carrier_subscriber`, `update_acl_rule`, `update_arm_profile`, `update_camera`, `update_carrier_subscriber`, `update_chime`, `update_firewall_policy`, `update_light`, `update_liveview`, `update_mobility_device_name`, `update_mobility_device_network`, `update_mobility_device_wireless`, `update_network`, `update_predefined_firewall_policy`, `update_sensor`, `update_siren`, `update_speaker`, `update_traffic_matching_list`, `update_wifi_broadcast`, `upload_protect_file`.
 
-  Additional tools in 0.7.1: `list_integration_device_tags`. The 68-tool list above
-  records the 0.7.0 release; the current spec-limit table covers 69 tools.
+  Additional tools: `list_integration_device_tags` (0.7.1), `create_external_arm_profile` and `update_external_arm_profile` (0.7.3). The 68-tool list above
+  records the 0.7.0 release; the current spec-limit table covers 71 tools.
 
 ### change-086
 

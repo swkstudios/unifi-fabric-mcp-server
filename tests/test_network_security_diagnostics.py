@@ -1,4 +1,4 @@
-"""Network security / diagnostics / IP-Thread topology tools (GS3 N11).
+"""Network security / diagnostics / IP-Thread topology tools.
 
 Hermetic: synthetic upstream bodies only (documentation MACs 02:00:5e:..., TEST-NET
 addresses, zero ids); no controller is contacted.

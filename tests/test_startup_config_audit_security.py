@@ -117,7 +117,9 @@ def test_audit_text_quotes_every_free_text_field(tmp_path, field, injection):
     AuditSink(str(path), fmt="text").record(**values)
     line = path.read_text()
     assert len(line.splitlines()) == 1
-    assert f"{field}={json.dumps(injection)}" in line
+    # A path is masked to route words and identifiers, so an injected value cannot appear.
+    expected = "path=***" if field == "path" else f"{field}={json.dumps(injection)}"
+    assert expected in line
 
 
 def test_configuration_error_renderer_scrubs_validation_message(monkeypatch):

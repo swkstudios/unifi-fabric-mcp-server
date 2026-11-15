@@ -947,13 +947,16 @@ def test_innerspace_read_module_is_read_only_and_its_write_tools_are_writes():
 
     # The InnerSpace write tools live in families/innerspace/innerspace_internal.py; every one of them
     # is classified as a write (not read-only), which is what the write policy gates on.
+    import inspect
+
     from tests import test_cross_tool_invariants as cti
+    from unifi_fabric.families import tool_function_module
 
     internal = [
         name
         for name, tool in cti.TOOLS.items()
-        if getattr(tool.fn, "__module__", "")
-        == "unifi_fabric.families.innerspace.innerspace_internal"
+        # The step's origin (the module its tools are indexed under), wherever a move put it.
+        if tool_function_module(inspect.unwrap(tool.fn)) == "innerspace_internal"
     ]
     writes = {name for name in internal if not name.startswith(("get_", "list_"))}
     assert {

@@ -10,6 +10,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import install_smoke as smoke  # noqa: E402
 
+from tests.workflow_runners import runner_fallback
+
 
 def test_pip_executes_documented_setup_and_launcher(monkeypatch, tmp_path):
     calls = []
@@ -478,7 +480,7 @@ def test_linux_install_workflow_uses_plain_runner_and_defers_docker():
 def test_pull_request_docker_job_is_guarded_and_public_transform_uses_public_runner():
     workflow = yaml.safe_load((smoke.ROOT / ".github/workflows/ci.yml").read_text())
     job = workflow["jobs"]["docker-build-amd64"]
-    runner = job["runs-on"]
+    runner = runner_fallback(job["runs-on"])
     # The exact private runner label is pinned in the private-only workflow-forms test.
     if "self-hosted" in runner:
         assert runner[:3] == ["self-hosted", "Linux", "X64"] and len(runner) == 4

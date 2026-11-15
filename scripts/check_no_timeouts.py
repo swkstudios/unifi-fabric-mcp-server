@@ -71,6 +71,15 @@ CAP_CALLS = frozenset(
     }
 )
 ZERO_NO_CAP_CALLS = frozenset({"alarm", "setitimer", "settimeout", "setdefaulttimeout"})
+#: The release approval await (a source-repository workflow) raises GitHub's 360-minute job
+#: default to 1380 minutes, inside the 24-hour life of the job's GITHUB_TOKEN, so a late
+#: approval is not cut off at 6 h. The exception exists only while that file does.
+AWAIT_PATH = ".github/workflows/public-release-await.yml"
+AWAIT_PATTERN = "timeout-minutes: 1380"
+AWAIT_CITATION = (
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax"
+    "#jobsjob_idtimeout-minutes"
+)
 MARKDOWN_CODE = re.compile(r"```([A-Za-z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
 
 SHELL_CAPS = re.compile(
@@ -532,6 +541,7 @@ def check_allowlist(root: Path) -> list[str]:
     # UniFi are never capped). One entry, one line of src/unifi_fabric/code_mode.py.
     private_cpu_verdict = "public-code-mode-interpreter-cpu"
     public_cpu_verdict = "public-code-mode-interpreter-cpu"
+    await_verdict = "public-approval-await"
     healthcheck = (
         expected_pattern,
         "platform-mandated-maximum",
@@ -550,6 +560,14 @@ def check_allowlist(root: Path) -> list[str]:
             "2026-11-03",
         ),
     }
+    if (root / AWAIT_PATH).is_file():
+        approved[AWAIT_PATH] = (
+            AWAIT_PATTERN,
+            "platform-default-raised",
+            AWAIT_CITATION,
+            {await_verdict},
+            "2026-11-11",
+        )
     seen: set[str] = set()
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict) or set(entry) != required:

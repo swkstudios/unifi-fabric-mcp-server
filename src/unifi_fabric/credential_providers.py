@@ -273,7 +273,7 @@ def _parse(var: str, text: str, family: _Family) -> Any:
     if len(lines) > 1:
         raise ProviderError(
             f"{var} produced {len(lines)} lines; expected exactly one line holding the API "
-            "key (only a trailing line break is removed). The content is not shown"
+            "key (only trailing line breaks are removed). The content is not shown"
         )
     return value
 

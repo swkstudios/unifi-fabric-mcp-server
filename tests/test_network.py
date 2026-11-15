@@ -812,6 +812,29 @@ class TestUpdateWanInterface:
         )
         assert client.put.call_args.kwargs["json"] == {"wan_dns": ["8.8.8.8"], "purpose": "wan"}
 
+    async def test_passthrough_vlan_fields_are_sent_verbatim(self, client, registry):
+        """Network 11.1.47 passthrough VLANs: the WAN record's tagged_networkconf_ids."""
+        client.get.return_value = WAN_NETWORKCONF
+        client.put.return_value = {}
+        wan = {
+            "setting_preference": "manual",
+            "tagged_networkconf_ids": ["65f1c0ffee0123456789abcd", "65f1c0ffee0123456789abce"],
+            "wan_vlan_networkconf_id": "65f1c0ffee0123456789abcf",
+        }
+        await update_wan_interface(client, registry, "h", "s", "i-wan1", wan)
+        assert client.put.call_args.kwargs["json"] == {**wan, "purpose": "wan"}
+
+    async def test_an_empty_passthrough_vlan_list_clears_them(self, client, registry):
+        client.get.return_value = WAN_NETWORKCONF
+        client.put.return_value = {}
+        await update_wan_interface(
+            client, registry, "h", "s", "i-wan1", {"tagged_networkconf_ids": []}
+        )
+        assert client.put.call_args.kwargs["json"] == {
+            "tagged_networkconf_ids": [],
+            "purpose": "wan",
+        }
+
     async def test_non_wan_id_lists_every_wan(self, client, registry):
         client.get.return_value = WAN_NETWORKCONF
         with pytest.raises(ValueError, match="'Fiber': id=i-wan1, _id=c-wan1"):

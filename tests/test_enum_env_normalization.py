@@ -47,6 +47,14 @@ CASE_SENSITIVE = {"oauth_algorithm", "write_policy", "family_allow"}
 #: Values another setting needs for a valid combination (keyed by the field under test).
 _COMPANIONS: dict[str, dict[str, str]] = {
     "auth_mode": {"MCP_BEARER_TOKEN": "probe-bearer-token-0123456789"},
+    # An OAuth setting applies only in oauth mode, with the complete descriptor.
+    "oauth_algorithm": {
+        "MCP_AUTH_MODE": "oauth",
+        "MCP_OAUTH_ISSUER": "https://idp.example.com/",
+        "MCP_OAUTH_JWKS_URI": "https://idp.example.com/jwks",
+        "MCP_OAUTH_AUDIENCE": "mcp",
+        "MCP_OAUTH_BASE_URL": "https://mcp.example.com",
+    },
     "tls_mode": {"MCP_TLS_CERTFILE": "/probe/cert.pem", "MCP_TLS_KEYFILE": "/probe/key.pem"},
     "tls_cert_reqs": {
         "MCP_TLS_MODE": "mtls",

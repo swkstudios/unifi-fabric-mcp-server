@@ -25,8 +25,9 @@ measures the running server and rewrites these figures in place:
   ``tools/list`` result bytes for ``UNIFI_TOOL_MODE=full`` and ``discovery``;
 * the pinned-spec body-shape figures (shaped count, free-form count, compact bytes), in
   docs/CATALOG.md, the CHANGELOG and docs/MIGRATING-0.7.md;
-* the installation versions (package pins, image tags, release bundle links and the encoded
-  install-badge pins) in README.md, docs/DOCKER.md and the Claude Desktop bundle README;
+* the installation versions (package pins, image tags, release bundle links, the encoded
+  install-badge pins and the pins named in prose) in every file of the release corpus
+  (``prepare_release.pin_files``: the documents, the client manifests, the issue templates);
 * the catalog and ignored-confirm parameter counts in docs/COVERAGE.md;
 * the read-only and write annotation counts in CHANGELOG and the migration guide;
 * the official-only figures, wherever AGENTS.md, llms.txt and docs/CONFIGURATION.md state
@@ -353,6 +354,7 @@ DOMAINS: tuple[Domain, ...] = (
             "get_wlan_group",
             "get_channel_plan",
             "list_rogue_aps",
+            "diagnose_wifi",
         ),
     ),
     Domain("Mobile & WAN", modules=("network_mobile_wan",)),
@@ -512,11 +514,14 @@ def tool_inventory() -> list[tuple[str, str, str | None]]:
 
     sys.path.insert(0, str(ROOT / "src"))
     import unifi_fabric.server as server
-    from unifi_fabric.families import build_module_index
+    from unifi_fabric.catalog.deferred import load_all
+    from unifi_fabric.families import build_module_index, tool_function_module
 
+    load_all(server.mcp)  # each tool's ``fn`` is read below (public #41)
     modules = build_module_index()
     tools = asyncio.run(server.mcp.list_tools())
-    return [(t.name, t.fn.__module__.rsplit(".", 1)[-1], modules.get(t.name)) for t in tools]
+    # A tool moved into a family layout module keeps the module it is indexed under.
+    return [(t.name, tool_function_module(t.fn), modules.get(t.name)) for t in tools]
 
 
 def annotation_counts() -> tuple[int, int]:
@@ -861,9 +866,7 @@ def render_official_only(
     return text
 
 
-CURSOR_DEEPLINK_RE = re.compile(
-    r"(cursor\.com/en/install-mcp\?[^\"\s]*?config=)([A-Za-z0-9_+/-]+=*)"
-)
+CURSOR_DEEPLINK_RE = re.compile(r"(cursor\.com/install-mcp\?[^\"\s]*?config=)([A-Za-z0-9_+/-]+=*)")
 # A pin is X.Y.Z plus any suffix (rc1, .post1, .1, -dev.1, +local, %2Blocal in a URL). The
 # whole token is replaced, so a hand-edited suffixed pin is re-rendered and fails --check
 # instead of surviving it. Every pin position below uses this one tail.
@@ -888,6 +891,15 @@ PIN_KINDS = (
     ),
     ("release download link (releases/download/vVERSION)", r"(releases/download/v)" + PIN_BODY),
     (
+        "published release in prose (published X.Y.Z release)",
+        r"(\bpublished )" + PIN_BODY + r"(?= release\b)",
+    ),
+    (
+        "pinned package in prose (pinned `unifi-fabric-mcp-server` X.Y.Z package)",
+        r"(pinned `unifi-fabric-mcp-server` )" + PIN_BODY + r"(?= package\b)",
+    ),
+    ("version example in the bug template (e.g. vX.Y.Z)", r"(e\.g\. v)" + PIN_BODY),
+    (
         "extension bundle file name (unifi-fabric-VERSION.mcpb)",
         r"(/unifi-fabric-)" + PIN_BODY + r"(?=\.mcpb)",
     ),
@@ -899,6 +911,13 @@ PIN_KINDS = (
 VSCODE_BADGE_RE = (
     r"(?i)(?:vscode(?:-insiders)?\.dev/redirect/mcp/install|vscode(?:-insiders)?:mcp/install)\?"
     r"[^\"\s<>]*?unifi-fabric-mcp-server%3D%3D" + PIN_BODY
+)
+#: The install badge as a real link (an ``<a href`` or a Markdown link): the pin token alone,
+#: or the URL as plain text, is not an install badge.
+VSCODE_INSTALL_LINK_RE = (
+    r"(?i)(?:href=\"|\]\()"
+    r"(?:https://(?:insiders\.)?vscode\.dev/redirect/mcp/install|vscode(?:-insiders)?:mcp/install)\?"
+    r"[^\"\s<>)]*?unifi-fabric-mcp-server%3D%3D" + PIN_BODY
 )
 
 
@@ -986,13 +1005,13 @@ def require_install_badges(text: str, where: str) -> None:
     does not decode, or a config with no pin would otherwise pass ``--check`` and be caught only
     by the test suite."""
     problems: list[str] = []
-    if not re.search(VSCODE_BADGE_RE, text):
+    if not re.search(VSCODE_INSTALL_LINK_RE, text):
         problems.append(
             "no VS Code install badge with a pin (unifi-fabric-mcp-server%3D%3DVERSION)"
         )
     cursor = list(CURSOR_DEEPLINK_RE.finditer(text))
     if not cursor:
-        problems.append("no Cursor install badge (cursor.com/en/install-mcp?...&config=...)")
+        problems.append("no Cursor install badge (cursor.com/install-mcp?...&config=...)")
     for m in cursor:
         decoded = _decode_cursor_payload(m[2])
         line = text.count("\n", 0, m.start()) + 1
@@ -1158,6 +1177,60 @@ def render_annotations(text: str, fig: Figures, where: str, *, required: bool = 
     )
 
 
+def _render_lead(section: str, tools: int, delta: tuple[int, int] | None) -> str:
+    """``section`` with its ``Highlights: N tools (A added, R removed)`` lead rewritten."""
+    highlights = f"Highlights: {tools} tools"
+    if delta is not None:
+        added, removed = delta
+        highlights += f" ({added} added, {removed} removed)"
+    return _sub(
+        section,
+        CHANGELOG_FIGURE_PATTERNS[0],
+        lambda m: (
+            highlights if delta is not None else re.sub(r"^Highlights: \d+ tools", highlights, m[0])
+        ),
+        "CHANGELOG",
+    )
+
+
+def lead_figures() -> tuple[int, tuple[int, int]]:
+    """The tool count and the (added, removed) pair the in-flight Highlights lead states.
+
+    The count is the catalog's own: ``tools/list`` of the stdio entry point in full mode,
+    the figure every other generated count is measured on (:func:`measure`). The pair
+    compares the registered tools with the previous release's schema snapshot
+    (:func:`catalog_delta`). Both must describe the same catalog, so a count that differs
+    from the registry fails instead of printing a lead whose parts disagree.
+    """
+    tools = _measure(None)[0]
+    registered = len(tool_inventory())
+    if tools != registered:
+        raise RuntimeError(
+            f"tools/list lists {tools} tools but the registry holds {registered}; "
+            "the Highlights lead would state two different catalogs"
+        )
+    return tools, catalog_delta()
+
+
+def render_lead(text: str, tools: int, delta: tuple[int, int] | None) -> str:
+    """Rewrite only the Highlights lead of the in-flight (first numbered) release section.
+
+    A dated first section has shipped and stays verbatim. The release fold calls this
+    (``scripts/regenerate_changelog.py``), so the lead is true on the fold commit and does
+    not wait for the dating commit: while fragments are pending :func:`render_outputs`
+    leaves the whole CHANGELOG alone, so every lane that adds a tool would otherwise
+    rewrite the same lead line.
+    """
+    headings = list(_RELEASE_RE.finditer(text))
+    if not headings:
+        raise RuntimeError("CHANGELOG has no numbered release section")
+    if _DATED_RE.match(text, headings[0].start()):
+        return text
+    start = headings[0].start()
+    end = headings[1].start() if len(headings) > 1 else len(text)
+    return text[:start] + _render_lead(text[start:end], tools, delta) + text[end:]
+
+
 def render_changelog(text: str, fig: Figures) -> str:
     """Rewrite figures in the current (first numbered) release section only.
 
@@ -1175,22 +1248,8 @@ def render_changelog(text: str, fig: Figures) -> str:
         return text  # the first numbered section has shipped; its figures stay verbatim
     start = headings[0].start()
     end = headings[1].start() if len(headings) > 1 else len(text)
-    section = text[start:end]
+    section = _render_lead(text[start:end], fig.tools, fig.catalog_delta)
     t = str(fig.tools)
-    highlights = f"Highlights: {t} tools"
-    if fig.catalog_delta is not None:
-        added, removed = fig.catalog_delta
-        highlights += f" ({added} added, {removed} removed)"
-    section = _sub(
-        section,
-        CHANGELOG_FIGURE_PATTERNS[0],
-        lambda m: (
-            highlights
-            if fig.catalog_delta is not None
-            else re.sub(r"^Highlights: \d+ tools", highlights, m[0])
-        ),
-        "CHANGELOG",
-    )
     section = _sub(
         section,
         CHANGELOG_FIGURE_PATTERNS[1],
@@ -1346,6 +1405,22 @@ def main() -> int:
     return 0
 
 
+def _release():
+    """scripts/prepare_release.py, loaded by path: it owns the release corpus and the
+    line-aware pin renderer (this module runs as a script and is also imported by path)."""
+    import importlib.util
+
+    name = "prepare_release_corpus"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "prepare_release.py")
+        if spec is None or spec.loader is None:
+            raise RuntimeError("scripts/prepare_release.py is missing")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
 def render_outputs() -> tuple[dict[Path, str], Figures]:
     """Every output file rendered in memory; nothing is written until all of them succeed."""
     readme, changelog = README.read_text(), CHANGELOG.read_text()
@@ -1354,8 +1429,6 @@ def render_outputs() -> tuple[dict[Path, str], Figures]:
     outputs = {
         README: render_readme(readme, fig),
         CATALOG: render_catalog(CATALOG.read_text(), fig),
-        DOCKER: render_install_versions(DOCKER.read_text(), PUBLISHED_VERSION),
-        BUNDLE_README: render_install_versions(BUNDLE_README.read_text(), PUBLISHED_VERSION),
         # Pending fragments belong to the next fold; keep the folded release unchanged.
         CHANGELOG: changelog
         if any(
@@ -1370,6 +1443,13 @@ def render_outputs() -> tuple[dict[Path, str], Figures]:
         LLMS: render_official_only(LLMS.read_text(), fig, "llms.txt"),
         SITE_STATS: render_site_stats(version, fig.tools, COVERAGE.read_text()),
     }
+    # Every install pin of the release corpus (documents, client manifests, issue templates),
+    # from published-version.txt: the one renderer prepare_release.py also runs at a release.
+    release = _release()
+    for rel in release.pin_files(ROOT):
+        path = ROOT / rel
+        text = outputs[path] if path in outputs else path.read_text()
+        outputs[path] = release.render_doc_pins(text, PUBLISHED_VERSION)
     return outputs, fig
 
 

@@ -42,7 +42,10 @@ EXPECTED_TYPE_CONVERTED = {
 #: A body field that duplicates a scalar argument of the same tool: the tool refuses two
 #: different values, so the boundary case sets both (create_arm_profile takes the profile
 #: name as its own argument and accepts settings['name'] only when it is the same).
-COUPLED: dict[tuple[str, str, str], str] = {("create_arm_profile", "settings", "name"): "name"}
+COUPLED: dict[tuple[str, str, str], str] = {
+    ("create_arm_profile", "settings", "name"): "name",
+    ("create_external_arm_profile", "settings", "title"): "title",
+}
 
 #: maxItems bounds too large to build a boundary list for; the keyword is still enforced
 #: (see test_large_max_items_is_enforced).

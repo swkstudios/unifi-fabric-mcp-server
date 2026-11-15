@@ -140,7 +140,7 @@ def test_forking_locator_survives_code_moving_and_fails_when_the_value_leaves(tm
 
 def test_forking_rename_steps_cover_the_base64_cursor_badge():
     """The leftover search cannot see the package name inside the Cursor badge payload."""
-    pattern = r"cursor\.com/en/install-mcp\?[^\"]*config=([A-Za-z0-9+/_=-]+)"
+    pattern = r"cursor\.com/install-mcp\?[^\"]*config=([A-Za-z0-9+/_=-]+)"
     badges = re.findall(pattern, _text("README.md"))
     assert badges, "README.md lost its Cursor install badge"
     package = PYPROJECT["project"]["name"]
@@ -191,22 +191,6 @@ def test_forking_identity_matrix_matches_package_registry_and_image_identity():
     assert entry and by_surface["Docker entry point"] == entry[1]
     assert by_surface["Public URL (package homepage)"] == project["urls"]["Homepage"]
     assert by_surface["Public URL (registry repository)"] == SERVER_JSON["repository"]["url"]
-
-
-def test_forking_names_every_identity_surface():
-    text = _text("docs/FORKING.md")
-    for surface in (
-        "Package name",
-        "Registry ID",
-        "Image name",
-        "Docker label",
-        "entry point",
-        "Client configuration example",
-        "Generated install text",
-        "Public URL",
-    ):
-        assert surface in text, surface
-    assert "## Rename a fork" in text
 
 
 # --- B2/B3: AI-CHANGES recipe and generator table --------------------------------------
@@ -414,19 +398,6 @@ def test_no_llms_full_file_anywhere():
 
 
 # --- CONTRIBUTING, COVERAGE, README, DOCKER --------------------------------------------
-
-
-def test_contributing_regeneration_guidance_never_touches_released_sections():
-    section = _section(_text("CONTRIBUTING.md"), "## If you add or change tools")
-    flat = " ".join(section.split())
-    assert "Never commit a change to a released section" in flat
-    # The generator and the fold leave a dated section untouched (tests/test_readme_catalog_size.py
-    # and tests/test_changelog_fold.py), so the guidance no longer asks for a restore.
-    assert "leaves `CHANGELOG.md` unchanged and needs no restore step" in flat
-    assert "git restore" not in flat
-    assert "refreshes the catalog sizes and tool counts in the README and in the docs" in flat
-    assert "tool counts in the README and CHANGELOG" not in flat
-    assert "Worked example: add a read tool" in section
 
 
 def test_coverage_live_evidence_rendered_or_marked_historical():

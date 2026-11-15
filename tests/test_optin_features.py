@@ -95,35 +95,32 @@ def test_every_tool_module_is_mapped_to_a_family() -> None:
     import asyncio
 
     import unifi_fabric.server as server
-    from unifi_fabric.families import FAMILY_OVERRIDES, MODULE_FAMILY, firewall_route_tools
+    from unifi_fabric.catalog.membership import MEMBERS
+    from unifi_fabric.families import MODULE_FAMILY, module_key_of
 
     index = build_family_index()
-    firewall = firewall_route_tools()
+    authored = {member.name: member.family for member in MEMBERS}
     tools = asyncio.run(server.mcp.list_tools())
     modules: dict[str, set[str]] = {}
     for tool in tools:
-        module = tool.fn.__module__.rsplit(".", 1)[-1]
+        module = module_key_of(tool.fn.__module__)
         modules.setdefault(module, set()).add(tool.name)
     for module, names in sorted(modules.items()):
         if module == "server":
             continue  # inline wrappers are classified by the module they delegate to
         assert module in MODULE_FAMILY, f"tools module {module} has no family"
-        # Split CRUD families override the module/route default, as in the catalog.
-        # Every remaining firewall-route tool belongs to the firewall family.
-        assert all(
-            index.get(n)
-            == FAMILY_OVERRIDES.get(n, "firewall" if n in firewall else MODULE_FAMILY[module])
-            for n in names
-        ), module
+        # Each tool's family is the one the explicit inventory authors for it.
+        assert all(index.get(n) == authored[n] for n in names if authored[n] != "meta"), module
     assert {t.name for t in tools} - set(index) == set()
 
 
 def test_registering_tool_modules_are_all_scanned() -> None:
     """Every tools/ module with a register function is scanned for family tools."""
+    from unifi_fabric.catalog.loaders import module_key
     from unifi_fabric.families import _REGISTER_MODULES, MODULE_FAMILY
 
     registering = {
-        path.stem
+        module_key(path.parent.name, path.stem)
         for path in tool_module_paths()
         if any(
             isinstance(node, ast.FunctionDef) and node.name == "register"
@@ -337,14 +334,14 @@ def test_audit_sink_text_and_json(tmp_path) -> None:
     t = tmp_path / "a.log"
     sink = build_audit_sink(Settings(audit_log=str(t), audit_log_format="text"))
     assert isinstance(sink, AuditStream) and sink.fmt == "text"
-    sink.record(method="POST", path="/x", outcome="success", status=200)
-    assert "method=POST path=/x outcome=success status=200" in t.read_text()
+    sink.record(method="POST", path="/sites", outcome="success", status=200)
+    assert "method=POST path=/sites outcome=success status=200" in t.read_text()
 
     j = tmp_path / "a.jsonl"
     sink = build_audit_sink(Settings(audit_log=str(j), audit_log_format="json"))
-    sink.record(method="DELETE", path="/y/1", outcome="success", status=200)
+    sink.record(method="DELETE", path="/sites/1", outcome="success", status=200)
     rec = json.loads(j.read_text().strip())
-    assert rec["method"] == "DELETE" and rec["path"] == "/y/1" and "timestamp_utc" in rec
+    assert rec["method"] == "DELETE" and rec["path"] == "/sites/1" and "timestamp_utc" in rec
 
 
 def test_audit_json_record_stays_valid_when_a_numeric_secret_matches_a_number(

@@ -52,7 +52,7 @@ continuation. Network native-position calls remain one verbatim upstream page. M
 
 Results for a requested size carry additive `_pageSize` metadata, for example:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/shared_shapes/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 support=0.7.2 citation=file:src/unifi_fabric/shared_shapes/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/shared_shapes/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 citation=file:src/unifi_fabric/shared_shapes/_pagination.py@sha256:71356c581b786c28fdcc056684d1df68a3f58cfbc4f8827b607aa2a979649540 -->
 ```json
 {"_pageSize": {"requested": 275, "sent": [200, 75], "effective": 200, "returned": 275}}
 ```
@@ -172,7 +172,7 @@ Requested record totals and default drains honour an explicitly configured
 With the setting unset there is no page cap. When its cap is reached before the
 requested count or the end, the response includes:
 
-<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:2e872d718e089cb631886c2e3e24e52c7806c4fd464278ba259055c84a9ccd54 support=0.7.2 citation=file:src/unifi_fabric/client.py@sha256:2e872d718e089cb631886c2e3e24e52c7806c4fd464278ba259055c84a9ccd54 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:ca79459ecb522535d0358d7e6f263df7adbf465142e8ada13f4e24f7805527f6 citation=file:src/unifi_fabric/client.py@sha256:ca79459ecb522535d0358d7e6f263df7adbf465142e8ada13f4e24f7805527f6 -->
 ```json
 {
   "incomplete": true,
@@ -216,23 +216,25 @@ page; only the opt-in `UNIFI_PAGINATE_MAX_PAGES` cap bounds a run of such pages.
 
 ## Server-side filtering
 
+<!-- BEGIN GENERATED: filter-tools -->
 These 27 Network tools accept an optional `filter` argument:
-`get_client_dpi_usage`, `get_controller_stats`, `get_latest_firmware_versions`, `get_site_dpi_usage`,
-`list_acl_rules`, `list_all_clients`, `list_clients`, `list_countries`,
-`list_dns_policies`, `list_dpi_applications`, `list_dpi_categories`,
-`list_firewall_policies`, `list_firewall_zones_proxy`, `list_hotspot_vouchers`,
-`list_integration_device_tags`, `list_lags`, `list_local_sites`, `list_mc_lag_domains`, `list_networks`,
-`list_pending_devices`, `list_radius_profiles`, `list_site_devices`,
-`list_site_to_site_tunnels`, `list_switch_stacks`, `list_traffic_matching_lists`,
-`list_vpn_servers` and `list_wifi_broadcasts` (`list_all_clients` sends it to every
-site's client list). The expression is forwarded **unchanged** to the upstream
+`get_client_dpi_usage`, `get_controller_stats`, `get_latest_firmware_versions`,
+`get_site_dpi_usage`, `list_acl_rules`, `list_all_clients`, `list_clients`, `list_countries`,
+`list_dns_policies`, `list_dpi_applications`, `list_dpi_categories`, `list_firewall_policies`,
+`list_firewall_zones_proxy`, `list_hotspot_vouchers`, `list_integration_device_tags`, `list_lags`,
+`list_local_sites`, `list_mc_lag_domains`, `list_networks`, `list_pending_devices`,
+`list_radius_profiles`, `list_site_devices`, `list_site_to_site_tunnels`, `list_switch_stacks`,
+`list_traffic_matching_lists`, `list_vpn_servers` and `list_wifi_broadcasts`.
+<!-- END GENERATED -->
+
+`list_all_clients` sends it to every site's client list. The expression is forwarded **unchanged** to the upstream
 UniFi `filter` query parameter — the server implements no local filter language, so the
 controller evaluates the documented grammar and returns its own error for a malformed
 expression. Filtering is applied server-side in both full-drain and single-page modes,
 so a narrowed query returns a smaller `totalCount`/result set without draining the
 unfiltered collection first. When `filter` is omitted the parameter is not sent at all.
 
-<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:2e872d718e089cb631886c2e3e24e52c7806c4fd464278ba259055c84a9ccd54 support=0.7.2 citation=file:src/unifi_fabric/client.py@sha256:2e872d718e089cb631886c2e3e24e52c7806c4fd464278ba259055c84a9ccd54 -->
+<!-- doc-provenance: source=file:src/unifi_fabric/client.py@sha256:ca79459ecb522535d0358d7e6f263df7adbf465142e8ada13f4e24f7805527f6 citation=file:src/unifi_fabric/client.py@sha256:ca79459ecb522535d0358d7e6f263df7adbf465142e8ada13f4e24f7805527f6 -->
 ```text
 list_networks(host="HQ", site="Default", filter="vlanId.eq(100)")
 list_clients(host="HQ", site="Default", filter="macAddress.eq('AA:BB:CC:DD:EE:FF')")

@@ -9,6 +9,7 @@ import pytest
 from unifi_fabric.client import UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
 from unifi_fabric.families.devices import device_commands as commands
+from unifi_fabric.families.devices import registrar as devices_registrar
 
 BASE = "/v1/connector/consoles/host/proxy/network/api/s/default/cmd/"
 SECOND_KEY = APIKeyConfig(key="second-key")
@@ -232,7 +233,7 @@ async def test_registered_tools_are_write_classified(deps):
 
             return decorator
 
-    commands.register(MCP(), lambda: deps)
+    devices_registrar.register_2(MCP(), lambda: deps)
     assert len(tools) == 13
     names = {tool.name for tool in tools}
     assert READ_TOOLS < names
@@ -346,7 +347,7 @@ def _registered_descriptions(deps):
 
             return decorator
 
-    commands.register(MCP(), lambda: deps)
+    devices_registrar.register_2(MCP(), lambda: deps)
     return descriptions
 
 

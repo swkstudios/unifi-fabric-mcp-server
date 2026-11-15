@@ -40,8 +40,9 @@ def test_ci_changelog_gate_accepts_fragments_and_monolith(tmp_path, changed, lab
         CHANGED_FILES=changed,
         BASE="base",
         HEAD="head",
-        LABELS=labels,
+        PAYLOAD_LABELS=labels,
     )
+    env.pop("GH_TOKEN", None)  # no token: the gate reads the payload labels (CI reads the API)
     result = subprocess.run(  # noqa: S603 - execute the checked-in CI gate
         ["/bin/bash", "-euo", "pipefail", "-c", step["run"]],
         env=env,

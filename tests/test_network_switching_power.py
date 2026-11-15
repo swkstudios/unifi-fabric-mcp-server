@@ -16,6 +16,7 @@ from tests import upstream_harness as uh
 from unifi_fabric import refusals
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
 from unifi_fabric.families.network import network_switching_power as power
+from unifi_fabric.families.network import registrar as network_registrar
 
 HOST = "console-a"
 SITE = "Default"
@@ -28,6 +29,11 @@ TOOL_NAMES = {
     "create_energy_saving_policy",
     "update_energy_saving_policy",
     "delete_energy_saving_policy",
+    "list_port_automations",
+    "get_port_automation",
+    "create_port_automation",
+    "update_port_automation",
+    "delete_port_automation",
     "list_power_supervisors",
     "create_power_supervisor",
     "update_power_supervisor",
@@ -252,7 +258,7 @@ async def test_energy_update_preserves_unmentioned_extensions_and_explicit_field
     client, registry = Client([row]), Registry()
     if registered:
         mcp = FastMCP("energy-preservation")
-        power.register(mcp, lambda: (client, registry))
+        network_registrar.register_5(mcp, lambda: (client, registry))
         tool = next(t for t in await mcp.list_tools() if t.name == "update_energy_saving_policy")
         result = await tool.fn(HOST, SITE, IDENTIFIER, changes)
     else:
@@ -404,7 +410,7 @@ async def test_history_tools_send_the_documented_seconds_as_milliseconds() -> No
 
 async def test_registers_nineteen_typed_documented_tools_with_derived_access() -> None:
     mcp = FastMCP("switching-power")
-    power.register(mcp, lambda: (Client(), Registry()))
+    network_registrar.register_5(mcp, lambda: (Client(), Registry()))
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     assert set(tools) == TOOL_NAMES
     for name, tool in tools.items():
@@ -477,7 +483,7 @@ async def test_mac_tables_query_is_sent_as_the_json_array_the_route_deserializes
 async def test_mac_tables_tool_sends_the_documented_legacy_object_as_an_array(arguments, body):
     client, registry = Client(), Registry()
     mcp = FastMCP("mac-tables")
-    power.register(mcp, lambda: (client, registry))
+    network_registrar.register_5(mcp, lambda: (client, registry))
     tool = next(t for t in await mcp.list_tools() if t.name == "query_switch_mac_tables")
     await tool.run({"host": HOST, "site": SITE, **arguments})
     posts = [c for c in client.calls if c[0] == "POST"]

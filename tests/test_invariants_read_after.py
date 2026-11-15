@@ -170,6 +170,7 @@ NETWORK_CLIENTS_GUESTS_VERIFIED = [
 ]
 SWITCHING_POWER_VERIFIED = [
     "update_energy_saving_policy",
+    "update_port_automation",
     "update_power_supervisor",
     "update_power_supervisor_link",
 ]
@@ -179,8 +180,10 @@ SECURITY_VERIFIED = [
     "update_system_log_settings",
 ]
 NC_VERIFIED = ["update_nat_rule", "update_qos_rule", "update_content_filter"]
+#: The DNS handlers live in the vpn family layout (families/vpn/handlers.py).
+DNS_VERIFIED = ["update_static_dns_record"]
 VPN_DNS_VERIFIED = [
-    "update_static_dns_record",
+    *DNS_VERIFIED,
     "update_ipsec_settings",
     "update_wireguard_users",
 ]
@@ -220,6 +223,11 @@ NO_VERDICT = {
     "network_services_proxy.exclude_network_on_port_profile",
 }
 
+#: Arm actions: a state-machine verdict (``armMode.status`` is one of the armed-side values
+#: after an enable, ``disabled`` after a disable) instead of requested leaves; the dedicated
+#: matrix is tests/test_protect_families.py ``test_arm_action_*``.
+ARM_ACTIONS = {"protect.enable_arm", "protect.disable_arm"}
+
 ASSETS_VERIFIED = [
     "update_protect_device_tag",
     "update_protect_user_group",
@@ -240,7 +248,8 @@ def test_read_after_catalog_is_complete():
         | {f"protect_users_assets.{n}" for n in ASSETS_VERIFIED}
         | {f"network_security_diagnostics.{n}" for n in SECURITY_VERIFIED}
         | {f"network_nat_qos_traffic.{n}" for n in NC_VERIFIED}
-        | {f"network_vpn_dns.{n}" for n in VPN_DNS_VERIFIED}
+        | {f"network_vpn_dns.{n}" for n in VPN_DNS_VERIFIED if n not in DNS_VERIFIED}
+        | {f"handlers.{n}" for n in DNS_VERIFIED}
         | {f"protect_ptz_doorbell.{n}" for n in PTZ_DOORBELL_VERIFIED}
         | {f"network_routing_topology.{n}" for n in ROUTING_TOPOLOGY_VERIFIED}
         | {f"network_routing_topology.{n}" for n in ROUTING_TOPOLOGY_DELETES}
@@ -254,6 +263,7 @@ def test_read_after_catalog_is_complete():
         | {"innerspace_internal.update_innerspace_plan"}
         | {"protect_device_lifecycle.update_protect_device_settings"}
         | NO_VERDICT
+        | ARM_ACTIONS
         | BATCH_DELETES
     )
     found = _read_after_tools()
@@ -660,7 +670,7 @@ class SecurityCase(Case):
 
 
 class NcCase(Case):
-    """GS3 NC v2 updates: read-before from the collection, merged PUT, read-after list."""
+    """v2 updates: read-before from the collection, merged PUT, read-after list."""
 
     def __init__(self, name: str) -> None:
         super().__init__("network_nat_qos_traffic", name)
@@ -899,7 +909,7 @@ class AdminCase(Case):
 
 
 class PtzDoorbellCase(Case):
-    """GS3 P02: PTZ slots verified through the camera's slot list; a shortcut through the
+    """PTZ slots verified through the camera's slot list; a shortcut through the
     camera object's shortcuts array, located by the body's id."""
 
     def __init__(self, name: str) -> None:
@@ -1006,7 +1016,7 @@ class RecognitionGroupCase(Case):
 
 
 class LifecycleCase(Case):
-    """update_protect_device_settings (GS3 P01): the official route reuses
+    """update_protect_device_settings: the official route reuses
     protect._update_item_verified; the private route verifies through its own reader."""
 
     def __init__(self, route: str) -> None:

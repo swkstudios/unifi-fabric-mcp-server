@@ -16,6 +16,7 @@ import pytest
 from unifi_fabric import secret_scrub
 from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
 from unifi_fabric.families.protect import protect_private as pp
+from unifi_fabric.families.protect import registrar as protect_registrar
 
 ID = "0000000000000000000000aa"
 HOST_ID = "console-001"
@@ -319,7 +320,7 @@ async def test_adopt_unknown_native_preserves_nested_error_without_listing(rig, 
     c.request.side_effect = request
     if registered:
         mcp = FastMCP("adopt")
-        pp.register(mcp, lambda: (c, r))
+        protect_registrar.register(mcp, lambda: (c, r))
         tool = {t.name: t for t in await mcp.list_tools()}["adopt_protect_device"]
         result = await tool.fn(host="example", device_type="camera", device_id=ABSENT_ID)
     else:
@@ -603,7 +604,7 @@ async def test_registered_nvr_retention_schema_and_patch_preserve_value(rig, val
 
     c, r, state, calls = rig
     mcp = FastMCP("nvr-retention-contract")
-    pp.register(mcp, lambda: (c, r))
+    protect_registrar.register(mcp, lambda: (c, r))
     tool = next(t for t in await mcp.list_tools() if t.name == "update_nvr")
     field = tool.parameters["properties"]["settings"]["properties"]["recordingRetentionDurationMs"]
     jsonschema.Draft202012Validator(field).validate(value)
@@ -635,7 +636,7 @@ async def test_registered_nvr_retention_rejects_booleans_without_requests(rig, v
 
     c, r, _, calls = rig
     mcp = FastMCP("nvr-retention-boolean")
-    pp.register(mcp, lambda: (c, r))
+    protect_registrar.register(mcp, lambda: (c, r))
     with pytest.raises(Exception):
         await mcp.call_tool(
             "update_nvr",
@@ -912,7 +913,7 @@ async def test_device_actions_accept_sensor_and_advertise_both_types(rig, fn):
 
     client, registry, _, calls = rig
     mcp = FastMCP("device-types")
-    pp.register(mcp, lambda: (client, registry))
+    protect_registrar.register(mcp, lambda: (client, registry))
     tool = {t.name: t for t in await mcp.list_tools()}[fn]
     assert set(tool.parameters["properties"]["device_type"]["enum"]) == {"camera", "sensor"}
     await getattr(pp, fn)(client, registry, "example", "sensor", ID)

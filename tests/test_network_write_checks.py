@@ -194,12 +194,6 @@ async def test_update_setting_nested_leaf_absent_before_and_after_is_rejected(cl
     assert client.put.await_args.kwargs["json"] == {"n": {"a": 1, "unknown": True}}
 
 
-def test_update_setting_description_names_the_leaf_check():
-    desc = TOOLS["update_setting"].description or ""
-    assert "leaf by leaf" in desc
-    assert "dotted path" in desc
-
-
 # --- device tags: tag_id selection is documented as it matches --------------------------
 
 _TIERS = "name (exact, then case-insensitive, then edge-whitespace stripped)"

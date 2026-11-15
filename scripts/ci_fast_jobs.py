@@ -59,9 +59,8 @@ CI_ONLY: dict[str, dict[str, str]] = {
         "test-prep": "fixes the shard count and computes the test selection for the shards",
         "test-shard": "one shard of the full suite (a matrix)",
         "test": "proves the shards and applies the coverage gate to their combined data",
-        "test-locked-prep": "fixes the shard count and computes the locked suite's selection",
-        "test-locked-shard": "one shard of the full suite in the exact locked environment",
-        "test-locked": "proves the locked shards and their one environment identity",
+        "install-proof": "fresh hash-checked install of the lock on LOCKED_PYTHON, pip check, "
+        "installed == lock and the full collection (classifier-chosen)",
         "scrub-oracle-prep": "fixes the scrub oracle's shard count",
         "scrub-oracle-shard": "one shard of the 210,000-case scrubber corpus (a matrix)",
         "scrub-oracle": "proves the scrub oracle's shards and gates the corpus coverage floor",
@@ -76,8 +75,12 @@ CI_ONLY: dict[str, dict[str, str]] = {
         "lint-public-language": "public repository text scan",
     },
     "changelog-size.yml": {},
+    "ci-relabel.yml": {
+        "rerun": "re-runs the pull request CI through the Actions API (hosted, repository token)",
+    },
     "codeql.yml": {
         "analyze": "CodeQL analysis of the python and actions languages (a matrix)",
+        "alert-ledger-sarif": "reads the SARIF artifacts of this run's CodeQL analysis",
     },
     "conformance.yml": {
         "conformance": "builds the locked MCP conformance suite and runs it against a live "
@@ -100,6 +103,9 @@ CI_ONLY: dict[str, dict[str, str]] = {
         "linux-docker": "Docker install paths, run for a release or a protected manual run",
         "release-rehearsal": "hosted macOS install rehearsal, manual runs only",
     },
+    "homebrew-proof.yml": {
+        "macos-proof": "hosted macOS runner: brew audit, install and test of the formula",
+    },
     "lint-public-language.yml": {"lint-public-language": "public repository text scan"},
     "public-artifact-dry-run.yml": {
         "public-artifact-dry-run": "installs a secret scanner with root rights and resolves "
@@ -108,6 +114,8 @@ CI_ONLY: dict[str, dict[str, str]] = {
         "20 shards and proof aggregate (22 CI jobs)",
         "public-retransform-check": "re-transforms the public tree in a second job and requires "
         "the digest the shards tested, with the repository token",
+        "release-evidence": "records the pull request run's public-suite proof for the release, "
+        "which reuses it; it needs the public-tests aggregate",
     },
 }
 
@@ -727,6 +735,7 @@ def pull_request_event(
             "base": {"sha": base, "ref": base_ref, "repo": repo},
             "head": {"sha": head, "ref": head_ref, "repo": repo},
             "labels": [{"name": label} for label in labels],
+            "number": 0,
         },
     }
 
@@ -813,6 +822,7 @@ def run(
             {
                 "event_name": "pull_request",
                 "event": event,
+                "token": "",  # no repository token locally: steps that read the API fall back
                 "repository": repository,
                 "base_ref": base_ref,
                 "head_ref": head_ref,

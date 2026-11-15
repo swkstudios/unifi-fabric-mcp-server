@@ -1,4 +1,4 @@
-"""Protect device lifecycle tools (GS3 lane P01).
+"""Protect device lifecycle tools.
 
 Every tool runs against the real ``UniFiClient`` with only the HTTP transport mocked:
 the route, method, query and body sent; verbatim pass-through; dry-run previews; the
@@ -28,6 +28,7 @@ from unifi_fabric._read_only_audit import classify_tool_verbs
 from unifi_fabric.client import RateLimitError, UniFiClient, UniFiConnectionError, _key_fingerprint
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.protect import protect_device_lifecycle as pdl
+from unifi_fabric.families.protect import registrar as protect_registrar
 from unifi_fabric.families.protect._protect_device_types import device_types_with_action
 
 HOST = "console-p01"
@@ -972,7 +973,7 @@ def test_lane_credentials_are_registered(method, route, field, side):
 
 def _registered() -> dict[str, Any]:
     mcp = FastMCP("p01-test")
-    pdl.register(mcp, lambda: (None, None))
+    protect_registrar.register_11(mcp, lambda: (None, None))
     res = mcp.list_tools()
     tools = asyncio.run(res) if inspect.isawaitable(res) else res
     return {t.name: t for t in tools}

@@ -11,12 +11,14 @@ family:protect=deny env gate, and the POS idempotency/validation guardrails.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
 
 from tests._protect_writes import assert_write, resp
-from unifi_fabric.client import UniFiConnectionError
+from unifi_fabric.client import DRY_RUN_MESSAGE, UniFiConnectionError
 from unifi_fabric.config import APIKeyConfig
 from unifi_fabric.families.protect.protect import (
     PROTECT_MUTATIONS_ENV,
@@ -64,6 +66,12 @@ from unifi_fabric.families.protect.protect import (
     update_siren,
     update_speaker,
 )
+
+_RECORDED_NVR = json.loads(
+    (
+        Path(__file__).parent / "fixtures/recorded/protect/protect_integration_v1_nvrs.json"
+    ).read_text()
+)["body"]
 
 HOST_ID = "host-fam-001"
 BASE = PROTECT_PROXY_BASE.format(host_id=HOST_ID)
@@ -271,8 +279,6 @@ _ACTIONS = [
         {"volume": 50},
     ),
     (speaker_test_sound, ("sp1",), {"confirm": True}, "/speakers/sp1/test-sound", {}),
-    (enable_arm, (), {"confirm": True}, "/arm-profiles/enable", None),
-    (disable_arm, (), {"confirm": True}, "/arm-profiles/disable", None),
 ]
 
 
@@ -312,6 +318,92 @@ async def test_action_body_returned_verbatim_never_raised(
     client.request.return_value = upstream
     result = await fn(client, registry, "h", *args, **kwargs)
     assert result == {"status": "sent", "response": expected}
+
+
+# --- enable_arm / disable_arm read the NVR armMode back  --------------------
+#
+# The recorded NVR (tests/fixtures/recorded/protect/protect_integration_v1_nvrs.json) is the
+# real shape: armMode.status is one of the pinned nvrArmMode values arming, armed, breach,
+# disabled. The route answers an empty 204, so only the read-back says what the NVR did.
+
+
+def _nvr_with_status(status):
+    nvr = json.loads(json.dumps(_RECORDED_NVR))
+    nvr["armMode"]["status"] = status
+    return nvr
+
+
+_ARM_CASES = [
+    (enable_arm, "/arm-profiles/enable", "armed", True),
+    (enable_arm, "/arm-profiles/enable", "arming", True),
+    (enable_arm, "/arm-profiles/enable", "breach", True),
+    (enable_arm, "/arm-profiles/enable", "disabled", False),
+    (disable_arm, "/arm-profiles/disable", "disabled", True),
+    (disable_arm, "/arm-profiles/disable", "armed", False),
+    (disable_arm, "/arm-profiles/disable", "arming", False),
+]
+
+
+@pytest.mark.parametrize("fn,suffix,status,verified", _ARM_CASES)
+async def test_arm_action_reads_armmode_back(client, registry, fn, suffix, status, verified):
+    client.get.return_value = _nvr_with_status(status)
+    result = await fn(client, registry, "h", confirm=True)
+    assert_write(client, "POST", f"{BASE}{suffix}", key=None, json=None)
+    client.get.assert_awaited_once_with(f"{BASE}/nvrs", key=None)
+    assert result == {
+        "status": "sent",
+        "verified": verified,
+        "after": _nvr_with_status(status)["armMode"],
+        "response": {},
+    }
+
+
+@pytest.mark.parametrize(
+    "fn,suffix", [(enable_arm, "/arm-profiles/enable"), (disable_arm, "/arm-profiles/disable")]
+)
+async def test_arm_action_failed_readback_is_unknown_not_an_error(client, registry, fn, suffix):
+    client.get.side_effect = UniFiConnectionError("HTTP 503: unavailable")
+    result = await fn(client, registry, "h")
+    assert result["status"] == "sent" and result["verified"] is None and result["after"] is None
+    assert "503" in result["readAfterError"]
+    assert_write(client, "POST", f"{BASE}{suffix}", key=None, json=None)
+
+
+@pytest.mark.parametrize("fn", [enable_arm, disable_arm])
+@pytest.mark.parametrize(
+    "nvr", [{"id": "n"}, {"armMode": "armed"}, [1], {"armMode": {"status": 1}}]
+)
+async def test_arm_action_malformed_readback_is_unknown_or_false(client, registry, fn, nvr):
+    client.get.return_value = nvr
+    result = await fn(client, registry, "h")
+    assert result["status"] == "sent"
+    assert result["verified"] in (None, False) and result["verified"] is not True
+
+
+@pytest.mark.parametrize("fn", [enable_arm, disable_arm])
+async def test_arm_action_dry_run_sends_and_reads_nothing(client, registry, fn):
+    client.request.return_value = resp(
+        {
+            "status": "dry_run",
+            "dryRun": True,
+            "sent": False,
+            "message": DRY_RUN_MESSAGE,
+            "preview": {},
+        }
+    )
+    result = await fn(client, registry, "h")
+    assert result["status"] == "dry_run" and "verified" not in result
+    client.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "fn,suffix", [(enable_arm, "/arm-profiles/enable"), (disable_arm, "/arm-profiles/disable")]
+)
+async def test_arm_action_threads_owning_key_to_readback(client, keyed_registry, fn, suffix):
+    client.get.return_value = _nvr_with_status("armed")
+    await fn(client, keyed_registry, "myhost")
+    assert_write(client, "POST", f"{BASE}{suffix}", key=KEY, json=None)
+    client.get.assert_awaited_once_with(f"{BASE}/nvrs", key=KEY)
 
 
 # --- Relay + alarm-hub output actions (two path IDs) --------------------------------

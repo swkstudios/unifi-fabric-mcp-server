@@ -2,20 +2,20 @@
 
 ## Family sizes
 
-**Catalog size.** With every family registered, full mode advertises 798 tools and its
-`tools/list` response is roughly 1520 KB of JSON; default discovery mode advertises five meta-tools. In full mode every tool carries its full description
-and parameter docs; the 40 pinned-spec request bodies add their top-level fields and a
-compact outline of the nested ones (69,295 bytes of compact JSON in all). A client that loads
+**Catalog size.** With every family registered, full mode advertises 814 tools and its
+`tools/list` response is roughly 1509 KB of JSON; default discovery mode advertises five meta-tools. In full mode every tool carries its full description
+and parameter docs; the 42 pinned-spec request bodies add their top-level fields and a
+compact outline of the nested ones (71,338 bytes of compact JSON in all). A client that loads
 the whole catalog into a model's context pays that cost on every session. Trimming to the families you use shrinks it
 proportionally. The measurements below use the UTF-8 JSON-RPC response to `tools/list` (1 KB = 1000 bytes):
 
 | `UNIFI_FAMILY_ALLOW` | Tools | `tools/list` size |
 |---|---|---|
-| unset (all families) | 798 | ~1520 KB |
-| `network,firewall,site_manager` | 398 | ~743 KB |
-| `protect` | 226 | ~411 KB |
-| `network,firewall` | 379 | ~697 KB |
-| `site_manager,statistics` | 39 | ~93 KB |
+| unset (all families) | 814 | ~1509 KB |
+| `network,firewall,site_manager` | 404 | ~735 KB |
+| `protect` | 234 | ~417 KB |
+| `network,firewall` | 385 | ~691 KB |
+| `site_manager,statistics` | 39 | ~89 KB |
 
 ## Mode sizes
 
@@ -28,5 +28,5 @@ responses are loaded on demand; domain results are never truncated to meet a siz
 
 | `UNIFI_TOOL_MODE` | Advertised tools | Domain tools available | `tools/list` bytes | Size (1 KB = 1000 bytes) |
 |---|---:|---:|---:|---:|
-| `full` | 798 | 798 | 1519948 | ~1520 KB |
-| `discovery` (default) | 5 | 798 | 6530 | ~7 KB |
+| `full` | 814 | 814 | 1508758 | ~1509 KB |
+| `discovery` (default) | 5 | 814 | 6530 | ~7 KB |

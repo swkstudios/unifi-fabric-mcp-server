@@ -1,0 +1,1721 @@
+{
+ "version": 2,
+ "description": "Fixed task set for the tool-description eval (WP L2-1). Each task has its expected tool and its required arguments. Tasks marked with a `hard` category state values in plain words, in other units or implicitly, so the description has to do the work. Argument matching: a string is compared without case; {\"$contains\": [...]} needs each string inside the serialized value; {\"$subset\": {...}} needs each key (nested objects the same way, lists by element); {\"$any_of\": [...]} accepts any one alternative.",
+ "tasks": [
+  {
+   "id": "t001",
+   "family": "clients",
+   "expected_tool": "list_clients",
+   "task": "On the console \"Home UDM\", site \"default\": Show me only the wired clients, and no more than 25 of them.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "client_type": "WIRED",
+    "limit": 25
+   },
+   "pair": "p01",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t002",
+   "family": "clients",
+   "expected_tool": "list_active_clients",
+   "task": "On the console \"Home UDM\", site \"default\": Give me the active client roster including the Matter and Thread devices, but without the traffic usage numbers.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "include_matter_thread_clients": true,
+    "include_traffic_usage": false
+   },
+   "pair": "p01",
+   "hard": "similar_params"
+  },
+  {
+   "id": "t003",
+   "family": "site_manager",
+   "expected_tool": "list_devices",
+   "task": "Return the fleet device list fetched 50 devices at a time.",
+   "required_args": {
+    "page_size": 50
+   },
+   "pair": "p02",
+   "hard": "similar_params"
+  },
+  {
+   "id": "t004",
+   "family": "site_manager",
+   "expected_tool": "list_all_devices",
+   "task": "From every console, show only the devices that are currently offline.",
+   "required_args": {
+    "status_filter": "offline"
+   },
+   "pair": "p02",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t005",
+   "family": "statistics",
+   "expected_tool": "get_system_log",
+   "task": "On the console \"Home UDM\", site \"default\": Show the administrator activity entries of the Network system log, 100 entries per page.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "log_class": "admin-activity",
+    "page_size": 100
+   },
+   "pair": "p03",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t006",
+   "family": "statistics",
+   "expected_tool": "get_scoped_system_log",
+   "task": "On the console \"Home UDM\", site \"default\": Show the system log of the connection of the client with MAC aa:bb:cc:11:22:33.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "scope": "client-connection",
+    "identifier": "aa:bb:cc:11:22:33"
+   },
+   "pair": "p03",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t007",
+   "family": "firewall",
+   "expected_tool": "get_firewall_policy",
+   "task": "On the console \"Home UDM\", site \"default\": Show me the firewall policy with ID 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "policy_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f"
+   },
+   "pair": "p04"
+  },
+  {
+   "id": "t008",
+   "family": "firewall",
+   "expected_tool": "get_firewall_policy_ordering",
+   "task": "On the console \"Home UDM\", site \"default\": In which order are firewall policies evaluated from the source zone 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01 to the destination zone 1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "source_zone_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01",
+    "destination_zone_id": "1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02"
+   },
+   "pair": "p04"
+  },
+  {
+   "id": "t009",
+   "family": "firewall",
+   "expected_tool": "get_acl_rule",
+   "task": "On the console \"Home UDM\", site \"default\": Fetch the ACL rule with ID 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "rule_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f"
+   },
+   "pair": "p05"
+  },
+  {
+   "id": "t010",
+   "family": "firewall",
+   "expected_tool": "get_acl_rule_ordering",
+   "task": "On the console \"Home UDM\", site \"default\": In what order are my ACL rules evaluated?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p05"
+  },
+  {
+   "id": "t011",
+   "family": "protect",
+   "expected_tool": "get_camera",
+   "task": "On the console \"Home NVR\": Show me the details of the camera with ID 00000000000000000000010b.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b"
+   },
+   "pair": "p06"
+  },
+  {
+   "id": "t012",
+   "family": "protect",
+   "expected_tool": "get_camera_snapshot",
+   "task": "On the console \"Home NVR\": Take a high-resolution still from the package lens of the camera with ID 00000000000000000000010b.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b",
+    "channel": "package",
+    "high_quality": true
+   },
+   "pair": "p06",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t013",
+   "family": "protect",
+   "expected_tool": "get_protect_event",
+   "task": "On the console \"Home NVR\": Show me the full metadata of the event with ID 000000000000000000000e01.",
+   "required_args": {
+    "host": "Home NVR",
+    "event_id": "000000000000000000000e01"
+   },
+   "pair": "p07"
+  },
+  {
+   "id": "t014",
+   "family": "protect",
+   "expected_tool": "get_protect_event_media",
+   "task": "On the console \"Home NVR\": Make a moving GIF of the event 000000000000000000000e01, 640 pixels wide and 360 high, built from key frames only.",
+   "required_args": {
+    "host": "Home NVR",
+    "event_id": "000000000000000000000e01",
+    "kind": "animated_thumbnail",
+    "width": 640,
+    "height": 360,
+    "key_frame_only": true
+   },
+   "pair": "p07",
+   "hard": "similar_params"
+  },
+  {
+   "id": "t015",
+   "family": "devices",
+   "expected_tool": "create_device_tag",
+   "task": "On the console \"Home UDM\", site \"default\": Create a tag called \"Lobby APs\" for grouping devices.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "tag": {
+     "$contains": [
+      "Lobby APs"
+     ]
+    }
+   },
+   "pair": "p08"
+  },
+  {
+   "id": "t016",
+   "family": "protect",
+   "expected_tool": "create_protect_device_tag",
+   "task": "On the console \"Home NVR\": Create a Protect device tag called \"Entrance\".",
+   "required_args": {
+    "host": "Home NVR",
+    "tag": {
+     "$contains": [
+      "Entrance"
+     ]
+    }
+   },
+   "pair": "p08"
+  },
+  {
+   "id": "t017",
+   "family": "network",
+   "expected_tool": "list_user_groups",
+   "task": "On the console \"Home UDM\", site \"default\": List the client bandwidth user groups.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p09"
+  },
+  {
+   "id": "t018",
+   "family": "network",
+   "expected_tool": "list_ulp_user_groups",
+   "task": "On the console \"Home UDM\", site \"default\": List the UniFi Identity users and groups this site can reference.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p09"
+  },
+  {
+   "id": "t019",
+   "family": "network",
+   "expected_tool": "get_network",
+   "task": "On the console \"Home UDM\", site \"default\": Show the VLAN network with ID 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f"
+   },
+   "pair": "p10"
+  },
+  {
+   "id": "t020",
+   "family": "network",
+   "expected_tool": "get_network_references",
+   "task": "On the console \"Home UDM\", site \"default\": Before I delete the network 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f, what other resources still reference it?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f"
+   },
+   "pair": "p10"
+  },
+  {
+   "id": "t021",
+   "family": "protect",
+   "expected_tool": "update_camera",
+   "task": "On the console \"Home NVR\": Set the microphone volume of the camera 00000000000000000000010b to 70 percent and name it Garage.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b",
+    "settings": {
+     "$subset": {
+      "micVolume": 70,
+      "name": "Garage"
+     }
+    }
+   },
+   "pair": "p11",
+   "hard": "body_shape"
+  },
+  {
+   "id": "t022",
+   "family": "protect",
+   "expected_tool": "update_camera_private",
+   "task": "On the console \"Home NVR\": For the camera 00000000000000000000010b, change the recording and infrared settings: set the IR mode to auto.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b",
+    "settings": {
+     "$contains": [
+      "auto"
+     ]
+    }
+   },
+   "pair": "p11"
+  },
+  {
+   "id": "t023",
+   "family": "protect",
+   "expected_tool": "get_sensor",
+   "task": "On the console \"Home NVR\": Show me the details of the sensor with ID 00000000000000000000010d.",
+   "required_args": {
+    "host": "Home NVR",
+    "sensor_id": "00000000000000000000010d"
+   },
+   "pair": "p12"
+  },
+  {
+   "id": "t024",
+   "family": "protect",
+   "expected_tool": "get_sensor_readings",
+   "task": "On the console \"Home NVR\": Give me the readings of the sensor 00000000000000000000010d from the start of 10 October 2025 until the start of 11 October 2025, UTC.",
+   "required_args": {
+    "host": "Home NVR",
+    "sensor_id": "00000000000000000000010d",
+    "start": 1760054400,
+    "end": 1760140800
+   },
+   "pair": "p12",
+   "hard": "unit"
+  },
+  {
+   "id": "t025",
+   "family": "protect",
+   "expected_tool": "get_nvr",
+   "task": "On the console \"Home NVR\": Show the NVR's hardware info, storage status and firmware version.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": "p13"
+  },
+  {
+   "id": "t026",
+   "family": "protect",
+   "expected_tool": "get_nvr_private",
+   "task": "On the console \"Home NVR\": Read the NVR-wide settings: doorbell messages, insights, analytics and retention.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": "p13"
+  },
+  {
+   "id": "t027",
+   "family": "devices",
+   "expected_tool": "get_device",
+   "task": "On the console \"Home UDM\", site \"default\": Show me the details of the adopted device with MAC aa:bb:cc:11:22:33.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "device_id": "aa:bb:cc:11:22:33"
+   },
+   "pair": "p14"
+  },
+  {
+   "id": "t028",
+   "family": "devices",
+   "expected_tool": "get_device_statistics",
+   "task": "On the console \"Home UDM\", site \"default\": What are the latest CPU, memory and uptime statistics of the device with MAC aa:bb:cc:11:22:33?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "device_id": "aa:bb:cc:11:22:33"
+   },
+   "pair": "p14"
+  },
+  {
+   "id": "t029",
+   "family": "vpn",
+   "expected_tool": "create_site_vpn",
+   "task": "On the console \"Home UDM\", site \"default\": Create a site-to-site VPN that connects to the site \"branch-1\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "params": {
+     "$subset": {
+      "site": "branch-1"
+     }
+    }
+   },
+   "pair": "p15",
+   "hard": "body_shape"
+  },
+  {
+   "id": "t030",
+   "family": "network",
+   "expected_tool": "create_site",
+   "task": "On the console \"Home UDM\", site \"default\": Create a brand-new site with the display name \"Branch office\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "description": "Branch office"
+   },
+   "pair": "p15"
+  },
+  {
+   "id": "t031",
+   "family": "network",
+   "expected_tool": "update_user_group",
+   "task": "On the console \"Home UDM\", site \"default\": Remove the download cap of the client user group 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f; leave the upload cap alone.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "group_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f",
+    "group": {
+     "$subset": {
+      "qos_rate_max_down": -1
+     }
+    }
+   },
+   "pair": "p16",
+   "hard": "implied"
+  },
+  {
+   "id": "t032",
+   "family": "protect",
+   "expected_tool": "update_protect_user_group",
+   "task": "On the console \"Home NVR\": Rename the Protect user group 000000000000000000000a01 to \"Guards\".",
+   "required_args": {
+    "host": "Home NVR",
+    "group_id": "000000000000000000000a01",
+    "changes": {
+     "$contains": [
+      "Guards"
+     ]
+    }
+   },
+   "pair": "p16"
+  },
+  {
+   "id": "t033",
+   "family": "devices",
+   "expected_tool": "list_backups",
+   "task": "On the console \"Home UDM\", site \"default\": List the controller backup metadata for the site without downloading any backup file.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p17"
+  },
+  {
+   "id": "t034",
+   "family": "protect",
+   "expected_tool": "list_protect_backups",
+   "task": "On the console \"Home NVR\": List the configuration backups stored on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": "p17"
+  },
+  {
+   "id": "t035",
+   "family": "network",
+   "expected_tool": "set_device_alignment_mode",
+   "task": "On the console \"Home UDM\", site \"default\": Take the point-to-point bridge with MAC 02:00:5e:00:53:01 out of alignment mode.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "device": "02:00:5e:00:53:01",
+    "enabled": false
+   },
+   "pair": "p18",
+   "hard": "implied"
+  },
+  {
+   "id": "t036",
+   "family": "network",
+   "expected_tool": "set_device_rearrange_mode",
+   "task": "On the console \"Home UDM\", site \"default\": Stop rearrange mode on the switch stack with MAC 02:00:5e:00:53:01.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "device": "02:00:5e:00:53:01",
+    "enabled": false
+   },
+   "pair": "p18",
+   "hard": "implied"
+  },
+  {
+   "id": "t037",
+   "family": "network",
+   "expected_tool": "get_wifi_quick_scan_status",
+   "task": "On the console \"Home UDM\", site \"default\": Is the WiFi quick scan still running on the 5 GHz band?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "radio_band": "na"
+   },
+   "pair": "p19",
+   "hard": "enum_words"
+  },
+  {
+   "id": "t038",
+   "family": "network",
+   "expected_tool": "get_wifi_uplink_scan_status",
+   "task": "On the console \"Home UDM\", site \"default\": What is the status of the WiFi uplink scan that looks for SSIDs the gateway can tether to?",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p19"
+  },
+  {
+   "id": "t039",
+   "family": "network",
+   "expected_tool": "list_ssl_inspection_certificates",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the certificate that is currently active, not the whole list.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "active_only": true
+   },
+   "pair": "p20",
+   "hard": "implied"
+  },
+  {
+   "id": "t040",
+   "family": "network",
+   "expected_tool": "list_ssl_inspection_profiles",
+   "task": "On the console \"Home UDM\", site \"default\": List the SSL inspection profiles.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p20"
+  },
+  {
+   "id": "t041",
+   "family": "network",
+   "expected_tool": "create_power_supervisor",
+   "task": "On the console \"Home UDM\", site \"default\": Create a PoE power supervisor named \"Rack A budget\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "supervisor": {
+     "$contains": [
+      "Rack A"
+     ]
+    }
+   },
+   "pair": "p21"
+  },
+  {
+   "id": "t042",
+   "family": "network",
+   "expected_tool": "create_power_supervisor_link",
+   "task": "On the console \"Home UDM\", site \"default\": Create a link joining a power supervisor to the switch with MAC aa:bb:cc:44:55:66.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "link": {
+     "$contains": [
+      "aa:bb:cc:44:55:66"
+     ]
+    }
+   },
+   "pair": "p21"
+  },
+  {
+   "id": "t043",
+   "family": "devices",
+   "expected_tool": "list_device_tags",
+   "task": "On the console \"Home UDM\", site \"default\": List all device tags defined in the site, the ones the Network UI shows.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": "p22"
+  },
+  {
+   "id": "t044",
+   "family": "protect",
+   "expected_tool": "list_protect_device_tags",
+   "task": "On the console \"Home NVR\": List the device tags on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": "p22"
+  },
+  {
+   "id": "t045",
+   "family": "network",
+   "expected_tool": "list_networks",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the networks whose VLAN ID is 100.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "filter": {
+     "$contains": [
+      "vlanId.eq(100)"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t046",
+   "family": "network",
+   "expected_tool": "create_network",
+   "task": "On the console \"Home UDM\", site \"default\": Create a gateway-managed network named \"IoT\" on VLAN 30 and turn it on.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_config": {
+     "$subset": {
+      "management": "GATEWAY",
+      "name": "IoT",
+      "vlanId": 30,
+      "enabled": true
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t047",
+   "family": "network",
+   "expected_tool": "update_network",
+   "task": "On the console \"Home UDM\", site \"default\": Replace the definition of the network 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01: gateway-managed, named \"Guest\", VLAN 40, enabled.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01",
+    "network_config": {
+     "$subset": {
+      "management": "GATEWAY",
+      "name": "Guest",
+      "vlanId": 40,
+      "enabled": true
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t048",
+   "family": "network",
+   "expected_tool": "delete_network",
+   "task": "On the console \"Home UDM\", site \"default\": Delete the network 0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01 even though other things still refer to it.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01",
+    "force": true
+   },
+   "pair": null,
+   "hard": "implied"
+  },
+  {
+   "id": "t049",
+   "family": "network",
+   "expected_tool": "list_wifi_broadcasts",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the WiFi broadcasts whose name contains guest.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "filter": {
+     "$contains": [
+      "name",
+      "guest"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t050",
+   "family": "network",
+   "expected_tool": "create_wifi_broadcast",
+   "task": "On the console \"Home UDM\", site \"default\": Create a standard WiFi network with the SSID \"CafeWiFi\" that is open, with no password, and not hidden.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "broadcast": {
+     "$subset": {
+      "type": "STANDARD",
+      "name": "CafeWiFi",
+      "hideName": false,
+      "securityConfiguration": {
+       "$subset": {
+        "type": "OPEN"
+       }
+      }
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t051",
+   "family": "network",
+   "expected_tool": "update_wifi_broadcast",
+   "task": "On the console \"Home UDM\", site \"default\": Change the name of the WiFi broadcast 1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02 to \"CafeGuest\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "broadcast_id": "1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02",
+    "broadcast": {
+     "$contains": [
+      "CafeGuest"
+     ]
+    }
+   },
+   "pair": null
+  },
+  {
+   "id": "t052",
+   "family": "network",
+   "expected_tool": "delete_wifi_broadcast",
+   "task": "On the console \"Home UDM\", site \"default\": Delete the WiFi broadcast 1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02 even if something still references it.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "broadcast_id": "1c7d4d5f-7b10-4a4f-8b62-7b3c9a1d2e02",
+    "force": true
+   },
+   "pair": null,
+   "hard": "implied"
+  },
+  {
+   "id": "t053",
+   "family": "network",
+   "expected_tool": "list_nat_rules",
+   "task": "On the console \"Home UDM\", site \"default\": Show the NAT rules of the site.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t054",
+   "family": "network",
+   "expected_tool": "create_nat_rule",
+   "task": "On the console \"Home UDM\", site \"default\": Add a NAT rule that translates inbound traffic to the internal host 10.0.0.5.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "rule": {
+     "$contains": [
+      "10.0.0.5"
+     ]
+    }
+   },
+   "pair": null
+  },
+  {
+   "id": "t055",
+   "family": "network",
+   "expected_tool": "list_qos_rules",
+   "task": "On the console \"Home UDM\", site \"default\": Show the QoS rules of the site.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t056",
+   "family": "network",
+   "expected_tool": "list_dhcp_leases",
+   "task": "On the console \"Home UDM\", site \"default\": Show the active DHCP leases of the network with the Classic ID 000000000000000000000108 only.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "network_id": "000000000000000000000108"
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t057",
+   "family": "network",
+   "expected_tool": "create_dhcp_option",
+   "task": "On the console \"Home UDM\", site \"default\": Define a custom DHCP option named tftp-server for option number 150 that carries an IP address.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "option": {
+     "$subset": {
+      "name": "tftp-server",
+      "code": 150,
+      "type": "ipaddress"
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t058",
+   "family": "network",
+   "expected_tool": "list_port_forwards",
+   "task": "On the console \"Home UDM\", site \"default\": Show every port forwarding rule.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t059",
+   "family": "network",
+   "expected_tool": "create_port_forward",
+   "task": "On the console \"Home UDM\", site \"default\": Forward TCP port 8080 from outside to port 80 on 192.168.1.50 and call the rule \"web\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "payload": {
+     "$subset": {
+      "name": "web",
+      "dst_port": "8080",
+      "fwd": "192.168.1.50",
+      "fwd_port": "80",
+      "proto": "tcp"
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t060",
+   "family": "network",
+   "expected_tool": "delete_port_forward",
+   "task": "On the console \"Home UDM\", site \"default\": Delete the port forwarding rule with ID 5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "forward_id": "5b3c8f0e-1d2a-4e6b-9c7d-0a1b2c3d4e5f"
+   },
+   "pair": null
+  },
+  {
+   "id": "t061",
+   "family": "network",
+   "expected_tool": "list_dns_policies",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the DNS policies for the domain home.lan.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "filter": {
+     "$contains": [
+      "home.lan"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t062",
+   "family": "network",
+   "expected_tool": "create_dns_policy",
+   "task": "On the console \"Home UDM\", site \"default\": Make \"nas.home.lan\" resolve to 192.168.1.10, cached for 5 minutes, and turn the policy on.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "policy": {
+     "$subset": {
+      "type": "A_RECORD",
+      "domain": "nas.home.lan",
+      "ipv4Address": "192.168.1.10",
+      "ttlSeconds": 300,
+      "enabled": true
+     }
+    }
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t063",
+   "family": "network",
+   "expected_tool": "list_traffic_matching_lists",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the traffic matching lists whose name contains Cloud.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "filter": {
+     "$contains": [
+      "name",
+      "Cloud"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t064",
+   "family": "network",
+   "expected_tool": "create_traffic_matching_list",
+   "task": "On the console \"Home UDM\", site \"default\": Create a traffic matching list named \"Web Ports\" that holds port numbers.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "traffic_list": {
+     "$subset": {
+      "name": "Web Ports",
+      "type": "PORTS"
+     }
+    }
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t065",
+   "family": "network",
+   "expected_tool": "list_wlan_configs",
+   "task": "On the console \"Home UDM\", site \"default\": Show the per-SSID WLAN configurations: security, band steering and rate limits.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t066",
+   "family": "network",
+   "expected_tool": "update_wlan_config",
+   "task": "On the console \"Home UDM\", site \"default\": Change the WiFi password of the WLAN 000000000000000000000203 to example-0001 and make sure it is enabled.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "wlan_id": "000000000000000000000203",
+    "payload": {
+     "$subset": {
+      "x_passphrase": "example-0001",
+      "enabled": true
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t067",
+   "family": "network",
+   "expected_tool": "get_wlan_config",
+   "task": "On the console \"Home UDM\", site \"default\": Show the WLAN (SSID) configuration with ID 000000000000000000000203.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "wlan_id": "000000000000000000000203"
+   },
+   "pair": null
+  },
+  {
+   "id": "t068",
+   "family": "network",
+   "expected_tool": "list_port_profiles",
+   "task": "On the console \"Home UDM\", site \"default\": Show the switch port profiles with their speed, VLAN and PoE configuration.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t069",
+   "family": "network",
+   "expected_tool": "create_static_route",
+   "task": "On the console \"Home UDM\", site \"default\": Add a static route named \"lab\" to 10.20.0.0/16 through the next hop 192.168.1.254 with distance 5.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "route": {
+     "$subset": {
+      "name": "lab",
+      "static-route_type": "nexthop-route",
+      "static-route_network": "10.20.0.0/16",
+      "static-route_nexthop": "192.168.1.254",
+      "static-route_distance": 5
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t070",
+   "family": "network",
+   "expected_tool": "list_traffic_routes",
+   "task": "On the console \"Home UDM\", site \"default\": Show the policy-based traffic routes of the site.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t071",
+   "family": "network",
+   "expected_tool": "create_traffic_route",
+   "task": "On the console \"Home UDM\", site \"default\": Create a policy-based route that applies to any network and sends traffic from the device 192.168.1.60 out through the backup WAN.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "payload": {
+     "$subset": {
+      "network_id": "ANY"
+     }
+    }
+   },
+   "pair": null,
+   "hard": "implied"
+  },
+  {
+   "id": "t072",
+   "family": "network",
+   "expected_tool": "list_hotspot_vouchers",
+   "task": "On the console \"Home UDM\", site \"default\": Show only the guest vouchers whose name contains \"Weekend\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "filter": {
+     "$contains": [
+      "Weekend"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t073",
+   "family": "network",
+   "expected_tool": "create_hotspot_vouchers",
+   "task": "On the console \"Home UDM\", site \"default\": Generate guest vouchers named \"Weekend\" that are each valid for 2 days.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "voucher_config": {
+     "$subset": {
+      "name": "Weekend",
+      "timeLimitMinutes": 2880
+     }
+    }
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t074",
+   "family": "network",
+   "expected_tool": "authorize_guest",
+   "task": "On the console \"Home UDM\", site \"default\": Let the guest with MAC 02:00:00:00:00:99 onto the network from the guest portal for 2 hours, with a 5 GB data cap and a download limit of 20 Mbps.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "client": "02:00:00:00:00:99",
+    "time_limit_minutes": 120,
+    "data_limit_mbytes": {
+     "$any_of": [
+      5120,
+      5000
+     ]
+    },
+    "rx_rate_limit_kbps": 20000
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t075",
+   "family": "network",
+   "expected_tool": "get_poe_info",
+   "task": "On the console \"Home UDM\", site \"default\": Show the PoE power budget and the per-port power usage of the site.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t076",
+   "family": "network",
+   "expected_tool": "get_topology_snapshot",
+   "task": "On the console \"Home UDM\", site \"default\": Show the site topology as it was on 9 October 2025 at 08:00 UTC.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "view": "at",
+    "at": 1759996800000
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t077",
+   "family": "network",
+   "expected_tool": "list_ap_groups",
+   "task": "On the console \"Home UDM\", site \"default\": Show the access point groups.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t078",
+   "family": "network",
+   "expected_tool": "create_user_group",
+   "task": "On the console \"Home UDM\", site \"default\": Create a client bandwidth group called \"Kids\" capped at 10 Mbps download and 2 Mbps upload.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "group": {
+     "$subset": {
+      "name": "Kids",
+      "qos_rate_max_down": 10000,
+      "qos_rate_max_up": 2000
+     }
+    }
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t079",
+   "family": "network",
+   "expected_tool": "get_site_dpi_usage",
+   "task": "On the console \"Home UDM\": Which applications used the bandwidth on 10 October 2025 (UTC)? Break it down by hour.",
+   "required_args": {
+    "host": "Home UDM",
+    "start": 1760054400,
+    "end": 1760140800,
+    "bucket": "OF_1_HOUR"
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t080",
+   "family": "network",
+   "expected_tool": "query_traffic_flows",
+   "task": "On the console \"Home UDM\", site \"default\": Show the traffic flows of the last 5 minutes that were blocked, were going outwards and carry a high risk.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "window": "5m",
+    "action": {
+     "$any_of": [
+      "blocked",
+      [
+       "blocked"
+      ]
+     ]
+    },
+    "direction": {
+     "$any_of": [
+      "outgoing",
+      [
+       "outgoing"
+      ]
+     ]
+    },
+    "risk": {
+     "$any_of": [
+      "high",
+      [
+       "high"
+      ]
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t081",
+   "family": "network",
+   "expected_tool": "list_local_sites",
+   "task": "On the console \"Home UDM\": Show just the first 3 sites of this Network application.",
+   "required_args": {
+    "host": "Home UDM",
+    "limit": 3
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t082",
+   "family": "network",
+   "expected_tool": "get_port_history",
+   "task": "On the console \"Home UDM\", site \"default\": Show the switch-port history of the device 000000000000000000000107 on 9 October 2025 at 08:00 UTC.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "at": 1759996800,
+    "device_id": "000000000000000000000107"
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t083",
+   "family": "protect",
+   "expected_tool": "list_cameras",
+   "task": "On the console \"Home NVR\": Show all the cameras on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t084",
+   "family": "protect",
+   "expected_tool": "list_sensors",
+   "task": "On the console \"Home NVR\": Show all the sensors on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t085",
+   "family": "protect",
+   "expected_tool": "list_protect_events",
+   "task": "On the console \"Home NVR\": Show the person detections on the Driveway camera between 08:00 and 09:00 UTC on 9 October 2025, newest first.",
+   "required_args": {
+    "host": "Home NVR",
+    "types": {
+     "$any_of": [
+      "smartDetectZone",
+      [
+       "smartDetectZone"
+      ]
+     ]
+    },
+    "smart_detect_types": {
+     "$any_of": [
+      "person",
+      [
+       "person"
+      ]
+     ]
+    },
+    "cameras": {
+     "$any_of": [
+      "Driveway",
+      [
+       "Driveway"
+      ]
+     ]
+    },
+    "order_direction": "DESC",
+    "start": 1759996800,
+    "end": 1760000400
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t086",
+   "family": "protect",
+   "expected_tool": "collect_protect_events",
+   "task": "On the console \"Home NVR\": Poll for motion events 4 times, with one minute between the polls.",
+   "required_args": {
+    "host": "Home NVR",
+    "poll_count": 4,
+    "poll_interval_seconds": 60,
+    "types": {
+     "$any_of": [
+      "motion",
+      [
+       "motion"
+      ]
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t087",
+   "family": "protect",
+   "expected_tool": "list_recognition_groups",
+   "task": "On the console \"Home NVR\": Show the named vehicle groups, the ones with the most detections first.",
+   "required_args": {
+    "host": "Home NVR",
+    "type": "vehicle",
+    "has_name": true,
+    "order_by": "detectionsCount",
+    "order_direction": "desc"
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t088",
+   "family": "protect",
+   "expected_tool": "list_lights",
+   "task": "On the console \"Home NVR\": Show all the lights on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t089",
+   "family": "protect",
+   "expected_tool": "update_light",
+   "task": "On the console \"Home NVR\": Force the light 000000000000000000000301 to stay on and rename it \"Porch\".",
+   "required_args": {
+    "host": "Home NVR",
+    "light_id": "000000000000000000000301",
+    "settings": {
+     "$subset": {
+      "isLightForceEnabled": true,
+      "name": "Porch"
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t090",
+   "family": "protect",
+   "expected_tool": "list_chimes",
+   "task": "On the console \"Home NVR\": Show all the chimes on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t091",
+   "family": "protect",
+   "expected_tool": "list_liveviews",
+   "task": "On the console \"Home NVR\": Show all the liveviews on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t092",
+   "family": "protect",
+   "expected_tool": "create_liveview",
+   "task": "On the console \"Home NVR\": Create a liveview named \"Front Door Wall\".",
+   "required_args": {
+    "host": "Home NVR",
+    "name": "Front Door Wall"
+   },
+   "pair": null
+  },
+  {
+   "id": "t093",
+   "family": "protect",
+   "expected_tool": "enable_arm",
+   "task": "On the console \"Home NVR\": Arm the alarm system using the selected profile.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t094",
+   "family": "protect",
+   "expected_tool": "list_sirens",
+   "task": "On the console \"Home NVR\": Show the sirens on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t095",
+   "family": "protect",
+   "expected_tool": "siren_play",
+   "task": "On the console \"Home NVR\": Sound the siren 000000000000000000000401 for half a minute.",
+   "required_args": {
+    "host": "Home NVR",
+    "siren_id": "000000000000000000000401",
+    "duration": 30
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t096",
+   "family": "protect",
+   "expected_tool": "list_protect_cases",
+   "task": "On the console \"Home NVR\": Show every investigation case on the Protect console.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t097",
+   "family": "protect",
+   "expected_tool": "create_protect_case",
+   "task": "On the console \"Home NVR\": Open a case named \"Garage break-in\" with the summary \"Side door forced at 02:10\".",
+   "required_args": {
+    "host": "Home NVR",
+    "name": "Garage break-in",
+    "summary": "Side door forced at 02:10"
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t098",
+   "family": "protect",
+   "expected_tool": "ptz_goto_preset",
+   "task": "On the console \"Home NVR\": Send the PTZ camera 00000000000000000000010b back to its home position.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b",
+    "slot": -1
+   },
+   "pair": null,
+   "hard": "implied"
+  },
+  {
+   "id": "t099",
+   "family": "protect",
+   "expected_tool": "list_door_locks",
+   "task": "On the console \"Home NVR\": Show the door locks that Protect manages.",
+   "required_args": {
+    "host": "Home NVR"
+   },
+   "pair": null
+  },
+  {
+   "id": "t100",
+   "family": "protect",
+   "expected_tool": "set_door_lock_state",
+   "task": "On the console \"Home NVR\": Open the door lock 000000000000000000000111 and keep it open for 10 extra seconds.",
+   "required_args": {
+    "host": "Home NVR",
+    "doorlock_id": "000000000000000000000111",
+    "action": {
+     "$any_of": [
+      "unlock",
+      "open"
+     ]
+    },
+    "hold_extra_sec": 10
+   },
+   "pair": null,
+   "hard": "implied"
+  },
+  {
+   "id": "t101",
+   "family": "protect",
+   "expected_tool": "create_rtsps_stream",
+   "task": "On the console \"Home NVR\": Create an RTSPS stream for the camera 00000000000000000000010b with the high and the low quality channels.",
+   "required_args": {
+    "host": "Home NVR",
+    "camera_id": "00000000000000000000010b",
+    "qualities": {
+     "$contains": [
+      "high",
+      "low"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t102",
+   "family": "vpn",
+   "expected_tool": "list_vpn_servers",
+   "task": "On the console \"Home UDM\", site \"default\": Show the VPN servers of the site.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t103",
+   "family": "vpn",
+   "expected_tool": "create_vpn_server",
+   "task": "On the console \"Home UDM\", site \"default\": Create a WireGuard VPN server called \"Remote Staff\" that hands out addresses from 10.8.0.1/24, and turn it on.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "name": "Remote Staff",
+    "vpn_type": "wireguard",
+    "subnet": "10.8.0.1/24",
+    "enabled": true
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t104",
+   "family": "vpn",
+   "expected_tool": "list_wireguard_users",
+   "task": "On the console \"Home UDM\", site \"default\": Show the WireGuard users of the server 000000000000000000000107 only.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "server_id": "000000000000000000000107"
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t105",
+   "family": "vpn",
+   "expected_tool": "create_wireguard_users",
+   "task": "On the console \"Home UDM\", site \"default\": Add the WireGuard users \"laptop-01\" and \"phone-02\" to the server 000000000000000000000107.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "server_id": "000000000000000000000107",
+    "users": {
+     "$contains": [
+      "laptop-01",
+      "phone-02"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t106",
+   "family": "vpn",
+   "expected_tool": "list_site_to_site_tunnels",
+   "task": "On the console \"Home UDM\", site \"default\": Show the site-to-site VPN tunnels.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  },
+  {
+   "id": "t107",
+   "family": "innerspace",
+   "expected_tool": "list_innerspace_devices",
+   "task": "On the console \"Home UDM\": Show the placed device shapes on the InnerSpace floor plan.",
+   "required_args": {
+    "host": "Home UDM"
+   },
+   "pair": null
+  },
+  {
+   "id": "t108",
+   "family": "innerspace",
+   "expected_tool": "get_innerspace_project",
+   "task": "On the console \"Home UDM\": Return the InnerSpace project with the device shapes flattened to two dimensions.",
+   "required_args": {
+    "host": "Home UDM",
+    "mode": "2D"
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t109",
+   "family": "innerspace",
+   "expected_tool": "list_innerspace_floor_plans",
+   "task": "On the console \"Home UDM\": Show the InnerSpace floor plans.",
+   "required_args": {
+    "host": "Home UDM"
+   },
+   "pair": null
+  },
+  {
+   "id": "t110",
+   "family": "innerspace",
+   "expected_tool": "get_innerspace_health",
+   "task": "On the console \"Home UDM\": Is the InnerSpace application healthy?",
+   "required_args": {
+    "host": "Home UDM"
+   },
+   "pair": null
+  },
+  {
+   "id": "t111",
+   "family": "innerspace",
+   "expected_tool": "list_innerspace_access_points",
+   "task": "On the console \"Home UDM\": Show the access points placed on the InnerSpace floor plans.",
+   "required_args": {
+    "host": "Home UDM"
+   },
+   "pair": null
+  },
+  {
+   "id": "t112",
+   "family": "site_manager",
+   "expected_tool": "list_hosts",
+   "task": "Show my consoles, fetched 20 at a time.",
+   "required_args": {
+    "page_size": 20
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t113",
+   "family": "statistics",
+   "expected_tool": "get_historical_stats",
+   "task": "On the console \"Home UDM\", site \"default\": Give me hourly access point statistics for 9 October 2025 (UTC), counting the connected stations and the received bytes.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "interval": "hourly",
+    "scope": "ap",
+    "start": 1759968000,
+    "end": 1760054400,
+    "attrs": {
+     "$contains": [
+      "num_sta",
+      "rx_bytes"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "unit"
+  },
+  {
+   "id": "t114",
+   "family": "firewall",
+   "expected_tool": "create_firewall_policy",
+   "task": "On the console \"Home UDM\", site \"default\": Create a firewall policy named \"Block IoT to LAN\".",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "policy": {
+     "$contains": [
+      "Block IoT"
+     ]
+    }
+   },
+   "pair": null
+  },
+  {
+   "id": "t115",
+   "family": "devices",
+   "expected_tool": "restart_device",
+   "task": "On the console \"Home UDM\", site \"default\": Power-cycle the device 11111111-2222-4333-8444-555555555555 with a hard reboot, including its PoE ports.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default",
+    "device_id": "11111111-2222-4333-8444-555555555555",
+    "reboot_type": "hard"
+   },
+   "pair": null,
+   "hard": "enum_words"
+  },
+  {
+   "id": "t116",
+   "family": "carrier",
+   "expected_tool": "suspend_carrier_subscriber",
+   "task": "Pause service for the carrier subscriber 22222222-3333-4444-8555-666666666666 because of an unpaid invoice.",
+   "required_args": {
+    "subscriber_id": "22222222-3333-4444-8555-666666666666",
+    "reason": {
+     "$contains": [
+      "unpaid"
+     ]
+    }
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t117",
+   "family": "carrier",
+   "expected_tool": "list_carrier_service_plans",
+   "task": "Show the carrier service plans using the API key labelled \"msp-east\".",
+   "required_args": {
+    "key_label": "msp-east"
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t118",
+   "family": "mobility",
+   "expected_tool": "list_mobility_devices",
+   "task": "Show only the first 10 mobile routers in the mobility workspace 33333333-4444-4555-8666-777777777777.",
+   "required_args": {
+    "workspace_id": "33333333-4444-4555-8666-777777777777",
+    "limit": 10
+   },
+   "pair": null,
+   "hard": "similar_params"
+  },
+  {
+   "id": "t119",
+   "family": "connector",
+   "expected_tool": "fabric_connector_get",
+   "task": "On the console \"Home UDM\": Send a raw GET through the relay to \"network/integration/v1/sites\" with the query parameter limit set to 5.",
+   "required_args": {
+    "host": "Home UDM",
+    "path": "network/integration/v1/sites",
+    "params": {
+     "$subset": {
+      "limit": 5
+     }
+    }
+   },
+   "pair": null,
+   "hard": "body_shape"
+  },
+  {
+   "id": "t120",
+   "family": "hotspot",
+   "expected_tool": "list_hotspot_operators",
+   "task": "On the console \"Home UDM\", site \"default\": Show the captive portal operator accounts.",
+   "required_args": {
+    "host": "Home UDM",
+    "site": "default"
+   },
+   "pair": null
+  }
+ ]
+}

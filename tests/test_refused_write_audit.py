@@ -124,7 +124,8 @@ async def test_read_only_refusal_at_the_chokepoint_is_audited(monkeypatch, tmp_p
     log = tmp_path / "audit.log"
     monkeypatch.setenv("UNIFI_WRITE_POLICY", "deny")
     client = UniFiClient(Settings(api_key="K" * 20, audit_log=str(log), audit_log_format="text"))
-    path = "/v1/connector/consoles/abc/proxy/network/integration/v1/sites/x/networks/y"
+    record_id = "00aabbccddeeff0011223344"
+    path = f"/v1/connector/consoles/abc/proxy/network/integration/v1/sites/x/networks/{record_id}"
     with pytest.raises(ReadOnlyModeError):
         await client.delete(path)
     await client.close()
@@ -263,7 +264,7 @@ async def test_reached_write_record_has_additive_call_context(monkeypatch, tmp_p
     await _call(monkeypatch, "update_network", up, env=_audit_env(log))
     recs = _records(log)
     keys = {"schema_version", "event", "timestamp_utc", "method", "path", "outcome", "status"}
-    additive = {"tool", "resolvedHost", "resolvedSite", "duration_ms"}
+    additive = {"tool", "route_template", "ref", "resolvedHost", "resolvedSite", "duration_ms"}
     assert recs and all(set(r) == keys | additive for r in recs), recs
 
 

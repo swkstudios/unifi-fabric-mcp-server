@@ -4,7 +4,57 @@
   "description": "MCP server for UniFi Fabric: Network, Protect, Site Manager, InnerSpace, Carrier Fabric, Mobility.",
   "title": "UniFi Fabric MCP Server",
   "websiteUrl": "https://github.com/swkstudios/unifi-fabric-mcp-server",
-  "version": "0.7.2",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-dark-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ],
+      "theme": "dark"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-dark-128.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "128x128"
+      ],
+      "theme": "dark"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-dark-64.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "64x64"
+      ],
+      "theme": "dark"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-light-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ],
+      "theme": "light"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-light-128.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "128x128"
+      ],
+      "theme": "light"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/swkstudios/unifi-fabric-mcp-server/main/docs/assets/icon/T-light-64.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "64x64"
+      ],
+      "theme": "light"
+    }
+  ],
+  "version": "0.7.3",
   "repository": {
     "url": "https://github.com/swkstudios/unifi-fabric-mcp-server",
     "source": "github"
@@ -13,7 +63,7 @@
     {
       "registryType": "pypi",
       "identifier": "unifi-fabric-mcp-server",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "transport": {
         "type": "stdio"
       },
@@ -50,7 +100,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2",
+      "identifier": "ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:3000/mcp",

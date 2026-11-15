@@ -28,6 +28,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`apply_recognized_image`](#apply_recognized_image) | `protect` | write |
 | [`apply_test_config`](#apply_test_config) | `network` | write |
 | [`approve_pending_device`](#approve_pending_device) | `devices` | write |
+| [`arm_external_arm_profile`](#arm_external_arm_profile) | `protect` | write |
 | [`assign_carrier_subscriber_plan`](#assign_carrier_subscriber_plan) | `carrier` | write |
 | [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group) | `protect` | write |
 | [`assign_sensor_to_bridge`](#assign_sensor_to_bridge) | `protect` | write |
@@ -82,6 +83,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`create_dns_policy`](#create_dns_policy) | `network` | write |
 | [`create_dynamic_dns`](#create_dynamic_dns) | `network` | write |
 | [`create_energy_saving_policy`](#create_energy_saving_policy) | `network` | write |
+| [`create_external_arm_profile`](#create_external_arm_profile) | `protect` | write |
 | [`create_firewall_policy`](#create_firewall_policy) | `firewall` | write |
 | [`create_firewall_rule`](#create_firewall_rule) | `firewall` | write |
 | [`create_firewall_zone_proxy`](#create_firewall_zone_proxy) | `firewall` | write |
@@ -96,6 +98,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`create_network_members_group`](#create_network_members_group) | `network` | write |
 | [`create_ospf_router`](#create_ospf_router) | `network` | write |
 | [`create_policy_engine_rule`](#create_policy_engine_rule) | `network` | write |
+| [`create_port_automation`](#create_port_automation) | `network` | write |
 | [`create_port_forward`](#create_port_forward) | `network` | write |
 | [`create_port_profile`](#create_port_profile) | `network` | write |
 | [`create_power_supervisor`](#create_power_supervisor) | `network` | write |
@@ -146,6 +149,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`delete_doorbell_credential`](#delete_doorbell_credential) | `protect` | write |
 | [`delete_dynamic_dns`](#delete_dynamic_dns) | `network` | write |
 | [`delete_energy_saving_policy`](#delete_energy_saving_policy) | `network` | write |
+| [`delete_external_arm_profile`](#delete_external_arm_profile) | `protect` | write |
 | [`delete_firewall_policy`](#delete_firewall_policy) | `firewall` | write |
 | [`delete_firewall_zone_proxy`](#delete_firewall_zone_proxy) | `firewall` | write |
 | [`delete_guest_portal_file`](#delete_guest_portal_file) | `network` | write |
@@ -159,6 +163,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`delete_network_members_group`](#delete_network_members_group) | `network` | write |
 | [`delete_ospf_router`](#delete_ospf_router) | `network` | write |
 | [`delete_policy_engine_rule`](#delete_policy_engine_rule) | `network` | write |
+| [`delete_port_automation`](#delete_port_automation) | `network` | write |
 | [`delete_port_forward`](#delete_port_forward) | `network` | write |
 | [`delete_port_profile`](#delete_port_profile) | `network` | write |
 | [`delete_power_supervisor`](#delete_power_supervisor) | `network` | write |
@@ -198,9 +203,11 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`delete_wireguard_users`](#delete_wireguard_users) | `vpn` | write |
 | [`detach_carrier_subscriber_host`](#detach_carrier_subscriber_host) | `carrier` | write |
 | [`detach_from_orchestration`](#detach_from_orchestration) | `network` | write |
+| [`diagnose_wifi`](#diagnose_wifi) | `devices` | read |
 | [`disable_arm`](#disable_arm) | `protect` | write |
 | [`disable_camera_mic_permanently`](#disable_camera_mic_permanently) | `protect` | write |
 | [`disable_camera_share_link`](#disable_camera_share_link) | `protect` | write |
+| [`disarm_external_arm_profile`](#disarm_external_arm_profile) | `protect` | write |
 | [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider) | `protect` | write |
 | [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user) | `network` | write |
 | [`enable_arm`](#enable_arm) | `protect` | write |
@@ -276,6 +283,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_dynamic_dns`](#get_dynamic_dns) | `network` | read |
 | [`get_enriched_configuration`](#get_enriched_configuration) | `network` | read |
 | [`get_event_stream_status`](#get_event_stream_status) | `statistics` | read |
+| [`get_external_arm_profile`](#get_external_arm_profile) | `protect` | read |
 | [`get_firewall_group`](#get_firewall_group) | `firewall` | read |
 | [`get_firewall_policy`](#get_firewall_policy) | `firewall` | read |
 | [`get_firewall_policy_ordering`](#get_firewall_policy_ordering) | `firewall` | read |
@@ -288,6 +296,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_global_network_config`](#get_global_network_config) | `network` | read |
 | [`get_historical_stats`](#get_historical_stats) | `statistics` | read |
 | [`get_host`](#get_host) | `site_manager` | read |
+| [`get_hotspot_guest_webhook_delivery`](#get_hotspot_guest_webhook_delivery) | `network` | read |
 | [`get_hotspot_package`](#get_hotspot_package) | `network` | read |
 | [`get_hotspot_settings`](#get_hotspot_settings) | `network` | read |
 | [`get_hotspot_voucher`](#get_hotspot_voucher) | `network` | read |
@@ -330,6 +339,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_packet_capture_status`](#get_packet_capture_status) | `network` | read |
 | [`get_ping_test_results`](#get_ping_test_results) | `network` | read |
 | [`get_poe_info`](#get_poe_info) | `network` | read |
+| [`get_port_automation`](#get_port_automation) | `network` | read |
 | [`get_port_forward_statistics`](#get_port_forward_statistics) | `network` | read |
 | [`get_port_history`](#get_port_history) | `network` | read |
 | [`get_port_profile`](#get_port_profile) | `network` | read |
@@ -385,7 +395,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`get_switch_port_overrides`](#get_switch_port_overrides) | `devices` | read |
 | [`get_switch_stack`](#get_switch_stack) | `network` | read |
 | [`get_system_info`](#get_system_info) | `statistics` | read |
-| [`get_system_log`](#get_system_log) | `statistics` | write |
+| [`get_system_log`](#get_system_log) | `statistics` | read |
 | [`get_system_log_settings`](#get_system_log_settings) | `network` | read |
 | [`get_thumbnail`](#get_thumbnail) | `protect` | read |
 | [`get_topology_snapshot`](#get_topology_snapshot) | `network` | read |
@@ -463,6 +473,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`list_dpi_categories`](#list_dpi_categories) | `network` | read |
 | [`list_dynamic_dns`](#list_dynamic_dns) | `network` | read |
 | [`list_energy_saving_policies`](#list_energy_saving_policies) | `network` | read |
+| [`list_external_arm_profiles`](#list_external_arm_profiles) | `protect` | read |
 | [`list_firewall_app_blocks`](#list_firewall_app_blocks) | `firewall` | read |
 | [`list_firewall_groups`](#list_firewall_groups) | `firewall` | read |
 | [`list_firewall_policies`](#list_firewall_policies) | `firewall` | read |
@@ -486,7 +497,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`list_installed_applications`](#list_installed_applications) | `network` | read |
 | [`list_integration_device_tags`](#list_integration_device_tags) | `network` | read |
 | [`list_ips_categories`](#list_ips_categories) | `network` | read |
-| [`list_ips_events`](#list_ips_events) | `statistics` | write |
+| [`list_ips_events`](#list_ips_events) | `statistics` | read |
 | [`list_known_clients`](#list_known_clients) | `statistics` | read |
 | [`list_lags`](#list_lags) | `network` | read |
 | [`list_lights`](#list_lights) | `protect` | read |
@@ -502,12 +513,13 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`list_mobility_workspaces`](#list_mobility_workspaces) | `mobility` | read |
 | [`list_nat_rules`](#list_nat_rules) | `network` | read |
 | [`list_network_anomalies`](#list_network_anomalies) | `network` | read |
-| [`list_network_events`](#list_network_events) | `statistics` | write |
+| [`list_network_events`](#list_network_events) | `statistics` | read |
 | [`list_network_members_groups`](#list_network_members_groups) | `network` | read |
 | [`list_networks`](#list_networks) | `network` | read |
 | [`list_pending_devices`](#list_pending_devices) | `devices` | read |
 | [`list_policy_engine_rules`](#list_policy_engine_rules) | `network` | read |
 | [`list_port_anomalies`](#list_port_anomalies) | `network` | read |
+| [`list_port_automations`](#list_port_automations) | `network` | read |
 | [`list_port_forwards`](#list_port_forwards) | `network` | read |
 | [`list_port_profiles`](#list_port_profiles) | `network` | read |
 | [`list_power_supervisors`](#list_power_supervisors) | `network` | read |
@@ -691,6 +703,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`start_spectrum_scan`](#start_spectrum_scan) | `network` | write |
 | [`start_talkback_session`](#start_talkback_session) | `protect` | write |
 | [`start_wifi_quick_scan`](#start_wifi_quick_scan) | `network` | write |
+| [`stop_speaker_siren`](#stop_speaker_siren) | `protect` | write |
 | [`stop_speaker_stream`](#stop_speaker_stream) | `protect` | write |
 | [`suggest_network_settings`](#suggest_network_settings) | `network` | read |
 | [`suggest_service_port`](#suggest_service_port) | `network` | read |
@@ -727,6 +740,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`update_dynamic_dns`](#update_dynamic_dns) | `network` | write |
 | [`update_edge_recording_settings`](#update_edge_recording_settings) | `protect` | write |
 | [`update_energy_saving_policy`](#update_energy_saving_policy) | `network` | write |
+| [`update_external_arm_profile`](#update_external_arm_profile) | `protect` | write |
 | [`update_firewall_policy`](#update_firewall_policy) | `firewall` | write |
 | [`update_firewall_zone_proxy`](#update_firewall_zone_proxy) | `firewall` | write |
 | [`update_fob`](#update_fob) | `protect` | write |
@@ -754,6 +768,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`update_nvr`](#update_nvr) | `protect` | write |
 | [`update_ospf_router`](#update_ospf_router) | `network` | write |
 | [`update_policy_engine_rule`](#update_policy_engine_rule) | `network` | write |
+| [`update_port_automation`](#update_port_automation) | `network` | write |
 | [`update_port_forward`](#update_port_forward) | `network` | write |
 | [`update_port_profile`](#update_port_profile) | `network` | write |
 | [`update_power_supervisor`](#update_power_supervisor) | `network` | write |
@@ -810,6 +825,7 @@ Every tool with its family (the ID `UNIFI_FAMILY_ALLOW` and `UNIFI_EXCLUDE` take
 | [`upload_protect_file`](#upload_protect_file) | `protect` | write |
 | [`upload_ringtone`](#upload_ringtone) | `protect` | write |
 | [`verify_sim_pin`](#verify_sim_pin) | `network` | write |
+| [`wake_client`](#wake_client) | `clients` | write |
 
 ## Linked-page logical windows
 
@@ -847,22 +863,22 @@ When the entry is set, the write tools it governs are hidden from `tools/list` a
 
 **Scope.** `family:connector=deny` governs the four generic connector relay mutation tools (`fabric_connector_post`, `fabric_connector_put`, `fabric_connector_patch`, `fabric_connector_delete`), a `fabric_connector_get` call to a known state-changing GET route (Protect camera `enable-control` / `disable-control`), and these typed tools: `adopt_protect_device`, `apply_radio_ai_optimization`, `clear_sensor_tamper`, `configure_wifi_wan`, `control_wifi_doctor_optimization`, `preview_radio_ai_optimization`, `reboot_protect_device`, `start_spectrum_scan`, `start_wifi_quick_scan`, `unadopt_protect_device`, `update_camera_private`, `update_device_radio`, `update_nvr`, `update_sensor_private` and `update_switch_port_overrides`. Each typed tool also follows its own area's entry. Ordinary GET reads through `fabric_connector_get` stay available. The InnerSpace typed write tools are governed by `family:innerspace=deny`, not by this entry. An InnerSpace write path reached through the generic relay follows `family:connector=deny`, `family:innerspace=deny` and `UNIFI_WRITE_POLICY`, as other relay mutations; writes are enabled by default.
 
-Total tools: 798
+Total tools: 814
 
 ## Tool Categories
 
 - [Client Management](#client-management) (3)
 - [Configuration](#configuration) (33)
-- [Create](#create) (67)
-- [Delete](#delete) (64)
+- [Create](#create) (69)
+- [Delete](#delete) (66)
 - [Device Control](#device-control) (7)
 - [Device Management](#device-management) (11)
 - [Execute & Actions](#execute--actions) (13)
-- [Listing & Discovery](#listing--discovery) (150)
-- [Other](#other) (163)
-- [Reading & Inspection](#reading--inspection) (185)
+- [Listing & Discovery](#listing--discovery) (152)
+- [Other](#other) (168)
+- [Reading & Inspection](#reading--inspection) (188)
 - [Search](#search) (4)
-- [Update](#update) (98)
+- [Update](#update) (100)
 
 ## Tools by API source
 
@@ -884,19 +900,19 @@ Every tool is classified as `<app>/<source>/<access>` from the routes it calls (
 - `mobility/official/read` (5): [`get_mobility_device`](#get_mobility_device), [`list_mobility_admins`](#list_mobility_admins), [`list_mobility_clients`](#list_mobility_clients), [`list_mobility_devices`](#list_mobility_devices), [`list_mobility_workspaces`](#list_mobility_workspaces)
 - `mobility/official/write` (3): [`update_mobility_device_name`](#update_mobility_device_name), [`update_mobility_device_network`](#update_mobility_device_network), [`update_mobility_device_wireless`](#update_mobility_device_wireless)
 
-**network** (500 tools)
+**network** (508 tools)
 
 - `network/official/read` (47): [`get_acl_rule`](#get_acl_rule), [`get_acl_rule_ordering`](#get_acl_rule_ordering), [`get_client`](#get_client), [`get_device`](#get_device), [`get_device_statistics`](#get_device_statistics), [`get_dns_policy`](#get_dns_policy), [`get_firewall_policy`](#get_firewall_policy), [`get_firewall_policy_ordering`](#get_firewall_policy_ordering), [`get_firewall_zone_proxy`](#get_firewall_zone_proxy), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_references`](#get_network_references), [`get_radius_profile`](#get_radius_profile), [`get_site_inventory`](#get_site_inventory), [`get_switch_stack`](#get_switch_stack), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_vpn_server`](#get_vpn_server), [`get_wifi_broadcast`](#get_wifi_broadcast), [`list_acl_rules`](#list_acl_rules), [`list_all_clients`](#list_all_clients), [`list_clients`](#list_clients), [`list_countries`](#list_countries), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_firewall_policies`](#list_firewall_policies), [`list_firewall_zones_proxy`](#list_firewall_zones_proxy), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_integration_device_tags`](#list_integration_device_tags), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_networks`](#list_networks), [`list_pending_devices`](#list_pending_devices), [`list_radius_profiles`](#list_radius_profiles), [`list_site_devices`](#list_site_devices), [`list_site_to_site_tunnels`](#list_site_to_site_tunnels), [`list_switch_stacks`](#list_switch_stacks), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_vpn_servers`](#list_vpn_servers), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`read_recent_events`](#read_recent_events), [`search_across_sites`](#search_across_sites)
 - `network/official/write` (34): [`adopt_device`](#adopt_device), [`approve_pending_device`](#approve_pending_device), [`batch_delete_firewall_policies`](#batch_delete_firewall_policies), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`create_acl_rule`](#create_acl_rule), [`create_dns_policy`](#create_dns_policy), [`create_firewall_policy`](#create_firewall_policy), [`create_firewall_zone_proxy`](#create_firewall_zone_proxy), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_acl_rule`](#delete_acl_rule), [`delete_dns_policy`](#delete_dns_policy), [`delete_firewall_policy`](#delete_firewall_policy), [`delete_firewall_zone_proxy`](#delete_firewall_zone_proxy), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_network`](#delete_network), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`execute_client_action`](#execute_client_action), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`patch_firewall_policy`](#patch_firewall_policy), [`set_acl_rule_ordering`](#set_acl_rule_ordering), [`set_firewall_policy_ordering`](#set_firewall_policy_ordering), [`unadopt_device`](#unadopt_device), [`update_acl_rule`](#update_acl_rule), [`update_dns_policy`](#update_dns_policy), [`update_firewall_policy`](#update_firewall_policy), [`update_firewall_zone_proxy`](#update_firewall_zone_proxy), [`update_network`](#update_network), [`update_predefined_firewall_policy`](#update_predefined_firewall_policy), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_wifi_broadcast`](#update_wifi_broadcast)
-- `network/private.classic/read` (64): [`compare_site_performance`](#compare_site_performance), [`get_account`](#get_account), [`get_channel_plan`](#get_channel_plan), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_radios`](#get_device_radios), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_stp_state`](#get_device_stp_state), [`get_dynamic_dns`](#get_dynamic_dns), [`get_firewall_group`](#get_firewall_group), [`get_firewall_rule`](#get_firewall_rule), [`get_historical_stats`](#get_historical_stats), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_network_ui_data`](#get_network_ui_data), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_profile`](#get_port_profile), [`get_scheduled_task`](#get_scheduled_task), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_site_health_summary`](#get_site_health_summary), [`get_site_statistics`](#get_site_statistics), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_speedtest_status`](#get_speedtest_status), [`get_static_route`](#get_static_route), [`get_switch_port_overrides`](#get_switch_port_overrides), [`get_system_info`](#get_system_info), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`list_accounts`](#list_accounts), [`list_active_clients_stats`](#list_active_clients_stats), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_backups`](#list_backups), [`list_client_sessions`](#list_client_sessions), [`list_device_firmware`](#list_device_firmware), [`list_device_stats`](#list_device_stats), [`list_dhcp_options`](#list_dhcp_options), [`list_dynamic_dns`](#list_dynamic_dns), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_rules`](#list_firewall_rules), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_operators`](#list_hotspot_operators), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_known_clients`](#list_known_clients), [`list_network_anomalies`](#list_network_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_settings`](#list_settings), [`list_site_warnings`](#list_site_warnings), [`list_speedtest_results`](#list_speedtest_results), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vpn_clients`](#list_vpn_clients), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wireguard_users`](#list_wireguard_users), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups)
+- `network/private.classic/read` (65): [`compare_site_performance`](#compare_site_performance), [`diagnose_wifi`](#diagnose_wifi), [`get_account`](#get_account), [`get_channel_plan`](#get_channel_plan), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_radios`](#get_device_radios), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_stp_state`](#get_device_stp_state), [`get_dynamic_dns`](#get_dynamic_dns), [`get_firewall_group`](#get_firewall_group), [`get_firewall_rule`](#get_firewall_rule), [`get_historical_stats`](#get_historical_stats), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_network_ui_data`](#get_network_ui_data), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_profile`](#get_port_profile), [`get_scheduled_task`](#get_scheduled_task), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_site_health_summary`](#get_site_health_summary), [`get_site_statistics`](#get_site_statistics), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_speedtest_status`](#get_speedtest_status), [`get_static_route`](#get_static_route), [`get_switch_port_overrides`](#get_switch_port_overrides), [`get_system_info`](#get_system_info), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`list_accounts`](#list_accounts), [`list_active_clients_stats`](#list_active_clients_stats), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_backups`](#list_backups), [`list_client_sessions`](#list_client_sessions), [`list_device_firmware`](#list_device_firmware), [`list_device_stats`](#list_device_stats), [`list_dhcp_options`](#list_dhcp_options), [`list_dynamic_dns`](#list_dynamic_dns), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_rules`](#list_firewall_rules), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_operators`](#list_hotspot_operators), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_known_clients`](#list_known_clients), [`list_network_anomalies`](#list_network_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_settings`](#list_settings), [`list_site_warnings`](#list_site_warnings), [`list_speedtest_results`](#list_speedtest_results), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vpn_clients`](#list_vpn_clients), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wireguard_users`](#list_wireguard_users), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups)
 - `network/private.classic/write` (132): [`activate_lte_trial`](#activate_lte_trial), [`advanced_adopt_device`](#advanced_adopt_device), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`block_client`](#block_client), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_site_vpn`](#control_site_vpn), [`create_backup`](#create_backup), [`create_client_reservation`](#create_client_reservation), [`create_dhcp_option`](#create_dhcp_option), [`create_dynamic_dns`](#create_dynamic_dns), [`create_hotspot_operator`](#create_hotspot_operator), [`create_hotspot_package`](#create_hotspot_package), [`create_network`](#create_network), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_radius_profile`](#create_radius_profile), [`create_scheduled_task`](#create_scheduled_task), [`create_site`](#create_site), [`create_site_to_site_tunnel`](#create_site_to_site_tunnel), [`create_site_vpn`](#create_site_vpn), [`create_static_route`](#create_static_route), [`create_user_group`](#create_user_group), [`create_vpn_client`](#create_vpn_client), [`create_vpn_server`](#create_vpn_server), [`create_wireguard_users`](#create_wireguard_users), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_operator`](#delete_hotspot_operator), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_radius_profile`](#delete_radius_profile), [`delete_scheduled_task`](#delete_scheduled_task), [`delete_site`](#delete_site), [`delete_site_to_site_tunnel`](#delete_site_to_site_tunnel), [`delete_site_vpn`](#delete_site_vpn), [`delete_static_route`](#delete_static_route), [`delete_user_group`](#delete_user_group), [`delete_vpn_client`](#delete_vpn_client), [`delete_vpn_server`](#delete_vpn_server), [`delete_wireguard_users`](#delete_wireguard_users), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_site`](#export_site), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`forget_device`](#forget_device), [`generate_support_file`](#generate_support_file), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_guests`](#list_guests), [`locate_device`](#locate_device), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`migrate_device`](#migrate_device), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`reconnect_client`](#reconnect_client), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`rename_site`](#rename_site), [`replace_device`](#replace_device), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restart_device`](#restart_device), [`restart_vpn_server`](#restart_vpn_server), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`run_speedtest`](#run_speedtest), [`send_test_email`](#send_test_email), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`start_rolling_upgrade`](#start_rolling_upgrade), [`start_spectrum_scan`](#start_spectrum_scan), [`unblock_client`](#unblock_client), [`unpair_building_bridge`](#unpair_building_bridge), [`update_device_battery_settings`](#update_device_battery_settings), [`update_device_radio`](#update_device_radio), [`update_dhcp_option`](#update_dhcp_option), [`update_dynamic_dns`](#update_dynamic_dns), [`update_hotspot_operator`](#update_hotspot_operator), [`update_hotspot_package`](#update_hotspot_package), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_radius_profile`](#update_radius_profile), [`update_scheduled_task`](#update_scheduled_task), [`update_setting`](#update_setting), [`update_site_to_site_tunnel`](#update_site_to_site_tunnel), [`update_static_route`](#update_static_route), [`update_switch_port_overrides`](#update_switch_port_overrides), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_vpn_client`](#update_vpn_client), [`update_vpn_server`](#update_vpn_server), [`update_wan_interface`](#update_wan_interface), [`update_wireguard_users`](#update_wireguard_users), [`update_wlan_config`](#update_wlan_config), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device), [`verify_sim_pin`](#verify_sim_pin)
-- `network/private.v2/read` (106): [`collect_network_incident_evidence`](#collect_network_incident_evidence), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_enriched_configuration`](#get_enriched_configuration), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_ipsec_settings`](#get_ipsec_settings), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_mdns_settings`](#get_mdns_settings), [`get_network_config_defaults`](#get_network_config_defaults), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_history`](#get_port_history), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_scoped_system_log`](#get_scoped_system_log), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_support_file`](#get_support_file), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`list_active_clients`](#list_active_clients), [`list_ap_groups`](#list_ap_groups), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_models`](#list_device_models), [`list_device_tags`](#list_device_tags), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_doh_servers`](#list_doh_servers), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_gateway_routes`](#list_gateway_routes), [`list_installed_applications`](#list_installed_applications), [`list_ips_categories`](#list_ips_categories), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_matter_nodes`](#list_matter_nodes), [`list_nat_rules`](#list_nat_rules), [`list_network_members_groups`](#list_network_members_groups), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_site_features`](#list_site_features), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_static_dns_records`](#list_static_dns_records), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_vendor_ids`](#list_vendor_ids), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_users`](#list_vpn_users), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireless_links`](#list_wireless_links), [`query_traffic_flows`](#query_traffic_flows), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port)
-- `network/private.v2/write` (117): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`commission_matter_node`](#commission_matter_node), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_device_tag`](#create_device_tag), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_nat_rule`](#create_nat_rule), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_test_config`](#create_test_config), [`create_traffic_route`](#create_traffic_route), [`create_wan_sla`](#create_wan_sla), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_device_tag`](#delete_device_tag), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_nat_rule`](#delete_nat_rule), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_test_config`](#delete_test_config), [`delete_traffic_route`](#delete_traffic_route), [`delete_wan_sla`](#delete_wan_sla), [`export_traffic_flows`](#export_traffic_flows), [`generate_vlan_plan`](#generate_vlan_plan), [`get_multicast_insights`](#get_multicast_insights), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sites_overview`](#get_sites_overview), [`get_system_log`](#get_system_log), [`import_dhcp_reservations`](#import_dhcp_reservations), [`list_ips_events`](#list_ips_events), [`list_network_events`](#list_network_events), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`preview_firewall_group`](#preview_firewall_group), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_teleport_invitations`](#query_teleport_invitations), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`remove_matter_node`](#remove_matter_node), [`remove_teleport_client`](#remove_teleport_client), [`rename_matter_node`](#rename_matter_node), [`reorder_qos_rules`](#reorder_qos_rules), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_lte_failover`](#set_lte_failover), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_tag`](#update_device_tag), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_ips_signatures`](#update_ips_signatures), [`update_ipsec_settings`](#update_ipsec_settings), [`update_nat_rule`](#update_nat_rule), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_dns_record`](#update_static_dns_record), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_route`](#update_traffic_route), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla)
+- `network/private.v2/read` (112): [`collect_network_incident_evidence`](#collect_network_incident_evidence), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_enriched_configuration`](#get_enriched_configuration), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_hotspot_guest_webhook_delivery`](#get_hotspot_guest_webhook_delivery), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_ipsec_settings`](#get_ipsec_settings), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_mdns_settings`](#get_mdns_settings), [`get_network_config_defaults`](#get_network_config_defaults), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_automation`](#get_port_automation), [`get_port_history`](#get_port_history), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_scoped_system_log`](#get_scoped_system_log), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_support_file`](#get_support_file), [`get_system_log`](#get_system_log), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`list_active_clients`](#list_active_clients), [`list_ap_groups`](#list_ap_groups), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_models`](#list_device_models), [`list_device_tags`](#list_device_tags), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_doh_servers`](#list_doh_servers), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_gateway_routes`](#list_gateway_routes), [`list_installed_applications`](#list_installed_applications), [`list_ips_categories`](#list_ips_categories), [`list_ips_events`](#list_ips_events), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_matter_nodes`](#list_matter_nodes), [`list_nat_rules`](#list_nat_rules), [`list_network_events`](#list_network_events), [`list_network_members_groups`](#list_network_members_groups), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_port_automations`](#list_port_automations), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_site_features`](#list_site_features), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_static_dns_records`](#list_static_dns_records), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_vendor_ids`](#list_vendor_ids), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_users`](#list_vpn_users), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireless_links`](#list_wireless_links), [`query_traffic_flows`](#query_traffic_flows), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port)
+- `network/private.v2/write` (118): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`commission_matter_node`](#commission_matter_node), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_device_tag`](#create_device_tag), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_nat_rule`](#create_nat_rule), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_port_automation`](#create_port_automation), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_test_config`](#create_test_config), [`create_traffic_route`](#create_traffic_route), [`create_wan_sla`](#create_wan_sla), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_device_tag`](#delete_device_tag), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_nat_rule`](#delete_nat_rule), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_port_automation`](#delete_port_automation), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_test_config`](#delete_test_config), [`delete_traffic_route`](#delete_traffic_route), [`delete_wan_sla`](#delete_wan_sla), [`export_traffic_flows`](#export_traffic_flows), [`generate_vlan_plan`](#generate_vlan_plan), [`get_multicast_insights`](#get_multicast_insights), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sites_overview`](#get_sites_overview), [`import_dhcp_reservations`](#import_dhcp_reservations), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`preview_firewall_group`](#preview_firewall_group), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_teleport_invitations`](#query_teleport_invitations), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`remove_matter_node`](#remove_matter_node), [`remove_teleport_client`](#remove_teleport_client), [`rename_matter_node`](#rename_matter_node), [`reorder_qos_rules`](#reorder_qos_rules), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_lte_failover`](#set_lte_failover), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_tag`](#update_device_tag), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_ips_signatures`](#update_ips_signatures), [`update_ipsec_settings`](#update_ipsec_settings), [`update_nat_rule`](#update_nat_rule), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_port_automation`](#update_port_automation), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_dns_record`](#update_static_dns_record), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_route`](#update_traffic_route), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla), [`wake_client`](#wake_client)
 
-**protect** (225 tools)
+**protect** (233 tools)
 
-- `protect/official/read` (37): [`collect_protect_device_changes`](#collect_protect_device_changes), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_chime`](#get_chime), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_user`](#get_protect_user), [`get_relay`](#get_relay), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_ulp_user`](#get_ulp_user), [`get_viewer`](#get_viewer), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_files`](#list_protect_files), [`list_protect_users`](#list_protect_users), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers)
-- `protect/official/write` (37): [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`create_arm_profile`](#create_arm_profile), [`create_liveview`](#create_liveview), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`enable_arm`](#enable_arm), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`relay_activate_output`](#relay_activate_output), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_talkback_session`](#start_talkback_session), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_chime`](#update_chime), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upload_protect_file`](#upload_protect_file)
+- `protect/official/read` (39): [`collect_protect_device_changes`](#collect_protect_device_changes), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_chime`](#get_chime), [`get_external_arm_profile`](#get_external_arm_profile), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_user`](#get_protect_user), [`get_relay`](#get_relay), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_ulp_user`](#get_ulp_user), [`get_viewer`](#get_viewer), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_external_arm_profiles`](#list_external_arm_profiles), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_files`](#list_protect_files), [`list_protect_users`](#list_protect_users), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers)
+- `protect/official/write` (43): [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`arm_external_arm_profile`](#arm_external_arm_profile), [`create_arm_profile`](#create_arm_profile), [`create_external_arm_profile`](#create_external_arm_profile), [`create_liveview`](#create_liveview), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_external_arm_profile`](#delete_external_arm_profile), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`disarm_external_arm_profile`](#disarm_external_arm_profile), [`enable_arm`](#enable_arm), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`relay_activate_output`](#relay_activate_output), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_talkback_session`](#start_talkback_session), [`stop_speaker_siren`](#stop_speaker_siren), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_chime`](#update_chime), [`update_external_arm_profile`](#update_external_arm_profile), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upload_protect_file`](#upload_protect_file)
 - `protect/private/read` (50): [`collect_protect_events`](#collect_protect_events), [`collect_protect_incident_evidence`](#collect_protect_incident_evidence), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_door_lock`](#get_door_lock), [`get_nvr_private`](#get_nvr_private), [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_ringtone`](#get_ringtone), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_thumbnail`](#get_thumbnail), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_door_lock_unlock_events`](#list_door_lock_unlock_events), [`list_door_locks`](#list_door_locks), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_keyrings`](#list_protect_keyrings), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates)
 - `protect/private/write` (101): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_camera_shortcut`](#create_camera_shortcut), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`readopt_protect_device`](#readopt_protect_device), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`start_cloud_video_archive`](#start_cloud_video_archive), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_sensor_private`](#update_sensor_private), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_ringtone`](#upload_ringtone)
 
@@ -919,15 +935,15 @@ Every tool is classified as `<app>/<source>/<access>` from the routes it calls (
 Every tool is in one family, the ID `UNIFI_FAMILY_ALLOW` and the `family:` entries of `UNIFI_EXCLUDE` take (comma-separated, lower case). `firewall` is assigned by route: a tool that calls a firewall policy, firewall zone, ACL rule or classic firewall rule or group route is in `firewall`. Every family is enabled by default; `list_tool_families` reports the families and counts of the running catalog.
 
 - `carrier` (11): [`assign_carrier_subscriber_plan`](#assign_carrier_subscriber_plan), [`attach_carrier_subscriber_host`](#attach_carrier_subscriber_host), [`create_carrier_subscriber`](#create_carrier_subscriber), [`detach_carrier_subscriber_host`](#detach_carrier_subscriber_host), [`get_carrier_service_plan`](#get_carrier_service_plan), [`get_carrier_subscriber`](#get_carrier_subscriber), [`list_carrier_service_plans`](#list_carrier_service_plans), [`list_carrier_subscribers`](#list_carrier_subscribers), [`resume_carrier_subscriber`](#resume_carrier_subscriber), [`suspend_carrier_subscriber`](#suspend_carrier_subscriber), [`update_carrier_subscriber`](#update_carrier_subscriber)
-- `clients` (15): [`block_client`](#block_client), [`create_client_reservation`](#create_client_reservation), [`execute_client_action`](#execute_client_action), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`get_client`](#get_client), [`list_active_clients`](#list_active_clients), [`list_clients`](#list_clients), [`list_guests`](#list_guests), [`reconnect_client`](#reconnect_client), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`unblock_client`](#unblock_client)
+- `clients` (16): [`block_client`](#block_client), [`create_client_reservation`](#create_client_reservation), [`execute_client_action`](#execute_client_action), [`extend_guest`](#extend_guest), [`forget_client`](#forget_client), [`get_client`](#get_client), [`list_active_clients`](#list_active_clients), [`list_clients`](#list_clients), [`list_guests`](#list_guests), [`reconnect_client`](#reconnect_client), [`remove_client_fixed_ip`](#remove_client_fixed_ip), [`set_client_fixed_ip`](#set_client_fixed_ip), [`set_client_name`](#set_client_name), [`set_client_note`](#set_client_note), [`unblock_client`](#unblock_client), [`wake_client`](#wake_client)
 - `connector` (5): [`fabric_connector_delete`](#fabric_connector_delete), [`fabric_connector_get`](#fabric_connector_get), [`fabric_connector_patch`](#fabric_connector_patch), [`fabric_connector_post`](#fabric_connector_post), [`fabric_connector_put`](#fabric_connector_put)
-- `devices` (39): [`adopt_device`](#adopt_device), [`advanced_adopt_device`](#advanced_adopt_device), [`approve_pending_device`](#approve_pending_device), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`create_backup`](#create_backup), [`create_device_tag`](#create_device_tag), [`create_scheduled_task`](#create_scheduled_task), [`delete_device_tag`](#delete_device_tag), [`delete_scheduled_task`](#delete_scheduled_task), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`export_site`](#export_site), [`forget_device`](#forget_device), [`get_device`](#get_device), [`get_device_radios`](#get_device_radios), [`get_device_statistics`](#get_device_statistics), [`get_scheduled_task`](#get_scheduled_task), [`get_speedtest_status`](#get_speedtest_status), [`get_switch_port_overrides`](#get_switch_port_overrides), [`list_backups`](#list_backups), [`list_device_firmware`](#list_device_firmware), [`list_device_tags`](#list_device_tags), [`list_pending_devices`](#list_pending_devices), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_site_devices`](#list_site_devices), [`locate_device`](#locate_device), [`migrate_device`](#migrate_device), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`restart_device`](#restart_device), [`run_speedtest`](#run_speedtest), [`start_rolling_upgrade`](#start_rolling_upgrade), [`unadopt_device`](#unadopt_device), [`update_device_radio`](#update_device_radio), [`update_device_tag`](#update_device_tag), [`update_scheduled_task`](#update_scheduled_task), [`update_switch_port_overrides`](#update_switch_port_overrides), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device)
+- `devices` (40): [`adopt_device`](#adopt_device), [`advanced_adopt_device`](#advanced_adopt_device), [`approve_pending_device`](#approve_pending_device), [`cancel_rolling_upgrade`](#cancel_rolling_upgrade), [`create_backup`](#create_backup), [`create_device_tag`](#create_device_tag), [`create_scheduled_task`](#create_scheduled_task), [`delete_device_tag`](#delete_device_tag), [`delete_scheduled_task`](#delete_scheduled_task), [`diagnose_wifi`](#diagnose_wifi), [`execute_device_action`](#execute_device_action), [`execute_port_action`](#execute_port_action), [`export_site`](#export_site), [`forget_device`](#forget_device), [`get_device`](#get_device), [`get_device_radios`](#get_device_radios), [`get_device_statistics`](#get_device_statistics), [`get_scheduled_task`](#get_scheduled_task), [`get_speedtest_status`](#get_speedtest_status), [`get_switch_port_overrides`](#get_switch_port_overrides), [`list_backups`](#list_backups), [`list_device_firmware`](#list_device_firmware), [`list_device_tags`](#list_device_tags), [`list_pending_devices`](#list_pending_devices), [`list_scheduled_tasks`](#list_scheduled_tasks), [`list_site_devices`](#list_site_devices), [`locate_device`](#locate_device), [`migrate_device`](#migrate_device), [`move_device_to_site`](#move_device_to_site), [`provision_device`](#provision_device), [`restart_device`](#restart_device), [`run_speedtest`](#run_speedtest), [`start_rolling_upgrade`](#start_rolling_upgrade), [`unadopt_device`](#unadopt_device), [`update_device_radio`](#update_device_radio), [`update_device_tag`](#update_device_tag), [`update_scheduled_task`](#update_scheduled_task), [`update_switch_port_overrides`](#update_switch_port_overrides), [`upgrade_all_devices`](#upgrade_all_devices), [`upgrade_device`](#upgrade_device)
 - `firewall` (33): [`batch_delete_acl_rules`](#batch_delete_acl_rules), [`batch_delete_firewall_policies`](#batch_delete_firewall_policies), [`batch_delete_firewall_zones`](#batch_delete_firewall_zones), [`create_acl_rule`](#create_acl_rule), [`create_firewall_policy`](#create_firewall_policy), [`create_firewall_rule`](#create_firewall_rule), [`create_firewall_zone_proxy`](#create_firewall_zone_proxy), [`delete_acl_rule`](#delete_acl_rule), [`delete_firewall_policy`](#delete_firewall_policy), [`delete_firewall_zone_proxy`](#delete_firewall_zone_proxy), [`get_acl_rule`](#get_acl_rule), [`get_acl_rule_ordering`](#get_acl_rule_ordering), [`get_firewall_group`](#get_firewall_group), [`get_firewall_policy`](#get_firewall_policy), [`get_firewall_policy_ordering`](#get_firewall_policy_ordering), [`get_firewall_rule`](#get_firewall_rule), [`get_firewall_zone_matrix`](#get_firewall_zone_matrix), [`get_firewall_zone_proxy`](#get_firewall_zone_proxy), [`list_acl_rules`](#list_acl_rules), [`list_firewall_app_blocks`](#list_firewall_app_blocks), [`list_firewall_groups`](#list_firewall_groups), [`list_firewall_policies`](#list_firewall_policies), [`list_firewall_rules`](#list_firewall_rules), [`list_firewall_zones_proxy`](#list_firewall_zones_proxy), [`patch_firewall_policy`](#patch_firewall_policy), [`preview_firewall_group`](#preview_firewall_group), [`set_acl_rule_ordering`](#set_acl_rule_ordering), [`set_firewall_app_blocks`](#set_firewall_app_blocks), [`set_firewall_policy_ordering`](#set_firewall_policy_ordering), [`update_acl_rule`](#update_acl_rule), [`update_firewall_policy`](#update_firewall_policy), [`update_firewall_zone_proxy`](#update_firewall_zone_proxy), [`update_predefined_firewall_policy`](#update_predefined_firewall_policy)
 - `hotspot` (4): [`create_hotspot_operator`](#create_hotspot_operator), [`delete_hotspot_operator`](#delete_hotspot_operator), [`list_hotspot_operators`](#list_hotspot_operators), [`update_hotspot_operator`](#update_hotspot_operator)
 - `innerspace` (32): [`clean_innerspace_storage`](#clean_innerspace_storage), [`create_innerspace_plan`](#create_innerspace_plan), [`create_innerspace_support_dump`](#create_innerspace_support_dump), [`delete_innerspace_plan`](#delete_innerspace_plan), [`export_innerspace_backup`](#export_innerspace_backup), [`get_innerspace_asset`](#get_innerspace_asset), [`get_innerspace_health`](#get_innerspace_health), [`get_innerspace_project`](#get_innerspace_project), [`get_innerspace_stats`](#get_innerspace_stats), [`get_innerspace_summary`](#get_innerspace_summary), [`get_innerspace_ucore_manifest`](#get_innerspace_ucore_manifest), [`get_innerspace_ucore_status`](#get_innerspace_ucore_status), [`get_unifi_placement_snapshot`](#get_unifi_placement_snapshot), [`import_innerspace_backup`](#import_innerspace_backup), [`import_innerspace_captures`](#import_innerspace_captures), [`import_innerspace_dc_shapes`](#import_innerspace_dc_shapes), [`import_innerspace_shared_project`](#import_innerspace_shared_project), [`list_innerspace_access_points`](#list_innerspace_access_points), [`list_innerspace_devices`](#list_innerspace_devices), [`list_innerspace_doors`](#list_innerspace_doors), [`list_innerspace_floor_plans`](#list_innerspace_floor_plans), [`list_innerspace_inventory`](#list_innerspace_inventory), [`list_innerspace_switches`](#list_innerspace_switches), [`reorder_innerspace_plans`](#reorder_innerspace_plans), [`retry_innerspace_plan_maps`](#retry_innerspace_plan_maps), [`transform_innerspace_shapes`](#transform_innerspace_shapes), [`update_innerspace_attenuation_type`](#update_innerspace_attenuation_type), [`update_innerspace_plan`](#update_innerspace_plan), [`update_innerspace_plan_map`](#update_innerspace_plan_map), [`update_innerspace_project`](#update_innerspace_project), [`update_innerspace_wall_type`](#update_innerspace_wall_type), [`upload_innerspace_plan_asset`](#upload_innerspace_plan_asset)
 - `mobility` (8): [`get_mobility_device`](#get_mobility_device), [`list_mobility_admins`](#list_mobility_admins), [`list_mobility_clients`](#list_mobility_clients), [`list_mobility_devices`](#list_mobility_devices), [`list_mobility_workspaces`](#list_mobility_workspaces), [`update_mobility_device_name`](#update_mobility_device_name), [`update_mobility_device_network`](#update_mobility_device_network), [`update_mobility_device_wireless`](#update_mobility_device_wireless)
-- `network` (345): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_lte_trial`](#activate_lte_trial), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`commission_matter_node`](#commission_matter_node), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_dhcp_option`](#create_dhcp_option), [`create_dns_policy`](#create_dns_policy), [`create_dynamic_dns`](#create_dynamic_dns), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_hotspot_package`](#create_hotspot_package), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_nat_rule`](#create_nat_rule), [`create_network`](#create_network), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_site`](#create_site), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_route`](#create_static_route), [`create_test_config`](#create_test_config), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_traffic_route`](#create_traffic_route), [`create_user_group`](#create_user_group), [`create_wan_sla`](#create_wan_sla), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_dns_policy`](#delete_dns_policy), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_nat_rule`](#delete_nat_rule), [`delete_network`](#delete_network), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_site`](#delete_site), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_route`](#delete_static_route), [`delete_test_config`](#delete_test_config), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_traffic_route`](#delete_traffic_route), [`delete_user_group`](#delete_user_group), [`delete_wan_sla`](#delete_wan_sla), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_traffic_flows`](#export_traffic_flows), [`generate_support_file`](#generate_support_file), [`generate_vlan_plan`](#generate_vlan_plan), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_account`](#get_account), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_channel_plan`](#get_channel_plan), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_dns_policy`](#get_dns_policy), [`get_dynamic_dns`](#get_dynamic_dns), [`get_enriched_configuration`](#get_enriched_configuration), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_mdns_settings`](#get_mdns_settings), [`get_multicast_insights`](#get_multicast_insights), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_config_defaults`](#get_network_config_defaults), [`get_network_references`](#get_network_references), [`get_network_ui_data`](#get_network_ui_data), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_history`](#get_port_history), [`get_port_profile`](#get_port_profile), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_sites_overview`](#get_sites_overview), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_static_route`](#get_static_route), [`get_support_file`](#get_support_file), [`get_switch_stack`](#get_switch_stack), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_broadcast`](#get_wifi_broadcast), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`import_dhcp_reservations`](#import_dhcp_reservations), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_accounts`](#list_accounts), [`list_ap_groups`](#list_ap_groups), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_countries`](#list_countries), [`list_device_models`](#list_device_models), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_dhcp_options`](#list_dhcp_options), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_dynamic_dns`](#list_dynamic_dns), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_gateway_routes`](#list_gateway_routes), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_installed_applications`](#list_installed_applications), [`list_integration_device_tags`](#list_integration_device_tags), [`list_ips_categories`](#list_ips_categories), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_matter_nodes`](#list_matter_nodes), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_nat_rules`](#list_nat_rules), [`list_network_anomalies`](#list_network_anomalies), [`list_network_members_groups`](#list_network_members_groups), [`list_networks`](#list_networks), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_settings`](#list_settings), [`list_site_features`](#list_site_features), [`list_site_warnings`](#list_site_warnings), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_switch_stacks`](#list_switch_stacks), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vendor_ids`](#list_vendor_ids), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`list_wireless_links`](#list_wireless_links), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_traffic_flows`](#query_traffic_flows), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_matter_node`](#remove_matter_node), [`rename_matter_node`](#rename_matter_node), [`rename_site`](#rename_site), [`reorder_qos_rules`](#reorder_qos_rules), [`replace_device`](#replace_device), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`send_test_email`](#send_test_email), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_lte_failover`](#set_lte_failover), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_spectrum_scan`](#start_spectrum_scan), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port), [`unpair_building_bridge`](#unpair_building_bridge), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_battery_settings`](#update_device_battery_settings), [`update_dhcp_option`](#update_dhcp_option), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_dns_policy`](#update_dns_policy), [`update_dynamic_dns`](#update_dynamic_dns), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_hotspot_package`](#update_hotspot_package), [`update_ips_signatures`](#update_ips_signatures), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_nat_rule`](#update_nat_rule), [`update_network`](#update_network), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_setting`](#update_setting), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_route`](#update_static_route), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_traffic_route`](#update_traffic_route), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_wan_interface`](#update_wan_interface), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla), [`update_wifi_broadcast`](#update_wifi_broadcast), [`update_wlan_config`](#update_wlan_config), [`verify_sim_pin`](#verify_sim_pin)
-- `protect` (225): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`collect_protect_device_changes`](#collect_protect_device_changes), [`collect_protect_events`](#collect_protect_events), [`collect_protect_incident_evidence`](#collect_protect_incident_evidence), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_arm_profile`](#create_arm_profile), [`create_camera_shortcut`](#create_camera_shortcut), [`create_liveview`](#create_liveview), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`disable_camera_share_link`](#disable_camera_share_link), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_arm`](#enable_arm), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_chime`](#get_chime), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_door_lock`](#get_door_lock), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_nvr_private`](#get_nvr_private), [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_protect_user`](#get_protect_user), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_relay`](#get_relay), [`get_ringtone`](#get_ringtone), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_thumbnail`](#get_thumbnail), [`get_ulp_user`](#get_ulp_user), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`get_viewer`](#get_viewer), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_door_lock_unlock_events`](#list_door_lock_unlock_events), [`list_door_locks`](#list_door_locks), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_files`](#list_protect_files), [`list_protect_keyrings`](#list_protect_keyrings), [`list_protect_users`](#list_protect_users), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`readopt_protect_device`](#readopt_protect_device), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`relay_activate_output`](#relay_activate_output), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_cloud_video_archive`](#start_cloud_video_archive), [`start_talkback_session`](#start_talkback_session), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_chime`](#update_chime), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_sensor_private`](#update_sensor_private), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_protect_file`](#upload_protect_file), [`upload_ringtone`](#upload_ringtone)
+- `network` (351): [`acknowledge_critical_alert`](#acknowledge_critical_alert), [`activate_lte_trial`](#activate_lte_trial), [`activate_ssl_inspection_certificate`](#activate_ssl_inspection_certificate), [`allow_network_on_port_profile`](#allow_network_on_port_profile), [`apply_radio_ai_optimization`](#apply_radio_ai_optimization), [`apply_test_config`](#apply_test_config), [`authorize_guest`](#authorize_guest), [`authorize_lte_device`](#authorize_lte_device), [`bulk_delete_hotspot_vouchers`](#bulk_delete_hotspot_vouchers), [`bulk_update_objects`](#bulk_update_objects), [`cancel_controller_backup`](#cancel_controller_backup), [`check_controller_firmware_update`](#check_controller_firmware_update), [`clear_switch_counters`](#clear_switch_counters), [`clone_device_config`](#clone_device_config), [`commission_matter_node`](#commission_matter_node), [`configure_wifi_wan`](#configure_wifi_wan), [`control_device_battery`](#control_device_battery), [`control_packet_capture`](#control_packet_capture), [`control_ping_test`](#control_ping_test), [`control_shadow_mode_adoption`](#control_shadow_mode_adoption), [`control_wifi_doctor_optimization`](#control_wifi_doctor_optimization), [`create_ap_group`](#create_ap_group), [`create_bgp_config`](#create_bgp_config), [`create_content_filter`](#create_content_filter), [`create_dhcp_option`](#create_dhcp_option), [`create_dns_policy`](#create_dns_policy), [`create_dynamic_dns`](#create_dynamic_dns), [`create_energy_saving_policy`](#create_energy_saving_policy), [`create_hotspot_package`](#create_hotspot_package), [`create_hotspot_vouchers`](#create_hotspot_vouchers), [`create_nat_rule`](#create_nat_rule), [`create_network`](#create_network), [`create_network_members_group`](#create_network_members_group), [`create_ospf_router`](#create_ospf_router), [`create_policy_engine_rule`](#create_policy_engine_rule), [`create_port_automation`](#create_port_automation), [`create_port_forward`](#create_port_forward), [`create_port_profile`](#create_port_profile), [`create_power_supervisor`](#create_power_supervisor), [`create_power_supervisor_link`](#create_power_supervisor_link), [`create_proav_group`](#create_proav_group), [`create_qos_rule`](#create_qos_rule), [`create_radius_account`](#create_radius_account), [`create_site`](#create_site), [`create_ssl_inspection_certificate`](#create_ssl_inspection_certificate), [`create_ssl_inspection_profile`](#create_ssl_inspection_profile), [`create_static_route`](#create_static_route), [`create_test_config`](#create_test_config), [`create_traffic_matching_list`](#create_traffic_matching_list), [`create_traffic_route`](#create_traffic_route), [`create_user_group`](#create_user_group), [`create_wan_sla`](#create_wan_sla), [`create_wifi_broadcast`](#create_wifi_broadcast), [`delete_ap_group`](#delete_ap_group), [`delete_bgp_config`](#delete_bgp_config), [`delete_content_filter`](#delete_content_filter), [`delete_controller_backup`](#delete_controller_backup), [`delete_dhcp_option`](#delete_dhcp_option), [`delete_digital_twin_layout`](#delete_digital_twin_layout), [`delete_dns_policy`](#delete_dns_policy), [`delete_dynamic_dns`](#delete_dynamic_dns), [`delete_energy_saving_policy`](#delete_energy_saving_policy), [`delete_guest_portal_file`](#delete_guest_portal_file), [`delete_hotspot_package`](#delete_hotspot_package), [`delete_hotspot_voucher`](#delete_hotspot_voucher), [`delete_nat_rule`](#delete_nat_rule), [`delete_network`](#delete_network), [`delete_network_members_group`](#delete_network_members_group), [`delete_ospf_router`](#delete_ospf_router), [`delete_policy_engine_rule`](#delete_policy_engine_rule), [`delete_port_automation`](#delete_port_automation), [`delete_port_forward`](#delete_port_forward), [`delete_port_profile`](#delete_port_profile), [`delete_power_supervisor`](#delete_power_supervisor), [`delete_power_supervisor_link`](#delete_power_supervisor_link), [`delete_proav_group`](#delete_proav_group), [`delete_qos_rule`](#delete_qos_rule), [`delete_radius_account`](#delete_radius_account), [`delete_site`](#delete_site), [`delete_ssl_inspection_certificate`](#delete_ssl_inspection_certificate), [`delete_ssl_inspection_profile`](#delete_ssl_inspection_profile), [`delete_static_route`](#delete_static_route), [`delete_test_config`](#delete_test_config), [`delete_traffic_matching_list`](#delete_traffic_matching_list), [`delete_traffic_route`](#delete_traffic_route), [`delete_user_group`](#delete_user_group), [`delete_wan_sla`](#delete_wan_sla), [`delete_wifi_broadcast`](#delete_wifi_broadcast), [`detach_from_orchestration`](#detach_from_orchestration), [`disconnect_remote_vpn_user`](#disconnect_remote_vpn_user), [`exclude_network_on_port_profile`](#exclude_network_on_port_profile), [`export_traffic_flows`](#export_traffic_flows), [`generate_support_file`](#generate_support_file), [`generate_vlan_plan`](#generate_vlan_plan), [`get_5g_topology`](#get_5g_topology), [`get_access_point_neighbors`](#get_access_point_neighbors), [`get_account`](#get_account), [`get_ap_group`](#get_ap_group), [`get_bgp_status`](#get_bgp_status), [`get_channel_plan`](#get_channel_plan), [`get_client_dpi_usage`](#get_client_dpi_usage), [`get_client_insights`](#get_client_insights), [`get_client_observability`](#get_client_observability), [`get_client_wifi_experience`](#get_client_wifi_experience), [`get_console_general_info`](#get_console_general_info), [`get_controller_stats`](#get_controller_stats), [`get_cybersecure_summary`](#get_cybersecure_summary), [`get_device_adoption_info`](#get_device_adoption_info), [`get_device_fingerprint`](#get_device_fingerprint), [`get_device_replacement_options`](#get_device_replacement_options), [`get_device_tx_retries`](#get_device_tx_retries), [`get_digital_twin_layout`](#get_digital_twin_layout), [`get_dns_policy`](#get_dns_policy), [`get_dynamic_dns`](#get_dynamic_dns), [`get_enriched_configuration`](#get_enriched_configuration), [`get_first_system_event`](#get_first_system_event), [`get_global_network_config`](#get_global_network_config), [`get_hotspot_guest_webhook_delivery`](#get_hotspot_guest_webhook_delivery), [`get_hotspot_package`](#get_hotspot_package), [`get_hotspot_settings`](#get_hotspot_settings), [`get_hotspot_voucher`](#get_hotspot_voucher), [`get_inactive_sim_slot`](#get_inactive_sim_slot), [`get_infrastructure_history`](#get_infrastructure_history), [`get_ips_signature_status`](#get_ips_signature_status), [`get_lag`](#get_lag), [`get_latest_firmware_versions`](#get_latest_firmware_versions), [`get_latest_traffic_flow_stats`](#get_latest_traffic_flow_stats), [`get_local_client`](#get_local_client), [`get_loop_detection_status`](#get_loop_detection_status), [`get_lte_subscription_status`](#get_lte_subscription_status), [`get_mc_lag_domain`](#get_mc_lag_domain), [`get_mdns_settings`](#get_mdns_settings), [`get_multicast_insights`](#get_multicast_insights), [`get_network`](#get_network), [`get_network_application_info`](#get_network_application_info), [`get_network_config_defaults`](#get_network_config_defaults), [`get_network_references`](#get_network_references), [`get_network_ui_data`](#get_network_ui_data), [`get_observability_people`](#get_observability_people), [`get_observability_site_health`](#get_observability_site_health), [`get_ospf_status`](#get_ospf_status), [`get_packet_capture_status`](#get_packet_capture_status), [`get_ping_test_results`](#get_ping_test_results), [`get_poe_info`](#get_poe_info), [`get_port_automation`](#get_port_automation), [`get_port_forward_statistics`](#get_port_forward_statistics), [`get_port_history`](#get_port_history), [`get_port_profile`](#get_port_profile), [`get_proav_matrix`](#get_proav_matrix), [`get_proav_snapshot`](#get_proav_snapshot), [`get_radio_ai_isolation_matrix`](#get_radio_ai_isolation_matrix), [`get_radio_history`](#get_radio_history), [`get_remote_access_turn_credentials`](#get_remote_access_turn_credentials), [`get_rolling_upgrade_plan`](#get_rolling_upgrade_plan), [`get_sdn_status`](#get_sdn_status), [`get_setting`](#get_setting), [`get_shadow_mode_status`](#get_shadow_mode_status), [`get_site_dashboard`](#get_site_dashboard), [`get_site_degradation_status`](#get_site_degradation_status), [`get_site_dpi_usage`](#get_site_dpi_usage), [`get_sites_overview`](#get_sites_overview), [`get_spectrum_scan_results`](#get_spectrum_scan_results), [`get_ssl_inspection_settings`](#get_ssl_inspection_settings), [`get_static_route`](#get_static_route), [`get_support_file`](#get_support_file), [`get_switch_stack`](#get_switch_stack), [`get_system_log_settings`](#get_system_log_settings), [`get_topology_snapshot`](#get_topology_snapshot), [`get_traffic_matching_list`](#get_traffic_matching_list), [`get_traffic_route`](#get_traffic_route), [`get_traffic_stats`](#get_traffic_stats), [`get_unified_ip_thread_topology`](#get_unified_ip_thread_topology), [`get_user`](#get_user), [`get_user_group`](#get_user_group), [`get_wan_insights`](#get_wan_insights), [`get_wan_load_balancing`](#get_wan_load_balancing), [`get_wifi_broadcast`](#get_wifi_broadcast), [`get_wifi_connectivity`](#get_wifi_connectivity), [`get_wifi_quick_scan_status`](#get_wifi_quick_scan_status), [`get_wifi_stats`](#get_wifi_stats), [`get_wifi_tethering_scan`](#get_wifi_tethering_scan), [`get_wifi_uplink_scan_status`](#get_wifi_uplink_scan_status), [`get_wifiman_settings`](#get_wifiman_settings), [`get_wlan_capabilities`](#get_wlan_capabilities), [`get_wlan_config`](#get_wlan_config), [`get_wlan_group`](#get_wlan_group), [`import_dhcp_reservations`](#import_dhcp_reservations), [`import_site_configuration`](#import_site_configuration), [`link_ubiquiti_sso_account`](#link_ubiquiti_sso_account), [`list_accounts`](#list_accounts), [`list_ap_groups`](#list_ap_groups), [`list_available_wifi_channels`](#list_available_wifi_channels), [`list_client_traffic_controls`](#list_client_traffic_controls), [`list_content_filter_categories`](#list_content_filter_categories), [`list_content_filters`](#list_content_filters), [`list_countries`](#list_countries), [`list_device_models`](#list_device_models), [`list_dhcp_excluded_ips`](#list_dhcp_excluded_ips), [`list_dhcp_leases`](#list_dhcp_leases), [`list_dhcp_options`](#list_dhcp_options), [`list_dns_policies`](#list_dns_policies), [`list_dpi_applications`](#list_dpi_applications), [`list_dpi_categories`](#list_dpi_categories), [`list_dynamic_dns`](#list_dynamic_dns), [`list_energy_saving_policies`](#list_energy_saving_policies), [`list_gateway_routes`](#list_gateway_routes), [`list_hotspot_authorizations`](#list_hotspot_authorizations), [`list_hotspot_packages`](#list_hotspot_packages), [`list_hotspot_payments`](#list_hotspot_payments), [`list_hotspot_vouchers`](#list_hotspot_vouchers), [`list_installed_applications`](#list_installed_applications), [`list_integration_device_tags`](#list_integration_device_tags), [`list_ips_categories`](#list_ips_categories), [`list_lags`](#list_lags), [`list_local_sites`](#list_local_sites), [`list_matter_nodes`](#list_matter_nodes), [`list_mc_lag_domains`](#list_mc_lag_domains), [`list_nat_rules`](#list_nat_rules), [`list_network_anomalies`](#list_network_anomalies), [`list_network_members_groups`](#list_network_members_groups), [`list_networks`](#list_networks), [`list_policy_engine_rules`](#list_policy_engine_rules), [`list_port_anomalies`](#list_port_anomalies), [`list_port_automations`](#list_port_automations), [`list_port_forwards`](#list_port_forwards), [`list_port_profiles`](#list_port_profiles), [`list_power_supervisors`](#list_power_supervisors), [`list_qos_rules`](#list_qos_rules), [`list_rogue_aps`](#list_rogue_aps), [`list_routing_entries`](#list_routing_entries), [`list_settings`](#list_settings), [`list_site_features`](#list_site_features), [`list_site_warnings`](#list_site_warnings), [`list_ssl_inspection_catalog`](#list_ssl_inspection_catalog), [`list_ssl_inspection_certificates`](#list_ssl_inspection_certificates), [`list_ssl_inspection_profiles`](#list_ssl_inspection_profiles), [`list_switch_stacks`](#list_switch_stacks), [`list_test_configs`](#list_test_configs), [`list_thread_networks`](#list_thread_networks), [`list_timezones`](#list_timezones), [`list_traffic_matching_lists`](#list_traffic_matching_lists), [`list_traffic_routes`](#list_traffic_routes), [`list_traffic_rules`](#list_traffic_rules), [`list_ulp_user_groups`](#list_ulp_user_groups), [`list_ups_devices`](#list_ups_devices), [`list_user_groups`](#list_user_groups), [`list_users`](#list_users), [`list_vendor_ids`](#list_vendor_ids), [`list_wan_interfaces`](#list_wan_interfaces), [`list_wan_network_groups`](#list_wan_network_groups), [`list_wan_slas`](#list_wan_slas), [`list_wifi_broadcasts`](#list_wifi_broadcasts), [`list_wireless_links`](#list_wireless_links), [`list_wlan_configs`](#list_wlan_configs), [`list_wlan_groups`](#list_wlan_groups), [`locate_switch_port`](#locate_switch_port), [`manage_device_ssh_session`](#manage_device_ssh_session), [`manage_esim_profile`](#manage_esim_profile), [`manage_firmware_cache`](#manage_firmware_cache), [`manage_mclag_group`](#manage_mclag_group), [`manage_virtual_network`](#manage_virtual_network), [`mark_critical_logs_read`](#mark_critical_logs_read), [`migrate_network_to_layer3`](#migrate_network_to_layer3), [`preview_policy_engine_rule`](#preview_policy_engine_rule), [`preview_radio_ai_optimization`](#preview_radio_ai_optimization), [`query_app_traffic_rates`](#query_app_traffic_rates), [`query_port_system_logs`](#query_port_system_logs), [`query_power_supervisor_logs`](#query_power_supervisor_logs), [`query_switch_mac_tables`](#query_switch_mac_tables), [`query_traffic_flows`](#query_traffic_flows), [`reboot_unifi_os_console`](#reboot_unifi_os_console), [`recover_loop_blocked_ports`](#recover_loop_blocked_ports), [`recover_switch_port`](#recover_switch_port), [`refresh_sso_session`](#refresh_sso_session), [`remove_matter_node`](#remove_matter_node), [`rename_matter_node`](#rename_matter_node), [`rename_site`](#rename_site), [`reorder_qos_rules`](#reorder_qos_rules), [`replace_device`](#replace_device), [`report_incorrect_wifi_experience`](#report_incorrect_wifi_experience), [`resend_mfa_code`](#resend_mfa_code), [`reset_dpi_counters`](#reset_dpi_counters), [`reset_guest_access_settings`](#reset_guest_access_settings), [`reset_mobile_data_usage`](#reset_mobile_data_usage), [`reset_switch_port`](#reset_switch_port), [`restore_controller_backup`](#restore_controller_backup), [`revoke_guest_access`](#revoke_guest_access), [`run_device_self_test`](#run_device_self_test), [`send_test_email`](#send_test_email), [`set_client_fingerprint_override`](#set_client_fingerprint_override), [`set_client_icon`](#set_client_icon), [`set_client_user_group`](#set_client_user_group), [`set_cloud_access_registration`](#set_cloud_access_registration), [`set_controller_system_parameter`](#set_controller_system_parameter), [`set_device_alignment_mode`](#set_device_alignment_mode), [`set_device_rearrange_mode`](#set_device_rearrange_mode), [`set_device_tag_assignments`](#set_device_tag_assignments), [`set_lte_apn_profile`](#set_lte_apn_profile), [`set_lte_failover`](#set_lte_failover), [`set_outlet_power`](#set_outlet_power), [`set_priority_uplink`](#set_priority_uplink), [`set_tv_wall_calibration`](#set_tv_wall_calibration), [`set_ups_pairing`](#set_ups_pairing), [`start_spectrum_scan`](#start_spectrum_scan), [`start_wifi_quick_scan`](#start_wifi_quick_scan), [`suggest_network_settings`](#suggest_network_settings), [`suggest_service_port`](#suggest_service_port), [`unpair_building_bridge`](#unpair_building_bridge), [`update_ap_group`](#update_ap_group), [`update_bgp_config`](#update_bgp_config), [`update_content_filter`](#update_content_filter), [`update_device_battery_settings`](#update_device_battery_settings), [`update_dhcp_option`](#update_dhcp_option), [`update_digital_twin_layout`](#update_digital_twin_layout), [`update_dns_policy`](#update_dns_policy), [`update_dynamic_dns`](#update_dynamic_dns), [`update_energy_saving_policy`](#update_energy_saving_policy), [`update_global_network_config`](#update_global_network_config), [`update_hotspot_package`](#update_hotspot_package), [`update_ips_signatures`](#update_ips_signatures), [`update_lte_device`](#update_lte_device), [`update_my_admin_profile`](#update_my_admin_profile), [`update_nat_rule`](#update_nat_rule), [`update_network`](#update_network), [`update_network_members_group`](#update_network_members_group), [`update_ospf_router`](#update_ospf_router), [`update_policy_engine_rule`](#update_policy_engine_rule), [`update_port_automation`](#update_port_automation), [`update_port_forward`](#update_port_forward), [`update_port_profile`](#update_port_profile), [`update_power_supervisor`](#update_power_supervisor), [`update_power_supervisor_link`](#update_power_supervisor_link), [`update_proav_group`](#update_proav_group), [`update_qos_rule`](#update_qos_rule), [`update_radius_account`](#update_radius_account), [`update_setting`](#update_setting), [`update_ssl_inspection_profile`](#update_ssl_inspection_profile), [`update_ssl_inspection_settings`](#update_ssl_inspection_settings), [`update_static_route`](#update_static_route), [`update_switch_stack`](#update_switch_stack), [`update_system_log_settings`](#update_system_log_settings), [`update_traffic_matching_list`](#update_traffic_matching_list), [`update_traffic_route`](#update_traffic_route), [`update_user`](#update_user), [`update_user_group`](#update_user_group), [`update_wan_interface`](#update_wan_interface), [`update_wan_load_balancing`](#update_wan_load_balancing), [`update_wan_sla`](#update_wan_sla), [`update_wifi_broadcast`](#update_wifi_broadcast), [`update_wlan_config`](#update_wlan_config), [`verify_sim_pin`](#verify_sim_pin)
+- `protect` (233): [`accept_ironclad_terms`](#accept_ironclad_terms), [`add_protect_case_asset`](#add_protect_case_asset), [`adopt_protect_device`](#adopt_protect_device), [`adopt_third_party_camera`](#adopt_third_party_camera), [`alarm_hub_trigger_output`](#alarm_hub_trigger_output), [`analyze_footage_with_ai`](#analyze_footage_with_ai), [`apply_recognized_image`](#apply_recognized_image), [`arm_external_arm_profile`](#arm_external_arm_profile), [`assign_detections_to_recognition_group`](#assign_detections_to_recognition_group), [`assign_sensor_to_bridge`](#assign_sensor_to_bridge), [`bulk_upload_vehicle_groups`](#bulk_upload_vehicle_groups), [`calibrate_camera`](#calibrate_camera), [`cancel_cloud_archive_task`](#cancel_cloud_archive_task), [`check_protect_firmware_updates`](#check_protect_firmware_updates), [`clear_sensor_tamper`](#clear_sensor_tamper), [`collect_protect_device_changes`](#collect_protect_device_changes), [`collect_protect_events`](#collect_protect_events), [`collect_protect_incident_evidence`](#collect_protect_incident_evidence), [`configure_camera_wifi`](#configure_camera_wifi), [`connect_cloud_archive_provider`](#connect_cloud_archive_provider), [`connect_unifi_video_server`](#connect_unifi_video_server), [`control_retroactive_ai_processing`](#control_retroactive_ai_processing), [`create_arm_profile`](#create_arm_profile), [`create_camera_shortcut`](#create_camera_shortcut), [`create_external_arm_profile`](#create_external_arm_profile), [`create_liveview`](#create_liveview), [`create_protect_automation`](#create_protect_automation), [`create_protect_backup`](#create_protect_backup), [`create_protect_case`](#create_protect_case), [`create_protect_device_tag`](#create_protect_device_tag), [`create_protect_user_group`](#create_protect_user_group), [`create_ptz_patrol`](#create_ptz_patrol), [`create_ptz_preset`](#create_ptz_preset), [`create_recognition_group`](#create_recognition_group), [`create_recognition_object_group`](#create_recognition_object_group), [`create_rtsps_stream`](#create_rtsps_stream), [`delete_arm_profile`](#delete_arm_profile), [`delete_camera_shortcut`](#delete_camera_shortcut), [`delete_doorbell_credential`](#delete_doorbell_credential), [`delete_external_arm_profile`](#delete_external_arm_profile), [`delete_liveview`](#delete_liveview), [`delete_protect_automation`](#delete_protect_automation), [`delete_protect_backup`](#delete_protect_backup), [`delete_protect_case`](#delete_protect_case), [`delete_protect_device_tag`](#delete_protect_device_tag), [`delete_protect_file`](#delete_protect_file), [`delete_protect_user_group`](#delete_protect_user_group), [`delete_ptz_patrol`](#delete_ptz_patrol), [`delete_ptz_preset`](#delete_ptz_preset), [`delete_recognition_group`](#delete_recognition_group), [`delete_recordings`](#delete_recordings), [`delete_ringtone`](#delete_ringtone), [`delete_rtsps_stream`](#delete_rtsps_stream), [`disable_arm`](#disable_arm), [`disable_camera_mic_permanently`](#disable_camera_mic_permanently), [`disable_camera_share_link`](#disable_camera_share_link), [`disarm_external_arm_profile`](#disarm_external_arm_profile), [`disconnect_cloud_archive_provider`](#disconnect_cloud_archive_provider), [`enable_arm`](#enable_arm), [`enable_camera_share_link`](#enable_camera_share_link), [`enhance_face_detection_image`](#enhance_face_detection_image), [`enroll_doorbell_credential`](#enroll_doorbell_credential), [`export_camera_video`](#export_camera_video), [`export_edge_recording`](#export_edge_recording), [`export_protect_case`](#export_protect_case), [`get_alarm_hub`](#get_alarm_hub), [`get_arm_profile`](#get_arm_profile), [`get_bridge`](#get_bridge), [`get_camera`](#get_camera), [`get_camera_analytics`](#get_camera_analytics), [`get_camera_lux`](#get_camera_lux), [`get_camera_playback_history`](#get_camera_playback_history), [`get_camera_private`](#get_camera_private), [`get_camera_share_link`](#get_camera_share_link), [`get_camera_snapshot`](#get_camera_snapshot), [`get_camera_wifi_networks`](#get_camera_wifi_networks), [`get_chime`](#get_chime), [`get_cloud_archive_status`](#get_cloud_archive_status), [`get_detection_search_metadata`](#get_detection_search_metadata), [`get_detection_statistics`](#get_detection_statistics), [`get_door_lock`](#get_door_lock), [`get_external_arm_profile`](#get_external_arm_profile), [`get_fob`](#get_fob), [`get_light`](#get_light), [`get_link_station`](#get_link_station), [`get_liveview`](#get_liveview), [`get_nvr`](#get_nvr), [`get_nvr_private`](#get_nvr_private), [`get_protect_alarm_manager_mode`](#get_protect_alarm_manager_mode), [`get_protect_application_info`](#get_protect_application_info), [`get_protect_automation_history`](#get_protect_automation_history), [`get_protect_bootstrap`](#get_protect_bootstrap), [`get_protect_case_activity`](#get_protect_case_activity), [`get_protect_device_metrics`](#get_protect_device_metrics), [`get_protect_device_password`](#get_protect_device_password), [`get_protect_event`](#get_protect_event), [`get_protect_event_media`](#get_protect_event_media), [`get_protect_file`](#get_protect_file), [`get_protect_stream_url`](#get_protect_stream_url), [`get_protect_user`](#get_protect_user), [`get_recognition_group_counts`](#get_recognition_group_counts), [`get_recognition_group_image`](#get_recognition_group_image), [`get_relay`](#get_relay), [`get_ringtone`](#get_ringtone), [`get_rtsps_stream`](#get_rtsps_stream), [`get_sensor`](#get_sensor), [`get_sensor_private`](#get_sensor_private), [`get_sensor_readings`](#get_sensor_readings), [`get_siren`](#get_siren), [`get_speaker`](#get_speaker), [`get_thumbnail`](#get_thumbnail), [`get_ulp_user`](#get_ulp_user), [`get_vehicle_group_upload_template`](#get_vehicle_group_upload_template), [`get_viewer`](#get_viewer), [`hide_face_detection_enhanced_image`](#hide_face_detection_enhanced_image), [`import_protect_backup`](#import_protect_backup), [`import_unifi_video_cameras`](#import_unifi_video_cameras), [`list_alarm_hubs`](#list_alarm_hubs), [`list_arm_profiles`](#list_arm_profiles), [`list_bridges`](#list_bridges), [`list_cameras`](#list_cameras), [`list_chimes`](#list_chimes), [`list_door_lock_unlock_events`](#list_door_lock_unlock_events), [`list_door_locks`](#list_door_locks), [`list_external_arm_profiles`](#list_external_arm_profiles), [`list_fobs`](#list_fobs), [`list_lights`](#list_lights), [`list_link_stations`](#list_link_stations), [`list_liveviews`](#list_liveviews), [`list_protect_automations`](#list_protect_automations), [`list_protect_backups`](#list_protect_backups), [`list_protect_case_assets`](#list_protect_case_assets), [`list_protect_cases`](#list_protect_cases), [`list_protect_device_tags`](#list_protect_device_tags), [`list_protect_events`](#list_protect_events), [`list_protect_files`](#list_protect_files), [`list_protect_keyrings`](#list_protect_keyrings), [`list_protect_users`](#list_protect_users), [`list_ptz_patrols`](#list_ptz_patrols), [`list_ptz_presets`](#list_ptz_presets), [`list_recognition_detections`](#list_recognition_detections), [`list_recognition_groups`](#list_recognition_groups), [`list_relays`](#list_relays), [`list_sensors`](#list_sensors), [`list_sirens`](#list_sirens), [`list_speakers`](#list_speakers), [`list_ulp_users`](#list_ulp_users), [`list_viewers`](#list_viewers), [`locate_protect_device`](#locate_protect_device), [`merge_recognition_groups`](#merge_recognition_groups), [`move_ptz_camera`](#move_ptz_camera), [`play_chime_sound`](#play_chime_sound), [`pos_ingest_transaction`](#pos_ingest_transaction), [`ptz_goto_preset`](#ptz_goto_preset), [`ptz_home`](#ptz_home), [`ptz_patrol_start`](#ptz_patrol_start), [`ptz_patrol_stop`](#ptz_patrol_stop), [`readopt_protect_device`](#readopt_protect_device), [`reboot_protect_device`](#reboot_protect_device), [`recognize_image`](#recognize_image), [`reformat_edge_storage`](#reformat_edge_storage), [`relay_activate_output`](#relay_activate_output), [`remove_protect_case_asset`](#remove_protect_case_asset), [`report_ai_false_positive`](#report_ai_false_positive), [`reset_camera_image_settings`](#reset_camera_image_settings), [`reset_protect_automations`](#reset_protect_automations), [`restore_protect_backup`](#restore_protect_backup), [`restore_protect_database`](#restore_protect_database), [`search_detections`](#search_detections), [`search_recognition_group_candidates`](#search_recognition_group_candidates), [`set_ai_port_pairing`](#set_ai_port_pairing), [`set_camera_control_enabled`](#set_camera_control_enabled), [`set_camera_door_lock`](#set_camera_door_lock), [`set_camera_resolution_scale`](#set_camera_resolution_scale), [`set_camera_video_codec`](#set_camera_video_codec), [`set_door_lock_state`](#set_door_lock_state), [`set_edge_storage_mount_state`](#set_edge_storage_mount_state), [`set_nvr_stack_membership`](#set_nvr_stack_membership), [`set_protect_event_favorite`](#set_protect_event_favorite), [`set_protect_notification_receivers`](#set_protect_notification_receivers), [`set_protect_notifications_muted`](#set_protect_notifications_muted), [`set_ptz_event_control_window`](#set_ptz_event_control_window), [`set_recognition_group_image`](#set_recognition_group_image), [`siren_play`](#siren_play), [`siren_stop`](#siren_stop), [`siren_test_sound`](#siren_test_sound), [`speaker_test_sound`](#speaker_test_sound), [`start_cloud_video_archive`](#start_cloud_video_archive), [`start_talkback_session`](#start_talkback_session), [`stop_speaker_siren`](#stop_speaker_siren), [`stop_speaker_stream`](#stop_speaker_stream), [`test_doorbell_ringtone`](#test_doorbell_ringtone), [`transfer_camera_management`](#transfer_camera_management), [`trigger_alarm_webhook`](#trigger_alarm_webhook), [`trigger_camera_shortcut`](#trigger_camera_shortcut), [`turn_on_camera_flashlight`](#turn_on_camera_flashlight), [`unadopt_protect_device`](#unadopt_protect_device), [`update_alarm_hub`](#update_alarm_hub), [`update_arm_profile`](#update_arm_profile), [`update_arm_profile_settings`](#update_arm_profile_settings), [`update_bridge`](#update_bridge), [`update_camera`](#update_camera), [`update_camera_private`](#update_camera_private), [`update_camera_shortcut`](#update_camera_shortcut), [`update_chime`](#update_chime), [`update_edge_recording_settings`](#update_edge_recording_settings), [`update_external_arm_profile`](#update_external_arm_profile), [`update_fob`](#update_fob), [`update_light`](#update_light), [`update_link_station`](#update_link_station), [`update_liveview`](#update_liveview), [`update_nvr`](#update_nvr), [`update_protect_automation`](#update_protect_automation), [`update_protect_case`](#update_protect_case), [`update_protect_case_asset`](#update_protect_case_asset), [`update_protect_device_password`](#update_protect_device_password), [`update_protect_device_settings`](#update_protect_device_settings), [`update_protect_device_tag`](#update_protect_device_tag), [`update_protect_user`](#update_protect_user), [`update_protect_user_group`](#update_protect_user_group), [`update_ptz_patrol`](#update_ptz_patrol), [`update_ptz_preset`](#update_ptz_preset), [`update_recognition_group`](#update_recognition_group), [`update_relay`](#update_relay), [`update_sensor`](#update_sensor), [`update_sensor_private`](#update_sensor_private), [`update_siren`](#update_siren), [`update_speaker`](#update_speaker), [`update_viewer`](#update_viewer), [`upgrade_all_protect_devices`](#upgrade_all_protect_devices), [`upgrade_protect_device_firmware`](#upgrade_protect_device_firmware), [`upload_protect_file`](#upload_protect_file), [`upload_ringtone`](#upload_ringtone)
 - `site_manager` (20): [`compare_site_performance`](#compare_site_performance), [`get_fleet_summary`](#get_fleet_summary), [`get_host`](#get_host), [`get_isp_metrics`](#get_isp_metrics), [`get_sdwan_config`](#get_sdwan_config), [`get_sdwan_config_status`](#get_sdwan_config_status), [`get_server_diagnostic_bundle`](#get_server_diagnostic_bundle), [`get_site_health_summary`](#get_site_health_summary), [`get_site_inventory`](#get_site_inventory), [`list_all_clients`](#list_all_clients), [`list_all_devices`](#list_all_devices), [`list_all_sites_aggregated`](#list_all_sites_aggregated), [`list_configured_api_keys`](#list_configured_api_keys), [`list_devices`](#list_devices), [`list_hosts`](#list_hosts), [`list_sdwan_configs`](#list_sdwan_configs), [`list_sites`](#list_sites), [`query_isp_metrics`](#query_isp_metrics), [`search_across_sites`](#search_across_sites), [`search_device_fleet`](#search_device_fleet)
 - `statistics` (19): [`collect_network_incident_evidence`](#collect_network_incident_evidence), [`get_client_link_diagnostics`](#get_client_link_diagnostics), [`get_device_port_state`](#get_device_port_state), [`get_device_stp_state`](#get_device_stp_state), [`get_event_stream_status`](#get_event_stream_status), [`get_historical_stats`](#get_historical_stats), [`get_scoped_system_log`](#get_scoped_system_log), [`get_site_statistics`](#get_site_statistics), [`get_system_info`](#get_system_info), [`get_system_log`](#get_system_log), [`list_active_clients_stats`](#list_active_clients_stats), [`list_client_sessions`](#list_client_sessions), [`list_controller_stat_schemas`](#list_controller_stat_schemas), [`list_device_stats`](#list_device_stats), [`list_ips_events`](#list_ips_events), [`list_known_clients`](#list_known_clients), [`list_network_events`](#list_network_events), [`list_speedtest_results`](#list_speedtest_results), [`read_recent_events`](#read_recent_events)
 - `vpn` (42): [`control_site_vpn`](#control_site_vpn), [`create_radius_profile`](#create_radius_profile), [`create_site_to_site_tunnel`](#create_site_to_site_tunnel), [`create_site_vpn`](#create_site_vpn), [`create_static_dns_record`](#create_static_dns_record), [`create_teleport_invitation`](#create_teleport_invitation), [`create_vpn_client`](#create_vpn_client), [`create_vpn_server`](#create_vpn_server), [`create_wireguard_users`](#create_wireguard_users), [`delete_radius_profile`](#delete_radius_profile), [`delete_site_to_site_tunnel`](#delete_site_to_site_tunnel), [`delete_site_vpn`](#delete_site_vpn), [`delete_static_dns_record`](#delete_static_dns_record), [`delete_vpn_client`](#delete_vpn_client), [`delete_vpn_server`](#delete_vpn_server), [`delete_wireguard_users`](#delete_wireguard_users), [`get_ipsec_settings`](#get_ipsec_settings), [`get_openvpn_client_config`](#get_openvpn_client_config), [`get_radius_profile`](#get_radius_profile), [`get_vpn_server`](#get_vpn_server), [`list_doh_servers`](#list_doh_servers), [`list_magic_site_vpn`](#list_magic_site_vpn), [`list_radius_profiles`](#list_radius_profiles), [`list_site_to_site_tunnels`](#list_site_to_site_tunnels), [`list_static_dns_records`](#list_static_dns_records), [`list_vpn_clients`](#list_vpn_clients), [`list_vpn_connections`](#list_vpn_connections), [`list_vpn_servers`](#list_vpn_servers), [`list_vpn_users`](#list_vpn_users), [`list_wireguard_used_subnets`](#list_wireguard_used_subnets), [`list_wireguard_users`](#list_wireguard_users), [`query_teleport_invitations`](#query_teleport_invitations), [`remove_teleport_client`](#remove_teleport_client), [`restart_vpn_server`](#restart_vpn_server), [`revoke_teleport_invitation`](#revoke_teleport_invitation), [`update_ipsec_settings`](#update_ipsec_settings), [`update_radius_profile`](#update_radius_profile), [`update_site_to_site_tunnel`](#update_site_to_site_tunnel), [`update_static_dns_record`](#update_static_dns_record), [`update_vpn_client`](#update_vpn_client), [`update_vpn_server`](#update_vpn_server), [`update_wireguard_users`](#update_wireguard_users)
@@ -1090,18 +1106,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Set the ordering of ACL rules for a site.
 
-Returns: the controller's response, verbatim — the resulting order in the same
-{"orderedAclRuleIds": […]} shape (published response schema "ACL rule ordering").
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
-
-Request body (Network 11.0.97, PUT /v1/sites/{siteId}/acl-rules/ordering
-(updateAclRuleOrdering) — "Reorder User-Defined ACL Rules"; schema "ACL rule ordering") is
-passed in `ordering` (sent verbatim as the body). Required keys — orderedAclRuleIds.
-- orderedAclRuleIds: array of string (uuid)
-Full replace of the site-wide user-defined ACL rule order. No zone/query params. Read with
-get_acl_rule_ordering first.
+Returns: the controller's response, verbatim — the resulting order in the same {"orderedAclRuleIds": […]} shape (published response schema "ACL rule ordering"). Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Typical sequence (one tool call per step):
 1. get_acl_rule_ordering(host="my-console", site="Default").
@@ -1119,6 +1124,8 @@ Example call (set_acl_rule_ordering):
         ]
       }
     }
+
+Details: docs/TOOL-USAGE.md#set_acl_rule_ordering.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -1346,27 +1353,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `set_client_fingerprint_override`
 
-Override (or restore) the device type the controller detected for a client.
+Override (or restore) the device type the controller detected for a client. Consequence: the controller reports the overridden type in place of its fingerprint detection until the override is removed.
 
-Consequence: the controller reports the overridden device type for the client in
-place of its fingerprint detection until the override is removed.
+Override given: PUT v2 station/{mac}/fingerprint_override with {dev_id_override: fingerprint device id, mac (added from the client if absent), plus optional search_query, dev_type, dev_vendor, dev_model}; returns the PUT body verbatim. override omitted: DELETE on the same route restores automatic detection. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. Current state: fingerprint.has_override / dev_id_override in list_dhcp_leases or get_local_client. v2 only (no official route).
 
-Override given: PUT v2 station/{mac}/fingerprint_override; the web app's body is
-{dev_id_override: fingerprint device id, mac, plus optional search_query, dev_type,
-dev_vendor, dev_model}; mac is added from the client when the body has none. Returns the
-upstream body of that PUT verbatim. override omitted: DELETE on the same route restores
-automatic detection and returns {deleted, message, response}: deleted is true, message
-summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw
-text, or null when the body is empty). The current state is fingerprint.has_override /
-dev_id_override in list_dhcp_leases or get_local_client. Route: v2 only (no official
-route).
+Under dry-run policy nothing is sent: a PUT returns the preview unchanged; a DELETE returns {status: "dry_run", deleted: false, message, response (the dry-run preview)}.
 
-Under dry-run policy nothing is sent: a PUT returns the dry-run preview unchanged; a DELETE
-(restore detection) returns {status: "dry_run", deleted: false, message, response}
-with the preview as response.
-
-The PUT dry-run preview is {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params, body}}.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (set_client_fingerprint_override):
     {"host": "my-console", "site": "Default", "client": "aa:bb:cc:dd:ee:ff",
@@ -1402,30 +1395,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Reserve a fixed IP (DHCP reservation) for a known client.
 
-Consequence: the gateway's DHCP server reserves this address for the client; the client
-gets it when it next renews its DHCP lease.
+Consequence: the gateway's DHCP server reserves this address for the client; it gets it when it next renews its lease.
 
-The client's known-client record (list_users) is resolved by MAC or _id first (a MAC
-with no record fails pointing at create_client_reservation); network, when given, is
-resolved to its networkconf _id by _id, Integration id or name, an unknown one failing
-with the list of networks. Then Classic REST PUT network/api/s/{site}/rest/user/{_id}
-with {"use_fixedip": true, "fixed_ip": fixed_ip} plus network_id when network was
-given (verified on Network 11.0.81: all three read back). The controller validates the
-address; an upstream error gets a hint.
+The known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation); network, when given, is resolved to its networkconf _id by _id, Integration id or name (an unknown one fails listing the networks). Then Classic REST PUT network/api/s/{site}/rest/user/{_id} with {"use_fixedip": true, "fixed_ip": fixed_ip} plus network_id when given (verified on Network 11.0.81). The controller validates the address; an upstream error gets a hint.
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated record]}
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+Returns the Classic body verbatim: {meta: {rc}, data: [the updated record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).
 
 Example call (set_client_fixed_ip):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "client": "aa:bb:cc:dd:ee:ff",
-      "fixed_ip": "192.168.1.50",
-      "network": "Default"
-    }
+    {"host": "my-console", "site": "Default", "client": "aa:bb:cc:dd:ee:ff",
+     "fixed_ip": "192.168.1.50", "network": "Default"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -1455,29 +1433,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `set_client_icon`
 
-Set or remove the custom (AI-generated) icon of a client or a Matter node.
+Set or remove the custom (AI-generated) icon of a client or Matter node. Consequence: changes only the icon the UI shows (removal restores the default); connectivity is unaffected.
 
-Consequence: changes only the icon the controller UI shows for that client or node
-(removal restores the default icon); connectivity is unaffected.
+Icon given: PUT v2 clients/{mac}/ai-icon (or matter/nodes/{id}/ai-icon) with the icon object as body, returned verbatim. icon omitted: DELETE on the same route restores the default icon. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. v2 only (no official route). No published schema: the web app sends {icon_id, icon_set_id, request_id, selected_index, assets: [{url, width, height}]}; an empty body answers 400 "Validation failure". A MAC that is neither connected nor known (stat/alluser) is refused before any request, listing valid clients; the upstream answers 404 api.err.ClientNotFound only for a known MAC with no v2 record.
 
-Icon given: PUT v2 clients/{mac}/ai-icon (or matter/nodes/{id}/ai-icon) with the icon object
-as the body. Returns the upstream body of that PUT verbatim. icon omitted: DELETE on the
-same route restores the default icon and returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty). Route: v2 only (no official route).
-Request body: no published schema; the web app sends its icon generator's object
-{icon_id, icon_set_id, request_id, selected_index, assets: [{url, width, height}]} as
-the body; an empty body answers HTTP 400
-"Validation failure". A MAC that is neither a connected client nor a known client
-(stat/alluser) is refused before any request, listing the valid clients; the upstream
-answers HTTP 404 api.err.ClientNotFound only for a known MAC with no v2 client record.
+Under dry-run policy nothing is sent: a PUT returns the preview unchanged; a DELETE returns {status: "dry_run", deleted: false, message, response (the dry-run preview)}.
 
-Under dry-run policy nothing is sent: the dry-run preview (method, path, params,
-body) is returned unchanged for a PUT; a DELETE (icon removal) returns {status: "dry_run",
-deleted: false, message, response} with the preview as response.
-
-The PUT dry-run preview is {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params, body}}.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (set_client_icon):
     {"host": "my-console", "site": "Default", "target_id": "aa:bb:cc:dd:ee:ff"}
@@ -1981,18 +1943,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Set the ordering of firewall policies within one source/destination zone pair.
 
-Returns: the controller's response, verbatim — the resulting order in the same
-{"orderedFirewallPolicyIds": {"beforeSystemDefined": […], "afterSystemDefined": […]}} shape
-(published response schema IntegrationFirewallPolicyOrderingDto).
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns: the controller's response, verbatim — the resulting order in the same {"orderedFirewallPolicyIds": {"beforeSystemDefined": […], "afterSystemDefined": […]}} shape (published response schema IntegrationFirewallPolicyOrderingDto). Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
-Full replace of the user-defined order for ONE source/destination zone pair: start from
-get_firewall_policy_ordering for the same pair, reorder, and send it back. Use [] for an empty
-side. Afterwards, read back with get_firewall_policy_ordering and compare. If either zone id is
-missing, upstream returns HTTP 400 (the zone ids are query parameters, never read from the
-body).
+Full replace of the user-defined order for ONE source/destination zone pair: start from get_firewall_policy_ordering for the same pair, reorder, and send it back. Use [] for an empty side. Afterwards, read back with get_firewall_policy_ordering and compare. If either zone id is missing, upstream returns HTTP 400 (the zone ids are query parameters, never read from the body).
 
 Example call (set_firewall_policy_ordering):
     {"host": "my-console", "site": "Default",
@@ -2002,11 +1955,9 @@ Example call (set_firewall_policy_ordering):
        "beforeSystemDefined": ["7d1e4a52-1c3b-4f6e-8a90-0b1c2d3e4f02"],
        "afterSystemDefined": []}}}
 
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#set_firewall_policy_ordering.
+Details: docs/TOOL-USAGE.md#set_firewall_policy_ordering.
 
-Required arguments: host, site, source_zone_id, destination_zone_id, ordering (see parameter
-descriptions for identifiers).
+Required arguments: host, site, source_zone_id, destination_zone_id, ordering (see parameter descriptions for identifiers).
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -2555,26 +2506,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ## Create
 
-**67 tools**
+**69 tools**
 
 ### `create_acl_rule`
 
 Create a new ACL rule on a site.
 
-Returns the upstream response body verbatim: the created ACL rule object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the created ACL rule object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-Validated locally before the request (a missing field raises ValueError naming it):
-``type`` — the discriminator the controller validates first (verified live: an empty
-body is rejected with ``Missing $.type value``; observed value: 'MAC'). The remaining
-fields are type-specific and enforced by the controller.
-`rule`: for a MAC-type rule the live object also carries: name (str), action, enabled
-(bool), sourceFilter, networkIdFilter. Read an existing rule with get_acl_rule to see
-the exact shape for the type you want.
-Note: ACL rules include IPv4 network-layer (L3) and MAC access lists for filtering traffic
-between networks or within a VLAN. Use them only when the user asks for ACL rules; otherwise
-use zone-based firewall policies (create_firewall_policy).
+Validated locally before the request (a missing field raises ValueError naming it): ``type`` — the discriminator the controller validates first (verified live: an empty body is rejected with ``Missing $.type value``; observed value: 'MAC'). The remaining fields are type-specific and enforced by the controller. `rule`: for a MAC-type rule the live object also carries: name (str), action, enabled (bool), sourceFilter, networkIdFilter. Read an existing rule with get_acl_rule to see the exact shape for the type you want. Note: ACL rules include IPv4 network-layer (L3) and MAC access lists for filtering traffic between networks or within a VLAN. Use them only when the user asks for ACL rules; otherwise use zone-based firewall policies (create_firewall_policy).
 
 Request body (Network 11.0.97, POST /v1/sites/{siteId}/acl-rules (createAclRule); schema "ACL
 rule update") is passed in `rule`. Required keys — action, enabled, name, type.
@@ -2671,19 +2611,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create an arm profile (POST /v1/arm-profiles via Fabric proxy).
 
-Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
-
-Request body (Protect 7.3.74, POST /v1/arm-profiles; schema "inline requestBody schema") is
-passed in `name` + settings (merged; settings must NOT contain name). Required keys — name,
-automations, schedules, recordEverything, activationDelay.
-- name: string 1-255
-- automations: array of string (automation ids)
-- schedules: array of armSchedule objects {start: string (cron expression), end: string
-  (cron expression)} (both required)
-- recordEverything: boolean
-- activationDelay: one of 0|60000|300000|600000 (ms)
+In settings, schedules is a list of {start, end}, both cron expressions. Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty). Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
 Example call (create_arm_profile):
     {
@@ -2699,8 +2627,9 @@ Example call (create_arm_profile):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400; check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile tools (list_external_arm_profiles and the rest) serve a global-mode console.
+
+Details: docs/TOOL-USAGE.md#create_arm_profile.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -2728,20 +2657,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_backup`
 
-Generate a one-off controller backup file and return its console download path; no
-    stored backup is added. Backups may contain secrets; this command never downloads one.
+Generate a one-off controller backup file and return its console download path; no stored backup is added. Backups may contain secrets; this command never downloads one.
 
-Consequence: writes one transient backup file on the console, replacing the previous
-one; no stored backup is added and nothing is downloaded.
+Consequence: writes one transient backup file on the console, replacing the previous one; no stored backup is added and nothing is downloaded.
 
-Returns the upstream body verbatim: on Network 11.0.97 {"meta": {"rc": "ok"}, "data":
-[{"url": "/dl/backup/{version}.unf"}]}, the console path of the backup file. The file is one
-transient export that the next backup overwrites; it is not a stored backup, so
-list_backups, cancel_controller_backup and delete_controller_backup never see it, and the
-answer carries no filename or backup_id. This server has no tool that adds a stored
-backup. Never automatically retried. Under dry-run policy nothing is sent; returns
-{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}}.
+Returns the upstream body verbatim: on Network 11.0.97 {"meta": {"rc": "ok"}, "data": [{"url": "/dl/backup/{version}.unf"}]}. The file is transient (the next backup overwrites it), so list_backups, cancel_controller_backup and delete_controller_backup never see it and the answer carries no filename or backup_id. Never automatically retried. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Example: docs/TOOL-USAGE.md#create_backup.
 
@@ -2853,33 +2773,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a Carrier / ISP Fabric subscriber (POST /v1/carrier/subscribers). Guarded write.
 
-Returns {status: "created", changed (every sent field as {from: null, to}), subscriber (the
-201 body verbatim, {data, traceId}, when it carries the created resource, else null),
-response (the upstream write body verbatim)}.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber: null, response (the
-preview)}.
+Returns {status: "created", changed (every sent field as {from: null, to}), subscriber (the 201 body verbatim, {data, traceId}, when it carries the created resource, else null), response (the upstream write body verbatim)}. Under dry-run policy nothing is sent: {status: "dry_run", subscriber: null, response (the preview)}.
 
-Spec-conformance tested only (not against a live Carrier Fabric).
-subscriber_number is required (1-32 chars). Optional name (<=128 bytes),
-email (<=255 bytes), notes (<=4096 bytes), service_address (<=1024 bytes), plan_id (UUID),
-metadata (object). Per the spec those limits are bytes of UTF-8, so a multi-byte character
-counts as more than one. Refused when UNIFI_WRITE_POLICY=deny or the
-UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny is set (writes are enabled by default).
-
-Request body (Carrier Fabric 1.0.0, POST /v1/carrier/subscribers (createSubscriber); schema
-"SubscriberCreate") is built from scalar parameters. Required keys — subscriberNumber.
-- subscriberNumber: string
-- name: string
-- email: string(email)
-- notes: string
-- serviceAddress: string
-- planId: string(uuid)
-- metadata: object
+Spec-conformance tested only (not against a live Carrier Fabric). subscriber_number is required (1-32 chars). Optional name (<=128 bytes), email (<=255 bytes), notes (<=4096 bytes), service_address (<=1024 bytes), plan_id (UUID), metadata (object). Per the spec those limits are bytes of UTF-8, so a multi-byte character counts as more than one. Refused when UNIFI_WRITE_POLICY=deny or the UNIFI_WRITE_EXCEPTIONS entry family:carrier=deny is set (writes are enabled by default).
 
 Example call (create_carrier_subscriber):
     {"subscriber_number": "SUB-1001"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#create_carrier_subscriber.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -2913,31 +2816,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_client_reservation`
 
-Create a known-client record for a MAC the controller has not seen yet, to
-pre-assign its name, note or fixed IP before the device first connects.
+Create a known-client record for a MAC the controller has not seen yet, to pre-assign name, note or fixed IP before first connect.
 
-Classic REST POST network/api/s/{site}/rest/user with {"mac": MAC} plus name / note
-when given, {"use_fixedip": true, "fixed_ip": fixed_ip} when fixed_ip is given, and
-network_id when network is given (resolved by _id, Integration id or name, an unknown
-one failing with the list of networks). Verified on Network 11.0.81 with a synthetic
-MAC: the record appears in list_users. For a client that already has a record use
-set_client_name, set_client_note or set_client_fixed_ip; the controller judges a
-duplicate MAC and an upstream error gets a hint.
+Classic REST POST network/api/s/{site}/rest/user with {"mac": MAC} plus name/note when given, {"use_fixedip": true, "fixed_ip": fixed_ip} when fixed_ip is given, and network_id when network is given (resolved by _id, Integration id or name; an unknown one fails listing the networks). Verified on Network 11.0.81: the record appears in list_users. For a client that already has a record use set_client_name, set_client_note or set_client_fixed_ip. The controller judges a duplicate MAC; an upstream error gets a hint.
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [the created record]}
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+Returns the Classic body verbatim: {meta: {rc}, data: [the created record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).
 
 Example call (create_client_reservation):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "mac": "aa:bb:cc:dd:ee:ff",
-      "name": "Printer",
-      "fixed_ip": "192.168.1.60",
-      "network": "Default"
-    }
+    {"host": "my-console", "site": "Default", "mac": "aa:bb:cc:dd:ee:ff", "name": "Printer",
+     "fixed_ip": "192.168.1.60", "network": "Default"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3010,28 +2897,15 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: category-based web-filtering prof
 
 ### `create_device_tag`
 
-Create a device tag on a site. This is a write operation that modifies live config.
+Create a device tag on a site (groups devices by MAC in the UniFi UI). Write: modifies live config.
 
-Tags group devices (by MAC) in the UniFi UI. Uses the v2 route the controller's own UI
-uses, POST /proxy/network/v2/api/site/{site}/device-tags; the published Integration API
-serves device tags GET-only (POST answers HTTP 405 on Network 11.0.81). The body is sent
-verbatim; pass name and member_device_macs (the controller answers HTTP 500 when
-member_device_macs is missing, and that error gets a hint; pass [] for an empty tag).
-An existing name is not refused: the same name and members return the existing tag,
-and the same name with other members creates a second tag the controller renames
-"NAME - CONSOLE NAME" (Network 11.0.81). Check list_device_tags first.
+Uses the controller UI's v2 route, POST /proxy/network/v2/api/site/{site}/device-tags (the Integration API serves tags GET-only; POST answers 405 on Network 11.0.81). The body is sent verbatim; pass name and member_device_macs (HTTP 500 without it, with a hint; pass [] for an empty tag). An existing name is not refused: the same name and members return the existing tag; the same name with other members creates a second tag the controller renames "NAME - CONSOLE NAME". Check list_device_tags first.
 
-Returns: the upstream body verbatim, the created tag {_id, name, member_device_macs}.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns the upstream body verbatim, the created tag {_id, name, member_device_macs}. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Example call (create_device_tag):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "tag": {"name": "Cameras", "member_device_macs": ["aa:bb:cc:dd:ee:ff"]}
-    }
+    {"host": "my-console", "site": "Default",
+     "tag": {"name": "Cameras", "member_device_macs": ["aa:bb:cc:dd:ee:ff"]}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3061,19 +2935,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Define a custom DHCP option (Classic POST rest/dhcpoption).
 
-Request body: no published schema; the controller's fields are name (letters,
-digits, - and _; a 31-character name was rejected with api.err.InvalidValue), code
-(the option number; the web app allows 7-254 except reserved codes; stored as an
-integer),
-type (text, ipaddress, integer, boolean, hexarray, macaddress), width (8, 16 or 32
-for integers) and signed. The body is sent as given. Networks then reference the
-option by name. Route: Classic only.
+Request body: no published schema; the controller's fields are name (letters, digits, - and _; a 31-character name was rejected with api.err.InvalidValue), code (the option number; the web app allows 7-254 except reserved codes; stored as an integer), type (text, ipaddress, integer, boolean, hexarray, macaddress), width (8, 16 or 32 for integers) and signed. The body is sent as given. Networks then reference the option by name. Route: Classic only.
 
-Returns the Classic envelope {meta: {rc}, data: [option]} verbatim; the new _id is
-data[0]._id. Under dry-run policy the dry-run preview is returned and nothing sent.
+Returns the Classic envelope {meta: {rc}, data: [option]} verbatim; the new _id is data[0]._id. Under dry-run policy the dry-run preview is returned and nothing sent.
 
-Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}; nothing is sent.
+Dry-run returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (create_dhcp_option):
     {"host": "my-console", "site": "Default",
@@ -3108,25 +2974,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a new DNS policy on a site.
 
-Returns the upstream response body verbatim: the created DNS policy object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the created DNS policy object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-Validated locally before the request (a missing field raises ValueError naming it):
-``type`` — the discriminator the controller validates first (verified live: an empty
-body is rejected with ``Missing $.type value``). The remaining fields are type-specific
-and enforced by the controller.
-
-Request body (Network 11.0.97, POST /v1/sites/{siteId}/dns/policies (createDnsPolicy); schema
-"Create or update DNS policy") is passed in `policy`. Required keys — enabled, type.
-- enabled: boolean
-- type: string
-Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
-A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
-enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
-type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
-domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
-requires domain, enabled, text, type.
+Validated locally before the request (a missing field raises ValueError naming it): ``type`` — the discriminator the controller validates first (verified live: an empty body is rejected with ``Missing $.type value``). The remaining fields are type-specific and enforced by the controller.
 
 Example call (create_dns_policy):
     {
@@ -3140,6 +2990,8 @@ Example call (create_dns_policy):
         "ttlSeconds": 14400
       }
     }
+
+Details: docs/TOOL-USAGE.md#create_dns_policy.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3244,32 +3096,73 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `create_external_arm_profile`
+
+Create an external arm profile (POST /v1/external/arm-profiles).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Consequence: adds an arm profile to the external alarm manager. Only available when the
+console uses the external alarm manager. Returns {status: "created", response}: response
+is the upstream body verbatim. Under dry-run policy nothing is sent: {status: "dry_run",
+response (the preview)}. Sent once; a create is never auto-retried.
+
+Request body (Protect 7.4.96, POST /v1/external/arm-profiles; schema
+"externalArmProfileRequest") is passed in `title` + settings (merged; settings may repeat
+title only with the same value). Required key: title.
+- title: string, minLength 1
+- activation_delay: integer 0-3600 (seconds)
+- deactivation_delay: integer 0-3600 (seconds)
+- schedule: object with optional keys sun, mon, tue, wed, thu, fri, sat; each day is
+  {type: "all_day"} or {type: "intervals", entries: [{start: {hour: integer 0-23,
+  minute: integer 0-59}, end: {hour: integer 0-23, minute: integer 0-59}, or 24:00}]}
+  (entries minItems 1; use 24:00 or 23:59 for end of day)
+
+- alarm_ids: array of string
+- pin_code: string, 4 to 6 digits (write-only secret: masked when UNIFI_REDACT_SECRETS is on)
+
+Example call (create_external_arm_profile):
+    {
+      "host": "my-console",
+      "title": "Night",
+      "settings": {"activation_delay": 30}
+    }
+
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `title` | `string` | yes |  | REQUIRED profile title, sent as the body field title. |
+| `settings` | `object \| null` | no | `null` | Optional rest of the body (Protect 7.4.96 POST /v1/external/arm-profiles). Shape: {activation_delay?: integer, deactivation_delay?: integer, schedule?: object, alarm_ids?: string[], pin_code?: string}. Leave title out; it comes from the title argument. Advisory spec fields; any JSON passes. externalArmProfileRequest Required: title. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `create_firewall_policy`
 
-Create a new firewall policy on a site.
+Create a new firewall policy on a site. Returns the created policy object verbatim (under dry-run policy, the dry-run preview).
 
-Returns the upstream response body verbatim: the created firewall policy object the API
-answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+The seven required keys of `policy` (name, enabled, loggingEnabled, action, source, destination, ipProtocolScope) are validated locally (a missing key raises ValueError naming it). action.type is ALLOW (also requires allowReturnTraffic), BLOCK or REJECT; ipProtocolScope.ipVersion is IPV4, IPV6 or IPV4_AND_IPV6. There is NO 'index' field: use set_firewall_policy_ordering. Get zone UUIDs from list_firewall_zones_proxy (data[].id). For port-only destination matching: destination.trafficFilter type PORT; address plus port: type IP_ADDRESS with portFilter; a source portFilter matches ephemeral source ports. Parameter schemas hold the full trafficFilter variants. Details: docs/TOOL-USAGE.md#create_firewall_policy.
 
-The seven required keys of `policy` (name, enabled, loggingEnabled, action, source,
-destination, ipProtocolScope) are validated locally — a missing key raises ValueError
-naming it. action.type is ALLOW, BLOCK, or REJECT (ALLOW also requires
-allowReturnTraffic); ipProtocolScope.ipVersion is IPV4, IPV6, or IPV4_AND_IPV6. There is
-NO 'index' field; use set_firewall_policy_ordering to manage rule order. Get zone IDs
-from list_firewall_zones_proxy (data[].id; match zone names case-insensitively).
+Required arguments: host, site, policy.
 
-For port-only destination matching use destination.trafficFilter type PORT; for combined
-address and port matching use type IP_ADDRESS with portFilter. A source portFilter
-matches ephemeral source ports. Get zone UUIDs from list_firewall_zones_proxy.
-Use set_firewall_policy_ordering; there is no index field. action.type is ALLOW (requires
-allowReturnTraffic), BLOCK or REJECT; ipProtocolScope.ipVersion is IPV4, IPV6 or
-IPV4_AND_IPV6. Parameter schemas contain the complete trafficFilter variants and body shape.
-Detailed examples: docs/TOOL-USAGE.md#create_firewall_policy.
-
-Required arguments: host, site, policy (see parameter descriptions for identifiers).
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
@@ -3343,14 +3236,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a new firewall zone on a site via connector proxy.
 
-Returns the upstream response body verbatim: the created firewall zone object the API answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the created firewall zone object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-`zone`: must include {'name': str, 'networkIds': [str]} — both required, validated
-locally (a missing field raises ValueError naming it) and verified against the live
-controller. Get network IDs from list_networks.
+`zone`: must include {'name': str, 'networkIds': [str]} — both required, validated locally (a missing field raises ValueError naming it) and verified against the live controller. Get network IDs from list_networks.
 
 Request body (Network 11.0.97, POST /v1/sites/{siteId}/firewall/zones (createFirewallZone);
 schema "Create or update firewall zone") is passed in `zone`. Required keys — name, networkIds.
@@ -3358,11 +3246,8 @@ schema "Create or update firewall zone") is passed in `zone`. Required keys — 
 - networkIds: array of string (uuid)
 
 Example call (create_firewall_zone_proxy):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "zone": {"name": "Hotspot", "networkIds": ["dfb21062-8ea0-4dca-b1d8-1eb3da00e58b"]}
-    }
+    {"host": "my-console", "site": "Default",
+     "zone": {"name": "Hotspot", "networkIds": ["dfb21062-8ea0-4dca-b1d8-1eb3da00e58b"]}}
 
 Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API through the connector proxy.
 
@@ -3439,21 +3324,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a guest portal billing package (Classic POST rest/hotspotpackage).
 
-Request body: no published schema; sent as given. Fields: name, amount, currency,
-hours (paid duration), trial_duration_minutes and trial_reset (free trial),
-charged_as, index, limit_overwrite, limit_up, limit_down, limit_quota and the
-payment_fields_* switches. Live on Network 11.0.81 with payments not configured, a
-trial package {name, amount: 0, currency, trial_duration_minutes, trial_reset} was
-accepted, while paid packages (amount > 0 with hours) answered HTTP 400
-api.err.InvalidHotspotPackageDuration. Guests see packages only when the portal has
-payments enabled (get_hotspot_settings payment_enabled). Route: Classic only.
+Request body: no published schema; sent as given. Fields: name, amount, currency, hours (paid duration), trial_duration_minutes and trial_reset (free trial), charged_as, index, limit_overwrite, limit_up, limit_down, limit_quota and the payment_fields_* switches. Live on Network 11.0.81 with payments not configured, a trial package {name, amount: 0, currency, trial_duration_minutes, trial_reset} was accepted, while paid packages (amount > 0 with hours) answered HTTP 400 api.err.InvalidHotspotPackageDuration. Guests see packages only when the portal has payments enabled (get_hotspot_settings payment_enabled). Route: Classic only.
 
-Returns the Classic envelope {meta: {rc}, data: [package]} verbatim; the new _id is
-data[0]._id (list them with list_hotspot_packages). Under dry-run policy the
-dry-run preview is returned and nothing is sent.
+Returns the Classic envelope {meta: {rc}, data: [package]} verbatim; the new _id is data[0]._id (list them with list_hotspot_packages). Under dry-run policy the dry-run preview is returned and nothing is sent.
 
-Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}; nothing is sent.
+Dry-run returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (create_hotspot_package):
     {"host": "my-console", "site": "Default",
@@ -3489,32 +3364,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Generate hotspot vouchers for a site.
 
-Returns the upstream response body verbatim: the voucher-creation object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the voucher-creation object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-`voucher_config`: required fields (validated locally — a missing field raises ValueError
-naming it — and verified against the live controller): ``name`` and
-``timeLimitMinutes`` (voucher validity window, minutes). Optional: count, quota,
-bandwidth limits, etc.
-
-Request body (Network 11.0.97, POST /v1/sites/{siteId}/hotspot/vouchers (createVouchers);
-schema "Hotspot voucher creation request") is passed in `voucher_config`. Required keys — name,
-timeLimitMinutes.
-- authorizedGuestLimit: integer(int64)
-- count: integer(int32)
-- dataUsageLimitMBytes: integer(int64)
-- name: string
-- rxRateLimitKbps: integer(int64)
-- timeLimitMinutes: integer(int64)
-- txRateLimitKbps: integer(int64)
+`voucher_config`: required fields (validated locally — a missing field raises ValueError naming it — and verified against the live controller): ``name`` and ``timeLimitMinutes`` (voucher validity window, minutes). Optional: count, quota, bandwidth limits, etc.
 
 Example call (create_hotspot_vouchers):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "voucher_config": {"name": "Conference", "timeLimitMinutes": 1440}
-    }
+    {"host": "my-console", "site": "Default",
+     "voucher_config": {"name": "Conference", "timeLimitMinutes": 1440}}
+
+Details: docs/TOOL-USAGE.md#create_hotspot_vouchers.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3615,24 +3473,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a liveview on a Protect console.
 
-Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
-
-Request body (Protect 7.3.74, POST /v1/liveviews; schema "inline requestBody schema") is passed
-in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout, slots.
-- id: string
-- modelKey: string
-- name: string
-- isDefault: boolean
-- isGlobal: boolean
-- owner: string
-- layout: number (1-26; the number of slots)
-- slots: array of object {cameras: array of string (camera ids), cycleMode:
-  enum[motion|time], cycleInterval: number (seconds)} (every item key required)
-Spec POST /v1/liveviews body is allOf[liveview] whose required list includes server-side fields
-(id, modelKey, owner); tool merges name + settings into the body. Provide layout + slots; treat
-id/modelKey/owner requirement as spec-as-published.
+Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty). Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
 Example call (create_liveview):
     {
@@ -3656,6 +3497,8 @@ Example call (create_liveview):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#create_liveview.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3722,38 +3565,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_network`
 
-Create a new network/VLAN on a site.
+Create a new network/VLAN on a site. Returns the created network object verbatim (under dry-run policy, the dry-run preview).
 
-Returns the upstream response body verbatim: the created network object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
+`network_config` is sent verbatim; a missing `management` raises ValueError (the discriminator the controller validates first). Field names are camelCase as in the spec: the IPv4 block is ipv4Configuration (lower-case v); there is no 'purpose' field. For management='GATEWAY' the controller also requires name, vlanId (1 only for the default network, else 2-4009), enabled, internetAccessEnabled, isolationEnabled, cellularBackupEnabled and ipv4Configuration (hostIpAddress + prefixLength, required autoScaleEnabled, optional DHCP). Optional zoneId (from list_firewall_zones_proxy). Copy a working ipv4Configuration from get_network.
 
-Validated locally before the request (a missing field raises ValueError naming it):
-``management`` — the discriminator the controller validates first. The rest of the
-required schema is management-mode-specific and enforced by the controller.
-`network_config` is sent verbatim. Field names are camelCase exactly as in the spec —
-the IPv4 block is ``ipv4Configuration`` (lower-case v), not ``ipV4Configuration``; there
-is no 'purpose' field in the Network Integration API. For management='GATEWAY' the
-controller also requires name, vlanId (1 only for the default network,
-otherwise 2-4009), enabled, internetAccessEnabled, isolationEnabled,
-cellularBackupEnabled, and ipv4Configuration (e.g. hostIpAddress + prefixLength, with
-required autoScaleEnabled and optional DHCP settings). Optional: zoneId (zone UUID from
-list_firewall_zones_proxy). Read an existing network with get_network to copy a working
-ipv4Configuration shape.
+Network auto-exclusion: UniFi silently adds every new network to excluded_networkconf_ids of ALL custom-tagged port profiles (tagged_vlan_mgmt 'custom'), blackholing the VLAN at the host uplink. The response then carries a _warnings entry (D12_AUTO_EXCLUSION) naming each profile and the network's Classic _id; run allow_network_on_port_profile on each (either id works).
 
-Network auto-exclusion: UniFi silently adds every new network to the
-``excluded_networkconf_ids`` of ALL custom-tagged port profiles
-(``tagged_vlan_mgmt == 'custom'``), blackholing the VLAN at the host uplink.
-When that happens this response carries an additive ``_warnings`` entry (code
-``D12_AUTO_EXCLUSION``) naming each affected profile and the network's Classic
-networkconf ``_id`` (profiles store that ``_id``, not this response's ``id``); run
-``allow_network_on_port_profile`` on each to restore tagging (it accepts either id).
+Details: docs/TOOL-USAGE.md#create_network.
 
+Required arguments: host, site, network_config.
 
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#create_network.
-
-Required arguments: host, site, network_config (see parameter descriptions for identifiers).
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -3884,27 +3706,61 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `create_port_automation`
+
+Create a port automation (Network 11.1 v2 route).
+
+Consequence: once enabled, a matching device plugged into an in-scope switch port moves
+that port to the profile's network, which can change what the device can reach.
+
+POST /proxy/network/v2/api/site/{site}/port-automations with automation sent
+verbatim. Returns the upstream body verbatim. Never auto-retried; on a timeout, list
+the automations before retrying.
+
+Request body (observed in the Network 11.1.47 web application; the controller
+publishes no spec): name (string, 1 to 128 characters), enabled (boolean),
+port_profile_id (port profile _id from list_port_profiles), match (object: vendor_ids,
+up to 64 non-negative integers; mac_ouis, up to 64 six-hex-digit OUIs; at least one of
+the two is required), scope (object: switch_macs, up to 128 switch MACs; device_tag_ids,
+up to 64 device tag ids; optional port_range {from_port, to_port}, 1 to 60; empty
+switch_macs and device_tag_ids mean every switch).
+
+Under dry-run policy nothing is sent and the tool returns a dry-run preview:
+status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+
+Required arguments: host, site, automation (see each parameter's description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.v2/write`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `automation` | `object` | yes |  | Automation object in the shape list_port_automations returns, e.g. {"name": "Phones", "enabled": true, "port_profile_id": "PORT_PROFILE_ID", "match": {"vendor_ids": [], "mac_ouis": ["00:11:22"]}, "scope": {"switch_macs": [], "device_tag_ids": [], "port_range": {"from_port": 1, "to_port": 24}}}. Free-form object. |
+
+**Return type**
+
+`Any`
+
 ### `create_port_forward`
 
-Create a port forwarding rule via the Classic REST API.
+Create a port forwarding rule via the Classic REST API. Returns the controller's envelope {meta: {rc}, data: [...]} verbatim (meta relayed, never interpreted). Under dry-run policy nothing is sent: the bare preview.
 
-Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
-verbatim (meta is relayed as received, never interpreted).
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+`payload`: pass name, dst_port, fwd and fwd_port; proto is optional (the controller defaults it, typically 'tcp_udp'). Sent as given: this endpoint has no published schema and is observed to accept a body without those fields and create a broken rule, so include them; an upstream error gets a hint naming any missing. Read the current object first for edits.
 
-`payload`: port forward config. Pass name, dst_port, fwd and fwd_port. ``proto`` is
-optional (the controller defaults it, typically 'tcp_udp'). The body is sent as given:
-this Classic REST endpoint has no published schema and is observed to accept a body
-without those fields and create a broken rule, so include them; an upstream error gets a
-hint naming any that are missing.
-Example: {"enabled": true, "name": "SSH", "pfwd_interface": "wan", "src": "any",
-"dst_port": "2222", "fwd": "192.168.1.10", "fwd_port": "22", "proto": "tcp", "log": false}
-
-Request body: no published schema exists for POST network/api/s/{site}/rest/portforward
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_port_forward):
     {
@@ -3949,22 +3805,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_port_profile`
 
-Create a switch port profile via Classic REST POST rest/portconf (the UI's route).
+Create a switch port profile via Classic POST rest/portconf (the UI's route). The body is sent verbatim (additive _ keys from a read are dropped): name, tagged_vlan_mgmt (auto, block_all, custom) with the matching forward (all, native, customize), native_networkconf_id, voice_networkconf_id, excluded_networkconf_ids, poe_mode and the other portconf fields list_port_profiles shows. Networkconf id fields accept a Classic _id or the Integration id from list_networks, converted before the POST; an unknown value fails listing every network, nothing sent.
 
-The body is sent verbatim (additive _ keys from a read are dropped): name,
-tagged_vlan_mgmt (auto, block_all, custom) with the matching forward (all, native,
-customize; Network 11.0.81 derives forward from tagged_vlan_mgmt), native_networkconf_id,
-voice_networkconf_id, excluded_networkconf_ids, poe_mode and the other portconf fields
-list_port_profiles shows. The networkconf id fields accept a Classic networkconf _id or
-the Integration id from list_networks (data[].id), which the tool converts to the _id
-before the POST; an unknown value fails listing every network, and nothing is sent.
+Returns {meta: {rc}, data: [the created profile]} verbatim (profile plus _resolved_networks). Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) flag a write that did not land as sent. Under dry-run policy nothing is sent: the bare preview.
 
-Returns: the upstream envelope verbatim, {meta: {rc}, data: [the created profile]},
-each profile plus the additive _resolved_networks key (see list_port_profiles).
-Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-params, body}}.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_port_profile):
     {"host": "my-console", "site": "Default", "profile": {"name": "Cameras",
@@ -4411,21 +4256,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a local RADIUS user account via v2 POST radius/users/batch_add (the UI's route).
 
-Sends a one-element batch, [{...fields, name, x_password}], to
-/v2/api/site/{site}/radius/users/batch_add. For a VLAN assignment add vlan with
-tunnel_type 13 and tunnel_medium_type 6 in `fields`. Nothing is defaulted.
+Sends a one-element batch, [{...fields, name, x_password}], to /v2/api/site/{site}/radius/users/batch_add. For a VLAN assignment add vlan with tunnel_type 13 and tunnel_medium_type 6 in `fields`. Nothing is defaulted.
 
-Returns: the upstream body verbatim, a one-element JSON array [the created account
-{_id, name, x_password, group_policy, filter_ids, ...}]; its _id is the id
-list_accounts shows. Additive _warnings on that account (NO_ID_RETURNED,
-NOT_STORED_AS_SENT: field names only) report a write that did not land as sent.
-Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false, message, preview: {method, path, params, body}}.
+Returns: the upstream body verbatim, a one-element JSON array [the created account {_id, name, x_password, group_policy, filter_ids, ...}]; its _id is the id list_accounts shows. Additive _warnings on that account (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_radius_account):
-    {"host": "my-console", "site": "Default", "name": "alice",
-     "password": "correct-horse", "fields": {"vlan": 20, "tunnel_type": 13,
-     "tunnel_medium_type": 6}}
+    {"host": "my-console", "site": "Default", "name": "alice", "password": "correct-horse",
+     "fields": {"vlan": 20, "tunnel_type": 13, "tunnel_medium_type": 6}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -4457,28 +4294,14 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a RADIUS authentication profile.
 
-Uses Classic REST POST /proxy/network/api/s/{site}/rest/radiusprofile (the route the
-controller's own UI uses; the published Integration API serves RADIUS profiles GET-only,
-POST answers HTTP 405 on Network 11.0.81). The body is `fields` plus name, auth_servers
-[{ip, port, x_secret}] and, when acct_server_ip is given, acct_servers [{ip, port,
-x_secret}] carrying port and secret only when given. No port or flag is defaulted:
-accounting stays off unless `fields` sets accounting_enabled.
+Classic REST POST /proxy/network/api/s/{site}/rest/radiusprofile (the UI's route; the Integration API serves RADIUS profiles GET-only, POST answers 405 on Network 11.0.81). The body is `fields` plus name, auth_servers [{ip, port, x_secret}] and, when acct_server_ip is given, acct_servers; port and secret only when given. Nothing is defaulted: accounting stays off unless `fields` sets accounting_enabled.
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
-radiusprofile record]}; data[].external_id is the id list_radius_profiles reports.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns the upstream Classic envelope {meta: {rc}, data: [the created radiusprofile]}; data[].external_id is the id list_radius_profiles reports. Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_radius_profile):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "name": "Corp RADIUS",
-      "auth_server_ip": "192.0.2.20",
-      "auth_server_port": 1812,
-      "auth_server_secret": "s3cret"
-    }
+    {"host": "my-console", "site": "Default", "name": "Corp RADIUS",
+     "auth_server_ip": "192.0.2.20", "auth_server_port": 1812,
+     "auth_server_secret": "s3cret"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -4594,16 +4417,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create an RTSPS stream for a Protect camera.
 
-Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+Returns {status: "created", response}: response is the upstream body verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty). Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
-`qualities`: list of channel names to enable. The exhaustive set is 'high', 'medium',
-  'low', and 'package' (verified live against get_rtsps_stream, which reports exactly
-  these four channel keys). 'package' exists only on package-camera doorbells; on other
-  cameras it is null. There is NO 'highest' channel. Each value must be exactly one of
-  those spec enum values (lowercase); any other value, a different case included, fails
-  before any request.
+`qualities`: list of channel names to enable. The exhaustive set is 'high', 'medium', 'low', and 'package' (verified live against get_rtsps_stream, which reports exactly these four channel keys). 'package' exists only on package-camera doorbells; on other cameras it is null. There is NO 'highest' channel. Each value must be exactly one of those spec enum values (lowercase); any other value, a different case included, fails before any request.
 
 Request body (Protect 7.3.74, POST /v1/cameras/{id}/rtsps-stream; schema "inline requestBody
 schema") is built from scalar parameters. Required keys — qualities.
@@ -4725,23 +4541,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_site_to_site_tunnel`
 
-Create a site-to-site VPN tunnel. This is a write operation that modifies live config.
+Create a site-to-site VPN tunnel. Write: modifies live config.
 
-A manual site-to-site tunnel is a Classic REST networkconf record of purpose site-vpn,
-written with POST /proxy/network/api/s/{site}/rest/networkconf (the route the
-controller's own UI uses; the published Integration API serves site-to-site tunnels
-GET-only, POST answers HTTP 405 on Network 11.0.81). The body is the controller's native
-networkconf fields, sent verbatim with purpose set to site-vpn; pass name and vpn_type
-(vpn_type values: ipsec-vpn (manual IPsec), openvpn-vpn, wireguard-vpn). The body is
-sent as given and the controller validates the record: it answers
-api.err.InvalidPayload when a field the tunnel type needs is missing, and that error
-gets a hint naming the missing name / vpn_type.
+A manual tunnel is a Classic networkconf record of purpose site-vpn, written with POST /proxy/network/api/s/{site}/rest/networkconf (the controller UI's route; the Integration API serves tunnels GET-only, POST answers 405 on Network 11.0.81). The body is the native networkconf fields, verbatim, with purpose site-vpn; pass name and vpn_type (ipsec-vpn, openvpn-vpn, wireguard-vpn). The controller validates it and answers api.err.InvalidPayload when a field the tunnel type needs is missing; that error gets a hint naming a missing name/vpn_type.
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
-networkconf record]}; data[].external_id is the id list_site_to_site_tunnels reports.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns the upstream Classic envelope {meta: {rc}, data: [the created networkconf]}; data[].external_id is the id list_site_to_site_tunnels reports. Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_site_to_site_tunnel):
     {
@@ -4936,16 +4740,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a static route via Classic REST POST rest/routing (the UI's route).
 
-The body is sent verbatim. A next-hop route: {name, enabled, type: "static-route",
-static-route_type: "nexthop-route", static-route_network: "198.51.100.0/24",
-static-route_nexthop: "10.0.0.2", static-route_distance: 1}; static-route_type may also
-be "interface-route" (with static-route_interface) or "blackhole".
+The body is sent verbatim. A next-hop route: {name, enabled, type: "static-route", static-route_type: "nexthop-route", static-route_network: "198.51.100.0/24", static-route_nexthop: "10.0.0.2", static-route_distance: 1}; static-route_type may also be "interface-route" (with static-route_interface) or "blackhole".
 
-Returns: the upstream body verbatim, {meta: {rc}, data: [the created route with _id]}.
-Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-params, body}}.
+Returns: the upstream body verbatim, {meta: {rc}, data: [the created route with _id]}. Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_static_route):
     {"host": "my-console", "site": "Default", "route": {"name": "Lab", "enabled": true,
@@ -5061,21 +4858,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a new traffic matching list on a site.
 
-Returns the upstream response body verbatim: the created traffic matching list object the API
-answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
-false, message, preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the created traffic matching list object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-Validated locally before the request (a missing field raises ValueError naming it):
-a top-level ``type`` — the discriminator the controller validates first (verified live:
-an empty body is rejected with ``Missing $.type value``; observed value: 'PORTS').
-
-Request body (Network 11.0.97, POST /v1/sites/{siteId}/traffic-matching-lists
-(createTrafficMatchingList); schema "Create or update traffic matching list") is passed in
-`traffic_list`. Required keys — name, type.
-- name: string
-- type: string
-Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
-name, type; PORTS requires items, name, type.
+Validated locally before the request (a missing field raises ValueError naming it): a top-level ``type`` — the discriminator the controller validates first (verified live: an empty body is rejected with ``Missing $.type value``; observed value: 'PORTS').
 
 Example call (create_traffic_matching_list):
     {
@@ -5087,6 +4872,8 @@ Example call (create_traffic_matching_list):
         "name": "Allowed address list"
       }
     }
+
+Details: docs/TOOL-USAGE.md#create_traffic_matching_list.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5114,25 +4901,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `create_traffic_route`
 
-Create a traffic route on a site (policy-based routing / WAN load-balancing).
+Create a traffic route on a site (policy-based routing / WAN load-balancing). Returns the created route verbatim (under dry-run policy, the dry-run preview).
 
-Returns the upstream response body verbatim: the created traffic route object the API answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+`payload` is sent as given; the controller requires (verified live; an upstream error gets a hint naming any missing) network_id (source network UUID from list_networks, or 'ANY'), matching_target ('INTERNET'|'ALL' or a traffic matching list id from list_traffic_matching_lists) and target_devices (the devices/networks it applies to). Optional: matching_target_type ('INTERNET'|'DOMAIN'|'IP_GROUP'), description. This v2 endpoint uses snake_case ('network_id' is accepted, 'networkId' is not). No published schema: send the native payload.
 
-`payload`: sent as given; the controller requires these fields (verified live; an
-upstream error gets a hint naming any that are missing). This v2 endpoint uses snake_case wire
-field names (verified: 'network_id' is accepted, 'networkId' is not):
-  - network_id (str): source network UUID (from list_networks), or 'ANY'
-  - matching_target: 'INTERNET'|'ALL' or a traffic matching list id (from
-    list_traffic_matching_lists)
-  - target_devices: the devices/networks the route applies to
-  Optional: matching_target_type ('INTERNET'|'DOMAIN'|'IP_GROUP'), description (str).
-
-Request body: no published schema exists for POST network/v2/api/site/{site}/trafficroutes
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_traffic_route):
     {
@@ -5215,23 +4988,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a VPN client connection on the gateway (WireGuard, OpenVPN or PPTP).
 
-Consequence: an enabled VPN client makes the gateway connect to the peer, and
-vpn_client_default_route true sends routed traffic through the tunnel; create it with
-enabled false to review it first.
+Consequence: an enabled client makes the gateway connect to the peer, and vpn_client_default_route true sends routed traffic through the tunnel; create it with enabled false to review first.
 
-A VPN client is a Classic REST networkconf record of purpose vpn-client, written with
-POST network/api/s/{site}/rest/networkconf (the route the controller's own UI uses).
-The body is `fields` plus purpose, name and vpn_type, and enabled only when given;
-nothing else is defaulted. The controller validates the record: a manual WireGuard
-client needs wireguard_client_mode "manual", wireguard_client_peer_ip / _peer_port /
-_peer_public_key, x_wireguard_private_key, ip_subnet and an interface DNS server
-(dhcpd_dns_enabled true with dhcpd_dns_1), and answers
-api.err.WireguardMissingInterfaceDns without the DNS server (verified on Network
-11.0.81). An upstream error gets a hint listing those fields.
+A Classic networkconf record of purpose vpn-client, POST network/api/s/{site}/rest/networkconf (the UI's route). The body is `fields` plus purpose, name, vpn_type, and enabled only when given. The controller validates it: a manual WireGuard client needs wireguard_client_mode "manual", wireguard_client_peer_ip/_peer_port/_peer_public_key, x_wireguard_private_key, ip_subnet and an interface DNS server (dhcpd_dns_enabled true with dhcpd_dns_1), else api.err.WireguardMissingInterfaceDns (verified on Network 11.0.81); upstream errors get a hint listing them.
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [the created networkconf
-record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
-false, message, preview: {method, path, params (query parameters), body}} instead).
+Returns the Classic body verbatim {meta: {rc}, data: [the created networkconf]}; under dry-run policy, the preview instead.
+
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_vpn_client):
     {
@@ -5283,30 +5046,14 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a VPN server (WireGuard, OpenVPN, L2TP or PPTP).
 
-A VPN server is a Classic REST networkconf record of purpose remote-user-vpn, written
-with POST /proxy/network/api/s/{site}/rest/networkconf (the route the controller's own
-UI uses; the published Integration API serves VPN servers GET-only, POST answers HTTP 405
-on Network 11.0.81). The tool sends `fields` plus purpose, name and vpn_type, and
-ip_subnet / enabled only when you pass subnet / enabled; nothing else is defaulted. The
-controller validates the record and answers api.err.InvalidPayload when a field the
-server type needs is missing (for WireGuard, e.g. local_port and the server key pair).
+A Classic networkconf record of purpose remote-user-vpn, written with POST /proxy/network/api/s/{site}/rest/networkconf (the controller UI's route; the Integration API serves VPN servers GET-only, POST answers 405 on Network 11.0.81). The tool sends `fields` plus purpose, name and vpn_type, and ip_subnet/enabled only when you pass subnet/enabled; nothing else is defaulted. The controller answers api.err.InvalidPayload when a field the server type needs is missing (for WireGuard e.g. local_port and the key pair).
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the created
-networkconf record]}; data[].external_id is the id list_vpn_servers reports.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns the upstream Classic envelope {meta: {rc}, data: [the created networkconf]}; data[].external_id is the id list_vpn_servers reports. Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (create_vpn_server):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "name": "Remote access",
-      "vpn_type": "wireguard",
-      "subnet": "192.0.2.1/24",
-      "enabled": false,
-      "fields": {"local_port": 51820}
-    }
+    {"host": "my-console", "site": "Default", "name": "Remote access",
+     "vpn_type": "wireguard", "subnet": "192.0.2.1/24", "enabled": false,
+     "fields": {"local_port": 51820}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5376,27 +5123,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Create a new WiFi broadcast SSID on a site.
 
-Returns the upstream response body verbatim: the created WiFi broadcast object the API
-answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the created WiFi broadcast object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-Validated locally before the request (a missing field raises ValueError naming it):
-``type`` — the discriminator the controller validates first (observed value:
-'STANDARD'). The remaining fields are type-specific and enforced by the controller.
-`broadcast`: its parameter description lists the keys each ``type`` requires
-("Variants by type"; STANDARD and IOT_OPTIMIZED differ). Field names are camelCase.
-For an open SSID use securityConfiguration: {type: "OPEN"} and an explicit network
-reference: network: {type: "SPECIFIC", networkId: UUID from list_networks}. The spec
-permits omitting network, but the live controller requires it for OPEN broadcasts.
-An access point carries a limited number of SSIDs: when the controller refuses with HTTP
-400 too-many-wifi-broadcasts, the error keeps its whole body and adds a hint to scope
-the SSID with broadcastingDeviceFilter. Creating it with enabled false does not avoid
-that limit.
+Validated locally before the request (a missing field raises ValueError naming it): ``type`` — the discriminator the controller validates first (observed value: 'STANDARD'). The remaining fields are type-specific and enforced by the controller. `broadcast`: its parameter description lists the keys each ``type`` requires ("Variants by type"; STANDARD and IOT_OPTIMIZED differ). Field names are camelCase. For an open SSID use securityConfiguration: {type: "OPEN"} and an explicit network reference: network: {type: "SPECIFIC", networkId: UUID from list_networks}. The spec permits omitting network, but the live controller requires it for OPEN broadcasts. An access point carries a limited number of SSIDs: when the controller refuses with HTTP 400 too-many-wifi-broadcasts, the error keeps its whole body and adds a hint to scope the SSID with broadcastingDeviceFilter. Creating it with enabled false does not avoid that limit.
 
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#create_wifi_broadcast.
+Details: docs/TOOL-USAGE.md#create_wifi_broadcast.
 
 Required arguments: host, site, broadcast (see parameter descriptions for identifiers).
 
@@ -5512,39 +5243,21 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `upload_protect_file`
 
-Upload a Protect device asset file. WARNING: Uploads asset file to NVR storage.
-Overwriting system files may not be reversible.
+Upload a Protect device asset file. WARNING: Uploads asset file to NVR storage. Overwriting system files may not be reversible.
 
-Consequence: the file is stored on the console and may overwrite an existing asset, which may
-not be reversible.
+Consequence: the file is stored on the console and may overwrite an existing asset, which may not be reversible.
 
-Returns {status: "uploaded", response}: response is the upstream body verbatim (decoded
-JSON, the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+Returns {status: "uploaded", response}: response is the upstream body verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty). Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
-`file_type`: Protect asset category. Protect 7.3.74 documents one value, 'animations';
-  the value is passed through as given and selects the upload target path
-  (/files/{file_type}). The category is not
-  validated on read-back, so pass a known category exactly.
+`file_type`: Protect asset category. Protect 7.3.74 documents one value, 'animations'; the value is passed through as given and selects the upload target path (/files/{file_type}). The category is not validated on read-back, so pass a known category exactly.
 
-Request body: Protect 7.3.74 POST /v1/files/{fileType} is a multipart upload; the tool builds
-the file part from filename + file_content_base64. No JSON body. The part's Content-Type is
-content_type when given, else the spec type of the filename extension: .gif image/gif,
-.jpg/.jpeg image/jpeg, .png image/png, .mp3 audio/mpeg, .m4a/.mp4 audio/mp4, .wav
-audio/wave, .caf audio/x-caf. Any other extension without content_type is rejected before
-any request, listing these types.
+Request body: Protect 7.3.74 POST /v1/files/{fileType} is a multipart upload; the tool builds the file part from filename + file_content_base64. No JSON body. The part's Content-Type is content_type when given, else the spec type of the filename extension: .gif image/gif, .jpg/.jpeg image/jpeg, .png image/png, .mp3 audio/mpeg, .m4a/.mp4 audio/mp4, .wav audio/wave, .caf audio/x-caf. Any other extension without content_type is rejected before any request, listing these types.
 
 Example call (upload_protect_file):
-    {
-      "host": "my-console",
-      "file_type": "animations",
-      "filename": "alert.gif",
-      "file_content_base64": "R0lGODlhAQABAAAAACw="
-    }
+    {"host": "my-console", "file_type": "animations", "filename": "alert.gif",
+     "file_content_base64": "R0lGODlhAQABAAAAACw="}
 
-The dry-run preview contains method, path, params (query parameters), body (null: no JSON
-body) and multipart: one {field, filename, contentType, sizeBytes} entry per file part
-(field "file"), never the file bytes.
+The dry-run preview contains method, path, params (query parameters), body (null: no JSON body) and multipart: one {field, filename, contentType, sizeBytes} entry per file part (field "file"), never the file bytes.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5619,7 +5332,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ## Delete
 
-**64 tools**
+**66 tools**
 
 ### `delete_acl_rule`
 
@@ -5628,8 +5341,7 @@ Delete an ACL rule.
 Consequence: the rule stops filtering traffic immediately; there is no undo (recreate it from a
 saved copy).
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -5637,8 +5349,6 @@ Example call (delete_acl_rule):
     {"host": "my-console", "site": "Default", "rule_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between networks or in a VLAN; zone-to-zone rules are firewall policies.
 
@@ -5668,23 +5378,17 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between netwo
 
 Delete an AP group via v2 DELETE /v2/api/site/{site}/apgroups/{_id}.
 
-Consequence: the group is gone; WiFi networks broadcast on that group stop using it
-(the controller refuses while one still does, and its error is returned). The APs
-themselves are not changed. There is no undo.
+Consequence: the group is gone; WiFi networks broadcast on that group stop using it (the controller refuses while one still does, and its error is returned). The APs themselves are not changed. There is no undo.
 
-The id (_id or external_id) is resolved in the collection first, so an unknown id is
-never reported as deleted.
+The id (_id or external_id) is resolved in the collection first, so an unknown id is never reported as deleted.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body
-verbatim (null for the HTTP 204 answer). Under dry-run policy nothing is deleted:
-{status: "dry_run", deleted: false, message, response (the preview with method, path,
-params (query parameters), body)}.
+Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim (null for the HTTP 204 answer). Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message, response (the dry-run preview {method, path, params, body})}.
 
 Example call (delete_ap_group):
     {"host": "my-console", "site": "Default",
      "group_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5716,24 +5420,18 @@ Delete an arm profile (DELETE /v1/arm-profiles/{id}). Irreversible — no undo.
 
 Consequence: the profile can no longer be selected to arm the system.
 
-The id is found in the arm-profile list first (as update_arm_profile does): an unknown
-arm_profile_id fails before any DELETE, listing every valid id, and the DELETE addresses
-the profile by the id the console listed (hex ids match case-insensitively).
+The id is found in the arm-profile list first (as update_arm_profile does): an unknown arm_profile_id fails before any DELETE, listing every valid id, and the DELETE addresses the profile by the id the console listed (hex ids match case-insensitively).
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_arm_profile):
     {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400; check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5763,20 +5461,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a BGP configuration (Network v2 route). Consequence: BGP sessions drop.
 
-Resolves the id in GET .../bgp/config/all first (an unknown id fails listing every valid
-id), then DELETE /proxy/network/v2/api/site/{site}/bgp/config for the gateway singleton,
-or /bgp/config/{id} for another listed configuration, and verify it is absent.
-Returns {deleted, message, response}: deleted is true only when absence is confirmed, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). Irreversible: the configuration is removed.
+Resolves the id in GET .../bgp/config/all first (an unknown id fails listing every valid id), then DELETE /proxy/network/v2/api/site/{site}/bgp/config for the gateway singleton, or /bgp/config/{id} for another listed configuration, and verify it is absent. Returns {deleted, message, response}: deleted is true only when absence is confirmed, response is the upstream body verbatim. Irreversible: the configuration is removed.
 
-Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-deleted: false, message, response}, where response is the dry-run preview (status,
-dryRun, sent: false, message and preview with method, path, params, body).
+Under dry-run policy nothing is sent and the tool returns {status: "dry_run", deleted: false, message, response}, where response is the dry-run preview (status, dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, config_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5817,7 +5508,7 @@ Dry-run response previews include body and params.
 
 Consequence: a successful deletion permanently removes shortcuts; there is no undo.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5846,22 +5537,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_content_filter`
 
-Delete a content-filtering profile (Network v2 route). Consequence: permanently
-removes the profile and stops its blocking.
+Delete a content-filtering profile (Network v2 route). Consequence: permanently removes the profile and stops its blocking.
 
-Resolves filter_id in list_content_filters first (an unknown id fails listing
-every valid id and nothing is deleted), then DELETE
-/proxy/network/v2/api/site/{site}/content-filtering/{_id}. Returns deleted,
-message and the upstream response verbatim. Never auto-retried.
+Resolves filter_id in list_content_filters first (an unknown id fails listing every valid id and nothing is deleted), then DELETE /proxy/network/v2/api/site/{site}/content-filtering/{_id}. Returns deleted, message and the upstream response verbatim. Never auto-retried.
 
-Returns deleted, message and response (the upstream body verbatim).
-Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-deleted: false, message, response}, where response is the dry-run preview (status,
-dryRun, sent: false, message and preview with method, path, params, body).
+Returns deleted, message and response (the upstream body verbatim). Under dry-run policy nothing is sent and the tool returns {status: "dry_run", deleted: false, message, response}, where response is the dry-run preview (status, dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, filter_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: category-based web-filtering profiles; not firewall policies or traffic rules.
 
@@ -5898,9 +5582,7 @@ POST /proxy/network/api/s/{site}/cmd/backup {"cmd": "delete-backup", "filename",
 cannot be restored afterwards.
 
 Success is HTTP 2xx with meta.rc "ok"; anything else raises with the full upstream body.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview (status,
@@ -5934,32 +5616,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_device_tag`
 
-Delete a device tag. This permanently removes the tag from the site.
+Delete a device tag. Permanently removes the tag from the site.
 
-Consequence: the tag is removed from the site and from every member device; there is no
-undo.
+Consequence: the tag is removed from the site and from every member device; there is no undo.
 
-Uses the v2 route the controller's own UI uses, DELETE
-/proxy/network/v2/api/device-tags/{_id} (no site segment; the published Integration API
-has no device-tag delete). The tag is resolved in the site first, because the controller
-answers a DELETE for an unknown id with HTTP 200 and would otherwise report a deletion
-that never happened.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Uses the controller UI's v2 route, DELETE /proxy/network/v2/api/device-tags/{_id} (no site segment; the Integration API has no tag delete). The tag is resolved in the site first, because the controller answers a DELETE for an unknown id with HTTP 200 and would report a deletion that never happened. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.
 
 Example call (delete_device_tag):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "tag_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "tag_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
-The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -5994,9 +5661,7 @@ resolved in list_dhcp_options first (the controller answers a DELETE on an unkno
 id with HTTP 200): an unknown id fails listing every valid _id and nothing is
 deleted. Route: Classic only.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
 response},
@@ -6047,7 +5712,7 @@ Returns deleted, message and response (the upstream body).
 
 Required arguments: host, site.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6078,8 +5743,7 @@ Delete a DNS policy.
 
 Consequence: the record or forwarding rule stops being served immediately; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -6091,8 +5755,6 @@ Example call (delete_dns_policy):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6133,7 +5795,7 @@ Dry-run response previews include body and params.
 Consequence: the card or fingerprint stops working at this doorbell at once; it
 must be enrolled again to restore it.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6178,7 +5840,7 @@ message, response (the preview with method, path, params (query parameters), bod
 Example call (delete_dynamic_dns):
     {"host": "my-console", "site": "Default", "ddns_id": "000000000000000000000101"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6213,9 +5875,7 @@ it; there is no undo.
 
 Resolves the id in list_energy_saving_policies first (an unknown id fails listing every
 valid id), then DELETE /proxy/network/v2/api/site/{site}/energy-saving-policies/{id}.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview (status,
@@ -6247,28 +5907,62 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `delete_external_arm_profile`
+
+Delete an external arm profile (DELETE /v1/external/arm-profiles/{id}). Irreversible.
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Consequence: the profile is removed from the external alarm manager; there is no undo.
+Only available when the console uses the external alarm manager. Returns {deleted: true,
+message, response}; response is the upstream DELETE body verbatim (null for the spec's
+204). Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
+message, response (the preview)}.
+
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Required arguments: host, arm_profile_id.
+
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `arm_profile_id` | `string` | yes |  | External arm profile id from list_external_arm_profiles (id). |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `delete_firewall_policy`
 
 Delete a firewall policy.
 
-Consequence: the policy stops applying immediately, so traffic it allowed or blocked falls
-through to the remaining policies; there is no undo.
+Consequence: the policy stops applying immediately, so traffic it allowed or blocked falls through to the remaining policies; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_firewall_policy):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "policy_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
@@ -6300,8 +5994,7 @@ Delete a firewall zone via connector proxy.
 
 Consequence: the zone is permanently removed; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -6309,8 +6002,6 @@ Example call (delete_firewall_zone_proxy):
     {"host": "my-console", "site": "Default", "zone_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API through the connector proxy.
 
@@ -6346,9 +6037,7 @@ resolved in the Classic rest/portalfile list first (the controller answers a DEL
 on an unknown id with HTTP 200): an unknown id fails listing every file and
 nothing is deleted. Route: Classic only.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
 response},
@@ -6389,21 +6078,12 @@ Delete a hotspot operator by ID.
 
 Consequence: the operator account can no longer sign in; there is no undo.
 
-The id is resolved in list_hotspot_operators first (the controller answers a DELETE on an
-unknown id with HTTP 200): an unknown id fails listing every valid _id, and nothing is
-deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+The id is resolved in list_hotspot_operators first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id and nothing is deleted. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.
 
 Example call (delete_hotspot_operator):
     {"host": "my-console", "site": "Default", "operator_id": "000000000000000000000107"}
 
-The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6438,9 +6118,7 @@ resolved in list_hotspot_packages first (the controller answers a DELETE on an
 unknown id with HTTP 200): an unknown id fails listing every valid _id and nothing
 is deleted. Route: Classic only.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
 response},
@@ -6481,8 +6159,7 @@ Delete a single hotspot voucher.
 
 Consequence: the voucher can no longer be redeemed; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -6494,8 +6171,6 @@ Example call (delete_hotspot_voucher):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6526,9 +6201,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Delete an InnerSpace floor plan (DELETE .../api/project/plan/{planId}).
 
 Consequence: the plan and its shapes are removed; there is no undo.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. The upstream body is {data: {plans, shapes}}. A plan_id that is not a UUID fails
 before any request. The id is resolved in the collection list first; an unknown id lists the
 valid ids and sends no write. Write: sent once, never retried. UNIFI_WRITE_POLICY=deny
 refuses it
@@ -6567,9 +6240,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a liveview. Consequence: its layout is permanently removed.
 
-DELETE protect/api/liveviews/{liveview_id}. Returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty).
+DELETE protect/api/liveviews/{liveview_id}. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview
@@ -6617,7 +6288,7 @@ dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, rule_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6649,24 +6320,17 @@ Delete a network/VLAN.
 
 Consequence: removes the VLAN and disconnects all clients on that network; there is no undo.
 
-Network 11.0.97 DELETE /v1/sites/{siteId}/networks/{networkId} (deleteNetwork). The
-spec's optional `force` query parameter is sent only when given.
+Network 11.0.97 DELETE /v1/sites/{siteId}/networks/{networkId} (deleteNetwork). The spec's optional `force` query parameter is sent only when given.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_network):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6697,9 +6361,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete one network member group. Consequence: removes the selected member group; policies
 referencing it may be affected. The id is resolved in the collection list first; an unknown
-id lists the valid ids and sends no write. Returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty). Under dry-run policy sends no mutation and
+id lists the valid ids and sends no write. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. Under dry-run policy sends no mutation and
 returns {status: "dry_run", deleted: false, message, response}, where response is the
 dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
 path, params, body}}.
@@ -6747,7 +6409,7 @@ dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, router_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6777,9 +6439,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete one policy-engine object. Consequence: removes the selected policy and its
 enforcement. The id is resolved in the collection list first; an unknown id lists the valid
-ids and sends no write. Returns {deleted, message, response}: deleted is true, message
-summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
-or null when the body is empty). Under dry-run policy sends no mutation and returns {status:
+ids and sends no write. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. Under dry-run policy sends no mutation and returns {status:
 "dry_run", deleted: false, message, response}, where response is the dry-run preview
 {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
 body}}.
@@ -6810,27 +6470,67 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `delete_port_automation`
+
+Delete a port automation (Network 11.1 v2 route).
+
+Consequence: the automation is permanently removed; ports it already configured keep
+their current profile. There is no undo.
+
+Resolves the id in list_port_automations first (an unknown id fails listing every valid
+id), then DELETE /proxy/network/v2/api/site/{site}/port-automations/{id}.
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
+response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
+empty).
+
+Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
+deleted: false, message, response}, where response is the dry-run preview (status,
+dryRun, sent: false, message and preview with method, path, params, body).
+
+Required arguments: host, site, automation_id (see each parameter's description).
+
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.v2/write`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `automation_id` | `string` | yes |  | Port automation id from list_port_automations, e.g. "000000000000000000000107". |
+
+**Return type**
+
+`Any`
+
 ### `delete_port_forward`
 
 Delete a port forwarding rule by ID.
 
-Consequence: inbound connections on the forwarded port stop reaching the internal host; there is
-no undo.
+Consequence: inbound connections on the forwarded port stop reaching the internal host; there is no undo.
 
-The id is resolved in list_port_forwards first (the controller answers a DELETE on an unknown id
-with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
+The id is resolved in list_port_forwards first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_port_forward):
     {"host": "my-console", "site": "Default", "forward_id": "000000000000000000000107"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6873,7 +6573,7 @@ message, response (the preview with method, path, params (query parameters), bod
 Example call (delete_port_profile):
     {"host": "my-console", "site": "Default", "profile_id": "000000000000000000000101"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -6908,9 +6608,7 @@ longer manages the PoE power it supervised; there is no undo.
 
 Resolves the id in list_power_supervisors first (an unknown id fails listing every valid
 id), then DELETE /proxy/network/v2/api/site/{site}/power-supervisors/{id}.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview (status,
@@ -6951,9 +6649,7 @@ the linked port or device; there is no undo.
 
 Resolves the id in GET .../power-supervisors/links first (an unknown id fails listing every
 valid id), then DELETE /proxy/network/v2/api/site/{site}/power-supervisors/links/{id}.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview (status,
@@ -7001,7 +6697,7 @@ Returns deleted, message and response (the upstream body).
 
 Required arguments: host, site, kind, group_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7034,9 +6730,7 @@ Delete one Protect automation permanently.
 
 Lists automations to check automation_id exists (an unknown id fails listing the valid ids,
 before any write), then sends DELETE protect/api/automations/{id}.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Consequence: the automation is removed permanently and its triggers stop running
 its actions; there is no undo.
@@ -7073,26 +6767,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_protect_backup`
 
-Delete one stored Protect backup permanently.
+Delete one stored Protect backup permanently. Lists backups to check backup_id (unknown ids fail listing the valid ones, before any write), sends DELETE protect/api/backup/{backup_id} (the singular route; Protect 7.3 answers 404 on the plural), then lists again.
 
-Lists backups to check backup_id exists (an unknown id fails listing the valid ids, before
-any write), sends DELETE protect/api/backup/{backup_id} (the singular route; Protect 7.3
-answers 404 on the plural one), then lists backups again.
-Returns {deleted, message, response}: deleted is true only when the read-back no longer
-lists the backup, false when it is still listed, and null with readAfterError when the
-read-back failed; message summarizes the outcome, and response is the upstream body
-verbatim (decoded JSON, raw text, or null when the body is empty).
+Consequence: the backup is removed from console storage and can no longer be restored with restore_protect_backup; there is no undo.
 
-Consequence: the backup is removed from console storage and can no longer be
-restored with restore_protect_backup; there is no undo.
-Honours UNIFI_WRITE_POLICY=deny and family:protect=deny, and returns a
-{status: "dry_run", deleted: false, message, response} when dry-run policy is set,
-where response is the dry-run preview {status, dryRun, sent: false, message, preview:
-{method, path, params, body}} (nothing sent).
+Returns {deleted, message, response}: deleted is true only when the read-back no longer lists the backup, false when still listed, null with readAfterError when the read-back failed; response is the upstream body verbatim. Honours UNIFI_WRITE_POLICY=deny and family:protect=deny; with dry-run policy returns {status: "dry_run", deleted: false, message, response (the dry-run preview)}; nothing is sent.
+
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, backup_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7133,7 +6818,7 @@ Dry-run response previews include body and params.
 
 Required arguments: host, case_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7164,9 +6849,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Delete a device tag. Consequence: assignments are removed.
 
 The tag_id is resolved in list_protect_device_tags first, then DELETE
-protect/api/device-tags/{id}. Returns {deleted, message, response}: deleted is true, message
-summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
-or null when the body is empty).
+protect/api/device-tags/{id}. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview
@@ -7203,9 +6886,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Delete an uploaded file. Consequence: the selected asset is permanently removed.
 
 DELETE protect/api/files/{file_id}/{asset_id} with ignoreFileExtension.
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview
@@ -7244,9 +6925,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Delete a Protect user group. Consequence: its permissions disappear.
 
 The group_id is resolved in the Protect bootstrap groups first, then DELETE
-protect/api/groups/{id}. Returns {deleted, message, response}: deleted is true, message
-summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text,
-or null when the body is empty).
+protect/api/groups/{id}. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview
@@ -7292,7 +6971,7 @@ Dry-run response previews include body and params.
 
 Consequence: the patrol is removed permanently (its presets stay); there is no undo.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7334,7 +7013,7 @@ Dry-run response previews include body and params.
 Consequence: the saved position is removed permanently and patrols that use it lose
 that stop; there is no undo.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7363,24 +7042,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_qos_rule`
 
-Delete QoS rules (Network v2 batch-delete route). Consequence: permanently removes
-the rules.
+Delete QoS rules (Network v2 batch-delete route). Consequence: permanently removes the rules.
 
-POST /proxy/network/v2/api/site/{site}/qos-rules/batch-delete with body sent
-verbatim (the controller has no single-rule DELETE route). The body is free-form:
-no field list is published. When body is a JSON array of id strings, each id is
-resolved in list_qos_rules first and an unknown id fails listing every valid id
-(nothing is sent). Returns deleted, message and the upstream response verbatim.
-Never auto-retried.
+POST /proxy/network/v2/api/site/{site}/qos-rules/batch-delete with body sent verbatim (the controller has no single-rule DELETE route). The body is free-form: no field list is published. When body is a JSON array of id strings, each id is resolved in list_qos_rules first and an unknown id fails listing every valid id (nothing is sent). Returns deleted, message and the upstream response verbatim. Never auto-retried.
 
-Returns deleted, message and response (the upstream body verbatim).
-Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
-deleted: false, message, response}, where response is the dry-run preview (status,
-dryRun, sent: false, message and preview with method, path, params, body).
+Returns deleted, message and response (the upstream body verbatim). Under dry-run policy nothing is sent and the tool returns {status: "dry_run", deleted: false, message, response}, where response is the dry-run preview (status, dryRun, sent: false, message and preview with method, path, params, body).
 
 Required arguments: host, site, body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7410,21 +7080,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a local RADIUS user account via v2 POST radius/users/batch_delete.
 
-Consequence: the user can no longer authenticate (802.1X / VPN) with these
-credentials; existing sessions end at their next re-authentication. There is no undo.
+Consequence: the user can no longer authenticate (802.1X / VPN) with these credentials; existing sessions end at their next re-authentication. There is no undo.
 
-The id is resolved in the v2 account list first, so an unknown id is never reported
-as deleted. The body sent is a one-element batch of ids, [_id].
+The id is resolved in the v2 account list first, so an unknown id is never reported as deleted. The body sent is a one-element batch of ids, [_id].
 
-Returns {deleted: true, message, response}; response is the upstream body verbatim
-(null: the controller answers with no body). Under dry-run policy nothing is deleted:
-{status: "dry_run", deleted: false, message, response (the preview with method,
-path, params (query parameters), body)}.
+Returns {deleted: true, message, response}; response is the upstream body verbatim (null: the controller answers with no body). Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message, response (the dry-run preview {method, path, params, body})}.
 
 Example call (delete_radius_account):
     {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7454,22 +7119,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a RADIUS profile via Classic REST DELETE rest/radiusprofile/{_id}.
 
-Consequence: WiFi networks and ports using the profile for 802.1X lose their RADIUS
-servers (the controller refuses while one still uses it, and its error is returned).
-There is no undo.
+Consequence: WiFi networks and ports using the profile for 802.1X lose their RADIUS servers (the controller refuses while one still uses it and returns its error). There is no undo.
 
-The id (list_radius_profiles id = external_id, or the Classic _id) is resolved in
-rest/radiusprofile first, so an unknown id is never reported as deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body
-verbatim. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false,
-message, response (the preview with method, path, params (query parameters), body)}.
+The id (list_radius_profiles id = external_id, or the Classic _id) is resolved first, so an unknown id is never reported as deleted. Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message, response (the dry-run preview with method, path, params (query parameters), body)}.
 
 Example call (delete_radius_profile):
     {"host": "my-console", "site": "Default",
      "profile_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7504,9 +7162,7 @@ ids, before any write), then sends DELETE protect/api/recognition/{type}/groups/
 Under dry-run policy it returns {status: "dry_run", deleted: false, message, response} where
 response is the dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
 family:protect=deny. Consequence: the enrolled face or vehicle and its name
-are removed from the console; there is no undo. Returns {deleted, message, response}:
-deleted is true, message summarizes the delete, and response is the upstream body verbatim
-(decoded JSON, raw text, or null when the body is empty). The dry-run preview under response
+are removed from the console; there is no undo. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. The dry-run preview under response
 is {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, type, group_id.
@@ -7539,21 +7195,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a Protect camera's recordings in a time window.
 
-Sends DELETE /video?camera=CAMERA_ID&start&end, once (never retried); start and
-end are epoch SECONDS, sent as epoch milliseconds. Returns {deleted:
-true, message, response} (response is the upstream body verbatim).
-With dry-run policy, returns a dry-run preview wrapped as {status: "dry_run",
-deleted: false, message, response} (response is the preview {status:
-"dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}) and sends
-nothing. Either result also carries _warnings (one entry per such time argument) when
-start or end is negative or looks like epoch milliseconds.
+Sends DELETE /video?camera=CAMERA_ID&start&end, once (never retried); start and end are epoch SECONDS, sent as epoch milliseconds. Returns {deleted: true, message, response} (response is the upstream body verbatim). With dry-run policy, returns a dry-run preview wrapped as {status: "dry_run", deleted: false, message, response} (response is the preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}) and sends nothing. Either result also carries _warnings (one entry per such time argument) when start or end is negative or looks like epoch milliseconds.
 
-Consequence: irreversible: the camera's recordings in the window are erased
-from the NVR and cannot be recovered.
+Consequence: irreversible: the camera's recordings in the window are erased from the NVR and cannot be recovered.
 
 Required arguments: host, camera_id, start, end (see each parameter's description).
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7585,9 +7233,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a ringtone. Consequence: the sound is permanently removed.
 
-DELETE protect/api/ringtones/{ringtone_id}. Returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty).
+DELETE protect/api/ringtones/{ringtone_id}. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Under dry-run policy nothing is sent and the tool returns {status: "dry_run",
 deleted: false, message, response}, where response is the dry-run preview
@@ -7621,30 +7267,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_rtsps_stream`
 
-Delete an RTSPS stream for a Protect camera.
+Delete an RTSPS stream for a Protect camera. Consequence: the RTSPS URL of each deleted quality stops working for every consumer; there is no undo.
 
-Consequence: the RTSPS URL of each deleted quality stops working for every consumer; there is no
-undo.
+`qualities`: one channel name or a non-empty list: 'high', 'medium', 'low' or 'package' (package only on package-camera doorbells; there is no 'highest'). Values must be exact lowercase spec values; any other value, an empty list or a different case fails before any request. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the dry-run preview; preview.params.qualities is the lowercased list the DELETE would send)}.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview; preview.params.qualities is exactly the lowercased list the DELETE
-would send)}.
-
-`qualities`: one channel name, or a list of channel names, to delete (spec
-  removedQualities: a channelQuality value or a non-empty array of them). A list needs
-  at least one entry (spec minItems 1): an empty list fails before any request (it
-  would otherwise send no qualities query at all). The exhaustive set is 'high',
-  'medium', 'low', and 'package' (verified live; 'package' only on package-camera
-  doorbells). There is NO 'highest' channel. Each value must be exactly one of those
-  spec enum values (lowercase); any other value, a different case included, fails
-  before any request.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (delete_rtsps_stream):
     {"host": "my-console", "camera_id": "00000000000000000000010b", "qualities": ["high"]}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7676,9 +7308,7 @@ Delete a scheduled task after resolving its Classic id in the site.
 
 Consequence: permanently removes the scheduled action.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). Under dry-run policy nothing is sent; returns {status: "dry_run", deleted: false,
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. Under dry-run policy nothing is sent; returns {status: "dry_run", deleted: false,
 message, response}, where response is the dry-run preview {status, dryRun, sent: false,
 message, preview: {method, path, params, body}}.
 
@@ -7712,33 +7342,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_site`
 
-Delete a Network site and everything configured in it.
+Delete a Network site and everything configured in it. Consequence: the site and its configuration (networks, WiFi, firewall rules, client records, device settings) are removed; move its devices to another site first. There is no undo.
 
-Consequence: the site and the configuration stored in it (networks, WiFi, firewall
-rules, client records, device settings) are removed; move its devices to another site
-first. There is no undo.
+The site is resolved in the console's site list (network/api/self/sites) by _id, URL name or display name; an unknown or ambiguous value fails listing the sites and nothing is sent. Then Classic POST network/api/s/{site}/cmd/sitemgr with {"cmd": "delete-site", "site": SITE_ID} (the UI's request; no published spec), sent through another existing site (e.g. "Default"). The controller judges what may be deleted (not the default site). A UniFi OS gateway console has one site; not yet live-tested on a multi-site console. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the dry-run preview)}.
 
-The site to delete is resolved in the console's site list (network/api/self/sites) by
-_id, URL name or display name; an unknown or ambiguous value fails listing the sites and
-nothing is sent. Then Classic REST POST network/api/s/{site}/cmd/sitemgr with {"cmd":
-"delete-site", "site": SITE_ID} (the controller UI's request; no published spec), sent
-through another existing site (e.g. "Default"). The controller judges what may be
-deleted (the default site cannot be). A UniFi OS gateway console has a single site and
-nothing to delete; not yet live-tested on a multi-site console.
-
-Returns {deleted: true, message, response}; response is the upstream body verbatim.
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}})}.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (delete_site):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "site_to_delete": "Branch office"
-    }
+    {"host": "my-console", "site": "Default", "site_to_delete": "Branch office"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7766,31 +7379,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_site_to_site_tunnel`
 
-Delete a site-to-site VPN tunnel by ID. This permanently removes the tunnel config.
+Delete a site-to-site VPN tunnel by ID. Permanently removes the tunnel config.
 
-Consequence: the tunnel goes down and traffic between the sites over it stops; there is no
-undo.
+Consequence: the tunnel goes down and traffic between the sites over it stops; there is no undo.
 
-Uses Classic REST DELETE /proxy/network/api/s/{site}/rest/networkconf/{_id} (the route
-the controller's own UI uses; the published Integration API has no tunnel delete). The id
-is resolved among the site's site-vpn records first, so an id of another kind is never
-deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Classic REST DELETE /proxy/network/api/s/{site}/rest/networkconf/{_id} (the Integration API has no tunnel delete). The id is resolved among the site's site-vpn records first, so an id of another kind is never deleted. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.
 
 Example call (delete_site_to_site_tunnel):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "tunnel_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "tunnel_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
-The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7821,19 +7420,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Delete a site VPN (Classic POST cmd/sitemgr, cmd delete-site-vpn).
 
 Consequence: the VPN between the sites is torn down; there is no undo.
-Required: host, site, name and vpn_site. Sends {cmd: delete-site-vpn, name, site:
-vpn_site} as the web app does; the controller judges both values. Success
-requires meta.rc ok; any other answer raises with the full upstream body. Returns
-{deleted, message, response} with the envelope verbatim. Dry-run (dry-run policy)
-returns {status: "dry_run", deleted: false, message, response}, where response is
-the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
-path, params, body}}; nothing is sent.
+
+Sends {cmd: delete-site-vpn, name, site: vpn_site} as the web app does; the controller judges both values. Success requires meta.rc ok; any other answer raises with the full upstream body. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false, message, response}, response being the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (delete_site_vpn):
-    {"host": "my-console", "site": "Default", "name": "branch-vpn",
-     "vpn_site": "branch-1"}
+    {"host": "my-console", "site": "Default", "name": "branch-vpn", "vpn_site": "branch-1"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7871,7 +7464,7 @@ unknown id fails listing the valid ids and sends no DELETE. Returns {deleted, me
 response} with the upstream body. With dry-run policy, returns {status: "dry_run", deleted:
 false, message, response} with the preview (method, path, params, body) under response.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7907,7 +7500,7 @@ valid ids and sends no DELETE. Returns {deleted, message, response} with the ups
 With dry-run policy, returns {status: "dry_run", deleted: false, message, response} with the
 preview (method, path, params, body) under response.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7948,7 +7541,7 @@ dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is
 Example call (delete_static_dns_record):
     {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -7992,7 +7585,7 @@ message, response (the preview with method, path, params (query parameters), bod
 Example call (delete_static_route):
     {"host": "my-console", "site": "Default", "route_id": "000000000000000000000101"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8036,7 +7629,7 @@ Returns deleted, message and response (the upstream body).
 
 Required arguments: host, site, test_config_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8068,8 +7661,7 @@ Delete a traffic matching list.
 
 Consequence: the list is permanently removed; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -8077,8 +7669,6 @@ Example call (delete_traffic_matching_list):
     {"host": "my-console", "site": "Default", "list_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8108,23 +7698,18 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a traffic route by ID.
 
-Consequence: matching traffic stops following the route and uses the default routing; there is
-no undo.
+Consequence: matching traffic stops following the route and uses the default routing; there is no undo.
 
-The id is resolved in list_traffic_routes first (the controller answers a DELETE on an unknown
-id with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
+The id is resolved in list_traffic_routes first (the controller answers a DELETE on an unknown id with HTTP 200): an unknown id fails listing every valid _id, and nothing is deleted.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_traffic_route):
     {"host": "my-console", "site": "Default", "route_id": "000000000000000000000107"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8167,7 +7752,7 @@ message, response (the preview with method, path, params (query parameters), bod
 Example call (delete_user_group):
     {"host": "my-console", "site": "Default", "group_id": "000000000000000000000101"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8195,29 +7780,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_vpn_client`
 
-Delete a VPN client connection by id. This permanently removes its configuration.
+Delete a VPN client connection by id. Permanently removes its configuration.
 
-Consequence: the tunnel and its configuration are removed, and traffic that routes over
-it is affected; there is no undo.
+Consequence: the tunnel and its configuration are removed, and traffic routed over it is affected; there is no undo.
 
-Uses Classic REST DELETE network/api/s/{site}/rest/networkconf/{_id} (the route the
-controller's own UI uses). The id is resolved among the site's vpn-client records
-first, so an id of another kind is never deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}})}.
+Classic REST DELETE network/api/s/{site}/rest/networkconf/{_id}. The id is resolved among the site's vpn-client records first, so an id of another kind is never deleted. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}})}.
 
 Example call (delete_vpn_client):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "vpn_client_id": "000000000000000000000102"
-    }
+    {"host": "my-console", "site": "Default", "vpn_client_id": "000000000000000000000102"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8245,32 +7817,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `delete_vpn_server`
 
-Delete a VPN server by ID. WARNING: Permanently removes VPN server.
-Connected clients will lose access immediately.
+Delete a VPN server by ID. WARNING: permanently removes the VPN server.
 
-Consequence: connected VPN clients lose access immediately and the server configuration is
-gone; there is no undo.
+Consequence: connected VPN clients lose access immediately and the server configuration is gone; there is no undo.
 
-Uses Classic REST DELETE /proxy/network/api/s/{site}/rest/networkconf/{_id} (the route
-the controller's own UI uses; the published Integration API has no VPN-server delete).
-The id is resolved among the site's remote-user-vpn records first, so an id of another
-kind is never deleted.
-
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Classic REST DELETE /proxy/network/api/s/{site}/rest/networkconf/{_id} (the Integration API has no VPN-server delete). The id is resolved among the site's remote-user-vpn records first, so an id of another kind is never deleted. Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}. The dry-run preview contains method, path, params (query parameters), and body.
 
 Example call (delete_vpn_server):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "server_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "server_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
-The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8310,7 +7867,7 @@ body}}, and sends nothing.
 
 Consequence: the SLA definition is removed and cannot be restored.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8341,27 +7898,19 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete a WiFi broadcast SSID.
 
-Consequence: the SSID stops broadcasting and its connected clients are disconnected; there is no
-undo.
+Consequence: the SSID stops broadcasting and its connected clients are disconnected; there is no undo.
 
-Network 11.0.97 DELETE /v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}
-(deleteWifiBroadcast). The spec's optional `force` query parameter is sent only when given.
+Network 11.0.97 DELETE /v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId} (deleteWifiBroadcast). The spec's optional `force` query parameter is sent only when given.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-response (the preview)}.
+Under dry-run policy nothing is deleted; returns {status: "dry_run", deleted: false, message, response (the preview)}.
 
 Example call (delete_wifi_broadcast):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "broadcast_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"host": "my-console", "site": "Default",
+     "broadcast_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8392,21 +7941,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Delete WireGuard users from one server (v2 POST wireguard/{_id}/users/batch_delete).
 
-Consequence: the peers lose VPN access at once; there is no undo.
-Required: host, site, server_id and users. users is the batch_delete array sent
-verbatim (no published schema): user _id strings or user objects carrying _id,
-from list_wireguard_users. Every _id is resolved in the server's user list first;
-an unknown _id fails listing every user and nothing is deleted. Returns {deleted,
-message, response} with the upstream body verbatim. Dry-run (dry-run policy)
-returns {status: "dry_run", deleted: false, message, response}, where response is
-the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method,
-path, params, body}}; nothing is sent.
+Consequence: the peers lose VPN access at once; there is no undo. Required: host, site, server_id and users. users is the batch_delete array sent verbatim (no published schema): user _id strings or user objects carrying _id, from list_wireguard_users. Every _id is resolved in the server's user list first; an unknown _id fails listing every user and nothing is deleted. Returns {deleted, message, response} with the upstream body verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false, message, response}, where response is the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (delete_wireguard_users):
     {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",
      "users": ["000000000000000000000108"]}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -8445,19 +7986,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Toggle the locate LED on an adopted device.
 
-Consequence: the device's LED flashes until locate is turned off (enabled=false).
+Consequence: the LED flashes until locate is turned off (enabled=false).
 
-Locate is not in the published Network Integration device-action schema (its only
-variant is RESTART), so this uses the Classic REST device manager: POST
-network/api/s/{site}/cmd/devmgr with {"cmd": "set-locate", "mac": "aa:bb:cc:dd:ee:ff"}
-(enabled=true) or {"cmd": "unset-locate", "mac": ...} (enabled=false), where mac is the
-device MAC. A device UUID is resolved to its MAC with the Integration device GET. Returns
-the controller's Classic envelope {meta: {rc}, data: [...]} verbatim (verified live:
-{"meta": {"rc": "ok"}, "data": []}). Not auto-retried on HTTP 429: a retry could repeat
-the action.
-
-Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}, _consequence}.
+Locate is not in the published Integration device-action schema (only RESTART), so this uses the Classic device manager: POST network/api/s/{site}/cmd/devmgr with {"cmd": "set-locate", "mac": ...} (enabled=true) or {"cmd": "unset-locate", "mac": ...} (enabled=false). A device UUID is resolved to its MAC with the Integration device GET. Returns the Classic envelope {meta: {rc}, data: [...]} verbatim (verified live). Not auto-retried on HTTP 429: a retry could repeat the action. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}.
 
 Example: docs/TOOL-USAGE.md#locate_device.
 
@@ -8786,23 +8317,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `adopt_protect_device`
 
-Adopt an available Protect device using its native id. Adoption changes management and
-may interrupt service. Returns the relay status and unchanged upstream adoption result;
-no automatic retry. An unknown id may return a per-device error in an HTTP 200 response.
+Adopt an available Protect device using its native id. Adoption changes management and may interrupt service. Returns the relay status and unchanged upstream adoption result; no automatic retry. An unknown id may return a per-device error in an HTTP 200 response.
 
-Consequence: this console's Protect application takes over management of the device, which
-is provisioned and may restart (briefly interrupting its stream). Adoption persists until
-the device is removed with unadopt_protect_device.
+Consequence: this console's Protect application takes over management of the device, which is provisioned and may restart (briefly interrupting its stream). Adoption persists until the device is removed with unadopt_protect_device.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; _warnings describes operational risks.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} (binary: bodyBase64, sizeBytes). Adds writeEnabled and _warnings.
 
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Under dry-run policy no upstream write is sent: status is "dry_run" and body contains the exact dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (adopt_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
@@ -8877,21 +8398,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Restart an adopted device.
 
-Consequence: the device reboots and is offline (and its clients or downstream devices
-interrupted) until it comes back.
+Consequence: the device reboots and is offline (and its clients or downstream devices interrupted) until it comes back.
 
-Omit reboot_type to use the Integration restart. Set reboot_type to soft or hard
-to use Classic cmd/devmgr with {cmd: restart, macs: [mac], reboot_type}.
-A hard restart also power-cycles PoE ports, interrupting powered downstream devices.
-Transport failure leaves the outcome unknown; read back before retrying.
-
-Sends {"action": "RESTART"} to the Network Integration device-actions route (Network
-11.0.97, POST /v1/sites/{siteId}/devices/{deviceId}/actions, executeAdoptedDeviceAction;
-schema "Device action request", whose only variant is RESTART). Returns the upstream body
-verbatim. Not auto-retried on HTTP 429: a retry could repeat the action.
-
-Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}, _consequence}.
+Omit reboot_type to use the Integration restart: {"action": "RESTART"} to POST /v1/sites/{siteId}/devices/{deviceId}/actions (Network 11.0.97; its only variant). Set reboot_type soft or hard to use Classic cmd/devmgr with {cmd: restart, macs: [mac], reboot_type}; hard also power-cycles PoE ports, interrupting powered downstream devices. Transport failure leaves the outcome unknown; read back before retrying. Returns the upstream body verbatim. Not auto-retried on HTTP 429. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}.
 
 Example: docs/TOOL-USAGE.md#restart_device.
 
@@ -8978,7 +8487,7 @@ Example: docs/TOOL-USAGE.md#unadopt_device.
 
 Required arguments: host, site, device_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -9007,26 +8516,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `unadopt_protect_device`
 
-Unadopt and remove a Protect device from management. This deletes its managed-device
-configuration and interrupts recording; re-adoption may be required. Returns the
-unchanged upstream body under body; no automatic retry.
+Unadopt and remove a Protect device from management. This deletes its managed-device configuration and interrupts recording; re-adoption may be required. Returns the unchanged upstream body under body; no automatic retry.
 
-Consequence: the device and its managed-device configuration are removed from Protect;
-cameras stop recording. Undo requires re-adoption and reconfiguration.
+Consequence: the device and its managed-device configuration are removed from Protect; cameras stop recording. Undo requires re-adoption and reconfiguration.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; _warnings describes operational risks.
-Read twins add readBefore/readAfter, noOp and changed. HTTP 404 after a 2xx read-before
-confirms removal: changed true, noOp false, _verified true, _noOp false. A 2xx read-after
-with the device still present gives noOp null and noOpReason "deletion not confirmed".
-Other failed read-backs set readAfterError and leave _verified and _noOp null.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} (binary: bodyBase64, sizeBytes). Adds writeEnabled and _warnings. Read twins add readBefore/readAfter, noOp and changed. HTTP 404 after a 2xx read-before confirms removal: changed true, noOp false, _verified true, _noOp false. A 2xx read-after with the device still present gives noOp null and noOpReason "deletion not confirmed". Other failed read-backs set readAfterError and leave _verified and _noOp null.
 
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Under dry-run policy no upstream write is sent: status is "dry_run" and body contains the exact dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (unadopt_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
@@ -9058,7 +8554,8 @@ Set UNIFI_WRITE_POLICY=dry-run.
 ### `upgrade_all_devices`
 
 Upgrade every device of a family. Consequence: devices reboot and clients or
-    downstream equipment lose connectivity.
+    downstream equipment lose connectivity. On an MC-LAG pair, check that the peer switch is online first: the Network 11.1.47
+web app blocks an upgrade while the peer is offline, and this server adds no such check.
 
 Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
 nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
@@ -9134,26 +8631,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Trigger a firmware upgrade on an adopted device.
 
-Consequence: the device installs the firmware and reboots, and is offline until it comes
-back.
+Consequence: the device installs the firmware and reboots, and is offline until it comes back. On an MC-LAG pair, check that the peer switch is online first: the Network 11.1.47 web app blocks an upgrade while the peer is offline, and this server adds no such check.
 
-With firmware_url supplied, POST cmd/devmgr/upgrade-external sends
-{url: firmware_url, macs: [mac]}. Choose firmware compatible with the device;
-an incorrect image can prevent it from booting. Transport failure leaves the
-outcome unknown; read back before retrying. This route is source-defined and
-needs live testing.
-
-Upgrade is not in the published Network Integration device-action schema (its only
-variant is RESTART), so this uses the Classic REST device manager: POST
-network/api/s/{site}/cmd/devmgr with {"cmd": "upgrade", "mac": "aa:bb:cc:dd:ee:ff"}
-(mac is the device MAC), which upgrades the device to the controller's cached latest
-firmware. A device UUID is
-resolved to its MAC with the Integration device GET. Returns the controller's Classic
-envelope {meta: {rc}, data: [...]} verbatim. Not auto-retried on HTTP 429: a retry
-could repeat the action.
-
-Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}, _consequence}.
+Upgrade is not in the published Integration device-action schema (only RESTART), so this uses the Classic device manager: POST network/api/s/{site}/cmd/devmgr with {"cmd": "upgrade", "mac": ...}, upgrading to the controller's cached latest firmware. With firmware_url, POST cmd/devmgr/upgrade-external sends {url: firmware_url, macs: [mac]}; choose compatible firmware, since an incorrect image can prevent booting. That route is source-defined and needs live testing. A device UUID is resolved to its MAC with the Integration device GET. Returns the Classic envelope {meta: {rc}, data: [...]} verbatim. Transport failure leaves the outcome unknown; read back before retrying. Not auto-retried on HTTP 429. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}.
 
 Example: docs/TOOL-USAGE.md#upgrade_device.
 
@@ -9240,8 +8720,14 @@ Disable the arm alarm (POST /v1/arm-profiles/disable). Disarms the system.
 
 Consequence: the alarm system is disarmed: armed sensors no longer trigger alarms.
 
-Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
+Returns {status: "sent", verified, after, response}: response is the upstream body verbatim
+(decoded JSON, the text of a non-JSON body, or null when the body is empty; the route
+answers an empty 204, which proves nothing about the alarm state). After the POST the NVR
+is read back (GET /v1/nvrs) and after is its armMode object; verified is true when
+armMode.status is disabled, false when it is any other value (armed or arming right after
+a disable usually means the console has not applied it yet: read the NVR again), and null
+with readAfterError when the read-back failed. A failed read-back never undoes or errors
+the sent write.
 Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
 WARNING: physical side effects; requires a local Alarm Manager.
@@ -9252,7 +8738,8 @@ Example call (disable_arm):
 The dry-run preview contains method, path, params (query parameters), and body.
 
 On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile
+tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -9320,18 +8807,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Disable a camera's livestream share link, revoking public viewing access.
 
-Consequence: the existing link stops working for everyone who holds it; a new link
-needs enable_camera_share_link.
+Consequence: the existing link stops working for everyone who holds it; a new link needs enable_camera_share_link.
 
-Cloud-only: DELETE protect/api/cameras/{id}/sharedStream through the Fabric connector.
-No request body. Returns the upstream body verbatim, including null for an empty body.
-Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream),
-not tool parameters. The share URL/token is a bearer secret: keep it out of logs,
-evidence and fixtures. Writes are enabled by default; family:protect=deny or
-UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the
-dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}}. Exposure actions are sent once, never automatically retried.
+Cloud-only: DELETE protect/api/cameras/{id}/sharedStream through the Fabric connector. No request body. Returns the upstream body verbatim, including null for an empty body. Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream), not tool parameters. The share URL/token is a bearer secret: keep it out of logs, evidence and fixtures. Writes are enabled by default; family:protect=deny or UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}. Exposure actions are sent once, never automatically retried.
 
 Example call (disable_camera_share_link):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
@@ -9361,37 +8839,18 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `execute_client_action`
 
-Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or
-UNAUTHORIZE_GUEST_ACCESS (the only actions the API accepts). To block, unblock or
-reconnect a client use block_client, unblock_client or reconnect_client. Any other
-action fails before a request is sent, listing the valid actions.
+Execute a guest-access client action: AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS (the only accepted actions; others fail before any request, listing the valid ones). To block, unblock or reconnect use block_client, unblock_client or reconnect_client.
 
-Consequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now;
-UNAUTHORIZE_GUEST_ACCESS revokes the guest's access.
+Consequence: AUTHORIZE_GUEST_ACCESS lets the guest onto the network now; UNAUTHORIZE_GUEST_ACCESS revokes access and disconnects the guest.
 
-Returns the upstream response body verbatim: the action-result object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+`action` is the body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions): {"action": ...}; AUTHORIZE_GUEST_ACCESS also takes optional integers timeLimitMinutes (1-1000000; omitted, the site default applies), dataUsageLimitMBytes (1-1048576), rxRateLimitKbps and txRateLimitKbps (2-100000). Returns the action-result object verbatim (under dry-run policy, the dry-run preview).
 
-Request body (Network 11.0.97, POST /v1/sites/{siteId}/clients/{clientId}/actions
-(executeConnectedClientAction); schema "Client action request") is passed in `action`.
-Required keys — action.
-- action: string, AUTHORIZE_GUEST_ACCESS or UNAUTHORIZE_GUEST_ACCESS
-Variants by `action` — AUTHORIZE_GUEST_ACCESS requires action and takes the optional
-integers timeLimitMinutes (1-1000000, how long the guest is authorized; omitted, the
-site's default limit applies), dataUsageLimitMBytes (1-1048576, data usage limit in
-MB), rxRateLimitKbps and txRateLimitKbps (2-100000, download / upload rate limit in
-kbps); UNAUTHORIZE_GUEST_ACCESS requires action only (it revokes access and
-disconnects the guest).
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (execute_client_action):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "action": {"action": "AUTHORIZE_GUEST_ACCESS", "timeLimitMinutes": 60}
-    }
+    {"host": "my-console", "site": "Default",
+     "client_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "action": {"action": "AUTHORIZE_GUEST_ACCESS", "timeLimitMinutes": 60}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -9421,29 +8880,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `execute_device_action`
 
-Execute an action on an adopted device via the Network Integration actions route.
+Execute an action on an adopted device via the Network Integration actions route (POST /v1/sites/{siteId}/devices/{deviceId}/actions, Network 11.0.97).
 
-Consequence: RESTART reboots the device, which is offline (and its clients or downstream
-devices interrupted) until it comes back.
+Consequence: RESTART reboots the device, offline (and its clients or downstream devices interrupted) until it comes back.
 
-Returns the upstream response body verbatim: the action-result object the API answers with
-.
-
-`action` is the action body {"action": "RESTART"}; RESTART is the only variant in
-the published Device action request schema (Network 11.0.97), and the controller
-rejects any other value with HTTP 400 api.request.unknown-type-id (verified live).
-For the locate LED use locate_device and for firmware use upgrade_device (both use
-the Classic device manager, cmd/devmgr); adopt a pending device with adopt_device or
-approve_pending_device. Not auto-retried on HTTP 429: a retry could repeat the action.
-
-Request body (Network 11.0.97, POST /v1/sites/{siteId}/devices/{deviceId}/actions
-(executeAdoptedDeviceAction); schema "Device action request") is passed in `action`.
-Required keys — action.
-- action: string
-Variants by `action` — RESTART requires action.
-
-Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}, _consequence}.
+`action` is {"action": "RESTART"}; RESTART is the only variant in the published schema, and the controller rejects any other value with HTTP 400 api.request.unknown-type-id (verified live). For the locate LED use locate_device, for firmware upgrade_device (both Classic cmd/devmgr); adopt a pending device with adopt_device or approve_pending_device. Returns the upstream action-result object verbatim. Not auto-retried on HTTP 429: a retry could repeat the action. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}.
 
 Example: docs/TOOL-USAGE.md#execute_device_action.
 
@@ -9477,42 +8918,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `execute_port_action`
 
-Execute a device port action.
+Execute a device port action (POST /v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions, Network 11.0.97).
 
-Consequence: POWER_CYCLE cuts port PoE power; the device reboots and is
-offline until it comes back.
+Consequence: POWER_CYCLE cuts port PoE power; the device reboots and is offline until it comes back.
 
-OPERATIONAL-ACTION-ONLY, NOT A CONFIG WRITER: this UniFi Network Integration API
-port-actions endpoint performs a transient operational action; it does NOT persist
-port configuration. `action` (shape {'action': str}) is forwarded verbatim. A PoE
-power cycle ({'action': 'POWER_CYCLE'}, the spec's only documented "Port action
-request" value) is the only valid action: it powers a PoE port off and back on (only
-meaningful on PoE-capable ports). The controller rejects every other value (e.g.
-'power-cycle', {'action': 'set-poe-mode'}) with HTTP 400 'unknown-type-id' and leaves
-the port unchanged (verified live). Never use it to set PoE mode, STP, VLAN, or any
-persistent port setting: there is no confirmed per-port persistent-config writer on
-this API, and a shared Ethernet Port Profile (update_port_profile) is a different,
-wide-blast-radius surface. Not auto-retried on HTTP 429: a retry could repeat the
-power cycle. Returns the upstream body verbatim.
-
-Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}, _consequence}.
-
-Request body (Network 11.0.97, POST
-/v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions
-(executePortAction); schema "Port action request") is passed in `action`. Required keys —
-action.
-- action: string
-Variants by `action` — POWER_CYCLE requires action.
+OPERATIONAL-ACTION-ONLY, NOT A CONFIG WRITER: it performs a transient action and persists no port configuration. `action` ({'action': str}) is forwarded verbatim; only {'action': 'POWER_CYCLE'} is valid (the spec's one value): it powers a PoE-capable port off and on. The controller rejects any other value (e.g. 'set-poe-mode') with HTTP 400 'unknown-type-id', leaving the port unchanged (verified live). Never use it for PoE mode, STP, VLAN or other persistent settings: there is no per-port config writer on this API, and a shared Ethernet Port Profile (update_port_profile) has a wide blast radius. Not auto-retried on HTTP 429. Returns the upstream body verbatim. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}.
 
 Example call (execute_port_action):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "port_idx": 1,
-      "action": {"action": "POWER_CYCLE"}
-    }
+    {"host": "my-console", "site": "Default",
+     "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "port_idx": 1,
+     "action": {"action": "POWER_CYCLE"}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -9584,7 +8999,8 @@ Set UNIFI_WRITE_POLICY=dry-run.
 ### `start_rolling_upgrade`
 
 Start a rolling firmware upgrade. Consequence: devices reboot in sequence
-    and clients may disconnect.
+    and clients may disconnect. On an MC-LAG pair, check that the peer switch is online first: the Network 11.1.47
+web app blocks an upgrade while the peer is offline, and this server adds no such check.
 
 Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
 nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
@@ -9664,7 +9080,9 @@ Start a talkback audio session on a Protect camera.
 Consequence: audio sent to the session plays aloud from the camera's speaker.
 
 Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
+the text of a non-JSON body, or null when the body is empty). Protect 7.4.96 answers
+HTTP 409 when another talkback session is already in progress on the camera; that error
+is returned as received.
 Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
 Example call (start_talkback_session):
@@ -9819,7 +9237,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ## Listing & Discovery
 
-**150 tools**
+**152 tools**
 
 ### `list_accounts`
 
@@ -9991,23 +9409,9 @@ Required arguments: host (see each parameter's description).
 
 ### `list_all_clients`
 
-List all connected clients across all sites.
+List all connected clients across all sites. Fans out to every site (every configured API key unless key_label names one; a console visible to more than one key is queried once, under the first key in configuration order), drains each site's client list and aggregates it.
 
-Returns {data, _count, _sitesQueried, _sitesSucceeded, _sitesFailed, _sitesIncomplete,
-_key_label, _siteEnvelopes}: data holds every site's client records verbatim plus additive
-_hostId / _hostName / _siteId / _siteName (and _keyLabel with several keys); _siteEnvelopes
-maps "hostId/siteId" to that site list's upstream envelope fields (totalCount ...). errors,
-_skipped, _key_labels and incomplete / incompleteReason are added when they apply.
-
-Fans out requests to every site (of every configured API key unless key_label
-names one; a console visible to more than one key is queried once, under the first key
-in configuration order), drains each site's client list across all pages, and aggregates
-results with source host/site annotations on each client record, under data (with
-the additive _count). Reports the additive _sitesQueried, _sitesSucceeded,
-_sitesFailed and _sitesIncomplete, per-site errors, and _skipped (hosts/sites that
-could not be queried, each with its reason). A site whose client list stopped at the
-UNIFI_PAGINATE_MAX_PAGES cap counts in _sitesIncomplete, not as failed, and the result
-carries incomplete=true with the reasons.
+Returns {data, _count, _sitesQueried, _sitesSucceeded, _sitesFailed, _sitesIncomplete, _key_label, _siteEnvelopes}: data holds every site's client records verbatim plus _hostId/_hostName/_siteId/_siteName (and _keyLabel with several keys); _siteEnvelopes maps "hostId/siteId" to that site's upstream envelope fields (totalCount ...). errors, _skipped (hosts/sites that could not be queried, each with its reason), _key_labels and incomplete/incompleteReason are added when they apply. A site stopped at the UNIFI_PAGINATE_MAX_PAGES cap counts in _sitesIncomplete, not as failed, and the result carries incomplete=true with the reasons.
 
 **API source:** `network/official/read`
 
@@ -10032,29 +9436,11 @@ carries incomplete=true with the reasons.
 
 ### `list_all_devices`
 
-List all devices across the entire fleet.
+List all devices across the entire fleet (every configured API key unless key_label names one; per-key failures under errors). A console visible to more than one key is listed once, under the first key in configuration order (as list_all_clients does).
 
-Returns {data, _count, _filter, _key_label}: data holds the unwrapped device records
-verbatim plus additive _hostId / _hostName / _updatedAt; with one key the upstream envelope
-fields (httpStatusCode, traceId) sit beside them, with several keys they are under byKey
-with _key_labels. errors and incomplete / incompleteReason are added when they apply.
+Returns {data, _count, _filter, _key_label}: /v1/devices returns one wrapper per console, unwrapped so data[] holds the device records verbatim plus _hostId/_hostName/_updatedAt naming the console; _count is the device count, _filter echoes status_filter. With one key the envelope fields (httpStatusCode, traceId) sit beside data, with several they are under byKey with _key_labels. errors and incomplete/incompleteReason are added when they apply.
 
-Aggregates devices from all consoles (every configured API key unless key_label
-names one; per-key failures under errors): /v1/devices returns one wrapper per console,
-which is unwrapped so data[] holds the device objects (each carrying the wrapper's
-fields as additive _hostId / _hostName / _updatedAt naming its console); the additive
-_count is the number of devices, _filter echoes status_filter and _key_label the
-key_label argument (_key_labels lists the keys whose devices are included when several
-keys are covered; a key that fails is under errors). A
-console visible to more than one key is listed once, under the first key in
-configuration order (as list_all_clients does).
-Optionally filter by status
-(e.g. 'offline', 'online', 'updating') to find problem devices quickly.
-status_filter is applied LOCALLY by exact (case-insensitive) match against each
-device's status/state. WARNING: an unrecognised value is NOT rejected — it matches
-nothing and returns an EMPTY device list, so a typo (e.g. 'ofline') looks like a
-healthy fleet with zero problem devices rather than an error. Omit status_filter to
-get the full fleet, then read the real status values off the returned records.
+The status_filter (e.g. 'offline', 'online', 'updating') is applied locally by exact case-insensitive match on each device's status/state. WARNING: an unrecognised value is not rejected: it matches nothing and returns an EMPTY list, so a typo (e.g. 'ofline') looks like a healthy fleet. Omit it to get the full fleet and read the real status values off the records.
 
 **API source:** `site_manager/official/read`
 
@@ -10152,7 +9538,8 @@ Availability requires a Protect application exposing the published Protect Integ
 Required arguments: host (see each parameter's description).
 
 On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile
+tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
 **API source:** `protect/official/read`
 
@@ -10483,22 +9870,11 @@ Example call (list_client_traffic_controls):
 
 ### `list_clients`
 
-List connected clients for a site.
+List connected clients for a site via the published Network Integration API (for the private v2 active-client route use list_active_clients).
 
-Returns {data, totalCount}: every page is drained; data holds the client records verbatim
-and totalCount is the upstream total (null when none was reported). The first page's other
-envelope fields are kept beside them, and incomplete / incompleteReason are added when a
-capped drain stopped short. A limit without offset requests a total gathered in batches.
-An explicit offset returns one upstream page with its envelope and page-size accounting.
-This tool uses the published Network Integration API. For the controller's private v2
-active-client route, use list_active_clients.
+Returns {data, totalCount}: by default every page is drained; data holds the client records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept, and incomplete/incompleteReason are added when a capped drain stopped short. A limit without offset requests a total gathered in batches; an explicit offset returns one upstream page with its envelope and page-size accounting and totalCount so you can advance.
 
-By default every page is drained and the complete client list is returned
-as {data, totalCount}. Limit alone requests a total; offset selects one native page
-with the API's totalCount surfaced so you can advance. client_type: convenience
-shorthand — WIRED, WIRELESS, VPN, TELEPORT or ALL (default: all types) — translated into
-the upstream `type.eq(...)` filter (the raw type query parameter is ignored
-by the UniFi API, so this translation is what actually narrows the result).
+The client_type shorthand: WIRED, WIRELESS, VPN, TELEPORT or ALL (default all), translated into the upstream `type.eq(...)` filter (the raw type query parameter is ignored by the UniFi API).
 
 Required arguments: host, site (see each parameter's description).
 
@@ -10829,23 +10205,11 @@ Required arguments: host, site (see each parameter's description).
 
 ### `list_devices`
 
-List all devices across the fleet with status, firmware, and model.
+List all devices across the fleet with status, firmware and model. Returns {data, _count, _consoleCount} plus upstream envelope fields. data holds console wrappers {hostId, hostName, devices: [...]} unchanged; _count counts their devices, _consoleCount the wrappers; null/missing/empty devices count as 0.
 
-Returns {data, _count, _consoleCount} plus upstream envelope fields. data contains
-console wrappers {hostId, hostName, devices: [...]}, unchanged; _count counts their
-devices and _consoleCount counts wrappers. Null/missing/empty devices count as 0.
+Default drains all pages in batches of 200. page_size gathers native pages until the requested wrapper count or the end (the full final page can exceed the total); _pageSize reports requested count, sent sizes per request, effective size and returned count. page_token accepts native nextToken for one verbatim page, or the opaque _continuation string preserving the physical size when the requested total changes. Capped drains carry incomplete.
 
-Default drains all pages in batches of 200. page_size gathers native pages until
-the requested wrapper count or the end; the full final page can exceed the total; _pageSize
-reports requested count, actual sent sizes per request, observed effective size
-and returned count. page_token accepts native nextToken for one verbatim page,
-or the opaque _continuation string preserving the physical size when the
-requested total changes. Capped drains carry incomplete.
-
-The host filters server-side to that console on its owning key. Without host,
-key_label or paging, several keys are aggregated with _keyLabel per wrapper,
-_key_labels, byKey envelopes and per-key errors. Paging without host needs
-key_label when several keys exist; a single selected key is named in _key_labels.
+The host filters server-side to that console on its owning key. Without host, key_label or paging, several keys are aggregated with _keyLabel per wrapper, _key_labels, byKey envelopes and per-key errors. Paging without host needs key_label when several keys exist.
 
 **API source:** `site_manager/official/read`
 
@@ -11271,6 +10635,38 @@ Required arguments: host, site (see each parameter's description).
 
 `Any`
 
+### `list_external_arm_profiles`
+
+List the arm profiles of the external alarm manager (GET /v1/external/arm-profiles).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Only available when the console uses the external alarm manager (check
+get_protect_alarm_manager_mode); other consoles answer with an upstream error.
+Returns {result, _count}: result is the upstream array verbatim and _count its length.
+
+Required arguments: host.
+
+**API source:** `protect/official/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name or id: the short name from list_hosts (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id (MAC:numericId composite). One console serves both Network and Protect. The console whose external alarm manager arm profiles are listed. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `list_firewall_app_blocks`
 
 Read application blocks. Returns the complete application-block array verbatim
@@ -11331,25 +10727,7 @@ Required arguments: host, site (see each parameter's description).
 
 ### `list_firewall_policies`
 
-List firewall policies for a site.
-
-Returns {data, totalCount}: every page is drained; data holds the firewall policy records
-verbatim and totalCount is the upstream total (null when none was reported). The first page's
-other envelope fields are kept beside them, and incomplete / incompleteReason are added when a
-capped drain stopped short.
-
-By default every page is drained and the complete policy list is returned as
-{data, totalCount}. Pass offset alone to fetch a single page manually (the
-API's totalCount is surfaced so you can advance). filter: optional Network
-Integration API filter expression, forwarded unchanged as the upstream `filter`
-query parameter for server-side filtering (e.g. `name.like('*guest*')`,
-`metadata.origin.eq('USER_DEFINED')`); omitted entirely when unset. A capped drain
-returns the policies gathered so far with incomplete=true rather than truncating
-silently.
-
-The limit requests a total, gathered automatically in batches up to 200;
-_pageSize reports requested count, actual sent sizes per request,
-observed effective size and returned count, without capping the total.
+List firewall policies for a site. Returns {data, totalCount}: every page is drained; data holds the policy records verbatim, totalCount is the upstream total (null if none reported), the first page's other envelope fields are kept, and incomplete/incompleteReason mark a capped drain. Offset alone fetches one page (totalCount surfaced so you can advance). limit requests a total, gathered in batches up to 200; _pageSize reports requested, sent, effective and returned sizes. filter is a Network Integration API filter expression forwarded unchanged (e.g. name.like('*guest*'), metadata.origin.eq('USER_DEFINED')); omitted when unset.
 
 Required arguments: host, site.
 
@@ -11417,19 +10795,11 @@ Required arguments: host, site (see each parameter's description).
 
 List all firewall zones for a site via connector proxy.
 
-This is the firewall-zone list; the _proxy suffix is historical. Returns {data: [{id, name,
-networkIds, metadata: {origin, configurable}}], totalCount}. System-defined zones
-(metadata.origin SYSTEM_DEFINED) carry the names the controller returns — Internal, External,
-Gateway, Vpn, Hotspot and Dmz on Network 11.0.81 — so compare zone names case-insensitively
-("VPN" matches "Vpn"). Every other tool takes a zone by its id (data[].id), never by name.
+This is the firewall-zone list; the _proxy suffix is historical. Returns {data: [{id, name, networkIds, metadata: {origin, configurable}}], totalCount}. System-defined zones (metadata.origin SYSTEM_DEFINED) carry the names the controller returns — Internal, External, Gateway, Vpn, Hotspot and Dmz on Network 11.0.81 — so compare zone names case-insensitively ("VPN" matches "Vpn"). Every other tool takes a zone by its id (data[].id), never by name.
 
-Zones are offset-paginated (native default page size 25); by default every page is
-drained and the complete list is returned as {data, totalCount}. Pass offset alone for a
-single manual page. A capped drain is flagged incomplete.
+Zones are offset-paginated (native default page size 25); by default every page is drained and the complete list is returned as {data, totalCount}. Pass offset alone for a single manual page. A capped drain is flagged incomplete.
 
-The limit requests a total, gathered automatically in batches up to 200;
-_pageSize reports requested count, actual sent sizes per request,
-observed effective size and returned count, without capping the total.
+The limit requests a total, gathered automatically in batches up to 200; _pageSize reports requested count, actual sent sizes per request, observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
 
@@ -11521,33 +10891,16 @@ are list_traffic_routes.
 
 List guest authorizations (hotspot / guest-portal guests) of a site.
 
-Each record is one authorization: {_id, mac, start, end (epoch seconds), expired,
-authorized_by, bytes, rx_bytes, tx_bytes, qos_overwrite, ...} as the controller reports
-it. The _id is what extend_guest takes.
+Each record is one authorization: {_id, mac, start, end (epoch seconds), expired, authorized_by, bytes, rx_bytes, tx_bytes, qos_overwrite, ...} as the controller reports it. The _id is what extend_guest takes.
 
-Classic REST network/api/s/{site}/stat/guest: a GET when within_hours is unset (the
-controller's own window), else a POST {"within": within_hours}. Returns the upstream
-body verbatim: {meta: {rc}, data: [guest, ...]}; a scalar POST response is returned
-verbatim after the write, while a malformed Classic GET envelope raises with the shape
-received. With source "v2", GET
-network/v2/api/site/{site}/hotspot/clients (the web UI's hotspot client list) is
-returned verbatim instead.
+Classic REST network/api/s/{site}/stat/guest: a GET when within_hours is unset (the controller's own window), else a POST {"within": within_hours}. Returns the upstream body verbatim: {meta: {rc}, data: [guest, ...]}; a scalar POST response is returned verbatim after the write, while a malformed Classic GET envelope raises with the shape received. With source "v2", GET network/v2/api/site/{site}/hotspot/clients (the web UI's hotspot client list) is returned verbatim instead.
 
-The POST form is a write pending a separately approved read-POST allowlist PR.
-Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny
-hides the whole tool, including both GET forms. With dry-run policy, the POST returns
-{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}} without sending it; the GET form returns the usual response.
+The POST form is a write pending a separately approved read-POST allowlist PR. Consequence: none intended; both forms only read guest records. UNIFI_WRITE_POLICY=deny hides the whole tool, including both GET forms. With dry-run policy, the POST returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} without sending it; the GET form returns the usual response.
 
 Example call (list_guests):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "within_hours": 24
-    }
+    {"host": "my-console", "site": "Default", "within_hours": 24}
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -11576,24 +10929,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `list_hosts`
 
-List all UniFi consoles (hosts) with firmware, WAN IP, and status.
+List all UniFi consoles (hosts) with firmware, WAN IP and status. Returns {data: [host…], _count} with upstream envelope fields, including GPS coordinates. data[].id is the long composite id; reportedState.hostname/name is the short name. Either identifies host arguments case-insensitively; ambiguous names return the matching consoles so the caller can choose an id.
 
-Returns {data: [host…], _count} with upstream envelope fields, including GPS
-coordinates. data[].id is the long composite id; reportedState.hostname/name is
-the short name. Either identifies host arguments case-insensitively; ambiguous
-names return the matching consoles so the caller can choose an id.
+Default drains all pages in batches of 200. page_size gathers native pages until the requested host count or the end (the full final page can exceed the total); _pageSize reports requested count, sent sizes per request, effective size and returned count. page_token accepts the unchanged native nextToken for one verbatim page, or the opaque _continuation string preserving its physical size when the requested total changes. Capped drains carry incomplete=true.
 
-Default drains all pages in batches of 200. page_size gathers native pages until
-the requested host count or the end; the full final page can exceed the total; _pageSize reports
-requested count, actual sent sizes per request,
-observed effective size and returned count. page_token accepts the unchanged
-native nextToken for one verbatim page, or the opaque _continuation string
-preserving its physical size when the requested total changes.
-Capped drains carry incomplete=true.
-
-With several keys, the default aggregates all keys, annotates each host with
-_keyLabel, and returns _key_labels, byKey envelopes and per-key errors. key_label
-reads one key and adds _key_labels. Paging with several keys needs key_label.
+With several keys, the default aggregates all keys, annotates each host with _keyLabel, and returns _key_labels, byKey envelopes and per-key errors. key_label reads one key and adds _key_labels. Paging with several keys needs key_label.
 
 **API source:** `site_manager/official/read`
 
@@ -11753,23 +11093,13 @@ Example call (list_hotspot_payments):
 
 List all hotspot/guest vouchers for a site (there is no `list_vouchers` — this is it).
 
-Returns {data, totalCount}: every page is drained; data holds the voucher records verbatim and
-totalCount is the upstream total (null when none was reported). The first page's other envelope
-fields are kept beside them, and incomplete / incompleteReason are added when a capped drain
-stopped short.
+Returns {data, totalCount}: every page is drained; data holds the voucher records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept beside them, and incomplete / incompleteReason are added when a capped drain stopped short.
 
-This is the voucher-listing tool; the family is `list_hotspot_vouchers`,
-`create_hotspot_vouchers`, `get_hotspot_voucher`, `delete_hotspot_voucher` — all
-prefixed `hotspot_`. There is no shorter `list_vouchers`/`get_voucher` alias.
+This is the voucher-listing tool; the family is `list_hotspot_vouchers`, `create_hotspot_vouchers`, `get_hotspot_voucher`, `delete_hotspot_voucher` — all prefixed `hotspot_`. There is no shorter `list_vouchers`/`get_voucher` alias.
 
-Vouchers are offset-paginated (native page size 100) and batches routinely
-exceed that; by default every page is drained and all records are returned as
-{data, totalCount}. Pass offset alone for a single manual page. A capped drain
-is flagged incomplete.
+Vouchers are offset-paginated (native page size 100) and batches routinely exceed that; by default every page is drained and all records are returned as {data, totalCount}. Pass offset alone for a single manual page. A capped drain is flagged incomplete.
 
-The limit requests a total, gathered automatically in batches up to 1000;
-_pageSize reports requested count, actual sent sizes per request,
-observed effective size and returned count, without capping the total.
+The limit requests a total, gathered automatically in batches up to 1000; _pageSize reports requested count, actual sent sizes per request, observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
 
@@ -12105,39 +11435,16 @@ parameter only when given. Returns the upstream body verbatim (a JSON array arri
 
 List intrusion prevention / detection (IPS/IDS) threat events, every page drained.
 
-Network 11.x reports IPS events in the system log's threat-alert class (the Classic
-stat/ips/event route answers HTTP 404 on Network 11.0.81). This reads POST
-network/v2/api/site/{site}/system-log/threat-alert (classified as a write;
-Consequence: none intended, it only reads the log) with
-threatTypes (default
-["HONEYPOT", "THREAT"], what the controller UI sends; without it the controller returns
-no entries) and timestampFrom / timestampTo from start / end when given.
+Network 11.x reports IPS events in the system log's threat-alert class (the Classic stat/ips/event route answers HTTP 404 on Network 11.0.81). This reads POST network/v2/api/site/{site}/system-log/threat-alert (a read-allowlisted POST) with threatTypes (default ["HONEYPOT", "THREAT"], what the controller UI sends; without it the controller returns no entries) and timestampFrom / timestampTo from start / end when given.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool. family:network=deny
-also hides it.
-dry-run policy returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}} for the first page without sending a POST.
+A read: it stays available under UNIFI_WRITE_POLICY=deny and in dry-run policy.
 
-Returns {data: [event, ...], total_element_count, incomplete?, incompleteReason?}: each
-event verbatim (key such as THREAT_DETECTED_KNOWN_SOURCE_CLIENT, category SECURITY,
-severity, timestamp in epoch ms, parameters with the signature, source and destination,
-...); incomplete / incompleteReason appear when the opt-in UNIFI_PAGINATE_MAX_PAGES cap,
-repeated entries, an early empty page, or a short declared total stopped the drain.
-Unprovable pagination metadata raises a clear error; use get_system_log with an explicit
-page to inspect it. _warnings flags a negative or millisecond-like start / end
-(still multiplied by 1000). Without start / end the whole retained log is read.
+Returns {data: [event, ...], total_element_count, incomplete?, incompleteReason?}: each event verbatim (key such as THREAT_DETECTED_KNOWN_SOURCE_CLIENT, category SECURITY, severity, timestamp in epoch ms, parameters with the signature, source and destination, ...); incomplete / incompleteReason appear when the opt-in UNIFI_PAGINATE_MAX_PAGES cap, repeated entries, an early empty page, or a short declared total stopped the drain. Unprovable pagination metadata raises a clear error; use get_system_log with an explicit page to inspect it. _warnings flags a negative or millisecond-like start / end (still multiplied by 1000). Without start / end the whole retained log is read.
 
 Example call (list_ips_events):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "start": 1760140800
-    }
+    {"host": "my-console", "site": "Default", "start": 1760140800}
 
-Set UNIFI_WRITE_POLICY=dry-run.
-
-**API source:** `network/private.v2/write`
+**API source:** `network/private.v2/read`
 
 **Family:** `statistics`
 
@@ -12145,7 +11452,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 | readOnly | destructive | idempotent | openWorld |
 | --- | --- | --- | --- |
-| false | true | false | true |
+| true | false | true | true |
 
 **Parameters**
 
@@ -12163,21 +11470,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `list_known_clients`
 
-List the full per-site client roster incl. offline history (Classic REST /stat/alluser).
+List the full per-site client roster including offline history (Classic REST /stat/alluser). Unlike list_active_clients_stats (connected only) it includes clients seen historically, typically far more entries; not the fleet-wide list_all_clients aggregation. This endpoint accepts GET.
 
-Unlike list_active_clients_stats (currently-connected only), this includes clients
-seen historically — typically far more entries. (Distinct from the fleet-wide
-list_all_clients aggregation tool, which spans every console.) This endpoint accepts GET.
-
-Each entry includes mac, first_seen, last_seen, disconnect_timestamp (all epoch
-seconds), is_wired, oui, last_ip, last_radio, hostname, and device-fingerprint fields.
-
-Returns the Classic REST envelope {meta: {rc}, data: [client…]} verbatim, including
-identifiers (MAC/IP/hostname/name). With source "v2" (or any of the v2
-arguments) the controller's v2 client history (GET
-network/v2/api/site/{site}/clients/history, the web UI's route) is returned verbatim
-instead; Classic stays the default because the v2 rows lack name, note, fixed_ip,
-network_id, local_dns_record, virtual_network_override_id and disconnect_timestamp.
+Each entry has mac, first_seen, last_seen, disconnect_timestamp (epoch seconds), is_wired, oui, last_ip, last_radio, hostname and fingerprint fields. Returns the Classic envelope {meta: {rc}, data: [client...]} verbatim, including identifiers (MAC/IP/hostname/name). With source "v2" (or any v2 argument) the v2 client history (GET network/v2/api/site/{site}/clients/history) is returned verbatim instead; Classic is the default because v2 rows lack name, note, fixed_ip, network_id, local_dns_record, virtual_network_override_id and disconnect_timestamp.
 
 Required arguments: host, site (see each parameter's description).
 
@@ -12716,44 +12011,16 @@ Required inputs: host, site.
 
 List site network events from the system log, draining every page in controller order.
 
-Network 11.x keeps events in the system log (the Classic stat/event route answers
-HTTP 404 on Network 11.0.81). This reads class "all" of POST
-network/v2/api/site/{site}/system-log/all, with
-timestampFrom / timestampTo
-set from start / end when given. view reads another class the same way (live on
-Network 11.0.81: all, device-alert, client-alert, admin-activity, update-alert,
-threat-alert, next-ai-alert, vpn-alert, critical). vpn_user_id scopes the log to one VPN
-user instead: GET network/v2/api/site/{site}/system-log/vpn-user-connection?vpnUserId=
-(the web UI's route), returned verbatim. For a raw query use get_system_log.
+Network 11.x keeps events in the system log (the Classic stat/event route answers HTTP 404 on Network 11.0.81). This reads class "all" of POST network/v2/api/site/{site}/system-log/all, with timestampFrom / timestampTo set from start / end when given. view reads another class the same way (live on Network 11.0.81: all, device-alert, client-alert, admin-activity, update-alert, threat-alert, next-ai-alert, vpn-alert, critical). vpn_user_id scopes the log to one VPN user instead: GET network/v2/api/site/{site}/system-log/vpn-user-connection?vpnUserId= (the web UI's route), returned verbatim. For a raw query use get_system_log.
 
-Consequence: none intended.
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool. family:network=deny
-also hides it.
-dry-run policy (UNIFI_WRITE_POLICY=dry-run) previews the first page without a POST:
-{status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}.
+A read: it stays available under UNIFI_WRITE_POLICY=deny and in dry-run policy.
 
-Returns {data: [event, ...], total_element_count, incomplete?, incompleteReason?}:
-each event verbatim (key such as CLIENT_ROAMED_2 or THREAT_DETECTED_KNOWN_SOURCE_CLIENT,
-category, severity, timestamp in epoch ms, parameters, ...); total_element_count is the
-controller's count; incomplete / incompleteReason appear when the opt-in
-UNIFI_PAGINATE_MAX_PAGES cap, repeated entries, an early empty page, or a short declared
-total stopped the drain. Unprovable pagination metadata raises a clear error; use
-get_system_log with an explicit page to inspect it. _warnings flags a negative or
-millisecond-like start / end (still multiplied by 1000; _warnings includes sent_as).
-Without start / end the whole retained log is read (tens of thousands of entries
-on a busy site).
+Returns {data: [event, ...], total_element_count, incomplete?, incompleteReason?}: each event verbatim (key such as CLIENT_ROAMED_2 or THREAT_DETECTED_KNOWN_SOURCE_CLIENT, category, severity, timestamp in epoch ms, parameters, ...); total_element_count is the controller's count; incomplete / incompleteReason appear when the opt-in UNIFI_PAGINATE_MAX_PAGES cap, repeated entries, an early empty page, or a short declared total stopped the drain. Unprovable pagination metadata raises a clear error; use get_system_log with an explicit page to inspect it. _warnings flags a negative or millisecond-like start / end (still multiplied by 1000; _warnings includes sent_as). Without start / end the whole retained log is read (tens of thousands of entries on a busy site).
 
 Example call (list_network_events):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "start": 1760140800,
-      "end": 1760227200
-    }
+    {"host": "my-console", "site": "Default", "start": 1760140800, "end": 1760227200}
 
-**API source:** `network/private.v2/write`
+**API source:** `network/private.v2/read`
 
 **Family:** `statistics`
 
@@ -12761,7 +12028,7 @@ Example call (list_network_events):
 
 | readOnly | destructive | idempotent | openWorld |
 | --- | --- | --- | --- |
-| false | true | false | true |
+| true | false | true | true |
 
 **Parameters**
 
@@ -12771,7 +12038,7 @@ Example call (list_network_events):
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
 | `start` | `integer \| null` | no | `null` | Optional window start, epoch seconds (sent as timestampFrom in milliseconds). Example: `1760140800`. |
 | `end` | `integer \| null` | no | `null` | Optional window end, epoch seconds (sent as timestampTo in milliseconds). Example: `1760227200`. |
-| `view` | `string \| null` | no | `null` | Optional system-log class to read instead of "all" (URL path segment, sent as given), e.g. "device-alert" or "admin-activity". Default "all". Example: `device-alert`. |
+| `view` | `string \| null` | no | `null` | Optional system-log class to read instead of "all" (URL path segment), one of the nine classes, e.g. "device-alert" or "admin-activity". Default "all". Example: `device-alert`. |
 | `vpn_user_id` | `string \| null` | no | `null` | Optional VPN user id: reads that user's VPN connection log (query vpnUserId, a GET) instead of a class; start, end and view do not apply. Example: `000000000000000000000107`. |
 
 **Return type**
@@ -12810,22 +12077,11 @@ Required arguments: host, site.
 
 List all networks/VLANs for a site.
 
-Returns {data, totalCount}: every page is drained; data holds the network records verbatim and
-totalCount is the upstream total (null when none was reported). The first page's other envelope
-fields are kept beside them, and incomplete / incompleteReason are added when a capped drain
-stopped short.
+Returns {data, totalCount}: every page is drained; data holds the network records verbatim and totalCount is the upstream total (null when none was reported). The first page's other envelope fields are kept beside them, and incomplete / incompleteReason are added when a capped drain stopped short.
 
-Networks are offset-paginated (native default page size 25); by default every page
-is drained and the complete list is returned as {data, totalCount}. Pass offset alone
-for a single manual page. filter: optional Network Integration API filter
-expression, forwarded unchanged as the upstream `filter` query parameter for
-server-side filtering (e.g. `vlanId.eq(100)`, `name.like('*guest*')`,
-`metadata.origin.eq('USER_DEFINED')`); omitted entirely when unset. A capped drain is
-flagged incomplete.
+Networks are offset-paginated (native default page size 25); by default every page is drained and the complete list is returned as {data, totalCount}. Pass offset alone for a single manual page. filter: optional Network Integration API filter expression, forwarded unchanged as the upstream `filter` query parameter for server-side filtering (e.g. `vlanId.eq(100)`, `name.like('*guest*')`, `metadata.origin.eq('USER_DEFINED')`); omitted entirely when unset. A capped drain is flagged incomplete.
 
-The limit requests a total, gathered automatically in batches up to 200;
-_pageSize reports requested count, actual sent sizes per request,
-observed effective size and returned count, without capping the total.
+The limit requests a total, gathered automatically in batches up to 200; _pageSize reports requested count, actual sent sizes per request, observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
 
@@ -12922,6 +12178,42 @@ List the site's switch-port anomalies (Network v2 route).
 
 GET /proxy/network/v2/api/site/{site}/ports/port-anomalies. Returns the upstream body
 verbatim. The route takes no paging parameter.
+A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
+an object result is returned as sent.
+
+Required arguments: host, site (see each parameter's description).
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+
+**Return type**
+
+`Any`
+
+### `list_port_automations`
+
+List a site's port automations (Network 11.1 v2 route).
+
+A port automation applies a port profile to a switch port when the device plugged in
+matches a vendor or MAC OUI.
+
+GET /proxy/network/v2/api/site/{site}/port-automations. Returns the upstream body
+verbatim (a JSON array, empty when none exist). The route takes no paging parameter.
+Needs a Network application of 11.1.47 or later; an older console answers 404.
 A JSON array result (the usual v2 shape) arrives wrapped as {"result": [...]};
 an object result is returned as sent.
 
@@ -13066,7 +12358,7 @@ Required arguments: host.
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. The console whose Protect automations are listed. |
 
 **Return type**
 
@@ -13190,25 +12482,11 @@ GET protect/api/device-tags. Returns: the upstream body unchanged (an array arri
 
 ### `list_protect_events`
 
-Query historical Protect events via private /proxy/protect/api/events; the official
-Integration events endpoint is WebSocket-only.
+Query historical Protect events via private /proxy/protect/api/events; the official Integration events endpoint is WebSocket-only.
 
-Returns drained object pages preserving data and the first page's envelope fields, adding _count
-and _warnings. A drain of bare arrays returns {result, _count} with _warnings when applicable.
-Capped drains also carry incomplete/incompleteReason. An explicit offset/limit fetches one page
-when offset is supplied: a bare list stays a list (without warnings); an object page
-preserves every upstream top-level field verbatim, including data and totalCount, adding
-only _count and _warnings. Sensor events retain sensor:null and gain _resolved_sensor from
-metadata.sensorId.text. All event fields and identifiers are preserved.
-Object pages carry epoch-unit and smart-detect _warnings, as drained results do.
+Returns drained object pages preserving data and the first page's envelope fields, adding _count and _warnings. A drain of bare arrays returns {result, _count} with _warnings when applicable. Capped drains also carry incomplete/incompleteReason. An explicit offset/limit fetches one page when offset is supplied: a bare list stays a list (without warnings); an object page preserves every upstream top-level field verbatim, including data and totalCount, adding only _count and _warnings. Sensor events retain sensor:null and gain _resolved_sensor from metadata.sensorId.text. All event fields and identifiers are preserved. Object pages carry epoch-unit and smart-detect _warnings, as drained results do.
 
-Required host/start/end; time is integer epoch SECONDS, never ISO strings or
-milliseconds. Negative or millisecond-magnitude times are not refused: they are
-converted to milliseconds like any time and object results carry _warnings.
-query_isp_metrics instead takes ISO 8601 strings. Face names are at
-metadata.detectedThumbnails[].matchedName. types, smart_detect_types and categories are
-forwarded as given (empty list sends no parameter); empty cameras applies no filter. Full
-examples: docs/TOOL-USAGE.md#list_protect_events.
+Required host/start/end; time is integer epoch SECONDS, never ISO strings or milliseconds. Negative or millisecond-magnitude times are not refused: they are converted to milliseconds like any time and object results carry _warnings. query_isp_metrics instead takes ISO 8601 strings. Face names are at metadata.detectedThumbnails[].matchedName. types, smart_detect_types and categories are forwarded as given (empty list sends no parameter); empty cameras applies no filter. Full examples: docs/TOOL-USAGE.md#list_protect_events.
 
 Required arguments: host, start, end (see parameter descriptions for identifiers).
 
@@ -13483,25 +12761,11 @@ Required arguments: host, site.
 
 List one enrolled recognition group's detections (sightings) on Protect.
 
-Returns {detections, _count} plus upstream envelope fields and epoch warnings.
-Required group_id comes from list_recognition_groups, for example face_90. There
-is no all-groups mode; a nonexistent group returns HTTP 404. Each detection has
-id, eventId (list_protect_events), thumbnailId (get_thumbnail), detectedAt (epoch
-milliseconds), cameraId and matchedGroupConfidence (0-100).
+Returns {detections, _count} plus upstream envelope fields and epoch warnings. Required group_id comes from list_recognition_groups, for example face_90. There is no all-groups mode; a nonexistent group returns HTTP 404. Each detection has id, eventId (list_protect_events), thumbnailId (get_thumbnail), detectedAt (epoch milliseconds), cameraId and matchedGroupConfidence (0-100).
 
-Default drains all links.next pages in batches up to 100. page_size=N returns
-records [(page-1)*N, page*N): exactly N when that many exist, fewer only at the
-end, never more. page is the 1-based window number counted in units of page_size
-(default 1); without page_size, returns one native console page.
-To continue, resume from _nextPage with the same page_size. _pageSize reports requested,
-sent, effective and returned sizes. Incomplete drains carry incomplete/incompleteReason.
+Default drains all links.next pages in batches up to 100. page_size=N returns records [(page-1)*N, page*N): exactly N when that many exist, fewer only at the end, never more. page is the 1-based window number counted in units of page_size (default 1); without page_size, returns one native console page. To continue, resume from _nextPage with the same page_size. _pageSize reports requested, sent, effective and returned sizes. Incomplete drains carry incomplete/incompleteReason.
 
-The page without page_size fetches one native page, with _nextPage when more exist.
-An explicit page keeps a bare list verbatim (no _warnings) when page_size is absent,
-and preserves every field of an object page verbatim with epoch-unit _warnings.
-A bare-list manual page is unchanged without _warnings; object pages preserve
-upstream fields and add epoch warnings.
-Examples are in docs/TOOL-USAGE.md#list_recognition_detections.
+The page without page_size fetches one native page, with _nextPage when more exist. An explicit page keeps a bare list verbatim (no _warnings) when page_size is absent, and preserves every field of an object page verbatim with epoch-unit _warnings. A bare-list manual page is unchanged without _warnings; object pages preserve upstream fields and add epoch warnings. Examples are in docs/TOOL-USAGE.md#list_recognition_detections.
 
 Required arguments: host, type, group_id.
 
@@ -13974,23 +13238,11 @@ Required inputs: host, site.
 
 ### `list_sites`
 
-List all sites with device/client counts and ISP info.
+List all sites with device/client counts and ISP info. Returns {data: [site…], _count} plus upstream envelope fields. siteId is the Site Manager Fabric ObjectId, distinct from per-site proxy UUIDs; pass site names such as "Default" to tools and the server resolves the id.
 
-Returns {data: [site...], _count} plus upstream envelope fields. siteId is the
-Site Manager Fabric ObjectId, distinct from per-site proxy UUIDs. Pass site names
-such as "Default" to tools; the server resolves the appropriate id.
+Default drains all pages in batches of 200. page_size gathers native pages until the requested site count or the end (the full final page can exceed the total); _pageSize reports requested count, sent sizes per request, effective size and returned count. page_token accepts the unchanged native nextToken for one verbatim page, or the opaque _continuation string preserving its physical size when the requested total changes. Capped drains carry incomplete=true.
 
-Default drains all pages in batches of 200. page_size gathers native pages until
-the requested site count or the end; the full final page can exceed the total; _pageSize reports
-requested count, actual sent sizes per request,
-observed effective size and returned count. page_token accepts the unchanged
-native nextToken for one verbatim page, or the opaque _continuation string
-preserving its physical size when the requested total changes.
-Capped drains carry incomplete=true.
-
-With several keys, the default aggregates all keys, annotates each site with
-_keyLabel, and returns _key_labels, byKey envelopes and per-key errors. key_label
-reads one key and adds _key_labels. Paging with several keys needs key_label.
+With several keys, the default aggregates all keys, annotates each site with _keyLabel, and returns _key_labels, byKey envelopes and per-key errors. key_label reads one key and adds _key_labels. Paging with several keys needs key_label.
 
 **API source:** `site_manager/official/read`
 
@@ -14037,7 +13289,7 @@ Required arguments: host (see each parameter's description).
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `host` | `string` | yes |  | Console name or id: the short name from list_hosts (data[].reportedState.hostname or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id (MAC:numericId composite). One console serves both Network and Protect. The Protect console whose speakers are listed. |
 
 **Return type**
 
@@ -14573,10 +13825,9 @@ Example call (list_user_groups):
 
 List DHCP fixed-IP reservations and client aliases for a site.
 
-Returns: the controller's Classic REST envelope {meta: {rc}, data: [entry…]} verbatim; data[]
-entries carry fields such as name, note, fixed_ip, use_fixedip, network_id.
+Returns the Classic REST envelope {meta: {rc}, data: [entry]} verbatim; entries carry name, note, fixed_ip, use_fixedip, network_id.
 
-Required arguments: host, site (see each parameter's description).
+Required arguments: host, site.
 
 **API source:** `network/private.classic/read`
 
@@ -14805,21 +14056,9 @@ Example call (list_vpn_users):
 
 List WAN interfaces for a site.
 
-Returns: {data: [wan…], totalCount, _health}. data is the Integration WAN list, entries verbatim
-(every page drained; incomplete/incompleteReason when a capped drain stopped short; with offset
-alone, that single page in its native envelope, plus _health, and a page the upstream
-answers as a bare array is returned as that array, without _health); totalCount is the upstream
-total of that list (null when the upstream reports none). The additive _health is the Classic
-/stat/health body verbatim ({meta: {rc}, data: [...]}, every subsystem; the WAN health entries
-are its data[] entries with subsystem "wan"). When the stat/health read fails, the additive
-_wanHealthError carries the reason (and _health is the body received, if any) — the interfaces
-are still returned. To change one, pass the native Classic networkconf fields to change (e.g.
-wan_load_balance_weight, wan_failover_priority, wan_dns1) as `wan` to update_wan_interface
-(wan_id = its data[] id).
+Returns: {data: [wan…], totalCount, _health}. data is the Integration WAN list, entries verbatim (every page drained; incomplete/incompleteReason when a capped drain stopped short; with offset alone, that single page in its native envelope, plus _health, and a page the upstream answers as a bare array is returned as that array, without _health); totalCount is the upstream total of that list (null when the upstream reports none). The additive _health is the Classic /stat/health body verbatim ({meta: {rc}, data: [...]}, every subsystem; the WAN health entries are its data[] entries with subsystem "wan"). When the stat/health read fails, the additive _wanHealthError carries the reason (and _health is the body received, if any) — the interfaces are still returned. To change one, pass the native Classic networkconf fields to change (e.g. wan_load_balance_weight, wan_failover_priority, wan_dns1) as `wan` to update_wan_interface (wan_id = its data[] id).
 
-The limit requests a total, gathered automatically in batches up to 200;
-_pageSize reports requested count, actual sent sizes per request,
-observed effective size and returned count, without capping the total.
+The limit requests a total, gathered automatically in batches up to 200; _pageSize reports requested count, actual sent sizes per request, observed effective size and returned count, without capping the total.
 
 Required arguments: host, site.
 
@@ -15107,7 +14346,7 @@ Required arguments: host, site (see each parameter's description).
 
 ## Other
 
-**163 tools**
+**168 tools**
 
 ### `accept_ironclad_terms`
 
@@ -15153,13 +14392,14 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `acknowledge_critical_alert`
 
-Mark ONE critical system-log alert as read (acknowledge it). Unverified route.
+Mark ONE critical system-log alert as read (acknowledge it). Not run on a console.
 
-Unverified: the route appears in the Network server's route table, but the HTTP method
-(PUT) comes only from open-source clients and the Network web app never calls this
-route (it only calls mark-all-as-read); it has not been proven on a console.
-Consequence: the alert stops counting as unread in the Network app; the other critical
-alerts are untouched (mark_critical_logs_read marks every one). Required arguments:
+The route and its PUT method are bound in Ubiquiti's Network 11.0.99 server code (a
+PutMapping on the system-log controller; no request body; HTTP 204). The Network web
+app never calls it (it only calls mark-all-as-read), so no console has answered it yet.
+Consequence: the alert and the alerts aggregated with it (Ubiquiti's handler marks the
+whole group read) stop counting as unread in the Network app; alerts in other groups are
+untouched (mark_critical_logs_read marks every one). Required arguments:
 host, site, alert_id. Sends PUT /v2/api/site/{site}/system-log/critical/{alert_id}/
 mark-as-read with an empty JSON object, once and never retried. Returns the upstream
 body verbatim (a JSON array arrives as {result: [...]}). With dry-run policy, returns a
@@ -15360,28 +14600,18 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Trigger an alarm-hub output (POST /v1/alarm-hubs/{id}/outputs/{outputId}/trigger).
 
-Consequence: whatever is wired to the output (siren, strobe, lock, relay) acts in the real
-world.
+Consequence: whatever is wired to the output (siren, strobe, lock, relay) acts in the real world.
 
-Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty). Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
-WARNING: physically triggers alarm-hub output hardware. `enable` true turns the
-output on, false off (omit to toggle); `delay` is ms before activating; `duration` is
-ms to stay active (0 = indefinite). Governed by family:protect=deny.
-
-Request body (Protect 7.3.74, POST /v1/alarm-hubs/{id}/outputs/{outputId}/trigger; schema
-"inline requestBody schema") is built from scalar parameters. No key is required; send only the
-keys to change.
-- enable: boolean
-- delay: integer (ms)
-- duration: integer (ms; 0 = indefinite)
+WARNING: physically triggers alarm-hub output hardware. `enable` true turns the output on, false off (omit to toggle); `delay` is ms before activating; `duration` is ms to stay active (0 = indefinite). Governed by family:protect=deny.
 
 Example call (alarm_hub_trigger_output):
     {"host": "my-console", "alarm_hub_id": "00000000000000000000010b", "output_id": 0}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#alarm_hub_trigger_output.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -15413,45 +14643,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `allow_network_on_port_profile`
 
-Allow (un-exclude) a VLAN network on a switch port profile.
+Allow (un-exclude) a VLAN network on a switch port profile: the remediation for create_network's D12_AUTO_EXCLUSION warning (run it on every profile named there). Validates network_id, fresh-reads the profile, removes the network from excluded_networkconf_ids and PUTs.
 
-A fresh read followed by one PUT is not atomic against concurrent edits.
+`confirm` is accepted and ignored: this is a live PUT to a SHARED port profile (its exclusion list affects every switch port using it) and runs at once. The read-then-PUT is not atomic against concurrent edits. network_id is the Integration id (list_networks data[].id) or the Classic networkconf _id (mapped through /rest/networkconf external_id); an unknown id fails before any write, listing every network (name, vlan, _id, id).
 
-The result carries _profileNote only when the controller PUT response data array
-contains no profile; _tagged_networks is derived from the written payload.
-Other response bodies are returned unchanged.
+Returns the PUT envelope {meta: {rc}, data: [profile]} verbatim (profile plus _resolved_networks) plus _tagged_networks (resulting tagged VLANs with names) and _network ({_id, id, name, vlan}); _profileNote only when the PUT response data holds no profile. Under dry-run policy nothing is sent: the bare preview. No published spec for network/api/s/{site}/rest/portconf.
 
-`confirm`: accepted and ignored. This is a live PUT to a SHARED port profile (its
-  exclusion list affects every switch port using it); it runs immediately either way.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
-This is the Network auto-exclusion remediation: it validates `network_id` against the site's
-networks, fresh-reads the profile, removes the network from `excluded_networkconf_ids`, and
-PUTs. Use it on every profile named in a `create_network` `D12_AUTO_EXCLUSION` _warnings
-entry.
-
-`network_id` accepts EITHER id of the network: the Network Integration id (list_networks
-data[].id, the id create_network returns) or the Classic networkconf _id (the value stored in
-excluded_networkconf_ids). An Integration id is mapped to its _id through the /rest/networkconf
-external_id field. An unknown id fails before any write, listing every network (name, vlan,
-_id and id).
-
-Returns: the controller's PUT response envelope {meta: {rc}, data: [profile]} verbatim (the
-profile plus the additive _resolved_networks key), plus additive keys: _tagged_networks (the
-resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the network
-acted on).
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}}.
-
-Request body: fresh portconf with the network's _id removed from excluded_networkconf_ids (no published spec for network/api/s/{site}/rest/portconf).
-
-Example call (allow_network_on_port_profile):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "profile_id": "000000000000000000000107",
-      "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+Required arguments: host, site, profile_id, network_id.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -15566,22 +14766,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Apply the result of a recognize_image run to Protect's recognition data.
 
-POST protect/api/recognition/recognize-image/apply (private Protect API) with
-apply as the JSON body; the upstream response is returned unchanged. The
-frontend builds this body dynamically and the key set is not documented, so no
-key is required here and the upstream judges it. Build it from the answer of
-recognize_image. Fields are sent as given except: keys starting with "_" and
-values the server masks as redacted are dropped (reported on the result), and a
-body left with no field to send (empty, or only empty objects) is refused
-before any request with "No fields provided" (the message
-reads "apply 'settings'"). Nothing else is added, removed or rewritten. Under
-dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and
-family:protect=deny.
-Consequence: the console stores the recognition outcome of the uploaded image
-(for example adding it to a recognition group).
-Returns the upstream response unchanged (an object, an array or null); under
-dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview:
-{method, path, params, body}}.
+POST protect/api/recognition/recognize-image/apply (private Protect API) with apply as the JSON body; the upstream response is returned unchanged. The frontend builds this body dynamically and the key set is not documented, so no key is required here and the upstream judges it. Build it from the answer of recognize_image. Fields are sent as given except: keys starting with "_" and values the server masks as redacted are dropped (reported on the result), and a body left with no field to send (empty, or only empty objects) is refused before any request with "No fields provided" (the message reads "apply 'settings'"). Nothing else is added, removed or rewritten. Under dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and family:protect=deny. Consequence: the console stores the recognition outcome of the uploaded image (for example adding it to a recognition group). Returns the upstream response unchanged (an object, an array or null); under dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, apply.
 
@@ -15655,30 +14840,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Approve (adopt) a pending device onto a site.
 
-Consequence: the site's controller takes over and provisions the device, which may restart
-while it applies its new configuration.
+Consequence: the site's controller takes over and provisions the device, which may restart while it applies its new configuration.
 
-Uses the published adoptDevice route (Network 11.0.97, POST /v1/sites/{siteId}/devices;
-schema "IntegrationDeviceAdoptionRequestDto"), the same route as adopt_device, with the
-body built from the parameters: {"macAddress": device_id, "ignoreDeviceLimit":
-ignore_device_limit}. Both keys are required by the spec, so the caller chooses
-ignore_device_limit (no default is filled in). Returns the upstream body (the adopted
-device details) verbatim.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Uses the published adoptDevice route (Network 11.0.97, POST /v1/sites/{siteId}/devices), the same as adopt_device, with body {"macAddress": device_id, "ignoreDeviceLimit": ignore_device_limit}. Both keys are required by the spec, so the caller chooses ignore_device_limit (no default). Returns the upstream body (the adopted device details) verbatim. Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}} in place of the upstream body; physical previews carry an additive _consequence warning.
 
 Example call (approve_pending_device):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "device_id": "02:00:5e:00:00:a1",
-      "ignore_device_limit": false
-    }
-
-Dry-run physical previews carry an additive _consequence warning.
-The preview includes status: "dry_run", dryRun: true, sent: false, message and
-preview: {method, path, params, body}.
+    {"host": "my-console", "site": "Default", "device_id": "02:00:5e:00:00:a1",
+     "ignore_device_limit": false}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -15706,22 +14874,52 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `arm_external_arm_profile`
+
+Arm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/arm).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Consequence: the external alarm manager starts arming that profile (after its activation
+delay); sensors and cameras it covers can raise alarms. Only available when the console
+uses the external alarm manager. No request body. Returns {status: "sent", response}:
+response is the upstream body verbatim. Sent once. Under dry-run policy nothing is sent:
+{status: "dry_run", response (the preview)}.
+
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Required arguments: host, arm_profile_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `arm_profile_id` | `string` | yes |  | External arm profile id from list_external_arm_profiles (id). |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `assign_carrier_subscriber_plan`
 
 Assign a service plan to a subscriber (PUT .../subscribers/{id}/plan). Guarded write.
 
-Returns {status: "assigned", changed, verified, subscriber, response (verbatim)}, or
-{status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never
-unwrapped: the write response when it carries the subscriber, else the read-back GET body
-(for no_op, the GET body read first).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "assigned", changed, verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the write response when it carries the subscriber, else the read-back GET body (for no_op, the GET body read first). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not against a live Carrier Fabric). An archived or unknown
-plan is rejected upstream. Guarded, in order: the Carrier write opt-out
-(family:carrier=deny refuses first), read-before, no-op when already on this
-plan, write, read-after.
+Spec-conformance tested only (not against a live Carrier Fabric). An archived or unknown plan is rejected upstream. Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op when already on this plan, write, read-after.
 
 Request body (Carrier Fabric 1.0.0, PUT /v1/carrier/subscribers/{id}/plan
 (assignSubscriberPlan); schema "inline requestBody schema") is built from scalar parameters.
@@ -15729,10 +14927,8 @@ Required keys — planId.
 - planId: string(uuid)
 
 Example call (assign_carrier_subscriber_plan):
-    {
-      "subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+    {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -15847,18 +15043,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Attach or re-link a subscriber's gateway host (PUT .../subscribers/{id}/host). Guarded.
 
-Returns {status: "attached", changed, _prev_host_id (the response's prevHostId), verified,
-subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is
-a full body ({data, ...}), never unwrapped: the write response when it carries the
-subscriber, else the read-back GET body (for no_op, the GET body read first).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "attached", changed, _prev_host_id (the response's prevHostId), verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the write response when it carries the subscriber, else the read-back GET body (for no_op, the GET body read first). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not against a live Carrier Fabric). host_id must be a host in
-the same ISP organization. Guarded, in order: the Carrier write opt-out
-(family:carrier=deny refuses first), read-before, no-op when already linked,
-write, read-after (reports _prev_host_id).
+Spec-conformance tested only (not against a live Carrier Fabric). host_id must be a host in the same ISP organization. Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op when already linked, write, read-after (reports _prev_host_id).
 
 Request body (Carrier Fabric 1.0.0, PUT /v1/carrier/subscribers/{id}/host
 (attachSubscriberHost); schema "inline requestBody schema") is built from scalar parameters.
@@ -15866,10 +15053,8 @@ Required keys — hostId.
 - hostId: string
 
 Example call (attach_carrier_subscriber_host):
-    {
-      "subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "host_id": "942A6FF664C0000000000964970E0000000009E710560000000068A9873F:9999999999"
-    }
+    {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "host_id": "942A6FF664C0000000000964970E0000000009E710560000000068A9873F:9999999999"}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -15900,30 +15085,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `authorize_guest`
 
-Authorize a guest client on the guest portal (let it onto the network now).
+Authorize a guest client on the guest portal (onto the network now). Undo with revoke_guest_access.
 
-Consequence: the guest gets network access past the portal at once, within the
-limits sent (or the site's guest defaults) until they expire or the guest is revoked.
+Consequence: the guest gets network access past the portal at once, within the limits sent (or the site's guest defaults) until they expire or the guest is revoked.
 
-Route: a CONNECTED client uses the official client action AUTHORIZE_GUEST_ACCESS
-(Network 11.0.97 POST /v1/sites/{siteId}/clients/{clientId}/actions); a MAC that
-is not connected (pre-authorizing a guest before it joins) or a call with ap_mac
-uses Classic cmd/stamgr authorize-guest (minutes, bytes, down, up, ap_mac), because
-the official action needs a connected client and has no ap_mac. Limits map 1:1:
-time_limit_minutes -> timeLimitMinutes / minutes, data_limit_mbytes ->
-dataUsageLimitMBytes / bytes (MB), rx_rate_limit_kbps -> rxRateLimitKbps / down,
-tx_rate_limit_kbps -> txRateLimitKbps / up. Only the limits you pass are sent;
-omitted, the site's guest defaults apply. The official action answers HTTP 422
-api.client.not-guest for a connected client that is not on a guest network.
+A CONNECTED client uses the official action AUTHORIZE_GUEST_ACCESS (Network 11.0.97 POST /v1/sites/{siteId}/clients/{clientId}/actions; 422 api.client.not-guest if not on a guest network). A MAC not connected (pre-authorizing) or a call with ap_mac uses Classic cmd/stamgr authorize-guest (the official action needs a connected client and has no ap_mac). Limits map 1:1 (time_limit_minutes -> timeLimitMinutes/minutes, data_limit_mbytes -> dataUsageLimitMBytes/bytes, rx_rate_limit_kbps -> rxRateLimitKbps/down, tx_rate_limit_kbps -> txRateLimitKbps/up); only those passed are sent.
 
-Returns the upstream body verbatim, with _route and _reason added to object
-responses. Bare arrays and scalars remain unchanged. Classic requires rc "ok".
-Under dry-run policy nothing is sent and the dry-run preview remains unchanged.
+Returns the upstream body verbatim with _route and _reason added to objects; Classic requires rc "ok". Under dry-run policy nothing is sent: the preview, unchanged.
 
-Undo with revoke_guest_access.
-
-Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}; nothing is sent.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (authorize_guest):
     {"host": "my-console", "site": "Default", "client": "02:00:00:00:00:01",
@@ -16005,16 +15175,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `batch_delete_acl_rules`
 
-Batch-delete ACL rules (v2 POST acl-rules/batch-delete, one call).
-Consequence: permanently removes every listed record; there is no undo. Each id is
-resolved against the v2 list first (an unknown id fails with the valid ids and sends
-nothing), then the list is read back. Returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty); deleted is false and message names the
-ids still listed when the read-back still has any, or says the removal is unverified
-when the read-back failed. Under dry-run policy sends nothing and returns {status:
-"dry_run", deleted: false, message, response}, where response is {status: "dry_run",
-dryRun, sent: false, message, preview: {method, path, params, body}}.
+Batch-delete ACL rules (v2 POST acl-rules/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: "dry_run", deleted: false, message, response}, where response is {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site, ids.
 
@@ -16044,18 +15205,7 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between netwo
 
 ### `batch_delete_firewall_policies`
 
-Batch-delete firewall policies (DELETE firewall/policies/{id} per id, then read back).
-Consequence: permanently removes every listed record; there is no undo. The v2 batch
-route cannot be addressed with Integration ids, so each id goes to the Integration
-DELETE, then each id is read back. Returns {deleted, message, response}: deleted is true,
-message summarizes the delete, and response is the upstream body verbatim (decoded JSON,
-raw text, or null when the body is empty). With several differing bodies response is the
-list of them in id order. When a read-back still finds an id, deleted is false and
-message names it; when the read-back failed, readAfterError says why. A failing DELETE
-raises, naming the ids already deleted. Under dry-run policy sends nothing and returns
-{status: "dry_run", deleted: false, message, response}, where response is {status:
-"dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} (a list
-of them for several ids).
+Batch-delete firewall policies (DELETE firewall/policies/{id} per id, then read back). Consequence: permanently removes every listed record; there is no undo. The v2 batch route cannot be addressed with Integration ids, so each id goes to the Integration DELETE, then each id is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. With several differing bodies response is the list of them in id order. When a read-back still finds an id, deleted is false and message names it; when the read-back failed, readAfterError says why. A failing DELETE raises, naming the ids already deleted. Under dry-run policy sends nothing and returns {status: "dry_run", deleted: false, message, response}, where response is {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} (a list of them for several ids).
 
 Required arguments: host, site, ids.
 
@@ -16085,16 +15235,7 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; n
 
 ### `batch_delete_firewall_zones`
 
-Batch-delete firewall zones (v2 POST firewall/zone/batch-delete, one call).
-Consequence: permanently removes every listed record; there is no undo. Each id is
-resolved against the v2 list first (an unknown id fails with the valid ids and sends
-nothing), then the list is read back. Returns {deleted, message, response}: deleted is
-true, message summarizes the delete, and response is the upstream body verbatim (decoded
-JSON, raw text, or null when the body is empty); deleted is false and message names the
-ids still listed when the read-back still has any, or says the removal is unverified
-when the read-back failed. Under dry-run policy sends nothing and returns {status:
-"dry_run", deleted: false, message, response}, where response is {status: "dry_run",
-dryRun, sent: false, message, preview: {method, path, params, body}}.
+Batch-delete firewall zones (v2 POST firewall/zone/batch-delete, one call). Consequence: permanently removes every listed record; there is no undo. Each id is resolved against the v2 list first (an unknown id fails with the valid ids and sends nothing), then the list is read back. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim; deleted is false and message names the ids still listed when the read-back still has any, or says the removal is unverified when the read-back failed. Under dry-run policy sends nothing and returns {status: "dry_run", deleted: false, message, response}, where response is {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, site, ids.
 
@@ -16129,8 +15270,7 @@ Bulk delete hotspot vouchers matching filter criteria.
 Consequence: every voucher matching the filter is permanently removed and can no longer be
 redeemed; there is no undo.
 
-Returns {deleted: true, message, response}; response is the upstream DELETE body verbatim
-(decoded JSON, the raw text of a non-JSON body, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
 response (the preview)}.
 
@@ -16142,8 +15282,6 @@ Example call (bulk_delete_hotspot_vouchers):
     }
 
 The dry-run preview contains method, path, params (query parameters), and body.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -16523,24 +15661,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `clear_sensor_tamper`
 
-Clear a sensor's latched tamper flag once. Returns the relay status and unchanged
-response; _readAfter reports current sensor state without claiming success from HTTP
-alone. Failed read-back preserves the response with readAfterError and null
-_verified/_noOp verdicts. No automatic retry.
+Clear a sensor's latched tamper flag once. Returns the relay status and unchanged response; _readAfter reports current sensor state without claiming success from HTTP alone. Failed read-back preserves the response with readAfterError and null _verified/_noOp verdicts. No automatic retry.
 
-Consequence: the sensor's latched tamper alert is cleared on the controller, so the sensor
-no longer shows as tampered; the cleared flag cannot be restored, but a new tamper event
-latches it again. Nothing happens physically at the sensor.
+Consequence: the sensor's latched tamper alert is cleared on the controller, so the sensor no longer shows as tampered; the cleared flag cannot be restored, but a new tamper event latches it again. Nothing happens physically at the sensor.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; _warnings describes operational risks.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} (binary: bodyBase64, sizeBytes). Adds writeEnabled and _warnings.
 
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Under dry-run policy no upstream write is sent: status is "dry_run" and body contains the exact dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (clear_sensor_tamper):
     {"host": "my-console", "sensor_id": "00000000000000000000010c"}
@@ -16653,37 +15780,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Collect normalized incident evidence from the Network system log for one window.
 
-Reads each system-log class (default "all") over [start, end) with POST
-network/v2/api/site/{site}/system-log/{class}, drains every page
-(Consequence: none, it only reads).
-It returns one document (schema_name "unifi-fabric-incident-evidence",
-schema_version 1) instead of native entries (see get_system_log); each
-record keeps the native id (provenance.record_id).
+Reads each system-log class (default "all") over [start, end) with POST network/v2/api/site/{site}/system-log/{class}, drains every page (Consequence: none, it only reads). It returns one document (schema_name "unifi-fabric-incident-evidence", schema_version 1) instead of native entries (see get_system_log); each record keeps the native id (provenance.record_id).
 
-The "all" POST is a read-allowlisted query, so this tool is a read:
-UNIFI_WRITE_POLICY=deny and family:network=deny do not hide it and dry-run policy does
-not intercept it. Any class other than "all" is refused before any request (use
-get_system_log).
+The "all" POST is a read-allowlisted query, so this tool is a read: UNIFI_WRITE_POLICY=deny and family:network=deny do not hide it and dry-run policy does not intercept it. Any class other than "all" is refused before any request (use get_system_log).
 
-Every class failure (HTTP or transport error, unusable 2xx body) is recorded as that
-source's failure; a read has no unknown outcome.
+Every class failure (HTTP or transport error, unusable 2xx body) is recorded as that source's failure; a read has no unknown outcome.
 
-Returns {schema_name, schema_version, product: "network", status, causality:
-"not_assessed", ordering, scope, requested_window, collected_at, incomplete,
-incompleteReason?, _warnings?, sources, records}. status is complete, empty, partial
-or failed; one failing class makes it partial. incomplete is true exactly when a
-source's drain stopped early (incompleteReason names it). Each source has an outcome
-(complete, empty, partial, or a failure kind with http_status and the upstream
-message), pagination, counts, queried and observed windows, and retention "unknown".
-Records keep safe fields only (no message text), the event time and its status
-(in_window, out_of_window, missing, malformed, ambiguous_timezone) and identity
-(exact, ambiguous or missing; from MAC and IP only), sorted by event time, which
-claims no cause. A non-object row is only counted (counts.malformed); a wrong-typed
-safe field is listed in attributes.wrong_typed_fields.
+Returns {schema_name, schema_version, product: "network", status, causality: "not_assessed", ordering, scope, requested_window, collected_at, incomplete, incompleteReason?, _warnings?, sources, records}. status is complete, empty, partial or failed; one failing class makes it partial. incomplete is true exactly when a source's drain stopped early (incompleteReason names it). Each source has an outcome (complete, empty, partial, or a failure kind with http_status and the upstream message), pagination, counts, queried and observed windows, and retention "unknown". Records keep safe fields only (no message text), the event time and its status (in_window, out_of_window, missing, malformed, ambiguous_timezone) and identity (exact, ambiguous or missing; from MAC and IP only), sorted by event time, which claims no cause. A non-object row is only counted (counts.malformed); a wrong-typed safe field is listed in attributes.wrong_typed_fields.
 
 Example call (collect_network_incident_evidence):
-    {"host": "my-console", "site": "Default", "start": 1760140800,
-     "end": 1760144400, "log_classes": ["all"]}
+    {"host": "my-console", "site": "Default", "start": 1760140800, "end": 1760144400,
+     "log_classes": ["all"]}
 
 **API source:** `network/private.v2/read`
 
@@ -16711,25 +15818,13 @@ Example call (collect_network_incident_evidence):
 
 ### `collect_protect_device_changes`
 
-Collect Protect device add/remove/modify changes by polling every device family for
-poll_count complete snapshots. The WebSocket subscription is unavailable through Fabric;
-this read-only, stateless tool is its REST equivalent.
+Collect Protect device add/remove/modify changes by polling every device family for poll_count complete snapshots. The WebSocket subscription is unavailable through Fabric; this read-only, stateless tool is its REST equivalent.
 
-Returns {_poll_count, _polls, _truncated, changes}; each change has
-change=added|removed|modified and the upstream device object verbatim (current for
-added/modified, last-seen for removed). Heartbeat-only lastSeen/uptime/upSince changes are
-ignored. Objects without id cannot be diffed: each distinct object appears verbatim in
-unidentified as {family, device}, even if later absent; heartbeat-only differences collapse
-to the latest form. These produce incomplete/incompleteReason.
+Returns {_poll_count, _polls, _truncated, changes}; each change is added|removed|modified with the upstream device object verbatim (current for added/modified, last-seen for removed). Heartbeat-only lastSeen/uptime/upSince changes are ignored. Objects without id cannot be diffed: each distinct one appears in unidentified as {family, device} (this sets incomplete/incompleteReason).
 
-404/501 families appear in unavailableFamilies with their complete upstream errors and
-incomplete=true. A family unavailable in either consecutive poll is excluded from that diff,
-preventing false additions/removals. Every family unavailable raises the upstream error. A
-failed first poll raises; failure after a successful poll stops and returns collected
-changes with incomplete=true and the complete poll error in incompleteReason. Other families
-still count. Full workflow: docs/TOOL-USAGE.md#collect_protect_device_changes.
+404/501 families appear in unavailableFamilies with their upstream errors and incomplete=true; a family unavailable in either of two consecutive polls is excluded from that diff, preventing false additions/removals. If every family is unavailable the upstream error is raised. A failed first poll raises; a later failure stops and returns collected changes with incomplete=true and the poll error in incompleteReason. Workflow: docs/TOOL-USAGE.md#collect_protect_device_changes.
 
-Required arguments: host (see parameter descriptions for identifiers).
+Required arguments: host.
 
 **API source:** `protect/official/read`
 
@@ -16756,32 +15851,11 @@ Required arguments: host (see parameter descriptions for identifiers).
 
 ### `collect_protect_events`
 
-Collect Protect events over a bounded polling window (live-feed stand-in).
+Collect Protect events over a bounded polling window (live-feed stand-in; read-only, stateless, no cursor between calls). The window is bounded by `poll_count` complete polls, never by elapsed time. The /v1/subscribe/events WebSocket is not reachable over the Fabric connector (an upgrade GET returns 404, never 101), so this polls the historical-events path and returns every distinct event seen.
 
-The window is bounded by `poll_count` complete polls, never by elapsed time.
-The result adds incomplete / incompleteReason when a poll's drain stopped short or a
-later poll failed.
+Returns {result, _poll_count, _polls, _truncated}: result holds verbatim upstream objects de-duplicated by event id (latest object per id kept; an id-less event by its full record, counted once toward max_events). Each poll drains every page; only the opt-in UNIFI_PAGINATE_MAX_PAGES can stop one early (incomplete: true with reason). If a poll fails after an earlier one succeeded (HTTP error, 429 that outlasted retries, transport or shape error), polling stops and gathered events return with incomplete: true and incompleteReason carrying the complete error; a failing first poll raises. An upstream 404/501 (Protect absent) passes through.
 
-Protect's `/v1/subscribe/events` WebSocket feed is NOT reachable over the Fabric
-cloud connector (a unary request/response relay — verified: an upgrade GET
-returns 404, never 101). This tool is the REST equivalent: it polls the
-historical-events path for `poll_count` complete polls and returns every distinct event
-seen in one call. Read-only and stateless — each call starts fresh and holds no
-cursor between calls.
-
-Returns {result, _poll_count, _polls, _truncated} — result holds the verbatim upstream
-objects, de-duplicated by event id with the LATEST object per id kept; an event with no
-id is de-duplicated by its full record (an identical id-less event seen by several
-polls is kept, and counted toward max_events, once). Each poll
-drains every page; there is no page cap by default, and only the opt-in
-UNIFI_PAGINATE_MAX_PAGES can stop a poll early (the result then carries incomplete:
-true with the reason). When a poll fails after an earlier poll succeeded (any error: an
-HTTP error, a 429 that outlasted the retries, a transport or shape error), polling stops
-and the events gathered so far are returned with incomplete: true and an
-incompleteReason carrying that poll's complete error; a failing first poll raises it.
-An upstream 404/501 (Protect absent) is passed straight through.
-
-Required arguments: host (see each parameter's description).
+Required arguments: host.
 
 **API source:** `protect/private/read`
 
@@ -16813,40 +15887,13 @@ Required arguments: host (see each parameter's description).
 
 ### `collect_protect_incident_evidence`
 
-Collect normalized incident evidence from Protect events for one window.
+Collect normalized incident evidence from Protect events for one window (a plain read). Reads the private GET protect/api/events route (as list_protect_events) over [start, end), draining every page, and returns one versioned document (schema_name "unifi-fabric-incident-evidence", schema_version 1) instead of native events; use list_protect_events or get_protect_event for the verbatim event. Each record keeps the native id (provenance.record_id).
 
-Reads the private GET protect/api/events route (the one list_protect_events uses)
-over [start, end), every page drained, and returns one closed, versioned document
-(schema_name "unifi-fabric-incident-evidence", schema_version 1) instead of native
-events. Use list_protect_events or get_protect_event for the verbatim event; each
-record keeps the native id (provenance.record_id). A plain read.
-
-Returns {schema_name, schema_version, product: "protect", status, causality:
-"not_assessed", ordering, scope, requested_window, collected_at, incomplete,
-incompleteReason?, _warnings?, sources, records}. incomplete is true exactly when a
-source's drain stopped early (incompleteReason names it). status is complete, empty, partial
-or failed. Without cameras there is one source for every camera; with cameras each
-camera is its own source with its own outcome (complete, empty, partial, or a
-failure kind with http_status and the upstream message), pagination, counts, the
-queried and observed windows, and retention "unknown" (Protect does not report its
-oldest kept event, so an empty source is not proof nothing happened). One failing
-camera makes the document partial, never an empty success. The event time is the
-event start. Records keep safe fields only (type, category, smart_detect_types,
-score, end_epoch_ms; no description or media), the time status (in_window,
-out_of_window, missing, malformed, ambiguous_timezone) and identity (exact,
-ambiguous or missing; camera and sensor ids only, never names). Records sort by
-event time; order is chronology only and claims no cause. A row that is not a JSON
-object is counted (counts.malformed), never made a record; a safe field of the
-wrong JSON type is listed in attributes.wrong_typed_fields.
+Returns {schema_name, schema_version, product: "protect", status, causality: "not_assessed", ordering, scope, requested_window, collected_at, incomplete, incompleteReason?, _warnings?, sources, records}. status is complete, empty, partial or failed; incomplete is true when a source's drain stopped early. One source per camera (or per camera listed in cameras), each with outcome, pagination, counts, queried/observed windows and retention "unknown" (an empty source is not proof nothing happened); one failing camera makes the document partial. Records keep safe fields only (type, category, smart_detect_types, score, end_epoch_ms; no description or media), a time status (in_window, out_of_window, missing, malformed, ambiguous_timezone) and identity (exact, ambiguous, missing; camera/sensor ids only), sorted by event start; chronology claims no cause. Non-object rows are counted (counts.malformed).
 
 Example call (collect_protect_incident_evidence):
-    {
-      "host": "my-console",
-      "start": 1760140800,
-      "end": 1760144400,
-      "cameras": ["Front Door"],
-      "types": ["motion", "smartDetectZone"]
-    }
+    {"host": "my-console", "start": 1760140800, "end": 1760144400,
+     "cameras": ["Front Door"], "types": ["motion", "smartDetectZone"]}
 
 **API source:** `protect/private/read`
 
@@ -16994,20 +16041,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Configure a WAN for WiFi tethering. Consequence: can disconnect the site's WAN.
 
-Reads the site's Classic networkconf records, picks the WAN record (wan_id, or the
-only one), merges these fields over it and PUTs the whole record with purpose
-"wan". Returns the upstream envelope verbatim plus _readAfter (the WAN record read
-back) and _verified (requested fields match, type-strict); _readAfterError is added
-when the read-back fails. A non-object write body is returned whole under response
-with those keys beside it. x_uplink_password passes through unless
-UNIFI_REDACT_SECRETS. Several WANs without wan_id fail listing valid records.
-dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and
-preview (method, path, params, body: the merged record) without writing or verifying.
-Provide host (console name or id from list_hosts) and site (Network site name or UUID
-from list_local_sites).
+Reads the site's Classic networkconf records, picks the WAN record (wan_id, or the only one), merges these fields over it and PUTs the whole record with purpose "wan". Returns the upstream envelope verbatim plus _readAfter (the WAN record read back) and _verified (requested fields match, type-strict); _readAfterError is added when the read-back fails. A non-object write body is returned whole under response with those keys beside it. x_uplink_password passes through unless UNIFI_REDACT_SECRETS. Several WANs without wan_id fail listing valid records. dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message and preview (method, path, params, body: the merged record) without writing or verifying. Provide host (console name or id from list_hosts) and site (Network site name or UUID from list_local_sites).
 
-Required arguments: host, site, is_wifi_tethering, enabled, port, uplink_ssid,
-uplink_security, uplink_band.
+Required arguments: host, site, is_wifi_tethering, enabled, port, uplink_ssid, uplink_security, uplink_band.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -17408,21 +16444,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Detach a subscriber's gateway host (DELETE .../subscribers/{id}/host). Guarded write.
 
-Consequence: the gateway host is no longer linked to the subscriber until re-attached with
-attach_carrier_subscriber_host.
+Consequence: the gateway host is no longer linked to the subscriber until re-attached with attach_carrier_subscriber_host.
 
-Returns {status: "detached", changed, _prev_host_id (the response's prevHostId), verified,
-subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is
-a full body ({data, ...}), never unwrapped: the write response when it carries the
-subscriber, else the read-back GET body (for no_op, the GET body read first).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "detached", changed, _prev_host_id (the response's prevHostId), verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the write response when it carries the subscriber, else the read-back GET body (for no_op, the GET body read first). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
-Carrier write opt-out (family:carrier=deny refuses first), read-before,
-no-op when no host is attached, write, read-after (reports the just-detached
-_prev_host_id).
+Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op when no host is attached, write, read-after (reports the just-detached _prev_host_id).
 
 Example call (detach_carrier_subscriber_host):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
@@ -17493,6 +16519,97 @@ Set UNIFI_WRITE_POLICY=dry-run.
 **Return type**
 
 `Any`
+
+### `diagnose_wifi`
+
+Diagnose a site's Wi-Fi from live AP, client and statistics reads; read-only.
+
+Reads Classic stat/device and stat/sta plus Wi-Fi statistics, connectivity, neighbour,
+WLAN, channel-plan and spectrum reads that other read tools make (about eleven GETs,
+one after another) and reports findings under 20 rule ids: ap_offline, sticky_client,
+high_power_co_channel, non_standard_2ghz_channel, channel_width_policy, channel_flap,
+high_tx_retries, radio_window_health, neighbor_co_channel, spectrum_scan_quality,
+connection_failures, weak_snr_clients, band_fit, airtime_hog, roam_churn,
+client_retries, client_experience, ap_uplink_bottleneck, band_load and
+wlan_config_audit. Each finding has rule, severity, subject (id, name, mac), evidence
+and recommendation (advice only; nothing is applied).
+
+This is a composed tool: it returns only the fields its rules use, never an upstream
+body or any device key, passphrase or token. Returns host and site, readOnly (always
+true), windowHours, warnings (ignored threshold names), summary, findings, skipped,
+notAssessed, accessPoints, sources (each route and whether it was read) and
+thresholds. summary.byRule lists every rule that was assessed, with 0 when it found
+nothing; notAssessed lists each rule whose input could not be read, with the reason
+under skipped. byRule and notAssessed together name all 20 rules, each in exactly one.
+A 0 means assessed and clean; a rule with nothing to examine (for example every AP is
+offline) is in notAssessed. summary.clean is true with no findings; an offline AP
+counts under accessPointsNotAssessed, not as checked. Only stat/device and stat/sta
+are required.
+
+Provide host (console name or id from list_hosts) and site (network site name or UUID
+from list_local_sites).
+
+**API source:** `network/private.classic/read`
+
+**Family:** `devices`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `thresholds` | `object \| null` | no | `null` | Optional free-form object of threshold names to numbers that replaces the defaults, e.g. {"high_utilization_pct": 60, "weak_snr_db": 18}. Names (default and unit): sticky_rssi_dbm (unset: the SSID's roaming-assistant setting, else -75), sticky_min_associated_seconds (300), sticky_max_snr_db (25), high_tx_power_dbm (20), high_tx_retries_pct (15, 5 and 6 GHz), high_tx_retries_pct_2ghz (25), min_tx_packets (1000), min_connect_failures (3), min_connect_success_pct (90), high_utilization_pct (50), high_interference_pct (25), neighbor_min_signal_dbm (-75), neighbor_max_age_minutes (10), max_strong_neighbors (5), roam_churn_count (10), weak_snr_db (15), hog_traffic_share_pct (15), hog_max_phy_mbps (100), high_client_retries_pct (25), low_satisfaction (50), max_2ghz_client_share_pct (25), ap_load_ratio (2.0), max_spectrum_scan_age_hours (24), flap_window_days (7), flap_min_changes (3), min_legacy_rate_kbps (12000). A value that is not a number or is outside its range is rejected before any request; an unknown name is ignored and listed under warnings. |
+| `window_hours` | `integer` | no | `24` | Hours of statistics and connection history to read, 1 to 168, e.g. 24. |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `disarm_external_arm_profile`
+
+Disarm one external arm profile (POST /v1/external/arm-profiles/{id}/actions/disarm).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Consequence: the external alarm manager stops guarding with that profile; detections no
+longer raise alarms until it is armed again. Only available when the console uses the
+external alarm manager. No request body. Returns {status: "sent", response}: response is
+the upstream body verbatim. Sent once. Under dry-run policy nothing is sent:
+{status: "dry_run", response (the preview)}.
+
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Required arguments: host, arm_profile_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `arm_profile_id` | `string` | yes |  | External arm profile id from list_external_arm_profiles (id). |
+
+**Return type**
+
+`dict[str, Any]`
 
 ### `disconnect_cloud_archive_provider`
 
@@ -17580,8 +16697,14 @@ Arm the alarm system using the selected arm profile.
 
 Consequence: the alarm system is armed: sensors in the selected profile can trigger alarms.
 
-Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
+Returns {status: "sent", verified, after, response}: response is the upstream body verbatim
+(decoded JSON, the text of a non-JSON body, or null when the body is empty; the route
+answers an empty 204, which proves nothing about the alarm state). After the POST the NVR
+is read back (GET /v1/nvrs) and after is its armMode object; verified is true when
+armMode.status is arming, armed or breach, false when it is any other value (disabled
+right after an enable usually means the console has not applied it yet: read the NVR
+again), and null with readAfterError when the read-back failed. A failed read-back never
+undoes or errors the sent write.
 Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
 
 WARNING: arms the alarm system (physical side effects); requires a local Alarm Manager.
@@ -17592,7 +16715,8 @@ Example call (enable_arm):
 The dry-run preview contains method, path, params (query parameters), and body.
 
 On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile
+tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -17621,18 +16745,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Enable a bearer share link that exposes a camera livestream to anyone with the link.
 
-Consequence: anyone holding the link can watch the camera's live video, without signing
-in, until it expires or disable_camera_share_link revokes it.
+Consequence: anyone holding the link can watch the camera's live video, without signing in, until it expires or disable_camera_share_link revokes it.
 
-Cloud-only: POST protect/api/cameras/{id}/sharedStream through the Fabric connector.
-No request body. Returns the upstream body verbatim, including null for an empty body.
-Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream),
-not tool parameters. The share URL/token is a bearer secret: keep it out of logs,
-evidence and fixtures. Writes are enabled by default; family:protect=deny or
-UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the
-dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}}. Exposure actions are sent once, never automatically retried.
+Cloud-only: POST protect/api/cameras/{id}/sharedStream through the Fabric connector. No request body. Returns the upstream body verbatim, including null for an empty body. Expiry and maxStreams are server configuration (defaults 24 hours and 1 stream), not tool parameters. The share URL/token is a bearer secret: keep it out of logs, evidence and fixtures. Writes are enabled by default; family:protect=deny or UNIFI_WRITE_POLICY=deny refuses the mutation. dry-run policy sends nothing and returns the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}. Exposure actions are sent once, never automatically retried.
 
 Example call (enable_camera_share_link):
     {"host": "my-console", "camera_id": "00000000000000000000010b"}
@@ -17703,24 +16818,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `enroll_doorbell_credential`
 
-Enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user.
+Enroll an NFC card or fingerprint on a doorbell (G4/G6 Pro class) for a user. credential_type is nfc or fingerprint. step enroll (POST cameras/{camera_id}/{credential_type}/enroll) puts the doorbell into enrollment mode (present the card or finger); step assign (POST .../assign) assigns the read credential to a user: body is fields plus fingerprintId and ulpId when given (NFC body not published: pass its keys in fields); step cancel (POST .../cancel) leaves enrollment mode. fingerprint_id, ulp_id and fields apply to assign only (with another step they fail before any request).
 
-The credential_type is nfc or fingerprint. step enroll (POST cameras/{camera_id}/
-{credential_type}/enroll) puts the doorbell on the Protect console host into enrollment
-mode; present the card or finger. step assign (POST .../{credential_type}/assign) assigns
-the read credential to a user: the body is fields plus fingerprintId and ulpId when given
-(the bundle's fingerprint keys; the NFC body is not published, pass its keys in fields).
-step cancel (POST .../{credential_type}/cancel) leaves enrollment mode. fingerprint_id,
-ulp_id and fields apply to step assign only; giving any of them with another step fails
-before any request. Returns {status, response}: status: "enrolling" for step enroll,
-status: "assigned" for assign and status: "cancelled" for cancel. Credential
-identifiers are registered secrets, masked only under UNIFI_REDACT_SECRETS. With
-dry-run policy, returns {status: "dry_run", response (the preview)} and sends no write.
+Consequence: an assigned card or fingerprint can unlock or identify the user at the doorbell until deleted with delete_doorbell_credential.
 
-Dry-run response previews include body and params.
+Returns {status, response}: status: "enrolling" for step enroll, status: "assigned" for assign and status: "cancelled" for cancel. Credential identifiers are registered secrets, masked only under UNIFI_REDACT_SECRETS. With dry-run policy returns {status: "dry_run", response (the dry-run preview)}; no write is sent.
 
-Consequence: an assigned card or fingerprint can unlock or identify the user at the
-doorbell until it is deleted with delete_doorbell_credential.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
+
+Required arguments: host, camera_id, credential_type.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -17753,45 +16859,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `exclude_network_on_port_profile`
 
-Exclude (untag) a VLAN network from a switch port profile.
+Exclude (untag) a VLAN network from a switch port profile; inverse of allow_network_on_port_profile. Validates network_id, fresh-reads the profile, adds the network's _id to excluded_networkconf_ids and PUTs.
 
-A fresh read followed by one PUT is not atomic against concurrent edits.
+`confirm` is accepted and ignored: this is a live PUT to a SHARED port profile (its exclusion list affects every switch port using it) and runs at once. The read-then-PUT is not atomic against concurrent edits. network_id is the Integration id (list_networks data[].id) or the Classic networkconf _id (mapped through /rest/networkconf external_id); an unknown id fails before any write, listing every network (name, vlan, _id, id).
 
-The result carries _profileNote only when the controller PUT response data array
-contains no profile; _tagged_networks is derived from the written payload.
-Other response bodies are returned unchanged.
+Returns the PUT envelope {meta: {rc}, data: [profile]} verbatim (profile plus _resolved_networks) plus _tagged_networks (resulting tagged VLANs with names) and _network ({_id, id, name, vlan}); _profileNote only when the PUT response data holds no profile. Under dry-run policy nothing is sent: the bare preview. No published spec for network/api/s/{site}/rest/portconf.
 
-`confirm`: accepted and ignored. This is a live PUT to a SHARED port profile (its
-  exclusion list affects every switch port using it); it runs immediately either way.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
-Inverse of `allow_network_on_port_profile`: validates `network_id` against the site's
-networks, fresh-reads the profile, adds the network to `excluded_networkconf_ids`, and PUTs.
-
-`network_id` accepts EITHER id of the network: the Network Integration id (list_networks
-data[].id, the id create_network returns) or the Classic networkconf _id (the value stored in
-excluded_networkconf_ids). An Integration id is mapped to its _id through the /rest/networkconf
-external_id field, and the _id is what gets written. An unknown id fails before any write,
-listing every network (name, vlan, _id and id).
-
-Returns: the controller's PUT response envelope {meta: {rc}, data: [profile]} verbatim (the
-profile plus the additive _resolved_networks key), plus additive keys: _tagged_networks (the
-resulting tagged VLAN set with names) and _network ({_id, id, name, vlan} of the network
-acted on).
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}}.
-
-Request body: none is passed by the caller. The tool fresh-reads the classic portconf record,
-adds the network's _id to excluded_networkconf_ids, and PUTs it back (no published spec for
-network/api/s/{site}/rest/portconf).
-
-Example call (exclude_network_on_port_profile):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "profile_id": "000000000000000000000107",
-      "network_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    }
+Required arguments: host, site, profile_id, network_id.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -17872,17 +16948,7 @@ Example call (export_camera_video):
 
 Export a recording from a Protect camera's own (edge) storage, in two steps.
 
-Action "prepare" sends GET /edge-recording/{camera_id}/prepare with filename, start
-and end (the console requires all three; start and end are epoch SECONDS sent as
-ms); the console creates an export job, copies that window off the camera and answers
-        {filename, expiresAfter}, without changing configuration. Prepare is never
-retried. This read is allowed in
-read-only mode and executes under dry-run policy. Action "download" sends GET
-/edge-recording/{camera_id}/download with the same filename. Only the arguments given
-are sent (start or end with download fails before any request). Returns the upstream
-body verbatim: JSON or text as sent (an upstream array under result), and a file as
-{content_base64, content_type, size_bytes} with the upstream Content-Type; start or end
-values that look like milliseconds or are negative add _warnings.
+Action "prepare" sends GET /edge-recording/{camera_id}/prepare with filename, start and end (the console requires all three; start and end are epoch SECONDS sent as ms); the console creates an export job, copies that window off the camera and answers {filename, expiresAfter}, without changing configuration. Prepare is never retried. This read is allowed in read-only mode and executes under dry-run policy. Action "download" sends GET /edge-recording/{camera_id}/download with the same filename. Only the arguments given are sent (start or end with download fails before any request). Returns the upstream body verbatim: JSON or text as sent (an upstream array under result), and a file as {content_base64, content_type, size_bytes} with the upstream Content-Type; start or end values that look like milliseconds or are negative add _warnings.
 
 Required arguments: host, camera_id, action (see each parameter's description).
 
@@ -18032,36 +17098,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `export_traffic_flows`
 
-Export traffic flows (Network v2 route; a read-type POST, classed as a write).
-Consequence: none intended (an export); classed as a write because the POST is
-not on the read-POST allowlist.
+Export traffic flows (Network v2 route; a read-type POST, classed as a write). Consequence: none intended (an export); classed as a write because the POST is not on the read-POST allowlist.
 
-POST /proxy/network/v2/api/site/{site}/traffic-flows/export with body sent
-verbatim (free-form; no field list is published). The export is returned whole:
-JSON verbatim (paged JSON is drained as query_traffic_flows does), text as
-{contentType, sizeBytes, body}, any other content base64-encoded as
-{contentType, sizeBytes, bodyBase64}. No size or window cap.
-A body pageSize above 5000 (the largest page the console accepts; it answers a
-larger one with HTTP 400) is sent as pageSize 5000 and paged JSON is gathered until
-the requested total or the end, starting at record pageNumber * pageSize;
-every integer pageSize returns _pages and _pageSize with requested, sent, effective,
-returned. sent lists each physical request size and effective is the observed
-console size. Resume by passing _nextPage {offset, pageSize} as body.pageNumber;
-body.pageSize can change without moving the continuation's record offset.
-A pageSize at or below 5000 is sent as given, and an upstream error for it is
-returned as received.
+POST /proxy/network/v2/api/site/{site}/traffic-flows/export with body sent verbatim (free-form; no field list is published). The export is returned whole: JSON verbatim (paged JSON is drained as query_traffic_flows does), text as {contentType, sizeBytes, body}, any other content base64-encoded as {contentType, sizeBytes, bodyBase64}. No size or window cap. A body pageSize above 5000 (the largest page the console accepts; it answers a larger one with HTTP 400) is sent as pageSize 5000 and paged JSON is gathered until the requested total or the end, starting at record pageNumber * pageSize; every integer pageSize returns _pages and _pageSize with requested, sent, effective, returned. sent lists each physical request size and effective is the observed console size. Resume by passing _nextPage {offset, pageSize} as body.pageNumber; body.pageSize can change without moving the continuation's record offset. A pageSize at or below 5000 is sent as given, and an upstream error for it is returned as received.
 
-Returns a single page without pageSize verbatim; a gathered result is the last
-page's envelope with data holding the requested records, plus _pages, and incomplete with
-incompleteReason when the drain stopped short.
-A non-JSON export returns contentType, sizeBytes and body (text) or bodyBase64.
-Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
-"dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Returns a single page without pageSize verbatim; a gathered result is the last page's envelope with data holding the requested records, plus _pages, and incomplete with incompleteReason when the drain stopped short. A non-JSON export returns contentType, sizeBytes and body (text) or bodyBase64. Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -18089,31 +17134,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `extend_guest`
 
-Extend a guest authorization (the UI's "Extend" on a guest).
+Extend a guest authorization (the UI's "Extend").
 
-Consequence: the guest keeps network access longer; the controller adds its own
-increment (24 hours on Network 11.0.81: end moved on by 86,400 s). Network 11.0.89
-also stored qos_usage_quota: -1 on a guest record that had none; the tool sends only
-the extend command and returns what the controller answers.
+Consequence: the guest keeps network access longer; the controller adds its own increment (24 hours on Network 11.0.81). Network 11.0.89 also stored qos_usage_quota: -1 on a guest record that had none; the tool sends only the extend command and returns the controller's answer.
 
-The guest is resolved in list_guests first: by its _id, or by MAC (the one active
-authorization of that MAC; with no active one, its only authorization). An unknown
-value, or a MAC with several matching authorizations, fails listing the guests and
-nothing is sent. Then POST network/api/s/{site}/cmd/hotspot with {"cmd": "extend",
-"_id": GUEST_ID} (Classic REST, no published spec).
+The guest is resolved in list_guests first by _id, or by MAC (its one active authorization, else its only one). An unknown value, or a MAC with several matching authorizations, fails listing the guests and nothing is sent. Then POST network/api/s/{site}/cmd/hotspot with {"cmd": "extend", "_id": GUEST_ID} (Classic REST, no published spec).
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params (query parameters), body}} instead). Read
-list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could
-extend twice.
+Returns the Classic body verbatim {meta: {rc}, data: [...]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Read list_guests afterwards for the new end. Not auto-retried on HTTP 429: a retry could extend twice.
 
 Example call (extend_guest):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "guest": "aa:bb:cc:dd:ee:ff"
-    }
+    {"host": "my-console", "site": "Default", "guest": "aa:bb:cc:dd:ee:ff"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -18141,42 +17171,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `fabric_connector_delete`
 
-Relay a DELETE through the Fabric connector. Irreversible write to the controller.
-
-Reaches private APIs too.
+Relay a DELETE through the Fabric connector. Irreversible write to the controller; reaches private APIs too.
 
 Consequence: the target resource is removed from the controller; there is no undo.
 
-DELETE reads its GET twin before/after; confirm the exact resource path first; body is
-optional. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm is
-ignored.
+Confirm the exact resource path first; body is optional and verbatim, confirm is ignored. Params as fabric_connector_get.
 
-Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim
-(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
-headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
-readAfterError explains a failed or non-2xx read-after. DELETE is confirmed only by a
-404 read-after following a 2xx read-before: noOp false, changed true. If read-after still
-returns the resource, noOp is null with noOpReason "deletion not confirmed". Unknown is also
-noOp null; changed (= not noOp) is present only when noOp is non-null.
-A 2xx error body is rejected: status/body stay verbatim; Classic without meta.rc "ok" sets
-_classicRcError (meta.msg included), a v2 body of only {error: {code, message}} sets
-_upstreamError; noOp is null with no changed, and reads carry the marker.
-dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
-{method, path, params, body} preview, readAfter/noOp null, no changed.
+Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Deletion is confirmed only by a 404 read-after following a 2xx read-before: noOp false, changed true; changed (= not noOp) is present only when noOp is non-null; binary is {bodyBase64, sizeBytes, body: null}. If the read-after still returns the resource, noOp is null with noOpReason "deletion not confirmed". HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the {method, path, params, body} preview.
 
-Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny, or
-an unclassified route meets any active area opt-out; never auto-retried on 429
-(raised with its body).
+Refused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_delete. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
 
-Details: docs/TOOL-USAGE.md#fabric_connector_delete.
-
-Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
-body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
-
-HTTP 401/403 keeps body/status and adds _hint (key/permission advice);
-readBefore/readAfter carry the same guidance for failed GET twins.
+Required arguments: host, path.
 
 **API source:** `relay/generic/write`
 
@@ -18206,39 +17211,15 @@ readBefore/readAfter carry the same guidance for failed GET twins.
 
 ### `fabric_connector_get`
 
-Relay a GET through the Fabric connector to any console /proxy/{path} route.
+Relay a GET through the Fabric connector to any console /proxy/{path} route without a typed tool. Reaches private APIs too.
 
-Reaches private APIs too; official-only setups also exclude source:relay.
+Official-only setups also exclude source:relay.
 
-For routes without typed tools. GET needs no confirm. State-changing GET routes
-(Protect enable-control/disable-control) require write authorization, obey connector/area
-opt-outs, read-only mode and dry-run, and are sent once. In discovery mode use
-call_write_tool for them. Ordinary GET reads remain available. A 4xx/5xx returns status
-(unknown-route probes).
+State-changing GET routes (Protect enable-control/disable-control) need write authorization, obey connector/area opt-outs, read-only mode and dry-run, and are sent once; in discovery mode use call_write_tool. Consequence: they change camera controllability until set back. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status "dry_run", body previews method, path, params, body.
 
-Consequence: Protect enable-control/disable-control changes camera controllability
-until set back.
+Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body}. status/body are the upstream's verbatim (4xx/5xx returned, not raised): decoded JSON, text in its declared charset, or null when empty (masked only with UNIFI_REDACT_SECRETS). Binary is base64 bodyBase64 plus sizeBytes with body null; an unfollowed 3xx adds headers. HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.
 
-Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) an action GET sends nothing: status
-"dry_run", body previews method, path, params, body.
-
-Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body}; body is
-the upstream body verbatim: decoded JSON, the exact text of a non-JSON body, or null when
-the body is empty (masked only when the operator opts in with UNIFI_REDACT_SECRETS).
-contentType is the upstream Content-Type (null when none). A text body is decoded with its
-declared charset when that is a known codec (latin-1, utf-16 ...; UTF-8
-otherwise), so non-UTF-8 text comes back as text under body. A binary body (a non-text
-Content-Type such as image/jpeg, or bytes that do not decode in that charset) is returned
-complete, with no size cap, base64-encoded as bodyBase64 plus sizeBytes, and body is null.
-A 3xx (never followed) also returns its response headers (Location included; credentials
-and cookies excluded) under headers.
-
-HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
-A 2xx error body (Classic without meta.rc "ok": _classicRcError, meta.msg included; v2 of
-only {error: {code, message}}: _upstreamError) is reported like a 4xx, body verbatim.
-
-Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
-body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
+Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
 
 Required arguments: host, path.
 
@@ -18268,42 +17249,17 @@ Required arguments: host, path.
 
 ### `fabric_connector_patch`
 
-Relay a PATCH (partial update) through the Fabric connector. Writes upstream.
-
-Reaches private APIs too.
+Relay a PATCH (partial update) through the Fabric connector. Writes upstream; reaches private APIs too.
 
 Consequence: applies to the live controller immediately.
 
-Classic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write
-can restart or reprovision it. For legacy
-InnerSpace ``innerspace/api/shapes/{id}``, first
-probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop.
-EXPERIMENTAL. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm is
-ignored.
+Classic rest/device/{id} reads use stat/device as for fabric_connector_put; a device write can restart or reprovision it. For legacy InnerSpace innerspace/api/shapes/{id} (EXPERIMENTAL), first probe a nonexistent shape ID with an empty body: 4xx = reachable; 200/204 = stop. Params as fabric_connector_get; body is verbatim; confirm is ignored.
 
-Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed]}. status/body are verbatim
-(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
-headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
-readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
-stat/device list as body, matched comparisonRecords, twin and twinError (why a device
-was not compared). noOp is true only if the write and both reads are 2xx and every sent
-leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
-null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
-present only when noOp is non-null. A 2xx error body (Classic: _classicRcError with
-meta.msg; v2: _upstreamError) is rejected: noOp is null, reads carry the marker.
-dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
-preview (method, path, params, body); readAfter/noOp null.
+Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the dry-run preview (method, path, params, body).
 
-Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny, or
-an unclassified route meets an active area opt-out; never auto-retried on 429
-(raised with its body).
+Refused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.
 
-Details: docs/TOOL-USAGE.md#fabric_connector_patch; limits: see fabric_connector_get.
-
-HTTP 401/403 adds _hint (key/permission advice);
-readBefore/readAfter carry the same guidance for failed GET twins.
+Required arguments: host, path.
 
 **API source:** `relay/generic/write`
 
@@ -18333,42 +17289,17 @@ readBefore/readAfter carry the same guidance for failed GET twins.
 
 ### `fabric_connector_post`
 
-Relay a POST (create/command) through the Fabric connector. Writes to the controller.
+Relay a POST (create/command) through the Fabric connector. Writes to the controller; reaches private APIs too.
 
-Reaches private APIs too.
+Consequence: whatever the target route creates or does happens on the live controller immediately.
 
-Consequence: whatever the target route creates or does happens on the live controller
-immediately.
+Targets a collection or command route (e.g. network/api/s/{site}/cmd/...). Params as fabric_connector_get; body is sent verbatim, confirm is ignored.
 
-POST targets a collection or command route (e.g. ``network/api/s/{site}/cmd/...``). See
-fabric_connector_get for host/path/site/scope semantics; body is sent verbatim and confirm is
-ignored. Every attempt is audit-logged (never the key value).
+Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled}: status/body are the upstream's verbatim (4xx/5xx returned, not raised); binary is bodyBase64 plus sizeBytes with body null. No GET twin, so no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent: status "dry_run", body the dry-run preview (method, path, params, body). HTTP 401/403 adds _hint (key/permission advice). A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx.
 
-Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled}. status and body are the upstream's, verbatim (a 4xx/5xx is returned, not raised);
-a binary body is bodyBase64 plus sizeBytes with body null; a 3xx (never followed) adds its
-headers. POST has no GET twin: no read-before/after. Under dry-run policy (UNIFI_WRITE_POLICY=dry-run) nothing is sent:
-status
-is "dry_run" and body is the preview.
-
-Refused before any request if family:connector=deny, UNIFI_WRITE_POLICY=deny is set, a
-protect/ path meets family:protect=deny (every area write opt-out applies),
-or an unclassified route meets any active area opt-out; never auto-retried on 429
-(raised with the upstream body).
-
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#fabric_connector_post.
-
-HTTP 401/403 keeps body and status, adding _hint with key setup/permission advice.
-A 2xx error body (Classic without meta.rc "ok": _classicRcError, meta.msg included; v2 of
-only {error: {code, message}}: _upstreamError) is reported like a 4xx, body verbatim.
-
-Connector limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response
-body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
+Refused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. Details: docs/TOOL-USAGE.md#fabric_connector_post. Limits (Site Manager spec): 25 s/request, 100 requests/min/console, 10 MB response body, firmware 5.0.3+; a matching 408/429/502 adds a hint.
 
 Required arguments: host, path.
-
-The dry-run preview contains method, path, params (query parameters), and body.
 
 **API source:** `relay/generic/write`
 
@@ -18398,41 +17329,17 @@ The dry-run preview contains method, path, params (query parameters), and body.
 
 ### `fabric_connector_put`
 
-Relay a PUT (full replace) through the Fabric connector. Writes upstream.
-
-Reaches private APIs too.
+Relay a PUT (full replace) through the Fabric connector. Writes upstream; reaches private APIs too.
 
 Consequence: replaces the resource now; omitted fields may reset.
 
-For ``network/api/s/{site}/rest/device/{id}``, pass scope='device' to refuse site-global
-routes; it has no GET, so reads use stat/device and noOp compares only sent fields
-(noOpBasis). A device write can restart or reprovision it. Undocumented routes are
-EXPERIMENTAL. fabric_connector_get defines host/path/site/scope; body is verbatim; confirm
-is ignored.
+For network/api/s/{site}/rest/device/{id}, pass scope='device' to refuse site-global routes; it has no GET, so reads use stat/device and noOp compares only sent fields (noOpBasis). A device write can restart or reprovision it. Undocumented routes are EXPERIMENTAL. Params as fabric_connector_get; body is verbatim; confirm is ignored.
 
-Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body,
-writeEnabled, readBefore, readAfter, noOp[, changed, noOpBasis]}. status/body are verbatim
-(4xx/5xx too); binary is {bodyBase64, sizeBytes, body: null}; an unfollowed 3xx adds
-headers. readBefore/readAfter are twin GET results ({status: null, error} on failure);
-readAfterError explains a failed or non-2xx read-after. For rest/device each read has the
-stat/device list as body, matched comparisonRecords, twin and twinError (why a device
-was not compared). noOp is true only if the write and both reads are 2xx and every sent
-leaf matches (unsent siblings ignored; body-less writes compare whole bodies);
-null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is
-present only when noOp is non-null. A 2xx error body (Classic: _classicRcError with
-meta.msg; v2: _upstreamError) is rejected: noOp is null, reads carry the marker.
-dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the
-preview (method, path, params, body); readAfter/noOp null.
+Returns {method, routeClass, scope, path, resolvedPath, status, contentType, body, writeEnabled, readBefore/readAfter (twin GET results), noOp[, changed, noOpBasis]}. readAfterError explains a failed or non-2xx read-after. Binary is {bodyBase64, sizeBytes, body: null}. noOp is true only if the write and both reads are 2xx and every sent leaf matches; null if unknown (noOpReason unless readAfterError explains). changed (= not noOp) is present only when noOp is non-null. dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends nothing: status "dry_run", body the dry-run preview (method, path, params, body).
 
-Refused before requests if family:connector=deny, UNIFI_WRITE_POLICY=deny is set,
-a protect/ path has family:protect=deny, or
-an unclassified route meets an active area opt-out; never auto-retried on 429
-(raised with its body).
+Refused under family:connector=deny, UNIFI_WRITE_POLICY=deny, family:protect=deny (protect/ paths) or an unclassified route meeting an active area opt-out; never auto-retried on 429. HTTP 401/403 adds _hint (key/permission advice); readBefore/readAfter carry the same guidance for failed GET twins. A 2xx error body (_classicRcError, _upstreamError) is reported like a 4xx: status/body verbatim, noOp null, no changed. Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.
 
-Details: docs/TOOL-USAGE.md#fabric_connector_put; limits: see fabric_connector_get.
-
-HTTP 401/403 adds _hint (key/permission advice);
-readBefore/readAfter carry the same guidance for failed GET twins.
+Required arguments: host, path.
 
 **API source:** `relay/generic/write`
 
@@ -18464,28 +17371,15 @@ readBefore/readAfter carry the same guidance for failed GET twins.
 
 Forget clients: delete the controller's record of each client (the UI's "Forget").
 
-Consequence: the client's whole list_users record is deleted, with everything stored
-on it (name, note, fixed-IP reservation, user group, the blocked flag). There is no
-undo.
+Consequence: the client's whole list_users record is deleted with everything on it (name, note, fixed-IP reservation, user group, blocked flag). There is no undo.
 
-No published spec covers this, so it uses the Classic REST station manager: POST
-network/api/s/{site}/cmd/stamgr with {"cmd": "forget-sta", "macs": [MAC, ...]} (MACs in
-lowercase colon form, duplicates collapsed), ONE request for every MAC given. Verified
-on Network 11.0.81: the client's list_users record is gone on the next read. A MAC the
-controller does not know is accepted (rc ok) and changes nothing.
+No published spec covers this; it uses the Classic station manager: POST network/api/s/{site}/cmd/stamgr with {"cmd": "forget-sta", "macs": [MAC, ...]} (lowercase colon form, duplicates collapsed), ONE request for every MAC. Verified on Network 11.0.81: the record is gone on the next read. A MAC the controller does not know is accepted (rc ok) and changes nothing.
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} for one MAC or a
-list alike, since the controller answers the whole batch with one envelope (under
-dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params (query parameters), body}} instead). Not auto-retried
-on HTTP 429: a retry could repeat the action.
+Returns the Classic body verbatim {meta: {rc}, data: [...]}, one envelope for one MAC or a list (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead). Not auto-retried on HTTP 429: a retry could repeat the action.
 
 Example call (forget_client):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "mac": ["aa:bb:cc:dd:ee:ff", "aa:bb:cc:dd:ee:01"]
-    }
+    {"host": "my-console", "site": "Default",
+     "mac": ["aa:bb:cc:dd:ee:ff", "aa:bb:cc:dd:ee:01"]}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -18515,21 +17409,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Forget one or more devices through the Classic site manager.
 
-Consequence: an adopted device loses its controller configuration and must be
-adopted again. A pending device leaves the pending list but may reappear while
-it keeps broadcasting for adoption. Both are addressed by MAC.
+Consequence: an adopted device loses its controller configuration and must be adopted again. A pending device leaves the pending list but may reappear while it keeps broadcasting for adoption. Both are addressed by MAC.
 
-Sends one POST to network/api/s/{site}/cmd/sitemgr per distinct MAC, with
-{"cmd": "delete-device", "mac": "aa:bb:cc:dd:ee:ff"}. MACs are normalized.
-Returns the upstream Classic {meta, data} body verbatim; upstream
-errors are raised. An unknown MAC returns HTTP 400 api.err.UnknownDevice.
-A list returns {byMac, forgotten, errors}; each successful byMac value is the
-upstream body, and errors contains {mac, error}. It raises only if every MAC fails.
+Sends one POST to network/api/s/{site}/cmd/sitemgr per distinct (normalized) MAC with {"cmd": "delete-device", "mac": ...}. Returns the upstream Classic {meta, data} body verbatim; errors are raised (an unknown MAC returns HTTP 400 api.err.UnknownDevice). A list returns {byMac, forgotten, errors} (byMac values are upstream bodies, errors are {mac, error}) and raises only if every MAC fails.
 
-UNIFI_WRITE_POLICY=deny blocks this write. Under dry-run policy nothing is sent; returns
-{status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-body}, _consequence}. A MAC list returns {status: "dry_run", byMac, errors}; byMac holds
-each MAC's preview, with no forgotten key. Never automatically retried.
+UNIFI_WRITE_POLICY=deny blocks this write. Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}, _consequence}; a MAC list returns {status: "dry_run", byMac, errors} with each MAC's preview and no forgotten key. Never automatically retried.
 
 Example: docs/TOOL-USAGE.md#forget_device.
 
@@ -19047,17 +17931,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Open, answer or close a browser-style (WebRTC) SSH session to a device.
 
-Sends the Classic POST api/s/{site}/cmd/devmgr command build-ssh-session (action build),
-ssh-sdp-answer (sdp_answer) or close-ssh-session (close); any other action is sent as the
-cmd as given and the controller judges it. The Network web app builds the rest of the body
-at run time and its keys were not recovered from the 11.0.81 bundle, so params is free-form
-and sent as given beside cmd (no key is added). Returns the Classic envelope {meta, data}
-verbatim; success requires meta.rc "ok", otherwise the error carries the full upstream body.
-With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false,
-message,
-preview: {method, path, params, body}} and sends nothing. Consequence: build opens a shell
-channel to the device; close ends it. Other action names execute arbitrary devmgr commands
-with the consequences of that command; the SSH aliases do not restrict the command set.
+Sends the Classic POST api/s/{site}/cmd/devmgr command build-ssh-session (action build), ssh-sdp-answer (sdp_answer) or close-ssh-session (close); any other action is sent as the cmd as given and the controller judges it. The Network web app builds the rest of the body at run time and its keys were not recovered from the 11.0.81 bundle, so params is free-form and sent as given beside cmd (no key is added). Returns the Classic envelope {meta, data} verbatim; success requires meta.rc "ok", otherwise the error carries the full upstream body. With dry-run policy, returns the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing. Consequence: build opens a shell channel to the device; close ends it. Other action names execute arbitrary devmgr commands with the consequences of that command; the SSH aliases do not restrict the command set.
 
 Required arguments: host, site (see each parameter's description).
 
@@ -19174,29 +18048,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `manage_mclag_group`
 
-Create, update or delete an MC-LAG switch group (Network v2 route).
+Create, update or delete an MC-LAG switch group (Network v2 route). Consequence: changes switch link aggregation; links can drop. Never auto-retried.
 
-Consequence: changes switch link aggregation; links can drop. action "create": POST
-/proxy/network/v2/api/site/{site}/mclag-groups with group verbatim. action "update": reads
-GET .../mclag-groups, merges only the given leaves, PUT .../mclag-groups/{id} with the
-merged record and reads it back, adding _verified (type-strict per requested leaf) and
-_readAfterError. action "delete": DELETE .../mclag-groups/{id} (irreversible). Update and
-delete resolve group_id in the list first (an unknown id fails listing every valid id).
-group is required for create and update and omitted for delete; group_id is required for
-update and delete and omitted for create. Returns the upstream body (JSON object or
-array) verbatim for actions "create" and "update"; for action "update" a non-object
-body is returned whole under response with _verified (and _readAfterError) beside it.
-Action "delete" returns {deleted, message, response}: deleted is true, message
-summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw
-text, or null when the body is empty).
-Never auto-retried.
+The action "create": POST /proxy/network/v2/api/site/{site}/mclag-groups with group verbatim. "update": reads GET .../mclag-groups, merges only the given leaves, PUT .../mclag-groups/{id} and reads it back. "delete": DELETE .../mclag-groups/{id} (irreversible). Update and delete resolve group_id in the list first (an unknown id fails listing every valid id). group is required for create/update and omitted for delete; group_id is required for update/delete and omitted for create.
 
-Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-status "dry_run", dryRun, sent: false, message and preview (method, path, params, body); for
-action "delete" that preview is the response of {status: "dry_run", deleted: false, message,
-response}.
+Returns the upstream body verbatim for create and update; update adds _verified (type-strict per requested leaf) and _readAfterError, and a non-object body is kept under response. Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. Under dry-run policy nothing is sent: the dry-run preview (for delete, the response of {status: "dry_run", deleted: false, message, response}).
 
 Required arguments: host, site, action.
+
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -19549,44 +18409,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `pos_ingest_transaction`
 
-Ingest a POS transaction overlay onto camera footage.
+Ingest a POS transaction overlay onto camera footage (POST /v1/pos/cameras/{id}/transactions via the Fabric proxy). Consequence: the transaction is overlaid on the camera's recorded footage. WARNING: creates a footage overlay event with no documented rollback; validated locally with an idempotency key; never auto-retried.
 
-Consequence: the transaction is overlaid on the camera's recorded footage.
+`transaction` (REQUIRED, posTransactionRequest) needs type ('sale'|'refund'), externalId (per-camera unique idempotency key) and amount; optional currency, lineItems, location, paymentTypes, timestamp (epoch ms, within the last 24 hours and at most 5 minutes ahead of server time) pass through.
 
-Returns {status: "sent", response}: response is the upstream body verbatim (decoded JSON,
-the text of a non-JSON body, or null when the body is empty).
-Under dry-run policy nothing is sent: {status: "dry_run", response (the preview)}.
+Returns {status: "sent", response (upstream body verbatim)}. Under dry-run policy nothing is sent: {status: "dry_run", response (the dry-run preview)}.
 
-Route: POST /v1/pos/cameras/{id}/transactions (Fabric proxy).
-
-WARNING: creates a footage overlay event with no documented rollback. The transaction is
-validated locally and carries an idempotency key; the POS write is never auto-retried.
-`transaction`: REQUIRED posTransactionRequest object. Must include `type`
-  ('sale'|'refund'), `externalId` (per-camera unique idempotency/dedup key), and
-  `amount`; optional currency/lineItems/location/paymentTypes/timestamp pass through.
-
-Request body (Protect 7.3.74, POST /v1/pos/cameras/{id}/transactions; schema
-"posTransactionRequest") is passed in `transaction`. Required keys — type, externalId, amount.
-- type: enum[sale|refund]
-- externalId: string
-- amount: number
-- currency: string (uppercase ISO 4217 code, e.g. USD)
-- lineItems: array of object, at most 200 items {title: string (1-255 characters),
-  quantity: integer (>= 1)} (both item keys required)
-- location: object {id: string (1-255 characters, required), name: string (1-255
-  characters)}
-- paymentTypes: array of string
-- timestamp: integer (epoch ms; within the last 24 hours and at most 5 minutes ahead of
-  server time, else rejected)
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (pos_ingest_transaction):
-    {
-      "host": "my-console",
-      "camera_id": "00000000000000000000010b",
-      "transaction": {"type": "sale", "externalId": "order-1042", "amount": 24.95}
-    }
-
-The dry-run preview contains method, path, params (query parameters), and body.
+    {"host": "my-console", "camera_id": "00000000000000000000010b",
+     "transaction": {"type": "sale", "externalId": "order-1042", "amount": 24.95}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -19811,25 +18644,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `query_isp_metrics`
 
-Query filtered ISP metrics for one or more scoped sites (via `sites`, or `host`+`site`).
+Query filtered ISP metrics for scoped sites: `sites`, or `host`+`site` (both is an error). The filtered variant of get_isp_metrics: start_time/end_time bound the window; for a quick unscoped read use get_isp_metrics.
 
-One of: `sites`, or `host`+`site` (passing both is an error, never a duplicate query).
+Returns the upstream body verbatim: {data: {metrics, status?, message?}, httpStatusCode, traceId}. data.metrics is one object per site, {metricType, hostId, siteId, periods}, each periods[] entry {metricTime, version, data: {wan: {...}}}. data.status/data.message report partial success (some sites had no data).
 
-This is the filtered variant of `get_isp_metrics`: pass host/site to scope the query and
-start_time/end_time to bound the window. For a quick unscoped read, use `get_isp_metrics`.
-
-Returns the upstream body verbatim: {data: {metrics, status?, message?}, httpStatusCode,
-traceId}. data.metrics has one object per site, {metricType, hostId, siteId, periods};
-each periods[] entry is {metricTime, version, data: {wan: {...}}}. data.status /
-data.message report a partial success (some sites returned no data).
-
-In a multi-key deployment each site is queried on the key that owns its console. When
-the sites span several keys the result keeps the same data.metrics path: it holds every
-key's per-site objects (each with an additive _keyLabel), byKey (one entry per key
-label) holds the rest of that key's body verbatim (its data.status / data.message,
-httpStatusCode, traceId),
-_key_labels lists the keys that answered, and a key whose query fails is reported under
-errors (the call fails only when every key fails).
+With several keys each site is queried on the key owning its console; the result keeps the data.metrics path with every key's per-site objects (each with an additive _keyLabel), byKey holds the rest of each key's body (data.status/message, httpStatusCode, traceId), _key_labels lists the keys that answered, and a failed key is under errors (the call fails only when every key fails).
 
 Required arguments: interval (see each parameter's description).
 
@@ -19948,25 +18767,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Query the MAC tables of switch ports (Network v2 route).
 
-POST /proxy/network/v2/api/site/{site}/ports/mac-tables with queries sent as
-a JSON array, one {mac, ports} item per switch, as the web app sends it (an object
-body answers HTTP 400). Use queries for the array body. The legacy query takes
-precedence when present: a {mac, ports} object is sent as the one-item array
-[query]; any other value is forwarded unchanged and the controller judges it.
-An empty queries list or a non-object array item is refused
-before any request. Returns the upstream body verbatim (per switch, each port's
-mac_table). This POST is not on the read-POST allowlist, so it is classified as a
-write (UNIFI_WRITE_POLICY=deny hides the tool;
-family:network=deny also hides the tool).
-Consequence: none intended (a query); it only reads the MAC tables.
+POST /proxy/network/v2/api/site/{site}/ports/mac-tables with queries sent as a JSON array, one {mac, ports} item per switch, as the web app sends it (an object body answers HTTP 400). Use queries for the array body. The legacy query takes precedence when present: a {mac, ports} object is sent as the one-item array [query]; any other value is forwarded unchanged and the controller judges it. An empty queries list or a non-object array item is refused before any request. Returns the upstream body verbatim (per switch, each port's mac_table). This POST is not on the read-POST allowlist, so it is classified as a write (UNIFI_WRITE_POLICY=deny hides the tool; family:network=deny also hides the tool). Consequence: none intended (a query); it only reads the MAC tables.
 
-Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, and either queries (UI array) or query (legacy object).
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -19997,29 +18804,12 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 List Teleport invitation history (v2 POST teleport/invitation-history).
 
-Required: host and site. A read sent as POST (Consequence: none intended; it only
-reads the history): it is not on the read-POST allowlist, so it is classed as a
-write: UNIFI_WRITE_POLICY=deny refuses it, and under dry-run policy it returns a dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-params, body}} of the first page and sends nothing.
-Without a requested total every page is read (pageNumber 0, 1, ... to the end)
-and the records are joined under data, adding _count and _pages; a stopped drain
-(page cap, repeated page, a later page without records) adds incomplete: true and
-incompleteReason. Returns that joined object. An empty first page is returned
-verbatim; a first page without a data array is returned verbatim plus _pages and
-_drainNote. page_number alone returns that page verbatim. page_size alone is window
-0: exactly page_size records from record 0; _nextPage counts page_size windows, so
-resume with page_number=_nextPage and the same page_size. page_number with page_size
-returns that window. Omit both to drain every record.
-_pageSize reports the requested count, sent (every pageSize sent, in request order),
-the effective console page size and the returned count. _nextPage is absent when no
-record follows the window or the call stopped incomplete.
+Required: host and site. A read sent as POST (Consequence: none intended; it only reads the history): it is not on the read-POST allowlist, so it is classed as a write: UNIFI_WRITE_POLICY=deny refuses it, and under dry-run policy it returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} of the first page and sends nothing. Without a requested total every page is read (pageNumber 0, 1, ... to the end) and the records are joined under data, adding _count and _pages; a stopped drain (page cap, repeated page, a later page without records) adds incomplete: true and incompleteReason. Returns that joined object. An empty first page is returned verbatim; a first page without a data array is returned verbatim plus _pages and _drainNote. page_number alone returns that page verbatim. page_size alone is window 0: exactly page_size records from record 0; _nextPage counts page_size windows, so resume with page_number=_nextPage and the same page_size. page_number with page_size returns that window. Omit both to drain every record. _pageSize reports the requested count, sent (every pageSize sent, in request order), the effective console page size and the returned count. _nextPage is absent when no record follows the window or the call stopped incomplete.
 
 Example call (query_teleport_invitations):
     {"host": "my-console", "site": "Default"}
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -20049,30 +18839,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `query_traffic_flows`
 
-Query traffic flows: a Network v2 read-POST, available in read-only and dry-run modes.
+Query traffic flows: a Network v2 read-POST allowlisted by live read evidence (2026-10-26, 50+ calls, configuration unchanged), so it works in read-only and dry-run modes. POST /proxy/network/v2/api/site/{site}/traffic-flows. Body keys override typed selectors; the window becomes epoch-ms timestampFrom/timestampTo; direction, action, risk and threat_signature become lists. Without pageSize, every page reported by has_next/total_page_count is drained from pageNumber (default 0). A body pageSize above 5000 is sent as 5000 per page (larger causes HTTP 400); at or below, as given; each integer pageSize returns that many records or fewer at the end, from pageNumber * pageSize. Upstream errors pass through. No window or page-count cap applies (not even UNIFI_PAGINATE_MAX_PAGES); large queries can use substantial controller memory and time. _nextPage {offset, pageSize} resumes at the first unreturned record: pass it as body.pageNumber, optionally with a new body.pageSize. _pageSize {requested, sent, effective, returned} reports sizes.
 
-POST /proxy/network/v2/api/site/{site}/traffic-flows. Allowlisted by live read
-evidence (2026-10-26, 50+ calls, configuration digests unchanged); dry-run policy
-sends it normally. Body keys override typed selectors. Window becomes epoch-ms
-timestampFrom/timestampTo; direction, action and risk become lists.
-
-Without pageSize, drain every page reported by has_next/total_page_count from
-pageNumber (default 0). A body pageSize above 5000 is sent as 5000 per page
-(larger wire sizes cause HTTP 400); at or below 5000 it is sent as given.
-Every integer pageSize requests that many records or fewer at the end, starting
-at pageNumber * pageSize. Upstream errors pass through unchanged. No time-window
-or page-count cap applies, including UNIFI_PAGINATE_MAX_PAGES; large queries can
-consume substantial controller memory and time.
-
-_nextPage {offset, pageSize} resumes at the first unreturned record: pass the
-object as body.pageNumber, with any new body.pageSize or omit to reuse its size.
-_pageSize {requested, sent, effective, returned} reports each physical request
-size in sent, the observed console size in effective, and the returned count.
-
-Returns a single-page result verbatim, or for several pages (with or without
-pageSize) the last page's envelope with gathered data and _pages. Repeated/empty
-pages claiming more return gathered data with incomplete and incompleteReason; a
-later failure also names its zero-based page, status and full upstream error.
+Returns a single page verbatim, or for several pages the last page's envelope with gathered data and _pages; repeated/empty pages claiming more return gathered data with incomplete/incompleteReason, and a later failure names its zero-based page, status and upstream error.
 
 Required arguments: host, site.
 
@@ -20097,6 +18866,7 @@ Required arguments: host, site.
 | `direction` | `string \| array \| null` | no | `null` | Shape: string\|string[]; sent as an array. Observed values local, outgoing, incoming (2026-10-26). Any value is forwarded for the console to validate, e.g. "outgoing". |
 | `action` | `string \| array \| null` | no | `null` | Shape: string\|string[]; sent as an array. Observed values allowed, blocked (2026-10-26). Any value is forwarded for the console to validate, e.g. "blocked". |
 | `risk` | `string \| array \| null` | no | `null` | Shape: string\|string[]; sent as an array. Observed values low, medium, high (2026-10-26). Any value is forwarded for the console to validate, e.g. "high". |
+| `threat_signature` | `string \| integer \| array \| null` | no | `null` | Shape: string\|integer\|(string\|integer)[]; sent as the body key ips_signature_id (the key the Network 11.1.47 web app filters flows by IPS signature with), as an array. Values are the console's IPS signature ids, as listed under ips_signatures by GET traffic-flows/filter-data; any value is forwarded for the console to validate, e.g. 2027750. |
 
 **Return type**
 
@@ -20190,23 +18960,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `reboot_protect_device`
 
-Reboot a Protect device once. Camera recording and live view are interrupted while it
-restarts. No automatic retry; a timeout means outcome unknown, read back before
-retrying.
+Reboot a Protect device once. Camera recording and live view are interrupted while it restarts. No automatic retry; a timeout means outcome unknown, read back before retrying.
 
-Consequence: the camera or sensor restarts and is offline until it comes back; a camera
-records nothing and serves no live view meanwhile, and that gap in footage cannot be
-recovered. No setting is changed.
+Consequence: the camera or sensor restarts and is offline until it comes back; a camera records nothing and serves no live view meanwhile, and that gap in footage cannot be recovered. No setting is changed.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; _warnings describes operational risks.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} (binary: bodyBase64, sizeBytes). Adds writeEnabled and _warnings.
 
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Under dry-run policy no upstream write is sent: status is "dry_run" and body contains the exact dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (reboot_protect_device):
     {"host": "my-console", "device_type": "camera", "device_id": "00000000000000000000010b"}
@@ -20237,11 +18997,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `reboot_unifi_os_console`
 
-Reboot a UniFi OS console (POST /api/system/reboot).
+Ask the Network application to reboot a UniFi OS console (POST /proxy/network/api/system/reboot).
 
-Required argument: host. Consequence: this restarts the entire console, temporarily
+Required argument: host. Known limitation: UniFi OS serves its console reboot at the
+console root, POST /api/system/reboot, which the Fabric connector does not relay, and
+the Network application this path reaches has no such route (checked in Network
+11.0.99). Expect an upstream error and no reboot; the error is returned verbatim.
+Consequence: if a console did serve it, this restarts the entire console, temporarily
 interrupting every application it runs and disconnecting managed devices and clients.
-The operation is destructive and non-idempotent. Returns the upstream body verbatim.
+The operation is destructive and non-idempotent. Returns the upstream response body
+unchanged; an upstream error is returned as received, with the route hint above.
 
 Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
 "dry_run", dryRun, sent: false, message and preview (method, path, params, body). Never
@@ -20532,34 +19297,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `remove_client_fixed_ip`
 
-Remove a known client's fixed-IP (DHCP) reservation.
+Remove a known client's fixed-IP (DHCP) reservation. Consequence: the reservation no longer applies; the client gets a pool address when it next renews its lease.
 
-Consequence: the reservation no longer applies; the client gets a pool address when it
-next renews its DHCP lease.
+The known-client record (list_users) is resolved by MAC or _id first (a MAC with no record fails pointing at create_client_reservation). Then Classic PUT network/api/s/{site}/rest/user/{_id} with {"use_fixedip": false} (the controller keeps the last fixed_ip, unused); the body is {meta: {rc}, data: [the updated record]}. deleted is true only when the returned record shows use_fixedip: false; otherwise it is false and message says why. The PUT is sent once, never retried: read with get_user before retrying. Under dry-run policy nothing is sent: {status: "dry_run", deleted: false, message, response (the dry-run preview)}.
 
-The client's known-client record (list_users) is resolved by MAC or _id first (a MAC
-with no record fails pointing at create_client_reservation). Then Classic REST PUT
-network/api/s/{site}/rest/user/{_id} with {"use_fixedip": false} (verified on Network
-11.0.81: use_fixedip reads back false; the controller keeps the last fixed_ip value on
-the record, unused).
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). deleted is true only when the returned record for this client shows use_fixedip:
-false; if the controller still returns use_fixedip: true, or the response carries no
-usable use_fixedip state for the client, deleted is false and message says why. The PUT
-is sent once and never retried, so read the record with get_user before retrying. For
-this PUT the body is the Classic envelope {meta: {rc}, data: [the updated record]}. Under
-dry-run policy nothing is sent and the tool returns {status: "dry_run", deleted: false,
-message, response}, where response is the dry-run preview {status: "dry_run", dryRun:
-true, sent: false, message, preview: {method, path, params (query parameters), body}}.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (remove_client_fixed_ip):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "client": "aa:bb:cc:dd:ee:ff"
-    }
+    {"host": "my-console", "site": "Default", "client": "aa:bb:cc:dd:ee:ff"}
+
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -20594,9 +19341,7 @@ controlled here; it must be commissioned again (in pairing mode) to return.
 
 Sends DELETE matter/nodes/{node_id}. Discover ids with list_matter_nodes.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). With dry-run policy, returns {status: "dry_run", deleted: false, message, response},
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim. With dry-run policy, returns {status: "dry_run", deleted: false, message, response},
 where response is the dry-run preview {status, dryRun, sent: false, message, preview:
 {method, path, params, body}}, without sending a write.
 
@@ -20642,7 +19387,7 @@ Dry-run response previews include body and params.
 
 Required arguments: host, case_id, asset_id.
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -20674,18 +19419,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 Remove a Teleport client (v2 DELETE teleport/client/{id}).
 
 Consequence: the client loses Teleport access and must be invited again.
-Required: host, site and client_id. No GET route lists Teleport clients by id, so
-the id is sent as given and the controller judges it. body is optional and
-free-form (the web app builds one; its shape is not published) and is sent
-verbatim when given. Returns {deleted, message, response} with the upstream body
-verbatim. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false,
-message, response}, where response is the dry-run preview {status: "dry_run",
-dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
+
+No GET route lists Teleport clients by id, so the id is sent as given and the controller judges it. body is optional, free-form (shape not published) and sent verbatim when given. Dry-run (dry-run policy) returns {status: "dry_run", deleted: false, message, response}, response being the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (remove_teleport_client):
     {"host": "my-console", "site": "Default", "client_id": "000000000000000000000107"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -21412,17 +20152,9 @@ Resume a suspended subscriber's service (POST .../subscribers/{id}/resume). Guar
 
 Consequence: the subscriber's service is restored.
 
-Returns {status: "resumed", changed, verified, subscriber, response (verbatim)}, or {status:
-"no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the
-write response when it carries the subscriber, else the read-back GET body; for no_op it is
-the GET body read first.
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "resumed", changed, verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the write response when it carries the subscriber, else the read-back GET body; for no_op it is the GET body read first. verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
-Carrier write opt-out (family:carrier=deny refuses first), read-before,
-no-op when not currently suspended, write, read-after.
+Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op when not currently suspended, write, read-after.
 
 Example call (resume_carrier_subscriber):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"}
@@ -21494,30 +20226,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `revoke_guest_access`
 
-Revoke a guest's portal authorization (the guest is disconnected).
+Revoke a guest's portal authorization (the guest is disconnected). Consequence: the guest loses network access at once and must pass the portal again (or be re-authorized with authorize_guest).
 
-Consequence: the guest loses network access at once and must pass the portal again
-(or be re-authorized with authorize_guest) to reconnect.
+The target_type "client" (default): a CONNECTED guest (MAC or UUID) uses the official action UNAUTHORIZE_GUEST_ACCESS; a MAC not connected uses Classic cmd/stamgr unauthorize-guest. "guest_session": guest is a session _id from list_hotspot_authorizations, ended with Classic cmd/hotspot terminate (the only route addressing a session). Session and client ids are both UUIDs on Network 11.x, hence the explicit selector. The official action answers 422 api.client.not-guest for a non-guest. Classic requires rc "ok". Under dry-run policy it returns {status: "dry_run", deleted: false, message, response (the dry-run preview)}; nothing is sent.
 
-Route by target_type. "client" (default): a CONNECTED guest client (MAC or UUID) uses the
-official client action UNAUTHORIZE_GUEST_ACCESS; a MAC that is not connected uses
-Classic cmd/stamgr unauthorize-guest. target_type "guest_session": guest is a guest
-session _id from list_hotspot_authorizations uses Classic cmd/hotspot terminate;
-it ends that session (the only route addressing a session). Session _ids and client ids are
-both UUIDs on Network 11.x, which is why the selector is explicit. The official
-action answers HTTP 422 api.client.not-guest for a client that is not a guest.
-
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and
-response is the upstream body verbatim (decoded JSON, raw text, or null when the body is
-empty). Classic requires rc "ok".
-
-Under dry-run policy the tool returns {status: "dry_run", deleted: false, message,
-response},
-where response is {status: "dry_run", dryRun: true, sent: false, message, preview: {method,
-path, params, body}}; nothing is sent.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (revoke_guest_access):
     {"host": "my-console", "site": "Default", "guest": "02:00:00:00:00:01"}
+
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -21560,7 +20278,7 @@ message, preview: {method, path, params, body}}; nothing is sent.
 Example call (revoke_teleport_invitation):
     {"host": "my-console", "site": "Default", "invitation_id": "000000000000000000000107"}
 
-Returns {deleted, message, response}: deleted is true, message summarizes the delete, and response is the upstream body verbatim (decoded JSON, raw text, or null when the body is empty).
+Returns {deleted, message, response}: deleted is true, message summarizes the delete, response is the upstream body verbatim.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -21891,6 +20609,43 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `dict[str, Any]`
 
+### `stop_speaker_siren`
+
+Stop a siren playing on a Protect speaker (POST /v1/speakers/{id}/stop-siren).
+
+Consequence: the siren sound on that speaker stops. Official Integration route (Protect
+7.4.96); stop_speaker_stream is the separate private route that stops other speaker
+audio. No request body; the spec answers 204 (response null) or 400. Returns {status:
+"sent", response}. Sent once. Under dry-run policy nothing is sent: {status: "dry_run",
+response (the preview)}.
+
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Required arguments: host, speaker_id.
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `speaker_id` | `string` | yes |  | Speaker id (24-hex) from list_speakers. |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `stop_speaker_stream`
 
 Stop whatever audio a Protect speaker is playing now.
@@ -21967,9 +20722,9 @@ Returns the upstream body verbatim (a body that is not a JSON object arrives as
 {result: ...}) from GET /v2/api/site/{site}/network/port-suggest,
 for example {available_ports: [1194]} for openvpn. It is a different route from
 suggest_network_settings, which suggests network settings. Only the arguments you
-pass are sent; without service the console may answer an error, to which a hint is
-added.
-Simulated only: no recorded live console answer yet.
+pass are sent. Without service the console still answers HTTP 200 with a free port
+(Network 11.1.47 answered {available_ports: [1024]}), so pass service for the port of
+a specific service; if a console answers an error, a hint is added to it.
 
 Required inputs: host, site.
 
@@ -22002,19 +20757,9 @@ Suspend a subscriber's service (POST .../subscribers/{id}/suspend). Guarded writ
 
 Consequence: the subscriber's service stops until resumed with resume_carrier_subscriber.
 
-Returns {status: "suspended", changed (suspended, and suspendReason when a reason is sent),
-verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}.
-subscriber is a full body ({data, ...}), never unwrapped: the write response when it
-carries the subscriber, else the read-back GET body (for no_op, the GET body read first).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "suspended", changed (suspended, and suspendReason when a reason is sent), verified, subscriber, response (verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body ({data, ...}), never unwrapped: the write response when it carries the subscriber, else the read-back GET body (for no_op, the GET body read first). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the
-Carrier write opt-out (family:carrier=deny refuses first), read-before,
-no-op only when already suspended AND no reason is given or the current suspendReason
-already equals it (a different reason is sent upstream), write, read-after. An optional
-reason is recorded on the subscriber.
+Spec-conformance tested only (not against a live Carrier Fabric). Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op only when already suspended AND no reason is given or the current suspendReason already equals it (a different reason is sent upstream), write, read-after. An optional reason is recorded on the subscriber.
 
 Request body (Carrier Fabric 1.0.0, POST /v1/carrier/subscribers/{id}/suspend
 (suspendSubscriber); schema "inline requestBody schema") is built from scalar parameters. No key
@@ -22292,12 +21037,62 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `wake_client`
+
+Wake a wired client with a Wake-on-LAN packet (Network 11.1.47 and later).
+
+Consequence: the controller broadcasts a magic packet on the machine's network; a
+machine that has Wake-on-LAN enabled powers on. Waking an unwanted machine has no undo.
+The packet only reaches machines on the same layer-2 segment as the gateway or switch
+that relays it, and the machine firmware must have the feature switched on; the
+controller answers success whether or not the machine woke.
+
+Returns the upstream body verbatim (under dry-run policy, the dry-run preview {status:
+"dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query
+parameters), body}} instead). An older Network application answers 404.
+
+Request body: none is passed by the caller. Tool sends an empty JSON object {} with
+POST /proxy/network/v2/api/site/{site}/wake-on-lan/{CLIENT_MAC} (CLIENT_MAC is the
+client's lowercase colon MAC), the route the Network 11.1.47 web application calls
+(no published spec). Never auto-retried.
+
+Example call (wake_client):
+    {
+      "host": "my-console",
+      "site": "Default",
+      "client_id": "aa:bb:cc:dd:ee:ff"
+    }
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.v2/write`
+
+**Family:** `clients`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
+| `client_id` | `string` | yes |  | Client UUID or MAC (AA:BB:CC:DD:EE:FF, aa-bb-..., AABBCCDDEEFF). A MAC is sent to the controller as is (lowercase colon form) with no list lookup, so an offline machine can be woken. A UUID is resolved to the MAC with the client GET, which answers only while the machine is online; an unknown UUID fails asking for the MAC. Network-app id, not a Protect id. |
+
+**Return type**
+
+`Any`
+
 
 ---
 
 ## Reading & Inspection
 
-**185 tools**
+**188 tools**
 
 ### `get_5g_topology`
 
@@ -22547,7 +21342,8 @@ Example call (get_arm_profile):
     {"host": "my-console", "arm_profile_id": "00000000000000000000010b"}
 
 On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile
+tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
 **API source:** `protect/official/read`
 
@@ -23164,26 +21960,11 @@ Example call (get_client_insights):
 
 ### `get_client_link_diagnostics`
 
-Get first-class per-client link/policy diagnostics for one or more clients.
+Get per-client link/policy diagnostics for one or more clients. Read-only and Fabric-only: reads the Classic /stat/sta payload (as list_active_clients_stats) and selects the requested client(s) in memory.
 
-Read-only and Fabric-only: reuses the same Classic REST
-/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/sta request as
-list_active_clients_stats, then selects the requested client(s) from that payload in
-memory. Surfaces link quality (rssi, signal, noise, channel, radio_name),
-rx_rate/tx_rate and retry counters, satisfaction_reason, network/VLAN identity, QoS,
-fixed-IP, and virtual-network override fields when upstream provides them — the
-matching record is returned unchanged, so unknown/future fields survive.
+Returns the /stat/sta envelope {meta: {rc}, data: [client...]} with data narrowed to the selected client(s) in the requested order; each record is unchanged (link quality, rx/tx rates, retries, satisfaction_reason, network/VLAN, QoS, fixed-IP and virtual-network override fields when upstream has them).
 
-Returns: the /stat/sta envelope {meta: {rc}, data: [client…]} with data narrowed to the
-selected client(s), in the requested order (one entry for client_id).
-
-`client_id`: a single client selector — the client's MAC address (case- and
-  separator-insensitive) or its classic /stat/sta _id. The Integration API client id
-  from list_clients data[].id does not match. Provide EITHER client_id OR client_ids,
-  not both.
-`client_ids`: an explicit list of client selectors (any length) for multi-client
-  selection, from one /stat/sta read. A selector that matches no client fails listing
-  every valid client (name, mac, _id) rather than being silently skipped.
+The client_id is one client's MAC (case- and separator-insensitive) or classic /stat/sta _id; the Integration API id from list_clients does not match. Use client_ids for a list of selectors. Give EITHER, not both. A selector matching no client fails listing every valid client (name, mac, _id).
 
 Example call (get_client_link_diagnostics):
     {"host": "my-console", "site": "Default", "client_id": "aa:bb:cc:dd:ee:ff"}
@@ -23215,19 +21996,9 @@ Example call (get_client_link_diagnostics):
 
 Get a client observability view (v2 observability/client/{mac}/...).
 
-Views: logs-all (client connection logs: {data, page_number, total_element_count,
-total_page_count}; the route takes no page parameter, so a multi-page answer adds a
-_warnings entry), timeline (array of timeline entries), timestamps (array of
-epoch-ms times that have a topology snapshot) and topology (the client's path at
-one time: {client, hops, isp, timestamp}; needs timestamp). Route: v2 only.
+Views: logs-all (client connection logs: {data, page_number, total_element_count, total_page_count}; the route takes no page parameter, so a multi-page answer adds a _warnings entry), timeline (array of timeline entries), timestamps (array of epoch-ms times that have a topology snapshot) and topology (the client's path at one time: {client, hops, isp, timestamp}; needs timestamp). Route: v2 only.
 
-Start, end and timestamp are epoch SECONDS and are sent as epoch milliseconds (the
-web app's unit). logs-all, timeline and timestamps require start and end; topology
-takes timestamp (pick one from the timestamps view, divided by 1000). Start or end
-with topology, or timestamp with any other view, fails before any request. Missing
-windows are forwarded. Returns the
-upstream body verbatim (objects also carry _warnings when a time looks like
-milliseconds or is negative).
+Start, end and timestamp are epoch SECONDS and are sent as epoch milliseconds (the web app's unit). logs-all, timeline and timestamps require start and end; topology takes timestamp (pick one from the timestamps view, divided by 1000). Start or end with topology, or timestamp with any other view, fails before any request. Missing windows are forwarded. Returns the upstream body verbatim (objects also carry _warnings when a time looks like milliseconds or is negative).
 
 Example call (get_client_observability):
     {"host": "my-console", "site": "Default", "client": "aa:bb:cc:dd:ee:ff",
@@ -23361,23 +22132,7 @@ Required inputs: host.
 
 ### `get_controller_stats`
 
-Query the controller's time-series statistics service, as the web app's graphs do.
-
-Returns the upstream body verbatim. View recent_series (GET
-/v2/api/stats/recent/series) answers an array of {siteId, deviceMac?, series: [...]};
-it needs schema and exactly one of period or start (end is optional), otherwise the
-console may return HTTP 400. View series (GET /v2/api/stats/series) reads history
-over an explicit window; it takes schema, bucket, start, end and filter (open-source
-clients send all five; a missing one adds a hint to the console's error). Open-source
-clients pad OF_1_MONTH window bounds to January 2nd; that is unverified here, so
-start and end are sent exactly as given. View source answers the active statistics
-backend as a string ("MODERN" or "LEGACY"). When start or end is negative or looks like
-epoch milliseconds, an object result gains an additive _warnings list and an array
-result is returned as {result, _warnings}. Only the arguments you pass are sent.
-filter uses the service's own grammar; a one-term and(...) is rejected
-(HTTP 400 InvalidStatQuery). Live dev GETs on Network 11.0.81 accepted and(...)
-with two and three terms (HTTP 200, empty arrays for synthetic MAC filters).
-A single term without and(...) also works.
+Query the controller's time-series statistics service, as the web app's graphs do. Returns the upstream body verbatim. View recent_series (GET /v2/api/stats/recent/series) answers an array of {siteId, deviceMac?, series: [...]}; it needs schema and exactly one of period or start (end optional), else the console may return 400. View series (GET /v2/api/stats/series) reads history over an explicit window: schema, bucket, start, end and filter (a missing one adds a hint to the console's error). View source answers the statistics backend ("MODERN" or "LEGACY"). start and end are sent exactly as given; negative or millisecond-like values add _warnings (an array result becomes {result, _warnings}). Only passed arguments are sent. filter uses the service's own grammar: a one-term and(...) is rejected (400 InvalidStatQuery); a single term without and(...) or and(...) with two or three terms works (Network 11.0.81).
 
 Required inputs: host.
 
@@ -23623,32 +22378,11 @@ Required inputs: host, source.
 
 Get switch port health, PoE, optics, and LLDP telemetry for a device.
 
-Returns, for the device view, an object with the keys _device, _port_idx (null),
-_source, _thermal_power and _device_record, plus port_table and lldp_table only when the
-selected record has them and meta only when the upstream envelope has it; with port_idx,
-_device, _port_idx, _source and _port, plus meta only when the envelope has it. An
-absent table or meta is left out, never returned as null. meta, port_table, lldp_table
-and the _device_record / _port rows are upstream values verbatim; _device / _port_idx
-echo the arguments, _source names the read route (/stat/device) and _thermal_power is a
-summary of the record's thermal and power fields (only those it has; {} when none).
+Returns, for the device view, an object with the keys _device, _port_idx (null), _source, _thermal_power and _device_record, plus port_table and lldp_table only when the selected record has them and meta only when the upstream envelope has it; with port_idx, _device, _port_idx, _source and _port, plus meta only when the envelope has it. An absent table or meta is left out, never returned as null. meta, port_table, lldp_table and the _device_record / _port rows are upstream values verbatim; _device / _port_idx echo the arguments, _source names the read route (/stat/device) and _thermal_power is a summary of the record's thermal and power fields (only those it has; {} when none).
 
-Read-only and Fabric-only: reuses the same Classic REST
-/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device request
-as list_device_stats (one call, no new route), then projects the selected device's
-port telemetry from that payload. Upstream operational fields are preserved
-verbatim — link state/speed/duplex, rx/tx byte/packet/error/drop counters, PoE state
-and draw (poe_enable/poe_good/poe_power/poe_voltage/poe_current/poe_class/poe_mode),
-SFP/optics fields where present, and port config identity — nothing is renamed or
-dropped.
+Read-only and Fabric-only: reuses the same Classic REST /v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device request as list_device_stats (one call, no new route), then projects the selected device's port telemetry from that payload. Upstream operational fields are preserved verbatim — link state/speed/duplex, rx/tx byte/packet/error/drop counters, PoE state and draw (poe_enable/poe_good/poe_power/poe_voltage/poe_current/poe_class/poe_mode), SFP/optics fields where present, and port config identity — nothing is renamed or dropped.
 
-`port_idx`: optional port_table[].port_idx (ports count from 1; any non-negative
-  value, 0 included, is matched as given). Omit it for the device view
-  (port_table and lldp_table verbatim when the record has them, a thermal/power
-  summary, and the complete selected /stat/device record verbatim under
-  _device_record); set it to return that single port_table row verbatim (under _port).
-  An unknown port_idx fails listing the valid port_idx values.
-  Both views carry the upstream envelope's meta verbatim when it has one; an unknown
-  device fails listing every valid device (name, mac, _id).
+`port_idx`: optional port_table[].port_idx (ports count from 1; any non-negative value, 0 included, is matched as given). Omit it for the device view (port_table and lldp_table verbatim when the record has them, a thermal/power summary, and the complete selected /stat/device record verbatim under _device_record); set it to return that single port_table row verbatim (under _port). An unknown port_idx fails listing the valid port_idx values. Both views carry the upstream envelope's meta verbatim when it has one; an unknown device fails listing every valid device (name, mac, _id).
 
 Example call (get_device_port_state):
     {"host": "my-console", "site": "Default", "device_id": "aa:bb:cc:dd:ee:ff"}
@@ -23779,20 +22513,9 @@ Example call (get_device_statistics):
 
 ### `get_device_stp_state`
 
-Get per-device STP/RSTP state and per-port STP role/state/path-cost.
+Get per-device STP/RSTP state and per-port STP role/state/path-cost. Read-only: reads the Classic /stat/device payload (as list_device_stats) and projects the selected device's STP fields.
 
-The result's top-level keys are {meta, _device, _source, _stp, _ports, _device_record}:
-_device echoes the device_id argument and _source names the read route (/stat/device).
-
-Read-only and Fabric-only: reads the same Classic REST
-/v1/connector/consoles/{host_id}/proxy/network/api/s/{site_slug}/stat/device payload
-as list_device_stats and projects the selected device's STP fields. Returns the
-device-level stp_version, stp_priority, root_switch/root (and any other stp_* field
-present) plus per-port STP role/state/path-cost where upstream provides them, all
-verbatim (under _stp and _ports), the complete selected /stat/device record verbatim
-under _device_record, and
-the upstream envelope's meta verbatim. An unknown device fails listing every valid
-device (name, mac, _id). This tool is read-only: no write is performed.
+Returns {meta, _device, _source, _stp, _ports, _device_record}: _device echoes device_id, _source names the route (/stat/device), _stp holds stp_version, stp_priority, root_switch/root and any other stp_* field, _ports the per-port role/state/path-cost, all verbatim when upstream has them; _device_record is the whole record and meta the envelope's. An unknown device fails listing every valid device (name, mac, _id).
 
 Example call (get_device_stp_state):
     {"host": "my-console", "site": "Default", "device_id": "aa:bb:cc:dd:ee:ff"}
@@ -24022,26 +22745,9 @@ body verbatim (an object, or an array body as result).
 
 ### `get_event_stream_status`
 
-Report whether live Network and Protect event streams are available, and listener health.
+Report whether live Network and Protect event streams are available, and listener health. Reads this server's own state only; no console request. Both products publish live events only over WebSocket, which the Fabric connector (a request/response relay) does not carry, so both report state "unsupported", supported false, and use_instead names polling tools (list_network_events, get_system_log, list_ips_events; list_protect_events, collect_protect_events, collect_protect_device_changes). Nothing subscribes the MCP client to notifications.
 
-Reads this server's own state only; no console request is made. For each product it
-returns the recorded transport compatibility and the evidence behind it, and every
-listener this server process holds. Network and Protect publish live events only over
-WebSocket, and the UniFi Fabric connector this server uses is a request/response relay
-that does not carry WebSocket. Both products are therefore reported with state
-"unsupported" and supported false, and use_instead names the history and polling
-tools (list_network_events, get_system_log, list_ips_events; list_protect_events,
-collect_protect_events, collect_protect_device_changes). Nothing here subscribes the
-MCP client to notifications.
-
-Returns {products: [{product, supported, state, transport, stream, summary, checked,
-evidence: [{request, observed}], fallback_tools, listeners: [...]}], note}. state is
-"unsupported" (no reachable stream), "inactive" (supported, no listener), or the state
-of a listener: "connecting", "connected", "reconnecting", "error" or "closed". Each
-listener reports {product, console_id, site, state, attached, coverage_started_at,
-connects, disconnects, reconnect_attempts, last_error, gaps: [{after_seq, started_at,
-ended_at, reason}], buffered, capacity, evicted, oldest_seq, last_seq}; times are epoch
-seconds.
+Returns {products: [{product, supported, state, transport, stream, summary, checked, evidence: [{request, observed}], fallback_tools, listeners: [...]}], note}. state is "unsupported", "inactive" (supported, no listener) or a listener's connecting, connected, reconnecting, error, closed. Each listener has {product, console_id, site, state, attached, coverage_started_at, connects, disconnects, reconnect_attempts, last_error, gaps, buffered, capacity, evicted, oldest_seq, last_seq}; times are epoch seconds.
 
 Example call (get_event_stream_status):
     {"product": "protect"}
@@ -24061,6 +22767,38 @@ Example call (get_event_stream_status):
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `product` | `string \| null` | no | `null` | Optional product: 'network' or 'protect'. Omit for both. Example: "protect". |
+
+**Return type**
+
+`dict[str, Any]`
+
+### `get_external_arm_profile`
+
+Get one external arm profile (GET /v1/external/arm-profiles/{id}).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Only available when the console uses the external alarm manager. Returns the upstream
+object verbatim.
+
+Required arguments: host, arm_profile_id.
+
+**API source:** `protect/official/read`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `arm_profile_id` | `string` | yes |  | External arm profile id from list_external_arm_profiles (id). |
 
 **Return type**
 
@@ -24141,24 +22879,14 @@ Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or c
 
 Get the ordering of firewall policies for a site filtered by source and destination zone.
 
-Returns: {"orderedFirewallPolicyIds": {"beforeSystemDefined": [policy id…],
-"afterSystemDefined": [policy id…]}}, verbatim — the user-defined order for this zone pair. Pass
-it verbatim (reordered, or unchanged for a no-op) as `ordering` to set_firewall_policy_ordering
-with the same source_zone_id and destination_zone_id.
-Ordering is per source/destination zone pair: find the pairs that have policies by
-calling list_firewall_policies and grouping data[] by source.zoneId /
-destination.zoneId (its `filter` narrows it, e.g. metadata.origin.eq('USER_DEFINED')).
+Returns: {"orderedFirewallPolicyIds": {"beforeSystemDefined": [policy id…], "afterSystemDefined": [policy id…]}}, verbatim — the user-defined order for this zone pair. Pass it verbatim (reordered, or unchanged for a no-op) as `ordering` to set_firewall_policy_ordering with the same source_zone_id and destination_zone_id. Ordering is per source/destination zone pair: find the pairs that have policies by calling list_firewall_policies and grouping data[] by source.zoneId / destination.zoneId (its `filter` narrows it, e.g. metadata.origin.eq('USER_DEFINED')).
 
-Prerequisite — {"tool": "list_firewall_zones_proxy", "arguments": {"host": "my-console", "site":
-"Default"}, "use": "data[].id of the source and destination zones"}.
+Prerequisite — {"tool": "list_firewall_zones_proxy", "arguments": {"host": "my-console", "site": "Default"}, "use": "data[].id of the source and destination zones"}.
 
 Example call (get_firewall_policy_ordering):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "source_zone_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01",
-      "destination_zone_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d02"
-    }
+    {"host": "my-console", "site": "Default",
+     "source_zone_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d01",
+     "destination_zone_id": "0b6c3c4e-6a0f-4f3e-9a51-6a2b8f0c1d02"}
 
 **API source:** `network/official/read`
 
@@ -24313,21 +23041,9 @@ Required inputs: host, event_type.
 
 ### `get_fleet_summary`
 
-Get a high-level fleet summary: host, site, and device counts with status breakdowns.
+Get a high-level fleet summary: host, site and device counts with status breakdowns. Covers every configured API key unless key_label names one (per-key failures under errors); a console visible to more than one key is counted once, under the first key in configuration order (as list_all_clients does).
 
-Useful for a quick overview of the entire UniFi deployment. Covers every
-configured API key unless key_label names one (per-key failures under errors). A
-console visible to more than one key is counted once, with its sites and devices,
-under the first key in configuration order (as list_all_clients does).
-
-Returns counts only, no records: {hosts, sites, devices: {total, byStatus, byType},
-_key_label}, plus, when several keys are covered, _key_labels (the keys whose consoles
-are counted) and _keyTotals (one entry per answering key label, each {hosts, sites,
-devices: {total, byStatus, byType}} over the consoles counted under that key, so the
-per-key numbers sum to the top-level totals; a shared console appears only under its
-first key and a key that failed has no entry). errors lists a key that failed (its
-label and reason), and incomplete/incompleteReason is added when a list stopped at
-the opt-in UNIFI_PAGINATE_MAX_PAGES cap.
+Returns counts only, no records: {hosts, sites, devices: {total, byStatus, byType}, _key_label}. With several keys also _key_labels and _keyTotals (one entry per answering key, over the consoles counted under it, summing to the top-level totals; a failed key has no entry). errors lists a failed key (label, reason); incomplete/incompleteReason is added when a list stopped at the opt-in UNIFI_PAGINATE_MAX_PAGES cap.
 
 **API source:** `site_manager/official/read`
 
@@ -24486,6 +23202,42 @@ Required arguments: host (see each parameter's description).
 **Return type**
 
 `dict[str, Any]`
+
+### `get_hotspot_guest_webhook_delivery`
+
+Get the last delivery attempt of the hotspot guest-data webhook.
+
+Needs Network 11.1.47 or later. GET
+/proxy/network/v2/api/site/{site}/hotspot/guest-data-webhook/last-delivery. The
+webhook posts collected guest data (such as the guest email) to the URL set in the
+hotspot settings. Returns the upstream body verbatim: the Network 11.1.47 web
+application reads attemptedAtSeconds (epoch seconds), delivered (boolean), httpStatus
+and error from it. A console that has never attempted a delivery answers HTTP 204, which
+returns null (shown as {"result": null}); an older Network application answers 404.
+
+Example call (get_hotspot_guest_webhook_delivery):
+    {"host": "my-console", "site": "Default"}
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID, e.g. "Default". |
+
+**Return type**
+
+`Any`
 
 ### `get_hotspot_package`
 
@@ -24664,31 +23416,15 @@ Required arguments: host, site, at (see each parameter's description).
 
 ### `get_innerspace_asset`
 
-Download a floor-plan asset (image) from a console's InnerSpace project.
+Download a floor-plan asset (image) from a console's InnerSpace project via the documented .../integration/v1/assets/{planId}/{filename} endpoint (a floor plan's image_url resolves here).
 
-Returns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the asset bytes
-complete, base64-encoded, with the upstream Content-Type and size; _plan_id / _filename echo the
-arguments.
+Returns {_plan_id, _filename, path, content_type, size_bytes, image_base64}: the complete bytes base64-encoded (no size cap) with the upstream Content-Type (typically image/jpeg or image/png; null when none) and size; _plan_id/_filename echo the arguments. metadata_only=true leaves out the bytes: same keys, image_base64=null.
 
-Fetches the binary asset from the documented …/integration/v1/assets/{planId}/
-{filename} endpoint (a floor plan's image_url resolves here). The complete bytes are
-returned base64-encoded under image_base64 whatever the size (no size cap). Pass
-metadata_only=true to leave out the bytes: the same keys come back with
-image_base64=null. content_type is the upstream media type (typically image/jpeg or
-image/png), or null when the upstream sends no Content-Type.
-
-`plan_id`: the id in the {planId} segment of the floor plan's image_url -- i.e. the
-  value between '/assets/' and the trailing '/{filename}'. This is the asset-group
-  UUID and is NOT the floor plan's own 'id' field (they differ); passing the plan
-  'id' returns HTTP 404. Parse both plan_id and filename from image_url (from
-  list_innerspace_floor_plans) rather than constructing them from the plan id.
+`plan_id` is the id in the {planId} segment of the floor plan's image_url (between '/assets/' and the trailing '/{filename}'): the asset-group UUID, NOT the floor plan's own 'id' (passing that returns HTTP 404). Parse both plan_id and filename from image_url (from list_innerspace_floor_plans).
 
 Example call (get_innerspace_asset):
-    {
-      "host": "my-console",
-      "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "filename": "plan.png"
-    }
+    {"host": "my-console", "plan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "filename": "plan.png"}
 
 **API source:** `innerspace/private/read`
 
@@ -24961,23 +23697,11 @@ Example call (get_ipsec_settings):
 
 ### `get_isp_metrics`
 
-Get WAN health metrics (speed, latency, packet loss, uptime).
+Get WAN health metrics (speed, latency, packet loss, uptime). Unscoped variant (every site the key sees); `interval` ('5m' or '1h') is the bucket size; duration, or begin_timestamp/end_timestamp, bound the range. To scope by console/site use query_isp_metrics.
 
-`interval` ('5m' or '1h') is the metric bucket size. This is the unscoped variant (every
-site the key sees); duration, or begin_timestamp/end_timestamp, bound the time range. To
-scope by console/site, use `query_isp_metrics` instead.
+Returns the upstream body verbatim: {data, httpStatusCode, traceId}. data is one object per site, {metricType, hostId, siteId, periods}; each periods[] entry is {metricTime, version, data: {wan: {avgLatency, maxLatency, packetLoss, download_kbps, upload_kbps, uptime, downtime, ispName, ispAsn}}}, so a site's WAN values are at data[i].periods[j].data.wan.
 
-Returns the upstream body verbatim: {data, httpStatusCode, traceId}. data is a list with
-one object per site, {metricType, hostId, siteId, periods}; each periods[] entry is
-{metricTime, version, data: {wan: {avgLatency, maxLatency, packetLoss, download_kbps,
-upload_kbps, uptime, downtime, ispName, ispAsn}}}. So the WAN values of a site are at
-data[i].periods[j].data.wan.
-
-In a multi-key deployment every configured key is queried and the result keeps the same
-data path: data holds every key's per-site objects (each with an additive _keyLabel),
-byKey (one entry per key label) holds the rest of that key's body (httpStatusCode,
-traceId), _key_labels lists the keys that answered, and a key that fails is reported
-under errors.
+With several keys every key is queried and data keeps that path (each object has an additive _keyLabel); byKey holds the rest of each key's body (httpStatusCode, traceId), _key_labels lists the keys that answered, and a failed key is under errors.
 
 **API source:** `site_manager/official/read`
 
@@ -25274,21 +23998,9 @@ Required arguments: host, site.
 
 Check the UniFi LTE (cellular backup) subscription of one or more LTE devices.
 
-Required: host, site and macs (a non-empty list of device MACs from list_devices; an
-empty list fails before any request). Sends Classic POST
-api/s/{site}/cmd/lte with cmd check-subscription and the keys the Network web app
-sends: macs, ubic_username, x_ubic_password (from ubic_password) and
-ubic_2fa_token; only the arguments you pass are sent. Each MAC must be a device of
-the site (read first; an unknown MAC fails listing the devices). Returns the
-Classic envelope {meta, data} verbatim; success requires meta.rc "ok". Consequence:
-none; it changes nothing, but it is a POST, so read-only mode refuses it. The
-password and token are credentials: masked in errors and results only under
-UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview
-{status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and
-sends nothing.
+Required: host, site and macs (a non-empty list of device MACs from list_devices; an empty list fails before any request). Sends Classic POST api/s/{site}/cmd/lte with cmd check-subscription and the keys the Network web app sends: macs, ubic_username, x_ubic_password (from ubic_password) and ubic_2fa_token; only the arguments you pass are sent. Each MAC must be a device of the site (read first; an unknown MAC fails listing the devices). Returns the Classic envelope {meta, data} verbatim; success requires meta.rc "ok". Consequence: none; it changes nothing, but it is a POST, so read-only mode refuses it. The password and token are credentials: masked in errors and results only under UNIFI_REDACT_SECRETS. With dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -25423,28 +24135,17 @@ Example call (get_mobility_device):
 
 Read multicast insights (Network v2 routes).
 
-With view "client": GET /proxy/network/v2/api/site/{site}/insights/multicast/
-client/{client_mac}. With view "clients" or "history": POST
-.../insights/multicast/clients or .../history, sending query_params as the query
-string and body verbatim as JSON. These routes are present in the Network
-11.0.81 UI; the 2026-10-26 development-controller capture returned HTTP 404 for
-both POST views (controller version was not recorded). A firmware exposing these
-routes is required; the earliest supported version is unverified. Those POSTs
-are not on the read-POST allowlist, so this tool is
-a write: UNIFI_WRITE_POLICY=deny hides the whole tool, including the client GET view.
-Consequence: none intended; the POST is
-classed as a write.
+With view "client": GET /proxy/network/v2/api/site/{site}/insights/multicast/ client/{client_mac}. With view "clients" or "history": POST .../insights/multicast/clients or .../history, sending query_params as the query string and body verbatim as JSON. These routes are present in the Network 11.0.81 UI; the 2026-10-26 development-controller capture returned HTTP 404 for both POST views (controller version was not recorded). A firmware exposing these routes is required; the earliest supported version is unverified. Those POSTs are not on the read-POST allowlist, so this tool is a write: UNIFI_WRITE_POLICY=deny hides the whole tool, including the client GET view. Consequence: none intended; the POST is classed as a write.
 
-Under dry-run policy the POST views return a dry-run preview without sending a POST:
-status "dry_run", dryRun, sent=false, message and preview (method, path, params, body).
-The client GET view still reads normally.
+Under dry-run policy the POST views return a dry-run preview without sending a POST: status "dry_run", dryRun, sent=false, message and preview (method, path, params, body). The client GET view still reads normally.
+
+Network 11.1.47 answered HTTP 404 for the clients view (checked 2026-11-13); the history view was not checked.
 
 Returns the upstream body verbatim (a JSON array arrives as result).
 
 Required arguments: host, site, view.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -25934,6 +24635,47 @@ Required arguments: host, site.
 
 `Any`
 
+### `get_port_automation`
+
+Get one port automation (Network 11.1 v2 route).
+
+The controller serves no single-record route, so this reads GET
+/proxy/network/v2/api/site/{site}/port-automations and returns the record whose id
+matches, verbatim. An unknown id fails naming every valid id. The record carries name,
+enabled, port_profile_id, match (vendor_ids and mac_ouis) and scope (switch_macs,
+device_tag_ids and an optional port_range), exactly as the Network 11.1.47 web
+application stores it, plus the identifier the controller assigned. match lists the
+numeric vendor identifiers and the six-digit hexadecimal MAC prefixes that select
+devices; scope narrows the rule to chosen switches, to the members of device tags, and
+to a contiguous span of physical ports; port_profile_id names the profile applied to a
+port when a selected device is detected there. Nothing is changed by this read.
+
+Returns the matching port automation record verbatim (a JSON object).
+
+Required arguments: host, site, automation_id (see each parameter's description).
+
+**API source:** `network/private.v2/read`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| true | false | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `automation_id` | `string` | yes |  | Port automation id (the id field of a record), e.g. "000000000000000000000107". |
+
+**Return type**
+
+`Any`
+
 ### `get_port_forward_statistics`
 
 Read port-forward rule statistics (Network Classic route).
@@ -26108,23 +24850,28 @@ Report whether a Protect console's Alarm Manager runs in local or global mode, a
 which alarm operations this server can perform there. Read-only: one GET of the private
 NVR object (protect/api/nvr); nothing is sent to the alarm APIs.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and body (the
-NVR object, unchanged, as get_nvr_private returns it), plus _alarmManager {mode, reason,
-integrationArmProfiles, globalAlarmManagerApi}. mode is "global" when
-body.featureFlags.useExternalAlarmManager is true and "local" when it is false or absent
-(older consoles do not report it). mode is null, with reason, when the NVR read failed
-(any non-200 status, for example a 403 permission refusal, whose status and body are
-returned unchanged) or the flag is malformed; a failure is never reported as a mode.
-integrationArmProfiles is {available, tools, reason}, or null when mode is null. In
-local mode the listed tools (list_arm_profiles, enable_arm, disable_arm, ...) work; the API
-documents them for the local Alarm Manager only. In global mode available is false: the
-console answered the arm-profile reads with HTTP 400; writes were not exercised. A sent
-enable_arm or disable_arm result is not proof of the arm state: read body.armMode here.
-globalAlarmManagerApi {supported, routes, reason}: supported is always false; the
-global Alarm Manager API (/api/v2/alarms) is at the console root, which the Fabric
-connector does not relay. Manage global alarms in the UniFi Protect app.
-
-Result status is the upstream HTTP number.
+Returns method, routeClass, scope, path, resolvedPath, status (upstream HTTP),
+contentType and body (the NVR object, as get_nvr_private returns it), plus _alarmManager
+{mode, reason, integrationArmProfiles, externalArmProfiles, globalAlarmManagerApi}. mode
+is "global" when body.featureFlags.useExternalAlarmManager is true and "local" when it is
+false or absent (older consoles omit it). mode is null, with reason, when the
+NVR read failed (any non-200 status, returned unchanged) or the flag is
+malformed; a failure is never a mode.
+integrationArmProfiles is {available, tools, reason}, or null when mode is null. In local
+mode the listed tools (list_arm_profiles, enable_arm, ...) work; the API documents them
+for the local Alarm Manager only. In global mode available is false: the console answered
+the arm-profile reads with HTTP 400; writes were not exercised. A sent enable_arm or
+disable_arm response is not proof of the arm state (their verified flag reads armMode
+back); read body.armMode here for the current state.
+externalArmProfiles {available, tools, reason} is present only when mode is known:
+available is true in global mode, where the Protect 7.4.96 external arm-profile tools
+(list_external_arm_profiles and its get, create, update, delete, arm and disarm
+siblings) manage the external Alarm Manager's arm profiles; an older Protect answers
+404. It is false, with a null reason, in local mode.
+globalAlarmManagerApi {supported, routes, reason}: supported is always false; this
+server has no tool for the global Alarm Manager API (/api/v2/alarms), at the console
+root outside the paths the Fabric connector relays. The external arm profiles are a
+separate, relayed API.
 
 Example call (get_protect_alarm_manager_mode):
     {"host": "my-console"}
@@ -26819,7 +25566,8 @@ Plan a rolling firmware upgrade: eligible devices or the time estimate.
 
 By default GET /v2/api/site/{site}/device/upgrade/rollupgrade/eligible-devices.
 time_estimate true: POST .../rollupgrade/time-estimate with estimate_body as given
-(free-form). Returns the upstream body verbatim in both modes. The estimate is a read sent
+(free-form). Returns the upstream body verbatim; an HTTP 207 partial failure (a non-empty
+errors list) raises, with the complete body in the error. The estimate is a read sent
 as a POST. The whole tool, including the GET mode, is hidden under UNIFI_WRITE_POLICY=deny.
 With dry-run policy the POST returns the dry-run
 preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params,
@@ -26921,31 +25669,13 @@ Example call (get_scheduled_task):
 
 ### `get_scoped_system_log`
 
-Read the Network system log for one device, client connection, admin-activity record
-or external id (a plain GET, no drain).
+Read the Network system log for one device, client connection, admin-activity record or external id (a plain GET, no drain).
 
-GET network/v2/api/site/{site}/system-log/{scope}/{identifier}, returned verbatim.
-scope selects the route: "device" (identifier is a device MAC address; HTTP 200 with a
-list of events on a live console, probed 2026-10-17), "client-connection" (identifier
-is a client MAC address; HTTP 200 on a live console but the one client tried returned
-an empty list, so the entry shape is unproven), "admin-activity" (identifier is an
-admin-activity record id) and "by-external-id" (identifier is an external id). The last
-two answered HTTP 404 on the probe console for an id it did not hold (it had no admin
-record and no external-id match), so their positive responses have not been observed.
-The routes come from the Network 11.0.81 web app; no published schema describes the
-responses. For a whole class (all, device-alert, ...) use get_system_log or
-list_network_events. An unknown scope fails before any request listing the choices.
-
-Returns the upstream body verbatim (a list of events for device; nonobjects use
-result).
+GET network/v2/api/site/{site}/system-log/{scope}/{identifier}. Returns the upstream body verbatim (a list of events for device; non-objects use result). scope: "device" (identifier a device MAC; live 200 with events), "client-connection" (a client MAC; 200 but entry shape unproven), "admin-activity" (a record id) or "by-external-id" (an external id); the last two answered 404 for an id the probe console lacked, so positive responses are unobserved. Routes come from the Network 11.0.81 web app; no published schema describes the responses. For a whole class (all, device-alert, ...) use get_system_log or list_network_events. An unknown scope fails before any request listing the choices.
 
 Example call (get_scoped_system_log):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "scope": "device",
-      "identifier": "aa:bb:cc:dd:ee:ff"
-    }
+    {"host": "my-console", "site": "Default", "scope": "device",
+     "identifier": "aa:bb:cc:dd:ee:ff"}
 
 **API source:** `network/private.v2/read`
 
@@ -27165,27 +25895,9 @@ Required arguments: host, sensor_id (see each parameter's description).
 
 ### `get_server_diagnostic_bundle`
 
-Build a sanitized diagnostic bundle about this MCP server, for a bug report.
+Build a sanitized diagnostic bundle about this MCP server, for a bug report (not a controller support file; see generate_support_file). Returns {bundle, schemaVersion, generatedAt, review, collection, sections, neverCollected, sanitization}. collection.mode is "local" or "local+live"; collection.upstreamRequests counts requests sent (0 by default). sections: server (versions, OS family), configuration (modes, key count, cache, paging, log/audit settings as enums, booleans, numbers), policy (effective write and exposure policy and digest), transport, cache, runtime (tool count) and liveProbes; each has a status (complete, partial, failed, unavailable) and a source; a failed section gives an exception type name only.
 
-Returns {bundle, schemaVersion, generatedAt, review, collection, sections,
-neverCollected, sanitization}. collection.mode is "local" or "local+live" and
-collection.upstreamRequests counts the requests this call sent (0 by default).
-sections has server (package, Python and dependency versions, OS family),
-configuration (tool mode, key mode, key count, cache, paging, log and audit
-settings as enums, booleans and numbers), policy (the effective write and exposure
-policy and its digest), transport (transport, auth and TLS modes), cache (registry
-cache counts), runtime (tools in the catalog) and liveProbes. Every section has a
-status (complete, partial, failed or unavailable) and a source naming where its
-data came from; a failed section gives an exception type name, never a message.
-
-By default the bundle reads local and cached state only and sends no request to
-any console or the Site Manager API. It never includes API key values or labels
-(keys are numbered), tokens, file paths, host names, IP addresses, ports, URLs,
-console, site or device identifiers, upstream bodies or error messages, or any
-environment variable other than the settings summarized. The server's configured
-secrets are scrubbed from the result, which is checked before it is returned. The
-bundle is not saved or sent anywhere: review it, then share it yourself. This is
-not a controller support file (see generate_support_file).
+By default it reads local and cached state and contacts no console or Site Manager. It never includes API key values or labels, tokens, paths, host names, IPs, ports, URLs, console/site/device ids, upstream bodies, error messages or other environment variables; configured secrets are scrubbed and checked. Nothing is saved or sent: review it, then share it yourself.
 
 **API source:** `site_manager/official/read`
 
@@ -27211,19 +25923,9 @@ not a controller support file (see generate_support_file).
 
 Get a controller setting group by key.
 
-Returns: the controller's Classic REST envelope {meta: {rc}, data: [setting group]} verbatim.
-To change it, edit data[0] and pass it as `payload` to update_setting.
+Returns: the controller's Classic REST envelope {meta: {rc}, data: [setting group]} verbatim. To change it, edit data[0] and pass it as `payload` to update_setting.
 
-There is no schema endpoint, so reading a group is how you discover what it accepts:
-the returned object lists every settable field and its current (valid) value. Inspect
-it before calling update_setting — the controller silently drops any field or enum
-value it does not recognise, so match an existing field's shape exactly. Common keys
-and notable enum fields (grounded in live responses): mdns (mode, enabled_for),
-ntp (setting_preference), doh (state), ips (ips_mode), global_nat (mode),
-ssl_inspection (state), dashboard (layout_preference), locale (timezone),
-country (code), guest_access (auth), super_mgmt (data_retention_setting_preference).
-Fields prefixed 'x_' hold credentials/secrets and are returned verbatim
-(masked when UNIFI_REDACT_SECRETS is enabled).
+There is no schema endpoint, so reading a group is how you discover what it accepts: the returned object lists every settable field and its current (valid) value. Inspect it before calling update_setting — the controller silently drops any field or enum value it does not recognise, so match an existing field's shape exactly. Common keys and notable enum fields (grounded in live responses): mdns (mode, enabled_for), ntp (setting_preference), doh (state), ips (ips_mode), global_nat (mode), ssl_inspection (state), dashboard (layout_preference), locale (timezone), country (code), guest_access (auth), super_mgmt (data_retention_setting_preference). Fields prefixed 'x_' hold credentials/secrets and are returned verbatim (masked when UNIFI_REDACT_SECRETS is enabled).
 
 Required arguments: host, site, setting_key (see each parameter's description).
 
@@ -27523,30 +26225,9 @@ Required arguments: host, site (see each parameter's description).
 
 Get every Network site on one console with its device, client and health counts.
 
-Reads POST /v2/api/sites/overview (a read-only query sent as a POST, so read-only
-mode refuses it). Consequence: none intended; it changes nothing. Each site carries
-id, name, description, counts (total/offline/wifi/wired/gateway devices,
-wifi/wired/guest clients, pending updates, critical notifications, LAN/WAN/WiFi
-configurations) and
-percentages (wan_uptime, successful_association). Every page is drained by
-default. Returns the first page's envelope as the upstream sent it (for example
-total_page_count, total_element_count, page_number) with data holding the sites of
-every page, plus _count (sites) and _pages (pages read); _incomplete and
-_incompleteReason are added when the drain stopped short (a UNIFI_PAGINATE_MAX_PAGES
-cap, a page without the paged envelope, or a page answered under another number).
-A first page without a data array is returned as received. Pass page alone (0-based)
-for that one page verbatim. page_size alone is window 0: exactly page_size sites
-from the first; _nextPage counts page_size windows, so resume with page=_nextPage
-and the same page_size. page with page_size returns that window of sites. _pageSize
-reports the requested count, sent (every pageSize sent, in request order), the
-effective console page size and the returned count. _nextPage is absent when no
-site follows the window or the call stopped short (_incomplete). For counts across
-every console use list_sites. With dry-run policy, returns {status: "dry_run",
-dryRun: true, sent: false, message, preview: {method, path, params, body}} and sends
-nothing.
+Reads POST /v2/api/sites/overview (a read-only query sent as a POST, so read-only mode refuses it). Consequence: none intended; it changes nothing. Each site carries id, name, description, counts (total/offline/wifi/wired/gateway devices, wifi/wired/guest clients, pending updates, critical notifications, LAN/WAN/WiFi configurations) and percentages (wan_uptime, successful_association). Every page is drained by default. Returns the first page's envelope as the upstream sent it (for example total_page_count, total_element_count, page_number) with data holding the sites of every page, plus _count (sites) and _pages (pages read); _incomplete and _incompleteReason are added when the drain stopped short (a UNIFI_PAGINATE_MAX_PAGES cap, a page without the paged envelope, or a page answered under another number). A first page without a data array is returned as received. Pass page alone (0-based) for that one page verbatim. page_size alone is window 0: exactly page_size sites from the first; _nextPage counts page_size windows, so resume with page=_nextPage and the same page_size. page with page_size returns that window of sites. _pageSize reports the requested count, sent (every pageSize sent, in request order), the effective console page size and the returned count. _nextPage is absent when no site follows the window or the call stopped short (_incomplete). For counts across every console use list_sites. With dry-run policy, returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} and sends nothing.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
+Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides the whole tool and discovery mode runs it through call_write_tool.
 
 Required inputs: host.
 
@@ -27782,7 +26463,10 @@ port_overrides array as read (profile portconf_id, op_mode switch/aggregate/the
 port-monitoring (SPAN) value, the monitored-port key, aggregate_num_ports, name,
 poe_mode and other native fields);
 _ports is keyed by port_idx with that port's override (null when none) and its
-port_table row. _portOverridesPresent is false when the device reported no
+port_table row, plus _phantom: true on an override whose port is not in the port table
+(remove it with remove_ports). _spanMode gives the native op_mode value and the
+monitored-port key for port monitoring (SPAN), whether or not any port monitors now.
+_portOverridesPresent is false when the device reported no
 port_overrides field (no overrides; a device without ports returns empty _ports).
 Use update_switch_port_overrides to change it.
 Provide host (console name or id from list_hosts) and site (network site name or UUID
@@ -27879,42 +26563,17 @@ Required arguments: host, site (see each parameter's description).
 
 Read Network system-log events and alerts.
 
-POST network/v2/api/site/{site}/system-log/{log_class} with the supplied query body
-(Consequence: none intended, it only reads).
-Classes seen on Network 11.0.81: all, device-alert, client-alert, admin-activity,
-update-alert, threat-alert, next-ai-alert, vpn-alert, critical; triggers
-answered 404. Any other class is sent as given.
-Class filter keys default to the kinds the controller UI sends
-(nextAiCategory, activity_keys, change_keys, systemLogDeviceTypes, clientType,
-guestAuthorizationMethod, threatTypes, triggerTypes); query_body can override them.
+POST network/v2/api/site/{site}/system-log/{log_class} with the supplied query body (a read: the nine classes are on the read-POST allowlist). Classes: all, device-alert, client-alert, admin-activity, update-alert, threat-alert, next-ai-alert, vpn-alert, critical. Any other class is refused before any request. Class filter keys default to the kinds the controller UI sends (nextAiCategory, activity_keys, change_keys, systemLogDeviceTypes, clientType, guestAuthorizationMethod, threatTypes, triggerTypes); query_body can override them.
 
-Write class: its POST is not read-POST allowlisted, so UNIFI_WRITE_POLICY=deny hides
-the whole tool and discovery mode runs it through call_write_tool.
-family:network=deny also hides it; dry-run policy (UNIFI_WRITE_POLICY=dry-run) sends
-nothing and returns {status: "dry_run", dryRun, sent, message, preview: {method, path,
-params, body}} for the first page.
+A read: it stays available under UNIFI_WRITE_POLICY=deny and in dry-run policy, and discovery mode runs it through call_read_tool.
 
-Returns, by default, every page drained into {data: [entry, ...], total_element_count,
-incomplete?, incompleteReason?}. Entries are verbatim; the count is the first
-page's. Caps, repeated entries, early empty pages or short totals mark the result
-incomplete; an object with unprovable pagination raises (request an explicit page
-to inspect it). A scalar response is returned verbatim. With page alone, returns
-{data, page_number, total_element_count, total_page_count} verbatim; critical normally
-returns a bare array. page_size alone is window 0; resume with page=_nextPage and
-the same page_size. With page, the window (see page). _pageSize: requested, sent
-(each pageSize sent, in order), effective, returned. No _nextPage: nothing follows
-the window, or the call stopped incomplete.
-Each page is sent once; HTTP 429 stops the call (narrow or use page).
+Returns, by default, every page drained into {data: [entry, ...], total_element_count, incomplete?, incompleteReason?}. Entries are verbatim; the count is the first page's. Caps, repeated entries, early empty pages or short totals mark the result incomplete; an object with unprovable pagination raises (request an explicit page to inspect it). A scalar response is returned verbatim. With page alone, returns {data, page_number, total_element_count, total_page_count} verbatim; critical normally returns a bare array. page_size alone is window 0; resume with page=_nextPage and the same page_size. With page, the window (see page). _pageSize: requested, sent (each pageSize sent, in order), effective, returned. No _nextPage: nothing follows the window, or the call stopped incomplete. Each page is sent once; HTTP 429 stops the call (narrow or use page).
 
 Example call (get_system_log):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "log_class": "client-alert",
-      "query_body": {"timestampFrom": 1760140800000, "timestampTo": 1760227200000}
-    }
+    {"host": "my-console", "site": "Default", "log_class": "client-alert",
+     "query_body": {"timestampFrom": 1760140800000, "timestampTo": 1760227200000}}
 
-**API source:** `network/private.v2/write`
+**API source:** `network/private.v2/read`
 
 **Family:** `statistics`
 
@@ -27922,7 +26581,7 @@ Example call (get_system_log):
 
 | readOnly | destructive | idempotent | openWorld |
 | --- | --- | --- | --- |
-| false | true | false | true |
+| true | false | true | true |
 
 **Parameters**
 
@@ -28172,32 +26831,11 @@ Example call (get_ulp_user):
 
 ### `get_unifi_placement_snapshot`
 
-Return a bounded, read-only UniFi topology and placement projection
-(unifi.placement-snapshot/v1).
+Return a bounded, read-only UniFi topology and placement projection (unifi.placement-snapshot/v1). Unlike other tools' whole upstream bodies, this closed schema selects, renames and derives fields (a MAC-only device gets a SHA-256 source_id, withheld under redaction; device_type is a closed enum). Sources (GET only): InnerSpace 3D placement, Protect cameras/sensors, Site Manager inventory; no connector writes. Provenance has a 120-second freshness contract.
 
-Unlike the other tools' whole upstream bodies, this closed schema selects, renames and
-derives fields: a MAC-only device gets a SHA-256 source_id (withheld under redaction);
-device_type is a closed enum.
-Projected strings retain upstream values. GET-backed sources are InnerSpace 3D placement,
-Protect cameras/sensors and Site Manager inventory; no connector writes occur. Provenance
-includes a 120-second freshness contract.
+Returns schema_version, generated_at, freshness, provenance, floors, walls, placed_devices, topology, placement_links, plus incomplete/incompleteReason if a source list stops short. Address/asset fields (ip/mac, floor image/model/zip/bin URLs) are included by default; only opt-in UNIFI_REDACT_SECRETS removes them and URL/IP/MAC/credential strings, counting each in _withheld (section.field/reason) with _withheld_how_to_obtain naming the source tool (both absent with redaction off). Records outside schema v1 (not_an_object, no_position, no_geometry, no_source_id, not_numeric) are counted in _unprojected with _unprojected_how_to_obtain. Duplicate Network devices merge onto Protect nodes (Network-only fields omitted). For full payloads use get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices. Reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.
 
-Returns schema_version, generated_at, freshness, provenance, floors, walls,
-placed_devices, topology and placement_links, plus incomplete/incompleteReason if a source
-list stops short. Address/asset fields are included by default (topology/placed_devices
-ip/mac and floor image/model/zip/bin URLs). Only opt-in UNIFI_REDACT_SECRETS removes
-address/asset fields and strings identified as URL/IP/MAC/credential markers. Every removed
-value is counted in _withheld (section.field/reason); _withheld_how_to_obtain names its
-source tool or instructs disabling redaction. Both are absent with redaction off.
-
-In either mode, records outside schema v1 (not_an_object, no_position, no_geometry,
-no_source_id, not_numeric) are counted in _unprojected; _unprojected_how_to_obtain names the
-full source read tool. Duplicate Network devices are merged onto Protect nodes; their
-Network-only fields are omitted. For full payloads use
-get_innerspace_project, list_innerspace_devices, list_cameras, list_sensors or list_devices.
-Full field reference: docs/TOOL-USAGE.md#get_unifi_placement_snapshot.
-
-Required arguments: host (see parameter descriptions for identifiers).
+Required arguments: host.
 
 **API source:** `innerspace/private/read`
 
@@ -28992,33 +27630,20 @@ Required arguments: host, type.
 
 ## Update
 
-**98 tools**
+**100 tools**
 
 ### `patch_firewall_policy`
 
 Partially update a firewall policy by ID.
 
-Returns the upstream response body verbatim: the updated firewall policy object the API answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
-
-Request body (Network 11.0.97, PATCH /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}
-(patchFirewallPolicy); schema "Patch firewall policy") is passed in `fields`. No key is
-required; send only the keys to change.
-- loggingEnabled: boolean
-- reportFlowEnabled: boolean (report matched traffic in Insights Flows; ignored for the
-  predefined Allow Return Traffic, multicast-only and IPv6 neighbor-discovery policies)
-Only loggingEnabled and reportFlowEnabled are patchable per spec; enabled/name/action
-changes need update_firewall_policy (full PUT).
+Returns the upstream response body verbatim: the updated firewall policy object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
 Example call (patch_firewall_policy):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "policy_id": "7d1e4a52-1c3b-4f6e-8a90-0b1c2d3e4f01",
-      "fields": {"loggingEnabled": true}
-    }
+    {"host": "my-console", "site": "Default",
+     "policy_id": "7d1e4a52-1c3b-4f6e-8a90-0b1c2d3e4f01",
+     "fields": {"loggingEnabled": true}}
+
+Details: docs/TOOL-USAGE.md#patch_firewall_policy.
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
@@ -29049,9 +27674,7 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; n
 
 Update an existing ACL rule by ID.
 
-Returns the upstream response body verbatim: the updated ACL rule object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the updated ACL rule object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
 Request body (Network 11.0.97, PUT /v1/sites/{siteId}/acl-rules/{aclRuleId} (updateAclRule);
 schema "ACL rule update") is passed in `rule`. Required keys — action, enabled, name, type.
@@ -29109,23 +27732,15 @@ Set UNIFI_WRITE_POLICY=dry-run. Filter family: L3/MAC access lists between netwo
 
 Update alarm-hub settings (PATCH /v1/alarm-hubs/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/alarm-hubs/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
 - name: string
 
 Example call (update_alarm_hub):
-    {
-      "host": "my-console",
-      "alarm_hub_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "alarm_hub_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -29200,34 +27815,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update an arm profile (PATCH /v1/arm-profiles/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored). An unknown arm_profile_id fails
-before any PATCH, listing every valid id.
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/arm-profiles/{id}; schema "inline requestBody schema")
-is passed in `settings`. No key is required; send only the keys to change.
-- name: string
-- automations: array of string
-- schedules: array of armSchedule objects {start: string (cron expression), end: string
-  (cron expression)} (both required)
-- recordEverything: boolean
-- activationDelay: one of 0|60000|300000|600000 (ms)
+In settings, schedules is a list of {start, end}, both cron expressions. Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_arm_profile):
-    {
-      "host": "my-console",
-      "arm_profile_id": "00000000000000000000010b",
-      "settings": {"name": "Arm Profile"}
-    }
+    {"host": "my-console", "arm_profile_id": "00000000000000000000010b",
+     "settings": {"name": "Arm Profile"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400; check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile tools (list_external_arm_profiles and the rest) serve a global-mode console.
+
+Details: docs/TOOL-USAGE.md#update_arm_profile.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29257,18 +27855,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Select the active arm profile (PATCH /v1/arm-profiles/settings).
 
-Returns {status: "updated", verified, before, after (the NVR armMode objects), response (the
-PATCH body verbatim)}, or {status: "noop", reason, resource (the current armMode)}. When
-the read-after fails or carries no armMode object, verified and after are null and
-readAfterError says why. Under dry-run policy nothing is sent: {status: "dry_run", before
-(the body read first), response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "updated", verified, before, after (the NVR armMode objects), response (the PATCH body verbatim)}, or {status: "noop", reason, resource (the current armMode)}. When the read-after fails or carries no armMode object, verified and after are null and readAfterError says why. Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-`arm_profile_id`: REQUIRED. Obtain it from `list_arm_profiles` (its id field); this
-  becomes the console's selected arm profile. The id is checked against
-  `list_arm_profiles` first: an id the list does not carry fails before any write,
-  naming the valid ids; a hex id matches case-insensitively and the body sends the
-  id as the list spells it. Reads the NVR armMode before/after (no-op if already
-  selected). Governed by family:protect=deny.
+`arm_profile_id`: REQUIRED. Obtain it from `list_arm_profiles` (its id field); this becomes the console's selected arm profile. The id is checked against `list_arm_profiles` first: an id the list does not carry fails before any write, naming the valid ids; a hex id matches case-insensitively and the body sends the id as the list spells it. Reads the NVR armMode before/after (no-op if already selected). Governed by family:protect=deny.
 
 Request body (Protect 7.3.74, PATCH /v1/arm-profiles/settings; schema "inline requestBody
 schema") is built from scalar parameters. Required keys — armProfileId.
@@ -29279,8 +27868,7 @@ Example call (update_arm_profile_settings):
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
-On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400;
-check get_protect_alarm_manager_mode.
+On a console in global Alarm Manager mode the arm-profile reads answer HTTP 400; check get_protect_alarm_manager_mode. On Protect 7.4.96 or later the external arm-profile tools (list_external_arm_profiles and the rest) serve a global-mode console.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29309,18 +27897,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a BGP configuration (Network v2 route). Consequence: changes routing.
 
-Reads the configuration from GET .../bgp/config/all, merges only the given leaves into it
-and POSTs the whole merged record to /proxy/network/v2/api/site/{site}/bgp/config for the
-gateway singleton, or /bgp/config/{id} for another listed configuration, then reads it back.
-Returns the upstream object verbatim plus _verified (true only when every requested leaf
-reads back equal, type-strict) and _readAfterError when the read-back failed; a non-object
-body (array or scalar) is returned whole under response with those keys beside it. The id,
-_id and site_id in the object are ignored; an object with nothing else to change fails
-before any request.
-An unknown id fails listing every valid id. Never auto-retried.
+Reads the configuration from GET .../bgp/config/all, merges only the given leaves into it and POSTs the whole merged record to /proxy/network/v2/api/site/{site}/bgp/config for the gateway singleton, or /bgp/config/{id} for another listed configuration, then reads it back. Returns the upstream object verbatim plus _verified (true only when every requested leaf reads back equal, type-strict) and _readAfterError when the read-back failed; a non-object body (array or scalar) is returned whole under response with those keys beside it. The id, _id and site_id in the object are ignored; an object with nothing else to change fails before any request. An unknown id fails listing every valid id. Never auto-retried.
 
-Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, config_id, config.
 
@@ -29353,23 +27932,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update bridge settings (PATCH /v1/bridges/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/bridges/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
 - name: string
 
 Example call (update_bridge):
-    {
-      "host": "my-console",
-      "bridge_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "bridge_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -29399,24 +27970,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_camera`
 
-Update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode,
-HDR, smart detection).
+Update settings for a Protect camera (name, OSD, LED, LCD message, mic volume, video mode, HDR, smart detection).
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects such as
-osdSettings are compared leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first),
-response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
-
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#update_camera.
+Details: docs/TOOL-USAGE.md#update_camera.
 
 Required arguments: host, camera_id, settings (see parameter descriptions for identifiers).
 
@@ -29448,31 +28006,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_camera_private`
 
-Change camera recording, zones, image, IR, lux index, audio, motion detection and
-tracking. Read-merge-PATCH preserves nested siblings; zone arrays replace in full,
-so retain every wanted zone. Privacy masks hide covered imagery.
+Change camera recording, zones, image, IR, lux index, audio, motion detection and tracking by read-merge-PATCH (nested siblings kept; zone arrays replace in full, so retain every wanted zone).
 
-Consequence: the PATCH persistently changes stored camera settings. Restore prior
-readBefore values to reverse settings changes. Disabling recording leaves footage gaps.
-Disabling motion detection loses footage only in motion- or detection-triggered recording
-modes; recordingSettings.mode="always" continues recording. Privacy masks hide covered
-imagery. Missing footage and masked imagery cannot be recovered later.
+Consequence: persistently changes stored camera settings; restore readBefore values to reverse. Disabling recording leaves footage gaps; disabling motion detection loses footage only in motion/detection recording modes (mode="always" keeps recording). Privacy masks hide covered imagery. Missing footage and masked imagery cannot be recovered.
 
-Returns relay method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes. Write metadata includes
-writeEnabled. Read twins add readBefore/readAfter, noOp and changed when known.
-_verified says requested fields saved; noOp, changed and _noOp compare requested leaves,
-type-strict. If requested fields are absent from both 2xx reads, noOpReason explains why
-noOp is unknown. Failed read-back leaves _verified and _noOp null; readAfterError and
-_verificationWarning explain failed or unproven verification.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} plus writeEnabled, readBefore/readAfter, noOp, changed (type-strict leaf compare), _verified (requested fields saved). If requested fields are absent from both reads, noOpReason says why noOp is unknown. A failed read-back leaves _verified/_noOp null with readAfterError and _verificationWarning. Under dry-run policy nothing is sent: status "dry_run", body the merged preview, _verified null.
 
-Under dry-run policy no write is sent. Status is "dry_run"; body contains the exact
-merged preview {status, dryRun, sent: false, message, preview: {method, path, params,
-body}}. _verified remains null; otherwise status is the upstream HTTP number.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_camera_private):
-    {"host":"my-console","camera_id":"00000000000000000000010b",
-     "settings":{"recordingSettings":{"mode":"always"}}}
+    {"host": "my-console", "camera_id": "00000000000000000000010b",
+     "settings": {"recordingSettings": {"mode": "always"}}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29502,17 +28046,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a camera's shortcuts (PATCH cameras/{camera_id}/shortcuts).
 
-The route has no shortcut id in its path. The camera is read first (GET
-cameras/{camera_id} on the Protect console host); when body carries an id that the
-camera's shortcuts array lists, a no-op returns
-{status: "noop", resource}, and the read-back verifies every requested leaf
-(type-strict). An id the array does not list fails listing the valid ids. Without a
-locatable id the body is sent and verified is null with readAfterError. The body is
-sent as a single-item array. validate_schema=true checks id, any placement x/y, and any
-complete nested shortcut using the same per-type rules as create_camera_shortcut.
-Returns {status: "updated", verified, before, after, response}. An empty body fails
-before any request. With dry-run policy, returns {status: "dry_run", before,
-response (the preview)}.
+The route has no shortcut id in its path. The camera is read first (GET cameras/{camera_id} on the Protect console host); when body carries an id that the camera's shortcuts array lists, a no-op returns {status: "noop", resource}, and the read-back verifies every requested leaf (type-strict). An id the array does not list fails listing the valid ids. Without a locatable id the body is sent and verified is null with readAfterError. The body is sent as a single-item array. validate_schema=true checks id, any placement x/y, and any complete nested shortcut using the same per-type rules as create_camera_shortcut. Returns {status: "updated", verified, before, after, response}. An empty body fails before any request. With dry-run policy, returns {status: "dry_run", before, response (the dry-run preview)}.
 
 Dry-run response previews include body and params.
 
@@ -29548,41 +28082,16 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a Carrier Fabric subscriber (PATCH .../subscribers/{id}).
 
-Returns {status: "updated", changed: {field: {from, to}}, verified, subscriber, response
-(the upstream write body verbatim)}, or {status: "no_op", reason, subscriber}.
-subscriber is a full body, never unwrapped: the write response when it carries the
-subscriber, else the read-back GET body (for no_op, the GET body read first).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first),
-response (the preview: method, path, params, body)}; there is no read-after.
+Returns {status: "updated", changed: {field: {from, to}}, verified, subscriber, response (the upstream write body verbatim)}, or {status: "no_op", reason, subscriber}. subscriber is a full body, never unwrapped: the write response when it carries the subscriber, else the read-back GET body (for no_op, the GET body read first). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", subscriber (the body read first), response (the preview: method, path, params, body)}; there is no read-after.
 
-Spec-conformance tested only (not live). Partial update: pass at least one field.
-subscriber_number is 1-32 chars after trimming when
-provided; name, email, notes,
-service_address are limited to 128 / 255 / 4096 / 1024 bytes of UTF-8 (the spec's unit).
-Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses
-first), read-before, no-op when all provided
-fields already match, write, read-after. Omission leaves a field unchanged; explicit null
-clears a nullable field, as does naming it in clear_fields (sent as JSON null). Per the spec,
-null
-clears name, email, notes, serviceAddress and planId; subscriberNumber cannot be cleared,
-and metadata=null leaves metadata unchanged (send metadata={} to empty it).
-Explicit metadata=null alone is a no-op; null is forwarded only alongside another change.
-
-Request body (Carrier Fabric 1.0.0, PATCH /v1/carrier/subscribers/{id} (updateSubscriber);
-schema "SubscriberPatch") is built from scalar parameters. No key is required; send only the
-keys to change.
-- subscriberNumber: string
-- name: string
-- email: string(email)
-- notes: string
-- serviceAddress: string
-- planId: string(uuid)
-- metadata: object
+Spec-conformance tested only (not live). Partial update: pass at least one field. subscriber_number is 1-32 chars after trimming when provided; name, email, notes, service_address are limited to 128 / 255 / 4096 / 1024 bytes of UTF-8 (the spec's unit). Guarded, in order: the Carrier write opt-out (family:carrier=deny refuses first), read-before, no-op when all provided fields already match, write, read-after. Omission leaves a field unchanged; explicit null clears a nullable field, as does naming it in clear_fields (sent as JSON null). Per the spec, null clears name, email, notes, serviceAddress and planId; subscriberNumber cannot be cleared, and metadata=null leaves metadata unchanged (send metadata={} to empty it). Explicit metadata=null alone is a no-op; null is forwarded only alongside another change.
 
 Example call (update_carrier_subscriber):
     {"subscriber_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "notes": "Moved to plan B"}
 
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_carrier_subscriber.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29620,32 +28129,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a Protect chime: name, paired cameraIds or per-camera ringSettings (volume, ringtone).
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects are compared
-leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/chimes/{id}; schema "inline requestBody schema") is
-passed in `settings`. No key is required; send only the keys to change.
-- name: string
-- cameraIds: array of string
-- ringSettings: array of object {cameraId: string, repeatTimes: number (1-10),
-  ringtoneId: string, volume: number (0-100)} (every item key required)
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_chime):
-    {
-      "host": "my-console",
-      "chime_id": "00000000000000000000010b",
-      "settings": {"name": "Hallway chime"}
-    }
+    {"host": "my-console", "chime_id": "00000000000000000000010b",
+     "settings": {"name": "Hallway chime"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_chime.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29673,20 +28165,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_content_filter`
 
-Update a content-filtering profile (Network v2 route). Consequence: changes
-which web categories are blocked.
+Update a content-filtering profile (Network v2 route). Consequence: changes which web categories are blocked.
 
-Reads the profile from list_content_filters (an unknown id fails listing every
-valid id), merges only the given leaves, PUTs the merged profile to
-/proxy/network/v2/api/site/{site}/content-filtering/{_id} and reads it back: the
-upstream body is returned plus _verified (type-strict) and _readAfterError when
-the read-back failed. An empty update is refused before any request.
+Reads the profile from list_content_filters (an unknown id fails listing every valid id), merges only the given leaves, PUTs the merged profile to /proxy/network/v2/api/site/{site}/content-filtering/{_id} and reads it back: the upstream body is returned plus _verified (type-strict) and _readAfterError when the read-back failed. An empty update is refused before any request.
 
-Returns the upstream PUT body plus _verified (true only when every requested leaf
-read back equal, type-strict) and _readAfterError when the read-back failed; a
-non-object PUT body is kept under response.
-Under dry-run policy nothing is sent and the tool returns a dry-run preview: status
-"dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Returns the upstream PUT body plus _verified (true only when every requested leaf read back equal, type-strict) and _readAfterError when the read-back failed; a non-object PUT body is kept under response. Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, filter_id, content_filter.
 
@@ -29760,25 +28243,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update selected AP radio fields while preserving the full radio_table and its order.
 
-Reads stat/device by MAC, validates against the device's own radio capabilities,
-and PUTs the entire table to rest/device using its Classic _id. Other radios and
-fields stay unchanged. DFS channels may sit in DFS_WAIT for about 60 s; clients
-may roam; a device-settings write can restart or reprovision the AP and briefly drop its
-clients. Never co-channel a mesh AP's
-only wireless uplink. Never auto-retried; a timeout reports outcome unknown.
-Read back before retrying. Returns readBefore/readAfter, changed per band/field, noOp and
-radio_table_stats, with the upstream write response verbatim under response.
-_diff is the requested diff; _noOp is an alias of noOp.
-dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message,
-preview (method, path, params, body), and diff; changed/noOp are null, never write results;
-no-op skips PUT. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny.
-_lookupResponse and _readBeforeResponse preserve the lookup and before envelopes;
-_readAfterResponse preserves the after envelope. readAfterError means verification
-failed on the fresh read-after; changed/noOp/_verified are null. _verified compares
-the complete desired table to the successful read-after; false means a mismatch.
-Even a skipped no-op PUT requires a new successful read; read back before retrying.
-Provide host (console name or id from list_hosts) and site (network site name or UUID
-from list_local_sites).
+Reads stat/device by MAC, validates against the device's own radio capabilities, and PUTs the entire table to rest/device using its Classic _id. Other radios and fields stay unchanged. DFS channels may sit in DFS_WAIT for about 60 s; clients may roam; a device-settings write can restart or reprovision the AP and briefly drop its clients. Never co-channel a mesh AP's only wireless uplink. Never auto-retried; a timeout reports outcome unknown. Read back before retrying. Returns readBefore/readAfter, changed per band/field, noOp and radio_table_stats, with the upstream write response verbatim under response. _diff is the requested diff; _noOp is an alias of noOp. dry-run policy or dry_run=true returns status "dry_run", dryRun, sent: false, message, preview (method, path, params, body), and diff; changed/noOp are null, never write results; no-op skips PUT. Honours UNIFI_WRITE_POLICY=deny and family:connector=deny. _lookupResponse and _readBeforeResponse preserve the lookup and before envelopes; _readAfterResponse preserves the after envelope. readAfterError means verification failed on the fresh read-after; changed/noOp/_verified are null. _verified compares the complete desired table to the successful read-after; false means a mismatch. Even a skipped no-op PUT requires a new successful read; read back before retrying.
+
+Required arguments: host, site, device, radios.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29810,20 +28277,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a device tag: rename it or add and remove member devices.
 
-Uses the v2 route the controller's own UI uses, PUT
-/proxy/network/v2/api/site/{site}/device-tags/{_id}; the published Integration API has no
-device-tag update (HTTP 404 "No endpoint" on Network 11.0.81). `tag` is either the native
-update body, sent verbatim, which needs device_mac_additions and device_mac_removals
-(the controller answers HTTP 500 without them, and that error gets a hint; pass [] for
-no membership change), or a list_device_tags entry edited in place: its
-member_device_macs (the desired members) is turned into additions and removals against
-the tag's current members and its _id is dropped, because the controller rejects both
-fields on update (HTTP 400 "Unrecognized field").
+Uses the controller UI's v2 route, PUT /proxy/network/v2/api/site/{site}/device-tags/{_id} (the Integration API has no tag update; 404 "No endpoint" on Network 11.0.81). `tag` is either the native update body, sent verbatim, which needs device_mac_additions and device_mac_removals (HTTP 500 without them, with a hint; pass [] for no change), or a list_device_tags entry edited in place: its member_device_macs (the desired members) becomes additions and removals against the current members and its _id is dropped, because the controller rejects both fields on update (HTTP 400 "Unrecognized field").
 
-Returns: the upstream body verbatim, the updated tag {_id, name, member_device_macs}.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns the upstream body verbatim, the updated tag {_id, name, member_device_macs}. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Example call (update_device_tag):
     {
@@ -29866,26 +28322,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a custom DHCP option by _id (Classic PUT rest/dhcpoption/{id}).
 
-The id is resolved in list_dhcp_options first: an unknown id fails listing every
-valid _id and nothing is written. Request body: no published schema; pass only the
-fields to change (name, code, type, width, signed). The controller rejects a
-partial PUT (HTTP 400 api.err.Invalid), so the record read for the id check is sent
-back with your fields laid over it. Empty strings in list-valued fields are
-dropped. An empty update fails before any request. Route: Classic only.
+The id is resolved in list_dhcp_options first: an unknown id fails listing every valid _id and nothing is written. Request body: no published schema; pass only the fields to change (name, code, type, width, signed). The controller rejects a partial PUT (HTTP 400 api.err.Invalid), so the record read for the id check is sent back with your fields laid over it. Empty strings in list-valued fields are dropped. An empty update fails before any request. Route: Classic only.
 
-Returns the Classic envelope {meta: {rc}, data: [option]} verbatim. Under
-dry-run policy the dry-run preview is returned and nothing is sent.
+Returns the Classic envelope {meta: {rc}, data: [option]} verbatim. Under dry-run policy the dry-run preview is returned and nothing is sent.
 
-Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}; nothing is sent.
-Object results add _verified after a type-strict, leaf-by-leaf re-read: true,
-false with _unverifiedFields naming each differing leaf, or null with
-_readAfterError when the re-read fails. A non-object write body is returned whole
-under response with the same verdict keys beside it. Dry-run skips the re-read.
+Dry-run returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent. Object results add _verified after a type-strict, leaf-by-leaf re-read: true, false with _unverifiedFields naming each differing leaf, or null with _readAfterError when the re-read fails. A non-object write body is returned whole under response with the same verdict keys beside it. Dry-run skips the re-read.
 
 Example call (update_dhcp_option):
-    {"host": "my-console", "site": "Default",
-     "option_id": "000000000000000000000107", "fields": {"name": "tftp-backup"}}
+    {"host": "my-console", "site": "Default", "option_id": "000000000000000000000107",
+     "fields": {"name": "tftp-backup"}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -29960,21 +28405,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a DNS policy by ID.
 
-Returns the upstream response body verbatim: the updated DNS policy object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
-
-Request body (Network 11.0.97, PUT /v1/sites/{siteId}/dns/policies/{dnsPolicyId}
-(updateDnsPolicy); schema "Create or update DNS policy") is passed in `policy`. Required keys —
-enabled, type.
-- enabled: boolean
-- type: string
-Variants by `type` — AAAA_RECORD requires domain, enabled, ipv6Address, ttlSeconds, type;
-A_RECORD requires domain, enabled, ipv4Address, ttlSeconds, type; CNAME_RECORD requires domain,
-enabled, targetDomain, ttlSeconds, type; FORWARD_DOMAIN requires domain, enabled, ipAddress,
-type; MX_RECORD requires domain, enabled, mailServerDomain, priority, type; SRV_RECORD requires
-domain, enabled, port, priority, protocol, serverDomain, service, weight, type; TXT_RECORD
-requires domain, enabled, text, type.
+Returns the upstream response body verbatim: the updated DNS policy object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
 Example call (update_dns_policy):
     {
@@ -29989,6 +28420,8 @@ Example call (update_dns_policy):
         "ttlSeconds": 14400
       }
     }
+
+Details: docs/TOOL-USAGE.md#update_dns_policy.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30019,26 +28452,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a Dynamic DNS configuration by ID.
 
-The id is resolved in list_dynamic_dns first: an unknown id fails listing every valid _id, and
-nothing is written.
+The id is resolved in list_dynamic_dns first: an unknown id fails listing every valid _id, and nothing is written.
 
-Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]}
-verbatim (meta is relayed as received, never interpreted).
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns: the controller's Classic REST response envelope {meta: {rc}, data: [...]} verbatim (meta is relayed as received, never interpreted). Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
-Request body: no published schema exists for PUT network/api/s/{site}/rest/dynamicdns/{id}
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
+Request body: no published schema for PUT network/api/s/{site}/rest/dynamicdns/{id}; send the native payload, edited from a prior read.
 
 Example call (update_dynamic_dns):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "ddns_id": "000000000000000000000107",
-      "payload": {"service": "dyndns", "host_name": "home.example.com"}
-    }
+    {"host": "my-console", "site": "Default", "ddns_id": "000000000000000000000107",
+     "payload": {"service": "dyndns", "host_name": "home.example.com"}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30114,16 +28536,9 @@ Update an energy-saving policy (Network v2 route).
 
 PUT /proxy/network/v2/api/site/{site}/energy-saving-policies/{id}.
 
-Reads the record from its list, merges the given leaves into its writable fields, PUTs the
-merged record and reads it back. Controller-generated list metadata is not copied into PUT.
-Returns the upstream PUT body verbatim plus _verified (true only
-when every requested leaf reads back equal, type-strict) and _readAfterError when the
-read-back failed; a non-object body (array or scalar) is returned whole under response with
-those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
-else to change fails before any request. An unknown id fails listing every valid id.
+Reads the record from its list, merges the given leaves into its writable fields, PUTs the merged record and reads it back. Controller-generated list metadata is not copied into PUT. Returns the upstream PUT body verbatim plus _verified (true only when every requested leaf reads back equal, type-strict) and _readAfterError when the read-back failed; a non-object body (array or scalar) is returned whole under response with those keys beside it. id, _id and site_id in the object are ignored; an object with nothing else to change fails before any request. An unknown id fails listing every valid id.
 
-Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, policy_id, policy (see each parameter's description).
 
@@ -30152,27 +28567,76 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `update_external_arm_profile`
+
+Update an external arm profile (PATCH /v1/external/arm-profiles/{id}).
+
+These routes require Protect 7.4.96 or later and the external alarm manager; Protect 7.3.74 answers HTTP 404 "Entity 'endpoint' not found".
+
+Consequence: changes the external arm profile. Reads it, PATCHes the given keys and
+reads it again. Returns {status: "updated", verified, before, after,
+response (the PATCH body verbatim)}; verified is true only when every requested leaf
+reads back equal, null with readAfterError when the read-back failed, or {status: "noop",
+reason, resource} when every requested leaf already matches (a pin_code is never compared
+for the no-op: the profile reports has_pin only). A pin_code is verified by has_pin reading true in read-back,
+and pin_code null (clears the PIN) by has_pin reading false: this proves presence,
+not its digits, so replacing a PIN cannot be confirmed. An empty settings fails before
+any request (minProperties 1). Under dry-run policy nothing is sent: {status: "dry_run", before, response (the
+preview: method, path, params, body)}.
+
+Request body (Protect 7.4.96, schema "externalArmProfilePatch") is passed in `settings`;
+omitted keys stay unchanged.
+- title: string, minLength 1 (cannot be cleared)
+- activation_delay: integer 0-3600 (seconds), or null to clear it
+- deactivation_delay: integer 0-3600 (seconds), or null to clear it
+- schedule: object with optional keys sun, mon, tue, wed, thu, fri, sat; each day is
+  {type: "all_day"} or {type: "intervals", entries: [{start: {hour: integer 0-23,
+  minute: integer 0-59}, end: {hour: integer 0-23, minute: integer 0-59}, or 24:00}]}
+  (entries minItems 1; end of day: 24:00 or 23:59)
+- alarm_ids: array of string
+- pin_code: string, or null to clear the PIN (write-only; the profile reports has_pin)
+
+Example call (update_external_arm_profile):
+    {
+      "host": "my-console",
+      "arm_profile_id": "00000000000000000000010b",
+      "settings": {"title": "Night"}
+    }
+
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `protect/official/write`
+
+**Family:** `protect`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | false | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
+| `arm_profile_id` | `string` | yes |  | External arm profile id from list_external_arm_profiles (id). |
+| `settings` | `object` | yes |  | Partial update (PATCH; only listed keys change); spec Protect 7.4.96 PATCH /v1/external/arm-profiles/{id} body. Keys: title, activation_delay, deactivation_delay, schedule, alarm_ids, pin_code. Advisory spec fields; any JSON passes. externalArmProfilePatch |
+
+**Return type**
+
+`dict[str, Any]`
+
 ### `update_firewall_policy`
 
-Full-replace a firewall policy by ID.
+Full-replace a firewall policy by ID: get_firewall_policy, edit, send the entire object; omitted optional fields are cleared. Returns the replaced policy object verbatim (under dry-run policy, the dry-run preview).
 
-Returns the upstream response body verbatim: the replaced firewall policy object the API
-answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+In the policy, action.type is ALLOW (requires allowReturnTraffic), BLOCK or REJECT and ipProtocolScope.ipVersion is IPV4, IPV6 or IPV4_AND_IPV6. There is no index field: use set_firewall_policy_ordering. For port-only destination matching: destination.trafficFilter type PORT; address plus port: IP_ADDRESS with portFilter; a source portFilter matches ephemeral source ports. Zone UUIDs come from list_firewall_zones_proxy. Details: docs/TOOL-USAGE.md#update_firewall_policy.
 
-For port-only destination matching use destination.trafficFilter type PORT; for combined
-address and port matching use type IP_ADDRESS with portFilter. A source portFilter
-matches ephemeral source ports. Get zone UUIDs from list_firewall_zones_proxy.
-Use set_firewall_policy_ordering; there is no index field. action.type is ALLOW (requires
-allowReturnTraffic), BLOCK or REJECT; ipProtocolScope.ipVersion is IPV4, IPV6 or
-IPV4_AND_IPV6. Full replacement: get_firewall_policy, edit and send the entire object;
-omitted optional fields are cleared. Parameter schemas contain the complete trafficFilter
-variants and body shape. Detailed examples: docs/TOOL-USAGE.md#update_firewall_policy.
+Required arguments: host, site, policy_id, policy.
 
-Required arguments: host, site, policy_id, policy (see parameter descriptions for
-identifiers).
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Set UNIFI_WRITE_POLICY=dry-run. Filter family: zone-to-zone allow/block rules; not ACL rules, traffic rules or content filters.
 
@@ -30251,23 +28715,15 @@ Set UNIFI_WRITE_POLICY=dry-run. _proxy suffix: calls the Network Integration API
 
 Update fob settings (PATCH /v1/fobs/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/fobs/{id}; schema "inline requestBody schema") is passed
 in `settings`. No key is required; send only the keys to change.
 - name: string
 
 Example call (update_fob):
-    {
-      "host": "my-console",
-      "fob_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "fob_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -30390,26 +28846,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a guest portal billing package by _id (Classic PUT rest/hotspotpackage/{id}).
 
-The id is resolved in list_hotspot_packages first: an unknown id fails listing
-every valid _id and nothing is written. Request body: no published schema; pass
-only the fields to change. The controller rejects a partial Classic PUT, so the
-record read for the id check is sent back with your fields laid over it. Empty
-strings in list-valued fields are dropped. An empty update fails before any
-request. Route: Classic only.
+The id is resolved in list_hotspot_packages first: an unknown id fails listing every valid _id and nothing is written. Request body: no published schema; pass only the fields to change. The controller rejects a partial Classic PUT, so the record read for the id check is sent back with your fields laid over it. Empty strings in list-valued fields are dropped. An empty update fails before any request. Route: Classic only.
 
-Returns the Classic envelope {meta: {rc}, data: [package]} verbatim. Under
-dry-run policy the dry-run preview is returned and nothing is sent.
+Returns the Classic envelope {meta: {rc}, data: [package]} verbatim. Under dry-run policy the dry-run preview is returned and nothing is sent.
 
-Dry-run returns {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}; nothing is sent.
-Object results add _verified after a type-strict, leaf-by-leaf re-read: true,
-false with _unverifiedFields naming each differing leaf, or null with
-_readAfterError when the re-read fails. A non-object write body is returned whole
-under response with the same verdict keys beside it. Dry-run skips the re-read.
+Dry-run returns {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent. Object results add _verified after a type-strict, leaf-by-leaf re-read: true, false with _unverifiedFields naming each differing leaf, or null with _readAfterError when the re-read fails. A non-object write body is returned whole under response with the same verdict keys beside it. Dry-run skips the re-read.
 
 Example call (update_hotspot_package):
-    {"host": "my-console", "site": "Default",
-     "package_id": "000000000000000000000107", "fields": {"amount": 6}}
+    {"host": "my-console", "site": "Default", "package_id": "000000000000000000000107",
+     "fields": {"amount": 6}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30478,22 +28923,9 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_innerspace_plan`
 
-Update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}).
+Update an InnerSpace floor plan (PATCH .../api/project/plan/{planId}). Write: sent once, never retried; UNIFI_WRITE_POLICY=deny refuses it before any request.
 
-Read-merge-write: reads the plan the way get_innerspace_project does (the documented
-integration project route first, the legacy .../api/project as fallback), lays
-fields over it (nested objects merge key by key) and PATCHes the whole plan. An
-unknown plan id fails listing the valid ids; an empty update or a plan_id that is
-not a UUID fails before any request. Returns the PATCH body verbatim (a non-object
-body under response) plus _verified (type-strict, leaf by leaf against a fresh
-read; null with _readAfterError when the re-read fails). A change already applied
-returns the plan as read plus _noOp: true, _verified: true and _note, without
-writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction
-mask is not sent and is listed under _redactedFieldsNotSent. Write: sent once, never
-retried. UNIFI_WRITE_POLICY=deny refuses it before any request. dry-run policy returns a
-dry-run
-preview {status: "dry_run",
-dryRun, sent: false, message, preview: {method, path, params, body}}.
+Read-merge-write: reads the plan as get_innerspace_project does (documented integration route first, legacy .../api/project as fallback), lays fields over it (nested objects merge key by key) and PATCHes the whole plan. An unknown plan id fails listing the valid ids; an empty update or a non-UUID plan_id fails before any request. Returns the PATCH body verbatim (a non-object body under response) plus _verified (type-strict, leaf by leaf against a fresh read; null with _readAfterError when the re-read fails). A change already applied returns the plan as read plus _noOp: true, _verified: true and _note, without writing. When UNIFI_REDACT_SECRETS is enabled, a field still holding the redaction mask is not sent and is listed under _redactedFieldsNotSent. dry-run policy returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, plan_id, fields (see each parameter's description).
 
@@ -30718,35 +29150,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update settings for a Protect light (brightness, sensitivity, etc.).
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects are compared
-leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/lights/{id}; schema "inline requestBody schema") is
-passed in `settings`. No key is required; send only the keys to change.
-- name: string
-- isLightForceEnabled: boolean
-- lightModeSettings: object {mode: enum[always|motion|off], enableAt:
-  enum[fulltime|dark]}
-- lightDeviceSettings: object {isIndicatorEnabled: boolean, pirDuration: number,
-  milliseconds the light stays on after motion (>= 0, e.g. 30000), pirSensitivity:
-  number (0-100), ledLevel: number (1-6)}
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_light):
-    {
-      "host": "my-console",
-      "light_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "light_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_light.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30776,23 +29188,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update link-station settings (PATCH /v1/link-stations/{id}) with read/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/link-stations/{id}; schema "inline requestBody schema")
 is passed in `settings`. No key is required; send only the keys to change.
 - name: string
 
 Example call (update_link_station):
-    {
-      "host": "my-console",
-      "link_station_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "link_station_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -30822,31 +29226,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_liveview`
 
-Update a liveview on a Protect console.
+Update a liveview on a Protect console (PATCH /v1/liveviews/{id}). The spec lists id, modelKey, name, isDefault, isGlobal, owner, layout, slots as required but this tool does not check them: partial settings are sent as given.
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects are compared
-leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent). verified is null, with readAfterError, when the read-after fails. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the dry-run preview)}.
 
-Request body (Protect 7.3.74, PATCH /v1/liveviews/{id}; schema "inline requestBody schema") is
-passed in `settings`. Required keys — id, modelKey, name, isDefault, isGlobal, owner, layout,
-slots (spec list, not checked: partial settings are sent as given).
-- id: string
-- modelKey: string
-- name: string
-- isDefault: boolean
-- isGlobal: boolean
-- owner: string
-- layout: number (1-26; the number of slots)
-- slots: array of object {cameras: array of string (camera ids), cycleMode:
-  enum[motion|time], cycleInterval: number (seconds)} (every item key required)
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_liveview):
     {
@@ -30869,7 +29253,6 @@ Example call (update_liveview):
         ]
       }
     }
-
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30935,34 +29318,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_mobility_device_name`
 
-Rename a UMR device (guarded write). WARNING: mutates live device config.
+Rename a UMR device (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID} with {"name": name} (1-32 chars). Guarded, in order: family:mobility=deny refuses first (writes are on by default), read-before, no-op ("no_op" when already named this), write, read-after.
 
-Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool} for the
-fields observable in the device detail (null when the read-after fails; readAfterError says
-why), device (the read-after device-detail GET body verbatim, {data, httpStatusCode,
-traceId}), response (the PUT body verbatim; null for the documented 204)}, or {status:
-"no_op", reason, device (the GET body read first)}.
-Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response
-(the preview)}; verified is absent (there is no read-after).
+Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: "no_op", reason, device}. Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response (the dry-run preview)}; no read-after.
 
-Sends the full documented body {"name": name} (1-32 chars). Guarded, in order: the Mobility
-write opt-out (family:mobility=deny refuses first; writes are enabled by default),
-read-before, no-op detection (returns status="no_op" when already named this), write, and a
-read-after verification.
-
-Request body (Mobility 1.0.0, PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}
-(updateDeviceName); schema "UpdateDeviceNameReq") is built from scalar parameters. Required keys
-— name.
-- name: string
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_mobility_device_name):
-    {
-      "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "name": "Van 12"
-    }
-
-The dry-run preview contains method, path, params (query parameters), and body.
+    {"workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "name": "Van 12"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -30992,38 +29356,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_mobility_device_network`
 
-Update a UMR device's LAN / DHCP settings (guarded write). Mutates live config.
+Update a UMR device's LAN/DHCP settings (guarded write; mutates live config). PUT /v1/mobility/workspaces/{workspaceID}/devices/{deviceID}.
 
-Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null}
-for every requested field (null for fields absent from the pinned device-detail schema;
-the whole map is null on read-after failure, with readAfterError), device
-(the read-after device-detail GET body verbatim, {data, httpStatusCode,
-traceId}), response (the PUT body verbatim; null for the documented 204)}, or {status:
-"no_op", reason, device (the GET body read first)}.
-Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first),
-response
-(the preview)}; verified is absent (there is no read-after).
+Partial: only provided fields apply (WAN/IPv6/InternetSource are not configurable here); at least one is required. The Mobility docs differ on PUT semantics; if the console does full replacement, unsent LAN/DHCP fields can reset. dhcp_mode is 'dhcp' or 'none'; IPs must be dotted-quad IPv4 (a leading-zero octet is refused before any request); dhcp_lease_time is seconds (0 = infinite). explicit null is forwarded; omitted stays unchanged. Guarded, in order: family:mobility=deny refuses first (add it to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only), read-before, no-op on the observable host_address, write, read-after.
 
-DOCUMENTED partial update: only provided fields are applied (WAN/IPv6/InternetSource are
-not configurable here). At least one field is required. The Mobility docs differ on PUT
-semantics (full replacement vs this endpoint's documented partial merge); if the console
-applies full replacement, unsent LAN/DHCP fields can be reset. Add
-family:mobility=deny to UNIFI_WRITE_EXCEPTIONS to make Mobility read-only. dhcp_mode is 'dhcp' (enabled) or
-'none' (disabled); IPs must be dotted-quad IPv4 (spec format: ipv4; a leading-zero octet
-such as 192.168.01.1 is refused before any request); dhcp_lease_time is seconds
-(0 = infinite). Guarded, in order: the Mobility write opt-out
-(family:mobility=deny refuses first), read-before, no-op detection on the
-observable host_address, write, read-after.
+Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}, or {status: "no_op", reason, device}. Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response (the dry-run preview)}; no read-after.
 
-Each field is nullable: explicit null is forwarded as null; an omitted field stays omitted
-(unchanged).
+Required arguments: workspace_id, device_id.
 
-Full request shapes are in the parameter schema; detailed examples and workflows:
-docs/TOOL-USAGE.md#update_mobility_device_network.
-
-Required arguments: workspace_id, device_id (see parameter descriptions for identifiers).
-
-The dry-run preview contains method, path, params (query parameters), and body.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -31057,40 +29398,18 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_mobility_device_wireless`
 
-Update a UMR device's WiFi SSID + password (guarded write). Mutates live config.
+Update a UMR device's WiFi SSID and password (guarded write; mutates live config). PUT .../devices/{deviceID}/wireless.
 
-Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null}
-for every requested field (null for fields absent from the pinned device-detail schema;
-the whole map is null on read-after failure, with readAfterError), device
-(the read-after device-detail GET body verbatim, {data, httpStatusCode,
-traceId}), response (the PUT body verbatim; null for the documented 204)}. It never returns
-no_op. Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first),
-response (the preview)}; verified is absent (there is no read-after).
+Both fields required (ssid 1-32 chars; password a WPA2-PSK secret of 8-63 chars). Guarded, in order: family:mobility=deny refuses first, read-before, write, read-after. No no-op short-circuit (the password is unobservable). The password is not echoed back; under dry-run policy the preview body shows it (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on).
 
-Both fields are required by the API (channel/TX power/security protocol are not configurable
-here). ssid is 1-32 chars; password is a WPA2-PSK secret of 8-63 chars. Guarded, in order:
-the Mobility write opt-out (family:mobility=deny refuses first), read-before,
-write, read-after. There is no no-op short-circuit (the password is not observable, so an
-unchanged config cannot be proven). The supplied password is not echoed back in the result;
-under dry-run policy the preview body shows the request as it would be sent, password
-included (masked as ***REDACTED*** only when UNIFI_REDACT_SECRETS is on, like every
-credential field of every dry-run preview).
+Returns {status: "updated", changed: {field: {from, to}}, verified: {field: bool or null} (the whole map null with readAfterError when the read-after fails), device (read-after GET body), response (PUT body; null for the documented 204)}; never no_op. Under dry-run policy nothing is sent: {status: "dry_run", device (the body read first), response (the dry-run preview)}; no read-after.
 
-Request body (Mobility 1.0.0, PUT
-/v1/mobility/workspaces/{workspaceID}/devices/{deviceID}/wireless (updateDeviceWireless); schema
-"UpdateWirelessReq") is built from scalar parameters. Required keys — ssid, password.
-- ssid: string
-- password: string
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_mobility_device_wireless):
-    {
-      "workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "ssid": "Fleet-WiFi",
-      "password": "correct-horse-9"
-    }
-
-The dry-run preview contains method, path, params (query parameters), and body.
+    {"workspace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "ssid": "Fleet-WiFi",
+     "password": "correct-horse-9"}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -31208,22 +29527,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update an existing network/VLAN.
 
-Returns the upstream response body verbatim: the updated network object the API answers with
-(under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params (query parameters), body}} instead).
-
-Request body (Network 11.0.97, PUT /v1/sites/{siteId}/networks/{networkId} (updateNetwork);
-schema "Create or update Network") is passed in `network_config`. Required keys — enabled,
-management, name, vlanId.
-- dhcpGuarding: object (Network DHCP Guarding)
-- enabled: boolean
-- management: string
-- name: string
-- vlanId: integer(int32)
-Variants by `management` — GATEWAY requires cellularBackupEnabled, enabled,
-internetAccessEnabled, ipv4Configuration, isolationEnabled, name, vlanId, management; SWITCH
-requires cellularBackupEnabled, deviceId, enabled, ipv4Configuration, isolationEnabled, name,
-vlanId, management; UNMANAGED requires enabled, name, vlanId, management.
+Returns the upstream response body verbatim: the updated network object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
 Example call (update_network):
     {
@@ -31245,6 +29549,8 @@ Example call (update_network):
         "vlanId": 20
       }
     }
+
+Details: docs/TOOL-USAGE.md#update_network.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -31310,30 +29616,13 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_nvr`
 
-Change NVR doorbell custom messages, insights, analytics and retention. Nested objects
-merge; arrays replace in full. DANGER: shorter recording retention can permanently
-delete older footage; retention coupling is controller-dependent and needs live testing.
-Returns the relay response with readBefore/readAfter, _verified and _noOp. A failed or
-non-object read-after leaves _verified and _noOp null, preserving the relay error.
-Dry-run previews the exact merged body.
+Change NVR doorbell custom messages, insights, analytics and retention (nested objects merge; arrays replace in full). DANGER: shortening recording retention can make the NVR permanently delete older footage; retention coupling is controller-dependent and needs live testing.
 
-Consequence: the PATCH persistently changes NVR-wide settings, reversible by writing back
-the prior values returned in readBefore; shortening recording retention, however, can make
-the NVR permanently delete older footage, which no later write restores.
+Consequence: the PATCH persistently changes NVR-wide settings, reversible by writing back the readBefore values; shortened retention, however, deletes footage no later write restores.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled; retention changes may add _warnings.
-Read twins add readBefore, readAfter, noOp and changed when known; _noOp compares
-requested leaves, type-strict. If requested fields are absent from both 2xx reads,
-noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
-explain failed or unproven read-back.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} plus writeEnabled, readBefore/readAfter, noOp, changed (type-strict leaf compare), _verified, and _warnings on retention changes. If requested fields are absent from both reads, noOpReason says why noOp is unknown; a failed or non-object read-after leaves _verified/_noOp null with readAfterError and _verificationWarning. Under dry-run policy nothing is sent: status "dry_run", body the exact merged preview.
 
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_nvr):
     {"host": "my-console", "settings": {"isInsightsEnabled": true}}
@@ -31440,6 +29729,53 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 `Any`
 
+### `update_port_automation`
+
+Update a port automation (Network 11.1 v2 route).
+
+Consequence: changes which devices get which port profile on in-scope switch ports.
+
+PUT /proxy/network/v2/api/site/{site}/port-automations/{id}. Never auto-retried.
+
+Reads the record from its list, merges only the given leaves into it, PUTs the whole merged
+record and reads it back. Returns the upstream PUT body verbatim plus _verified (true only
+when every requested leaf reads back equal, type-strict) and _readAfterError when the
+read-back failed; a non-object body (array or scalar) is returned whole under response with
+those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
+else to change fails before any request. An unknown id fails listing every valid id.
+The body fields are those create_port_automation lists.
+
+Under dry-run policy nothing is sent and the tool returns a dry-run preview:
+status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+
+Required arguments: host, site, automation_id, automation (see each parameter's
+description).
+
+Set UNIFI_WRITE_POLICY=dry-run.
+
+**API source:** `network/private.v2/write`
+
+**Family:** `network`
+
+**Annotations**
+
+| readOnly | destructive | idempotent | openWorld |
+| --- | --- | --- | --- |
+| false | true | true | true |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `host` | `string` | yes |  | Console name, MAC or id from list_hosts: reportedState.hostname/name (e.g. "my-console") or data[].id. |
+| `site` | `string` | yes |  | Network site name or UUID from list_local_sites, e.g. "Default". |
+| `automation_id` | `string` | yes |  | Port automation id from list_port_automations, e.g. "000000000000000000000107". |
+| `automation` | `object` | yes |  | Leaves to change, e.g. {"enabled": false}. Free-form object. |
+
+**Return type**
+
+`Any`
+
 ### `update_port_forward`
 
 Update a port forwarding rule by ID.
@@ -31492,36 +29828,17 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_port_profile`
 
-Update a switch port profile by ID.
+Update a switch port profile by ID. WARNING -- SHARED PROFILE, WIDE BLAST RADIUS: this edits a shared Ethernet Port Profile (Classic /rest/portconf), not one switch or port. One write changes STP/PoE/storm-control/VLAN for EVERY port on EVERY switch using it; never present it as a per-port or per-device STP-priority or PoE-mode writer (no such route exists via this API). Check the profile's assignments and blast radius before writing.
 
-The id is resolved in list_port_profiles first: an unknown id fails listing every valid _id, and
-nothing is written.
+The id is resolved in list_port_profiles first (an unknown id fails listing every valid _id; nothing written). No published schema for PUT network/api/s/{site}/rest/portconf/{id}: send the native payload edited from a prior read.
 
-WARNING -- SHARED PROFILE, WIDE BLAST RADIUS: this edits a shared Ethernet Port
-Profile (Classic REST /rest/portconf), NOT one switch or one port. A single write
-changes STP/PoE/storm-control/VLAN/etc. for EVERY port on EVERY switch that has this
-profile assigned. It is NOT a per-device or per-port writer and must never be
-presented or used as a per-port/per-device STP-priority or PoE-mode writer -- for
-that, no confirmed per-port config route exists via this API. Read the profile's
-assignments and confirm the intended blast radius before writing.
+Returns the PUT envelope {meta: {rc}, data: [port profile]} verbatim (profile plus _resolved_networks). Under dry-run policy nothing is sent: the bare preview.
 
-Request body: no published schema exists for PUT network/api/s/{site}/rest/portconf/{id}
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
-
-Returns: the controller's PUT response envelope {meta: {rc}, data: [port profile]} verbatim,
-the profile plus the additive _resolved_networks key.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_port_profile):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "profile_id": "000000000000000000000107",
-      "payload": {"poe_mode": "auto"}
-    }
+    {"host": "my-console", "site": "Default", "profile_id": "000000000000000000000107",
+     "payload": {"poe_mode": "auto"}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -31596,18 +29913,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a power-supervisor link (Network v2 route).
 
-Reads the link from GET .../power-supervisors/links, then PUT
-/proxy/network/v2/api/site/{site}/power-supervisors/links/{id}. Never auto-retried.
+Reads the link from GET .../power-supervisors/links, then PUT /proxy/network/v2/api/site/{site}/power-supervisors/links/{id}. Never auto-retried.
 
-Reads the record from its list, merges only the given leaves into it, PUTs the whole merged
-record and reads it back. Returns the upstream PUT body verbatim plus _verified (true only
-when every requested leaf reads back equal, type-strict) and _readAfterError when the
-read-back failed; a non-object body (array or scalar) is returned whole under response with
-those keys beside it. id, _id and site_id in the object are ignored; an object with nothing
-else to change fails before any request. An unknown id fails listing every valid id.
+Reads the record from its list, merges only the given leaves into it, PUTs the whole merged record and reads it back. Returns the upstream PUT body verbatim plus _verified (true only when every requested leaf reads back equal, type-strict) and _readAfterError when the read-back failed; a non-object body (array or scalar) is returned whole under response with those keys beside it. id, _id and site_id in the object are ignored; an object with nothing else to change fails before any request. An unknown id fails listing every valid id.
 
-Under dry-run policy nothing is sent and the tool returns a dry-run preview:
-status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
+Under dry-run policy nothing is sent and the tool returns a dry-run preview: status "dry_run", dryRun, sent: false, message and preview (method, path, params, body).
 
 Required arguments: host, site, link_id, link (see each parameter's description).
 
@@ -31893,18 +30203,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update settings of any Protect device type with read-back verification.
 
-Types bridge, camera, chime, light, linkstation, sensor, speaker and viewer use the
-official PATCH /v1/{family}/{id} (spec Protect 7.3.74; read from GET
-/v1/{family}/{id}); aiport, aiprocessor, doorlock and nvr have no official PATCH
-and use the private PATCH /{collection}/{id} (nvr: PATCH /nvr, no device_id),
-read from GET /locks/{id} or the bootstrap. settings is sent as given (partial
-nested objects too). The record is read first: when every leaf already matches,
-nothing is sent and {status: "noop", reason, resource} is returned. Returns
-otherwise {status: "updated", verified, before, after, response, _route}: verified
-is true when the read-after carries every sent leaf (type-strict), null with
-readAfterError when it cannot be read. An empty settings object fails before any
-request. With dry-run policy, returns {status: "dry_run", before, response:
-PREVIEW}. Dry-run response previews include body and params.
+Types bridge, camera, chime, light, linkstation, sensor, speaker and viewer use the official PATCH /v1/{family}/{id} (spec Protect 7.3.74; read from GET /v1/{family}/{id}); aiport, aiprocessor, doorlock and nvr have no official PATCH and use the private PATCH /{collection}/{id} (nvr: PATCH /nvr, no device_id), read from GET /locks/{id} or the bootstrap. settings is sent as given (partial nested objects too). The record is read first: when every leaf already matches, nothing is sent and {status: "noop", reason, resource} is returned. Returns otherwise {status: "updated", verified, before, after, response, _route}: verified is true when the read-after carries every sent leaf (type-strict), null with readAfterError when it cannot be read. An empty settings object fails before any request. With dry-run policy, returns {status: "dry_run", before, response: PREVIEW}. Dry-run response previews include body and params.
 
 Required arguments: host, device_type, settings (see each parameter's description).
 
@@ -32194,20 +30493,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a local RADIUS user account via v2 POST radius/users/batch_update.
 
-Consequence: the stored account changes at once; a new x_password or vlan applies to
-the user's next 802.1X or VPN authentication.
+Consequence: the stored account changes at once; a new x_password or vlan applies to the user's next 802.1X or VPN authentication.
 
-The id is resolved in the v2 account list (GET /v2/api/site/{site}/radius/users)
-first; an unknown id fails listing every account and no write is sent. The route
-replaces the whole account and refuses a partial one, so the stored account is sent
-with `account` laid over it, as a one-element batch [account]: send only the fields
-to change, e.g. x_password for a new password; every other field is kept as stored.
+The id is resolved in the v2 account list (GET /v2/api/site/{site}/radius/users) first; an unknown id fails listing every account and no write is sent. The route replaces the whole account and refuses a partial one, so the stored account is sent with `account` laid over it, as a one-element batch [account]: send only the fields to change, e.g. x_password for a new password; every other field is kept as stored.
 
-Returns: the upstream body verbatim, a one-element JSON array [the updated account].
-Additive _warnings on that account (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names
-only) report a write that did not land as sent. Under dry-run policy nothing is sent:
-the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-preview: {method, path, params, body}}.
+Returns: the upstream body verbatim, a one-element JSON array [the updated account]. Additive _warnings on that account (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_radius_account):
     {"host": "my-console", "site": "Default", "account_id": "000000000000000000000101",
@@ -32240,19 +30530,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_radius_profile`
 
-Update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id}.
+Update a RADIUS profile via Classic REST PUT rest/radiusprofile/{_id} (the UI's route; the Integration API is GET-only).
 
-The published Integration API serves RADIUS profiles GET-only; this is the UI's route.
-The id (list_radius_profiles id = external_id, or the Classic _id) is resolved in
-rest/radiusprofile first (an unknown id fails listing every profile, no write is
-sent). auth_servers / acct_servers replace the whole server list: send every server
-to keep, each {ip, port, x_secret}.
+The id (list_radius_profiles id = external_id, or the Classic _id) is resolved first; an unknown id fails listing every profile and nothing is sent. auth_servers/acct_servers replace the whole server list: send every server to keep, each {ip, port, x_secret}.
 
-Returns: the upstream body verbatim, {meta: {rc}, data: [the updated profile]}.
-Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a
-write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-params, body}}.
+Returns the upstream body verbatim, {meta: {rc}, data: [the updated profile]}. Additive _warnings (NO_ID_RETURNED, NOT_STORED_AS_SENT: field names only) report a write that did not land as sent. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_radius_profile):
     {"host": "my-console", "site": "Default",
@@ -32288,18 +30570,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Change fields of one Protect recognition group (read, write, then verify).
 
-Drains list_recognition_groups to find group_id (an unknown id fails listing the
-valid ids, before any write). If every requested leaf already matches it returns
-{status: "noop"} without writing; otherwise sends changes with PATCH
-protect/api/recognition/{type}/groups/{group_id}. The upstream response is
-returned unchanged plus _before, _after and _verified (each requested leaf re-read,
-type strict; _readAfterError when the re-read failed). An empty changes object is
-refused before any request. Under dry-run policy it returns a dry-run preview.
-Honours UNIFI_WRITE_POLICY=deny and family:protect=deny.
-Returns the upstream response plus _before, _after, _verified and
-_readAfterError (a non-object response sits under response); {status: "noop",
-reason, resource} when nothing changes; under dry-run policy the preview {status:
-"dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
+Drains list_recognition_groups to find group_id (an unknown id fails listing the valid ids, before any write). If every requested leaf already matches it returns {status: "noop"} without writing; otherwise sends changes with PATCH protect/api/recognition/{type}/groups/{group_id}. The upstream response is returned unchanged plus _before, _after and _verified (each requested leaf re-read, type strict; _readAfterError when the re-read failed). An empty changes object is refused before any request. Under dry-run policy it returns a dry-run preview. Honours UNIFI_WRITE_POLICY=deny and family:protect=deny. Returns the upstream response plus _before, _after, _verified and _readAfterError (a non-object response sits under response); {status: "noop", reason, resource} when nothing changes; under dry-run policy the preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Required arguments: host, type, group_id, changes.
 
@@ -32332,12 +30603,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update relay settings (PATCH /v1/relays/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/relays/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -32345,11 +30611,8 @@ passed in `settings`. No key is required; send only the keys to change.
 - ledSettings: object {isEnabled: boolean}
 
 Example call (update_relay):
-    {
-      "host": "my-console",
-      "relay_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "relay_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -32423,42 +30686,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update settings for a Protect sensor.
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects are compared
-leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-dry-run policy sends nothing: {status: "dry_run", before (read body),
-response (the preview: method, path, params, body)}; no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/sensors/{id}; inline schema) is `settings`.
-No required key; send only changed keys.
-- name: string
-- lightSettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
-  null (1-503192), highThreshold: number or null (1-503192)}
-- humiditySettings: object {isEnabled: boolean, margin: number, lowThreshold: number or
-  null (1-99), highThreshold: number or null (1-99)}
-- temperatureSettings: object {isEnabled: boolean, margin: number, lowThreshold: number
-  or null (-39-124), highThreshold: number or null (-39-124)}
-- motionSettings: object {isEnabled: boolean, sensitivity: number (0-100),
-  sensitivityWhenArmed: number (0-100)}
-- glassBreakSettings: object {isEnabled: boolean, sensitivity: number (0-100),
-  sensitivityWhenArmed: number (0-100)}
-- scheduleMode: enum[always|when_armed]
-- armProfileIds: array|null
-- hasCustomSensitivityWhenArmed: boolean
-- alarmSettings: object {isEnabled: boolean}
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_sensor):
-    {
-      "host": "my-console",
-      "sensor_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "sensor_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
+The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_sensor.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32486,37 +30722,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_sensor_private`
 
-Change sensor mount type and status light via read-merge-PATCH, preserving nested
-siblings. Returns the relay response with readBefore/readAfter, _verified and _noOp.
-A failed or non-object read-after leaves _verified and _noOp null, preserving
-the relay error; dry-run previews the exact merged body.
+Change sensor mount type and status light by read-merge-PATCH, preserving nested siblings. Consequence: persistently changes the sensor's stored settings; mount type and status light are reversible by restoring readBefore values; other controller fields may have other effects.
 
-Consequence: the PATCH persistently changes the sensor's stored settings. Mount type and
-status light changes are reversible by restoring readBefore values; additional controller
-fields may have other effects.
+Returns the relay envelope {method, routeClass, scope, path, resolvedPath, status, contentType, body} plus writeEnabled, readBefore/readAfter, noOp, changed (type-strict leaf compare), _verified. If requested fields are absent from both reads, noOpReason says why noOp is unknown; a failed or non-object read-after leaves _verified/_noOp null with readAfterError and _verificationWarning. Under dry-run policy nothing is sent: status "dry_run", body the exact merged preview.
 
-Returns method, routeClass, scope, path, resolvedPath, status, contentType and
-body; binary responses use bodyBase64 and sizeBytes.
-Write metadata includes writeEnabled.
-Read twins add readBefore, readAfter, noOp and changed when known; _noOp compares
-requested leaves, type-strict. If requested fields are absent from both 2xx reads,
-noOpReason explains why noOp is unknown. readAfterError and _verificationWarning
-explain failed or unproven read-back.
-
-Under dry-run policy no upstream write is sent: status is "dry_run" and body
-contains the exact preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-{method, path, params (query parameters), body}}.
-
-Result status is the upstream HTTP number or dry_run for a preview.
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_sensor_private):
-    {
-      "host": "my-console",
-      "sensor_id": "00000000000000000000010c",
-      "settings": {
-        "mountType": "door"
-      }
-    }
+    {"host": "my-console", "sensor_id": "00000000000000000000010c",
+     "settings": {"mountType": "door"}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32544,42 +30758,19 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 ### `update_setting`
 
-Update a controller setting group by key.
+Update a controller setting group by key. Call get_setting(setting_key) first: it lists every settable field and its valid value.
 
-Discover the schema first by calling get_setting(setting_key): it returns every
-settable field and its current (valid) value. The controller silently drops any
-unrecognised field or enum value (HTTP 200, value unchanged), so a guessed value
-fails invisibly; this tool reports that no-op separately from the PUT response, naming
-every rejected field and pointing you back at get_setting. The check walks the payload
-leaf by leaf: a nested object is compared as a partial update (only the keys you send
-must take), and a
-nested leaf left unchanged is named by its dotted path (e.g. radius.port) even when a sibling
-leaf in the same object was applied; _verificationNote names the rejected and applied
-leaves.
+The controller silently drops unrecognised fields or enum values (HTTP 200, unchanged); this tool walks the payload leaf by leaf (a nested object is a partial update) and reports each rejected leaf by dotted path (e.g. radius.port) in _unverifiedFields and _verificationNote.
 
-Returns: the controller's PUT response envelope {meta: {rc}, data: [setting group]} verbatim
-plus the additive _verified: true only when the read-after confirms every submitted leaf
-(type-strict: true is not 1), false with _unverifiedFields (dotted paths) when a leaf was
-rejected or changed to a value other than the one sent (v0.6.2 raised for a rejected
-leaf; check _verified), null with _readAfterError when the read-after failed or could not
-be matched (the write was still sent). When every submitted field already holds the sent
-value, no PUT is made and the current GET envelope is returned verbatim plus an additive
-_note "no change needed".
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}}.
+Returns the PUT envelope {meta: {rc}, data: [setting group]} verbatim plus _verified: true only when the read-after confirms every leaf (type-strict: true is not 1), false with _unverifiedFields when a leaf was rejected or changed, null with _readAfterError when the read-after failed (the write was still sent). If every field already holds the sent value, no PUT is made: the GET envelope plus _note "no change needed". Under dry-run policy nothing is sent: the bare preview.
 
-Request body: no published schema exists for PUT network/api/s/{site}/rest/setting/{setting_key}
-(classic controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
+No published schema for PUT network/api/s/{site}/rest/setting/{setting_key}; send the native payload edited from get_setting.
+
+Dry-run preview: {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_setting):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "setting_key": "mgmt",
-      "payload": {"led_enabled": false}
-    }
+    {"host": "my-console", "site": "Default", "setting_key": "mgmt",
+     "payload": {"led_enabled": false}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32610,27 +30801,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update siren settings (PATCH /v1/sirens/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/sirens/{id}; schema "inline requestBody schema") is
-passed in `settings`. No key is required; send only the keys to change.
-- name: string
-- volume: integer (1-100)
-- ledSettings: object {isEnabled: boolean (required inside ledSettings)}
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_siren):
-    {
-      "host": "my-console",
-      "siren_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "siren_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_siren.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32660,25 +30839,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a site-to-site VPN tunnel by ID.
 
-Uses Classic REST PUT /proxy/network/api/s/{site}/rest/networkconf/{_id} (the route the
-controller's own UI uses; the published Integration API has no tunnel update, HTTP 404
-"No endpoint" on Network 11.0.81). The id is resolved among the site's site-vpn records
-first; an unknown id fails listing every tunnel with both ids. Send only the fields to
-change: the Classic PUT merges them into the stored record.
+Classic REST PUT /proxy/network/api/s/{site}/rest/networkconf/{_id} (the UI's route; the Integration API has no tunnel update, 404 on Network 11.0.81).
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated
-networkconf record]}.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+The id is resolved among the site-vpn records first; an unknown id fails listing every tunnel with both ids. Send only the fields to change: the Classic PUT merges them into the stored record.
+
+Returns the upstream Classic envelope {meta: {rc}, data: [the updated networkconf]}. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Example call (update_site_to_site_tunnel):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "tunnel_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "tunnel": {"enabled": false}
-    }
+    {"host": "my-console", "site": "Default",
+     "tunnel_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "tunnel": {"enabled": false}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32709,28 +30878,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update speaker settings (PATCH /v1/speakers/{id}) with read-before/no-op/read-after.
 
-Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or
-{status: "noop", reason, resource} when every sent leaf already matches (nested objects
-compared leaf by leaf; sibling keys not sent are ignored).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
-
-Request body (Protect 7.3.74, PATCH /v1/speakers/{id}; schema "inline requestBody schema") is
-passed in `settings`. No key is required; send only the keys to change.
-- name: string
-- volume: integer (0-100)
-- micVolume: integer (0-100)
-- isMicEnabled: boolean
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Example call (update_speaker):
-    {
-      "host": "my-console",
-      "speaker_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "speaker_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
+
+Details: docs/TOOL-USAGE.md#update_speaker.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -32837,16 +30993,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a static DNS record (v2 PUT static-dns/{_id}, read-merge-write).
 
-Required: host, site, record_id and record. record_id is resolved in
-list_static_dns_records first; an unknown id fails listing every record and
-nothing is sent. record holds only the fields to change (free-form, no published
-schema); they are laid leaf by leaf over the listed record and the whole record is
-PUT. An empty update fails before any request. Returns the upstream body verbatim
-plus _verified (type-strict comparison of every requested leaf in a read-after)
-and _readAfter, or _readAfterError; a non-object write body is returned whole under
-response with those keys beside it. Dry-run (dry-run policy) returns a dry-run
-preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path,
-params, body}}; nothing is sent.
+Required: host, site, record_id and record. record_id is resolved in list_static_dns_records first; an unknown id fails listing every record and nothing is sent. record holds only the fields to change (free-form, no published schema); they are laid leaf by leaf over the listed record and the whole record is PUT. An empty update fails before any request. Returns the upstream body verbatim plus _verified (type-strict comparison of every requested leaf in a read-after) and _readAfter, or _readAfterError; a non-object write body is returned whole under response with those keys beside it. Dry-run (dry-run policy) returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}; nothing is sent.
 
 Example call (update_static_dns_record):
     {"host": "my-console", "site": "Default", "record_id": "000000000000000000000107",
@@ -32927,8 +31074,9 @@ Change selected switch ports' port_overrides by port_idx; keep all else as read.
 Reads stat/device, merges each requested field into its port's entry, drops
 remove_ports entries (they revert to defaults), PUTs the whole array once to
 rest/device and reads it back. Fields are native: portconf_id (from
-list_port_profiles), op_mode (copy SPAN monitoring values from a monitoring port in
-get_switch_port_overrides; "aggregate" with aggregate_num_ports).
+list_port_profiles), op_mode (the SPAN monitoring value and monitored-port key come from
+_spanMode in get_switch_port_overrides, a port cannot monitor itself; "aggregate" with
+aggregate_num_ports, which must stay within the last physical port).
 
 Consequence: port changes can drop links and PoE; never re-profile your own uplink.
 A write by the UI or another client between the read and the PUT can be overwritten.
@@ -33056,18 +31204,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a traffic matching list by ID.
 
-Returns the upstream response body verbatim: the updated traffic matching list object the API
-answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
-false, message, preview: {method, path, params (query parameters), body}} instead).
-
-Request body (Network 11.0.97, PUT
-/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId} (updateTrafficMatchingList);
-schema "Create or update traffic matching list") is passed in `traffic_list`. Required keys —
-name, type.
-- name: string
-- type: string
-Variants by `type` — IPV4_ADDRESSES requires items, name, type; IPV6_ADDRESSES requires items,
-name, type; PORTS requires items, name, type.
+Returns the upstream response body verbatim: the updated traffic matching list object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
 Example call (update_traffic_matching_list):
     {
@@ -33080,6 +31217,8 @@ Example call (update_traffic_matching_list):
         "name": "Allowed address list"
       }
     }
+
+Details: docs/TOOL-USAGE.md#update_traffic_matching_list.
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -33110,17 +31249,11 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a traffic route by ID.
 
-The id is resolved in list_traffic_routes first: an unknown id fails listing every valid _id,
-and nothing is written.
+The id is resolved in list_traffic_routes first: an unknown id fails listing every valid _id, and nothing is written.
 
-Returns the upstream response body verbatim: the updated traffic route object the API answers
-with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false,
-message,
-preview: {method, path, params (query parameters), body}} instead).
+Returns the upstream response body verbatim: the updated traffic route object the API answers with (under dry-run policy, the dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} instead).
 
-Request body: no published schema exists for PUT network/v2/api/site/{site}/trafficroutes/{id}
-(classic/v2 controller API). Pass the controller's native payload; read the current object first
-with the matching list/get tool and send back the edited object.
+Request body: no published schema for PUT network/v2/api/site/{site}/trafficroutes/{id}; send the native payload, edited from a prior read.
 
 Example call (update_traffic_route):
     {
@@ -33257,16 +31390,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update settings for a Protect viewer (liveview assignment, etc.).
 
-Returns {status: "updated", verified, before, after, response}, or {status: "noop", reason,
-resource} when every sent leaf already matches (no PATCH is sent). Read-before, no-op,
-PATCH, read-after: before/after are the object read before and after the write, verified
-is true when the read-after carries every sent leaf value (nested objects are compared
-leaf by leaf, so a partial nested update verifies by the leaves
-it sends; sibling keys it does not send are ignored), and response is the PATCH body
-verbatim (decoded JSON, the text of a non-JSON body, or null when the body is empty).
-verified is null, with readAfterError, when the read-after fails or cannot be matched.
-Under dry-run policy nothing is sent: {status: "dry_run", before (the body read first), response
-(the preview: method, path, params, body)}; there is no read-after.
+Read-before, no-op check, PATCH, read-after. Returns {status: "updated", verified, before, after, response (the PATCH body verbatim)}, or {status: "noop", reason, resource} when every sent leaf already matches (nothing sent; nested objects compare leaf by leaf). verified is null, with readAfterError, when the read-after fails or cannot be matched. Under dry-run policy nothing is sent: {status: "dry_run", before, response (the preview {method, path, params, body})}; no read-after.
 
 Request body (Protect 7.3.74, PATCH /v1/viewers/{id}; schema "inline requestBody schema") is
 passed in `settings`. No key is required; send only the keys to change.
@@ -33274,11 +31398,8 @@ passed in `settings`. No key is required; send only the keys to change.
 - liveview: oneOf[liveviewId|null]
 
 Example call (update_viewer):
-    {
-      "host": "my-console",
-      "viewer_id": "00000000000000000000010b",
-      "settings": {"name": "Front Door"}
-    }
+    {"host": "my-console", "viewer_id": "00000000000000000000010b",
+     "settings": {"name": "Front Door"}}
 
 The dry-run preview contains method, path, params (query parameters), and body.
 
@@ -33310,26 +31431,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a VPN client connection by id.
 
-Consequence: changes to an enabled client apply to its live tunnel; traffic routed over
-it can pause while the tunnel reconnects.
+Consequence: changes to an enabled client apply to its live tunnel; traffic routed over it can pause while the tunnel reconnects.
 
-Uses Classic REST PUT network/api/s/{site}/rest/networkconf/{_id} (the route the
-controller's own UI uses). The id is resolved among the site's vpn-client records
-first; an unknown id fails listing every VPN client with both ids, and nothing is
-sent. Send only the fields to change: the Classic PUT merges them into the stored
-record (verified on Network 11.0.81: a rename reads back).
+Classic REST PUT network/api/s/{site}/rest/networkconf/{_id}. The id is resolved among the site's vpn-client records first; an unknown id fails listing every VPN client with both ids and nothing is sent. Send only the fields to change: the Classic PUT merges them into the stored record (a rename reads back on Network 11.0.81).
 
-Returns the upstream Classic body verbatim: {meta: {rc}, data: [the updated networkconf
-record]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent:
-false, message, preview: {method, path, params (query parameters), body}} instead).
+Returns the Classic body verbatim {meta: {rc}, data: [the updated networkconf]} (under dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query parameters), body}} instead).
 
 Example call (update_vpn_client):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "vpn_client_id": "000000000000000000000102",
-      "fields": {"enabled": true}
-    }
+    {"host": "my-console", "site": "Default", "vpn_client_id": "000000000000000000000102",
+     "fields": {"enabled": true}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -33360,25 +31470,15 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a VPN server configuration by ID.
 
-Uses Classic REST PUT /proxy/network/api/s/{site}/rest/networkconf/{_id} (the route the
-controller's own UI uses; the published Integration API has no VPN-server update, HTTP
-404 "No endpoint" on Network 11.0.81). The id is resolved among the site's
-remote-user-vpn records first; an unknown id fails listing every VPN server with both
-ids. Send only the fields to change: the Classic PUT merges them into the stored record.
+Classic REST PUT /proxy/network/api/s/{site}/rest/networkconf/{_id} (the UI's route; the Integration API has no VPN-server update, 404 on Network 11.0.81).
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated
-networkconf record]}.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status:
-"dry_run", dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+The id is resolved among the remote-user-vpn records first; an unknown id fails listing every VPN server with both ids. Send only the fields to change: the Classic PUT merges them into the stored record.
+
+Returns the upstream Classic envelope {meta: {rc}, data: [the updated networkconf]}. Under dry-run policy nothing is sent: the bare dry-run preview {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Example call (update_vpn_server):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "server_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "fields": {"enabled": false}
-    }
+    {"host": "my-console", "site": "Default",
+     "server_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "fields": {"enabled": false}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -33409,26 +31509,14 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update a WAN interface configuration.
 
-A WAN interface is a Classic REST networkconf record of purpose wan, written with PUT
-/proxy/network/api/s/{site}/rest/networkconf/{_id} (the route the controller's own UI uses;
-the published Integration API serves WANs GET-only, PUT answers HTTP 404 "No endpoint" on
-Network 11.0.81). The id is resolved among the site's wan records first; an unknown id fails
-listing every WAN with both ids. Send only the fields to change: the Classic PUT merges them
-into the stored record.
+A WAN interface is a Classic REST networkconf record of purpose wan, written with PUT /proxy/network/api/s/{site}/rest/networkconf/{_id} (the route the controller's own UI uses; the published Integration API serves WANs GET-only, PUT answers HTTP 404 "No endpoint" on Network 11.0.81). The id is resolved among the site's wan records first; an unknown id fails listing every WAN with both ids. Send only the fields to change: the Classic PUT merges them into the stored record.
 
-Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated
-networkconf record]}.
-Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run",
-dryRun: true, sent: false,
-message, preview: {method, path, params, body}} in place of the upstream body.
+Returns: the upstream body verbatim, the Classic envelope {meta: {rc}, data: [the updated networkconf record]}. Under dry-run policy nothing is sent: the result is the bare dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}} in place of the upstream body.
 
 Example call (update_wan_interface):
-    {
-      "host": "my-console",
-      "site": "Default",
-      "wan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "wan": {"wan_load_balance_weight": 50}
-    }
+    {"host": "my-console", "site": "Default",
+     "wan_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+     "wan": {"wan_load_balance_weight": 50}}
 
 Set UNIFI_WRITE_POLICY=dry-run.
 
@@ -33449,7 +31537,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 | `host` | `string` | yes |  | Console name (case-insensitive reportedState.hostname/name, e.g. "my-console") or data[].id (MAC:numericId), from list_hosts. Serves Network and Protect. |
 | `site` | `string` | yes |  | Network site name or UUID; resolved server-side. Get it from list_local_sites (name or id). Names like "Default" work. |
 | `wan_id` | `string` | yes |  | WAN interface id. Get it from list_wan_interfaces (data[].id); the Classic networkconf _id also works. Network-app UUID — not a Protect id. |
-| `wan` | `object` | yes |  | Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1, wan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged (empty-string list placeholders dropped); an absent or null purpose is sent as wan, another is sent as given (an upstream error then gets a hint). A purpose-only update is refused. Free-form JSON object; no fixed body shape is published. |
+| `wan` | `object` | yes |  | Native Classic networkconf fields to change, e.g. name, wan_type, wan_dns1, wan_load_balance_weight, wan_failover_priority, wan_vlan_enabled. Sent unchanged (empty-string list placeholders dropped); an absent or null purpose is sent as wan, another is sent as given (an upstream error then gets a hint). A purpose-only update is refused. Network 11.1.47 passthrough VLANs: tagged_networkconf_ids (array of VLAN Only network _ids, sent with setting_preference manual; an empty array clears them), and the WAN's own VLAN in wan_vlan_enabled, wan_vlan and wan_vlan_networkconf_id. Free-form JSON object; no fixed body shape is published. |
 
 **Return type**
 
@@ -33590,17 +31678,7 @@ Set UNIFI_WRITE_POLICY=dry-run.
 
 Update WireGuard users on one server (v2 PUT wireguard/{_id}/users/batch).
 
-Consequence: changed keys or addresses disconnect the affected peers.
-Required: host, site, server_id and users. Each users item names a user by _id
-(from list_wireguard_users) plus only the fields to change (free-form; no
-published schema). Every _id is resolved in the server's user list first; an
-unknown _id fails listing every user and nothing is sent; an item with nothing to
-change fails before any request. Each listed record with your fields laid over it
-leaf by leaf is PUT as one array. Returns the upstream body verbatim plus
-_verified (type-strict, every requested leaf of every user) and _readAfter, or
-_readAfterError (a non-object write body is returned whole under response with those
-keys beside it). Dry-run (dry-run policy) returns a dry-run preview {status:
-"dry_run", dryRun: true, sent: false, message, preview: {method, path, params, body}}.
+Consequence: changed keys or addresses disconnect the affected peers. Required: host, site, server_id and users. Each users item names a user by _id (from list_wireguard_users) plus only the fields to change (free-form; no published schema). Every _id is resolved in the server's user list first; an unknown _id fails listing every user and nothing is sent; an item with nothing to change fails before any request. Each listed record with your fields laid over it leaf by leaf is PUT as one array. Returns the upstream body verbatim plus _verified (type-strict, every requested leaf of every user) and _readAfter, or _readAfterError (a non-object write body is returned whole under response with those keys beside it). Dry-run (dry-run policy) returns a dry-run preview {status: "dry_run", dryRun, sent: false, message, preview: {method, path, params, body}}.
 
 Example call (update_wireguard_users):
     {"host": "my-console", "site": "Default", "server_id": "000000000000000000000107",

@@ -34,6 +34,25 @@ def pytest_sessionfinish(session):
         json.dump(held, fh)
 """
 
+# Records, in the process that owns the items (the single process, or each worker), the
+# captured-output bytes each item still holds in ``_report_sections``: pytest builds every
+# report from it and keeps it for as long as the session holds the item.
+ITEM_PROBE = """
+
+class ItemProbe:
+    @pytest.hookimpl(trylast=True)
+    def pytest_sessionfinish(self, session):
+        held = {}
+        for item in getattr(session, "items", ()):
+            held[item.name] = sum(len(c) for _w, _k, c in item._report_sections)
+        if held:
+            with open(os.environ["RETENTION_OUT"] + ".items." + str(os.getpid()), "w") as fh:
+                json.dump(held, fh)
+
+def pytest_configure(config):
+    config.pluginmanager.register(ItemProbe())
+"""
+
 TESTS = f"""
 import logging
 import pytest
@@ -71,7 +90,7 @@ def test_xpass():
 
 def _run(tmp_path, *args, retention=True):
     (tmp_path / "pytest.ini").write_text("[pytest]\n")
-    (tmp_path / "conftest.py").write_text(PROBE)
+    (tmp_path / "conftest.py").write_text(PROBE + ITEM_PROBE)
     (tmp_path / "test_noisy.py").write_text(TESTS)
     out = tmp_path / "held.json"
     env = {
@@ -134,3 +153,34 @@ def test_without_the_plugin_the_controller_holds_passing_output(tmp_path):
     held, _ = _run(tmp_path, "-n", "1", retention=False)
     # The call and teardown reports repeat the earlier phases' sections.
     assert held.get("test_pass", 0) > 4 * BIG, held
+
+
+def _items_held(tmp_path):
+    """The bytes each test's item holds, merged over the single process or every worker."""
+    held: dict[str, int] = {}
+    for path in sorted(tmp_path.glob("held.json.items.*")):
+        for name, size in json.loads(path.read_text()).items():
+            held[name] = max(size, held.get(name, 0))  # a worker holds the items it did not run
+    return held
+
+
+@pytest.mark.parametrize("workers", [[], ["-n", "1"], ["-n", "2"]], ids=["serial", "n1", "n2"])
+def test_a_passed_test_does_not_keep_its_output_on_its_item(tmp_path, workers):
+    """The item, which the session holds for the whole run, keeps its own copy of each
+    phase's captured output: it is released for a passed test and kept for the rest."""
+    _run(tmp_path, *workers)
+    held = _items_held(tmp_path)
+    assert held["test_pass"] == 0, held
+    for name in ("test_fail", "test_teardown_error", "test_skip", "test_xpass"):
+        assert held.get(name, 0) > BIG, (name, held)
+
+
+def test_the_passes_summary_keeps_the_item_output_too(tmp_path):
+    _run(tmp_path, "-rP")
+    assert _items_held(tmp_path)["test_pass"] > 3 * BIG
+
+
+def test_without_the_plugin_the_item_holds_its_passing_output(tmp_path):
+    """Control: the bytes released above are really held without the plugin."""
+    _run(tmp_path, retention=False)
+    assert _items_held(tmp_path)["test_pass"] > 3 * BIG

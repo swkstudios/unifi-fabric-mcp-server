@@ -120,9 +120,18 @@ def walked(root: Path, *pathspecs: str) -> list[str]:
     return sorted(found)
 
 
+# The icon files under plugins/ are binary images, not documentation text.
+_IMAGE_SUFFIXES = (".png", ".ico", ".jpg", ".jpeg", ".gif", ".webp")
+
+
 def _public(root: Path, listed: list[str]) -> list[Path]:
     return [
-        root / f for f in listed if not _private(f) and f != "CHANGELOG.md" and (root / f).is_file()
+        root / f
+        for f in listed
+        if not _private(f)
+        and f != "CHANGELOG.md"
+        and not f.endswith(_IMAGE_SUFFIXES)
+        and (root / f).is_file()
     ]
 
 

@@ -26,9 +26,9 @@ from tests._tool_catalog import lazy_parametrize
 from unifi_fabric import server
 
 SPEC = json.loads(
-    (Path(__file__).parent / "fixtures" / "openapi" / "protect-7.3.74.json").read_text()
+    (Path(__file__).parent / "fixtures" / "openapi" / "protect-7.4.96.json").read_text()
 )
-_BLOCK_RE = re.compile(r"Request body \(Protect 7\.3\.\d+, (\w+) (\S+?);")
+_BLOCK_RE = re.compile(r"Request body \(Protect 7\.\d+\.\d+, (\w+) (\S+?);")
 
 
 def _resolve(node: Any) -> Any:

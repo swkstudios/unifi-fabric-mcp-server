@@ -1291,10 +1291,13 @@ _PERF_KEYS = (
 _PERF_SIZE = 1_000_000
 
 
-def _pathological_bodies_reference(size: int = _PERF_SIZE) -> dict[str, str]:
-    """Every pathological body at once: the builder the sweeps used before
+def _pathological_bodies_reference(size: int = _PERF_SIZE) -> dict[str, Callable[[], str]]:
+    """Every pathological body, by name, as a builder: the recipes the sweeps used before
     ``_pathological_body``, kept unchanged as the oracle that each lazily built body
-    is byte-identical to it (``test_pathological_bodies_match_the_reference``)."""
+    is byte-identical to it (``test_pathological_bodies_match_the_reference``).
+
+    Each builder makes its own 1 MB body when called, so the oracle can digest the bodies
+    one at a time instead of holding all 38 (38 MB) at once."""
     from unifi_fabric.secret_scrub import _fragments
 
     noise = base64.b64encode(secrets.token_bytes(size)).decode()[:size]
@@ -1302,51 +1305,66 @@ def _pathological_bodies_reference(size: int = _PERF_SIZE) -> dict[str, str]:
     near_key = _PERF_KEYS[-3][:-1]
     hex_key = _PERF_KEYS[-2]  # letters and digits only: the run-skipping path
     return {
-        "A-run": "A" * size,
-        "dash-run": "-" * size,
-        "base64-noise": noise,
-        "padding-run": "=" * size,
-        "slash-plus": "+/" * (size // 2),
-        "fragments-in-one-token": (fragment + "A") * (size // (len(fragment) + 1)),
-        "fragments-spaced": (fragment + " ") * (size // (len(fragment) + 1)),
-        "key-prefix-repeated": (near_key + "!") * (size // (len(near_key) + 1)),
-        "noise-then-fail": noise[: size - 1] + "!",
+        "A-run": lambda: "A" * size,
+        "dash-run": lambda: "-" * size,
+        "base64-noise": lambda: noise,
+        "padding-run": lambda: "=" * size,
+        "slash-plus": lambda: "+/" * (size // 2),
+        "fragments-in-one-token": lambda: (fragment + "A") * (size // (len(fragment) + 1)),
+        "fragments-spaced": lambda: (fragment + " ") * (size // (len(fragment) + 1)),
+        "key-prefix-repeated": lambda: (near_key + "!") * (size // (len(near_key) + 1)),
+        "noise-then-fail": lambda: noise[: size - 1] + "!",
         # Escape-dense bodies (every position an escape end, or an introducer).
-        "percent-escapes": ("%41" * (size // 3)),
-        "unicode-escapes": ("\\u0041" * (size // 6)),
-        "backslash-run": "\\" * size,
-        "percent-run": "%" * size,
-        "escapes-then-near-key": ("%20" + near_key) * (size // (len(near_key) + 3)),
+        "percent-escapes": lambda: "%41" * (size // 3),
+        "unicode-escapes": lambda: "\\u0041" * (size // 6),
+        "backslash-run": lambda: "\\" * size,
+        "percent-run": lambda: "%" * size,
+        "escapes-then-near-key": lambda: ("%20" + near_key) * (size // (len(near_key) + 3)),
         # every candidate has a letter/digit before it (the escape check runs each time)
-        "escape-dense-alnum-candidates": ("%41x" + hex_key) * (size // (len(hex_key) + 4)),
-        "chained-escape-candidates": ("%2520" + hex_key + "z") * (size // (len(hex_key) + 6)),
-        "unbounded-percent-chain": "%" + "25" * (size // 2) + "20" + hex_key,
-        "unbounded-backslash-chain": "\\u005c" + "u005c" * (size // 5) + "n" + hex_key,
-        "long-chain-failed-candidates": "%" + ("25" + hex_key + "z") * (size // (len(hex_key) + 3)),
-        "entity-escape-candidates": ("&#37;20" + hex_key + "z") * (size // (len(hex_key) + 8)),
-        "unbounded-entity-chain": "&" + "amp;" * (size // 4) + "#37;20" + hex_key,
-        "unbounded-mixed-entity-chain": "%26%2337%3B" + "25" * (size // 2) + "5Cn" + hex_key,
-        "entity-leading-zeroes": "&#" + "0" * size + "37;20" + hex_key,
-        "entity-invalid-long-numeric": "&#" + "1" * size + "x",
-        "entity-invalid-long-hex": "&#x" + "a" * size + "x",
-        "entity-malformed-candidates": ("&amp;#x" + hex_key + "z") * (size // (len(hex_key) + 8)),
-        "one-run-of-candidates": ("x" + hex_key) * (size // (len(hex_key) + 1)),
+        "escape-dense-alnum-candidates": lambda: ("%41x" + hex_key) * (size // (len(hex_key) + 4)),
+        "chained-escape-candidates": lambda: (
+            ("%2520" + hex_key + "z") * (size // (len(hex_key) + 6))
+        ),
+        "unbounded-percent-chain": lambda: "%" + "25" * (size // 2) + "20" + hex_key,
+        "unbounded-backslash-chain": lambda: "\\u005c" + "u005c" * (size // 5) + "n" + hex_key,
+        "long-chain-failed-candidates": lambda: (
+            "%" + ("25" + hex_key + "z") * (size // (len(hex_key) + 3))
+        ),
+        "entity-escape-candidates": lambda: (
+            ("&#37;20" + hex_key + "z") * (size // (len(hex_key) + 8))
+        ),
+        "unbounded-entity-chain": lambda: "&" + "amp;" * (size // 4) + "#37;20" + hex_key,
+        "unbounded-mixed-entity-chain": lambda: (
+            "%26%2337%3B" + "25" * (size // 2) + "5Cn" + hex_key
+        ),
+        "entity-leading-zeroes": lambda: "&#" + "0" * size + "37;20" + hex_key,
+        "entity-invalid-long-numeric": lambda: "&#" + "1" * size + "x",
+        "entity-invalid-long-hex": lambda: "&#x" + "a" * size + "x",
+        "entity-malformed-candidates": lambda: (
+            ("&amp;#x" + hex_key + "z") * (size // (len(hex_key) + 8))
+        ),
+        "one-run-of-candidates": lambda: ("x" + hex_key) * (size // (len(hex_key) + 1)),
         # The decoding model: passes repeat to a fixed point, so these are its worst
         # shapes -- one change per pass (an octal escape waiting on the one after it, in
         # a cascade back to the start), pairing backslashes level by level, introducers
         # that decode to themselves, every character of a key under its own escapes.
-        "deferred-octal-run": "\\1" * (size // 2),
-        "deferred-octal-percent": "\\1%30" * (size // 5),
-        "octal-backslash-chain": "\\134" * (size // 4) + "n" + hex_key,
-        "entity-backslash-chain": "&#92;" * (size // 5) + "n" + hex_key,
-        "percent-backslash-run": "%5c" * (size // 3),
-        "escaped-backslash-pairs": "\\x5c\\x41" * (size // 8),
-        "entity-digits-closed-late": "&#" + "0" * size + "%2533" + "7;" + hex_key,
-        "key-per-character-depth-6": _nested_key(hex_key) * (size // len(_nested_key(hex_key))),
-        "key-per-character-percent-25": ("".join(f"%25{ord(c):02x}" for c in hex_key) + " ")
-        * (size // (5 * len(hex_key) + 1)),
-        "reported-octal-shape": ("e\\1%301" + hex_key + "! ") * (size // (len(hex_key) + 10)),
-        "out-of-range-units": "\\UFFFFFFFF&#99999999;&nosuchname;%u12" * (size // 37),
+        "deferred-octal-run": lambda: "\\1" * (size // 2),
+        "deferred-octal-percent": lambda: "\\1%30" * (size // 5),
+        "octal-backslash-chain": lambda: "\\134" * (size // 4) + "n" + hex_key,
+        "entity-backslash-chain": lambda: "&#92;" * (size // 5) + "n" + hex_key,
+        "percent-backslash-run": lambda: "%5c" * (size // 3),
+        "escaped-backslash-pairs": lambda: "\\x5c\\x41" * (size // 8),
+        "entity-digits-closed-late": lambda: "&#" + "0" * size + "%2533" + "7;" + hex_key,
+        "key-per-character-depth-6": lambda: (
+            _nested_key(hex_key) * (size // len(_nested_key(hex_key)))
+        ),
+        "key-per-character-percent-25": lambda: (
+            ("".join(f"%25{ord(c):02x}" for c in hex_key) + " ") * (size // (5 * len(hex_key) + 1))
+        ),
+        "reported-octal-shape": lambda: (
+            ("e\\1%301" + hex_key + "! ") * (size // (len(hex_key) + 10))
+        ),
+        "out-of-range-units": lambda: "\\UFFFFFFFF&#99999999;&nosuchname;%u12" * (size // 37),
     }
 
 
@@ -1532,7 +1550,10 @@ def test_pathological_bodies_match_the_reference(monkeypatch, size):
     def digest(body: str) -> str:
         return hashlib.sha256(body.encode("ascii")).hexdigest()
 
-    reference = {name: digest(body) for name, body in _pathological_bodies_reference(size).items()}
+    # One body at a time: the oracle never holds more than the one it is digesting.
+    reference = {
+        name: digest(build()) for name, build in _pathological_bodies_reference(size).items()
+    }
     assert len(reference) == 38
     assert _PATHOLOGICAL_NAMES == sorted(reference)
     assert {name: digest(_pathological_body(name, size)) for name in _PATHOLOGICAL_NAMES} == (

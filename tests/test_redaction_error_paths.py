@@ -354,7 +354,7 @@ REPR_ALLOWLIST = {
     ("_catalog_audit.py", "item"),  # Local catalog snapshot, not an upstream response.
     ("families/network/network_controller_admin.py", "body.get('cmd')"),  # Caller command selector.
     (
-        "families/network/site_config.py",
+        "shared_shapes/_site_config_shared.py",
         "record['_id']",
     ),  # Validated native id before body comparison.
     (
@@ -394,7 +394,7 @@ REPR_ALLOWLIST = {
         "families/protect/protect_ptz_doorbell.py",
         "kind",
     ),  # Caller's shortcut type, one of three names.
-    ("families/network/site_config.py", "given"),  # Caller's body _id.
+    ("shared_shapes/_site_config_shared.py", "given"),  # Caller's body _id.
     # The caller's id, rebound later to the upstream id only when that is a string equal to it.
     ("families/carrier/carrier_fabric.py", "subscriber_id"),
     # Text already rendered through upstream_error_text where it was recorded.
@@ -404,7 +404,7 @@ REPR_ALLOWLIST = {
         "entry['error']",
     ),  # upstream_error_text(exc, client).
     # Not upstream values: names this server or its operator chose, and integers.
-    ("catalog.py", "sorted(unknown)"),  # Tool names of a C fixture overlay.
+    ("catalog/__init__.py", "sorted(unknown)"),  # Tool names of a C fixture overlay.
     ("policy.py", "canonical"),  # An environment variable name, upper-cased.
     ("families/devices/device_radios.py", "sorted(widths)"),  # Integer MHz widths (int-checked).
     (
@@ -422,6 +422,8 @@ NON_UPSTREAM_MODULES = {
     "write_body.py",  # Caller's write bodies.
     "_spec_drift.py",  # Published OpenAPI documents.
     "_catalog_audit.py",  # The server's own tool catalog.
+    "catalog/inventory.py",  # The server's own registered tools and catalog inventory.
+    "catalog/models.py",  # The catalog inventory's own policy records.
 }
 UPSTREAM_NAMES = {
     "item",

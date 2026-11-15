@@ -1,5 +1,12 @@
 <!-- mcp-name: io.github.swkstudios/unifi-fabric-mcp-server -->
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/icon/T-dark-512.png 1x, docs/assets/icon/T-dark-1024.png 2x">
+    <img src="docs/assets/icon/T-light-512.png" srcset="docs/assets/icon/T-light-512.png 1x, docs/assets/icon/T-light-1024.png 2x" width="256" height="256" alt="UniFi Fabric MCP Server: a dot-matrix globe of the Americas with one network link">
+  </picture>
+</p>
+
 <h1 align="center">UniFi Fabric MCP Server</h1>
 
 <p align="center">Ask your AI assistant to check and manage your UniFi network.</p>
@@ -23,6 +30,8 @@
 </p>
 
 <br/>
+
+https://github.com/user-attachments/assets/f27bbd44-5547-4f80-ba20-8973bf7e88ec
 
 
 UniFi Fabric MCP Server connects your AI assistant to your UniFi network. Find
@@ -55,7 +64,7 @@ You can also manage networks, Wi-Fi and firewall policies. See
 ## Features
 
 <!-- BEGIN GENERATED: catalog-headline -->
-- **798 tools, loaded on demand.** Discovery mode gives your assistant a small
+- **814 tools, loaded on demand.** Discovery mode gives your assistant a small
   search-and-call toolset instead of flooding its context with the whole catalog;
   the full catalog is one setting away.
   <!-- END GENERATED -->
@@ -90,9 +99,9 @@ You can also manage networks, Wi-Fi and firewall policies. See
 ## Installation
 
 <p align="center">
-  <a href="https://insiders.vscode.dev/redirect/mcp/install?name=unifi-fabric&inputs=%5B%7B%22id%22%3A%22unifi_api_key%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22UniFi%20Fabric%20API%20key%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22unifi-fabric-mcp-server%3D%3D0.7.2%22%2C%22unifi-fabric-mcp%22%5D%2C%22env%22%3A%7B%22UNIFI_API_KEY%22%3A%22%24%7Binput%3Aunifi_api_key%7D%22%7D%7D"><img src="https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSJ3aGl0ZSIgcm9sZT0iaW1nIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHRpdGxlPlZpc3VhbCBTdHVkaW8gQ29kZTwvdGl0bGU%2BPHBhdGggZD0iTTIzLjE1IDIuNTg3TDE4LjIxLjIxYTEuNDk0IDEuNDk0IDAgMCAwLTEuNzA1LjI5bC05LjQ2IDguNjMtNC4xMi0zLjEyOGEuOTk5Ljk5OSAwIDAgMC0xLjI3Ni4wNTdMLjMyNyA3LjI2MUExIDEgMCAwIDAgLjMyNiA4Ljc0TDMuODk5IDEyIC4zMjYgMTUuMjZhMSAxIDAgMCAwIC4wMDEgMS40NzlMMS42NSAxNy45NGEuOTk5Ljk5OSAwIDAgMCAxLjI3Ni4wNTdsNC4xMi0zLjEyOCA5LjQ2IDguNjNhMS40OTIgMS40OTIgMCAwIDAgMS43MDQuMjlsNC45NDItMi4zNzdBMS41IDEuNSAwIDAgMCAyNCAyMC4wNlYzLjkzOWExLjUgMS41IDAgMCAwLS44NS0xLjM1MnptLTUuMTQ2IDE0Ljg2MUwxMC44MjYgMTJsNy4xNzgtNS40NDh2MTAuODk2eiIvPjwvc3ZnPg%3D%3D" alt="Install in VS Code" /></a>&nbsp;
-  <a href="https://cursor.com/en/install-mcp?name=unifi-fabric&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSB1bmlmaS1mYWJyaWMtbWNwLXNlcnZlcj09MC43LjIgdW5pZmktZmFicmljLW1jcCIsImVudiI6eyJVTklGSV9BUElfS0VZIjoieW91ci1hcGkta2V5LWhlcmUifX0="><img src="https://img.shields.io/badge/Cursor-Install-111111?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSIjZmZmZmZmIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BQ3Vyc29yPC90aXRsZT48cGF0aCBkPSJNMTEuNTAzLjEzMSAxLjg5MSA1LjY3OGEuODQuODQgMCAwIDAtLjQyLjcyNnYxMS4xODhjMCAuMy4xNjIuNTc1LjQyLjcyNGw5LjYwOSA1LjU1YTEgMSAwIDAgMCAuOTk4IDBsOS42MS01LjU1YS44NC44NCAwIDAgMCAuNDItLjcyNFY2LjQwNGEuODQuODQgMCAwIDAtLjQyLS43MjZMMTIuNDk3LjEzMWExLjAxIDEuMDEgMCAwIDAtLjk5NiAwTTIuNjU3IDYuMzM4aDE4LjU1Yy4yNjMgMCAuNDMuMjg3LjI5Ny41MTVMMTIuMjMgMjIuOTE4Yy0uMDYyLjEwNy0uMjI5LjA2NC0uMjI5LS4wNlYxMi4zMzVhLjU5LjU5IDAgMCAwLS4yOTUtLjUxbC05LjExLTUuMjU3Yy0uMTA5LS4wNjMtLjA2NC0uMjMuMDYxLS4yMyIvPjwvc3ZnPg%3D%3D" alt="Install in Cursor" /></a>&nbsp;
-  <a href="https://github.com/swkstudios/unifi-fabric-mcp-server/releases/download/v0.7.2/unifi-fabric-0.7.2.mcpb"><img src="https://img.shields.io/badge/Claude_Desktop-Install-d97757?style=flat-square&logo=claude&logoColor=white" alt="Install in Claude Desktop" /></a>
+  <a href="https://insiders.vscode.dev/redirect/mcp/install?name=unifi-fabric&inputs=%5B%7B%22id%22%3A%22unifi_api_key%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22UniFi%20Fabric%20API%20key%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22unifi-fabric-mcp-server%3D%3D0.7.3%22%2C%22unifi-fabric-mcp%22%5D%2C%22env%22%3A%7B%22UNIFI_API_KEY%22%3A%22%24%7Binput%3Aunifi_api_key%7D%22%7D%7D"><img src="https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSJ3aGl0ZSIgcm9sZT0iaW1nIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHRpdGxlPlZpc3VhbCBTdHVkaW8gQ29kZTwvdGl0bGU%2BPHBhdGggZD0iTTIzLjE1IDIuNTg3TDE4LjIxLjIxYTEuNDk0IDEuNDk0IDAgMCAwLTEuNzA1LjI5bC05LjQ2IDguNjMtNC4xMi0zLjEyOGEuOTk5Ljk5OSAwIDAgMC0xLjI3Ni4wNTdMLjMyNyA3LjI2MUExIDEgMCAwIDAgLjMyNiA4Ljc0TDMuODk5IDEyIC4zMjYgMTUuMjZhMSAxIDAgMCAwIC4wMDEgMS40NzlMMS42NSAxNy45NGEuOTk5Ljk5OSAwIDAgMCAxLjI3Ni4wNTdsNC4xMi0zLjEyOCA5LjQ2IDguNjNhMS40OTIgMS40OTIgMCAwIDAgMS43MDQuMjlsNC45NDItMi4zNzdBMS41IDEuNSAwIDAgMCAyNCAyMC4wNlYzLjkzOWExLjUgMS41IDAgMCAwLS44NS0xLjM1MnptLTUuMTQ2IDE0Ljg2MUwxMC44MjYgMTJsNy4xNzgtNS40NDh2MTAuODk2eiIvPjwvc3ZnPg%3D%3D" alt="Install in VS Code" /></a>&nbsp;
+  <a href="https://cursor.com/install-mcp?name=unifi-fabric&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSB1bmlmaS1mYWJyaWMtbWNwLXNlcnZlcj09MC43LjMgdW5pZmktZmFicmljLW1jcCIsImVudiI6eyJVTklGSV9BUElfS0VZIjoieW91ci1hcGkta2V5LWhlcmUifX0="><img src="https://img.shields.io/badge/Cursor-Install-111111?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSIjZmZmZmZmIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BQ3Vyc29yPC90aXRsZT48cGF0aCBkPSJNMTEuNTAzLjEzMSAxLjg5MSA1LjY3OGEuODQuODQgMCAwIDAtLjQyLjcyNnYxMS4xODhjMCAuMy4xNjIuNTc1LjQyLjcyNGw5LjYwOSA1LjU1YTEgMSAwIDAgMCAuOTk4IDBsOS42MS01LjU1YS44NC44NCAwIDAgMCAuNDItLjcyNFY2LjQwNGEuODQuODQgMCAwIDAtLjQyLS43MjZMMTIuNDk3LjEzMWExLjAxIDEuMDEgMCAwIDAtLjk5NiAwTTIuNjU3IDYuMzM4aDE4LjU1Yy4yNjMgMCAuNDMuMjg3LjI5Ny41MTVMMTIuMjMgMjIuOTE4Yy0uMDYyLjEwNy0uMjI5LjA2NC0uMjI5LS4wNlYxMi4zMzVhLjU5LjU5IDAgMCAwLS4yOTUtLjUxbC05LjExLTUuMjU3Yy0uMTA5LS4wNjMtLjA2NC0uMjMuMDYxLS4yMyIvPjwvc3ZnPg%3D%3D" alt="Install in Cursor" /></a>&nbsp;
+  <a href="https://github.com/swkstudios/unifi-fabric-mcp-server/releases/download/v0.7.3/unifi-fabric-0.7.3.mcpb"><img src="https://img.shields.io/badge/Claude_Desktop-Install-d97757?style=flat-square&logo=claude&logoColor=white" alt="Install in Claude Desktop" /></a>
 </p>
 
 ### 1. Join your fabric and create an API key
@@ -115,8 +124,8 @@ configuration file, so keep those files private.
 
 
 > [!NOTE]
-> The package commands below use the currently published 0.7.2 release. This README
-> describes 0.7.2 source.
+> The package commands below use the currently published 0.7.3 release. This README
+> describes 0.7.3 source.
 > Upgrading from an earlier release? See the [migration guides](#more-info) before changing
 > settings.
 
@@ -129,7 +138,7 @@ which fetches everything it needs — no Python setup required. Prefer pip? See 
 With Claude Code 2.1.275 or later, run:
 
 <!-- install-case: readme-install-29 mode=plugin -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-29 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-29 -->
 ```text
 /plugin marketplace add swkstudios/unifi-fabric-mcp-server
 /plugin install unifi-fabric@unifi-fabric
@@ -139,11 +148,13 @@ Enter your API key when prompted. Or skip the plugin and add the server directly
 from a terminal (the first line prompts for your key):
 
 <!-- install-case: readme-install-30 mode=cli -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-30 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-30 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
-claude mcp add unifi-fabric -e UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+claude mcp add unifi-fabric -e 'UNIFI_API_KEY=${UNIFI_API_KEY}' -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
+
+`UNIFI_API_KEY` must be exported wherever Claude Code starts, for example in your shell profile: Claude Code reads it when it launches the server, and the key is not stored or passed on the command line.
 
 <details>
 <summary><b><img src="https://cdn.simpleicons.org/claude" width="16" height="16" /> Claude Desktop</b></summary>
@@ -152,13 +163,13 @@ Open **Settings > Developer > Edit Config** and merge the following into the
 configuration:
 
 <!-- install-case: readme-install-31 mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-31 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-31 -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "/absolute/path/to/uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
@@ -169,7 +180,7 @@ Replace the command path with the output of `which uvx` on macOS or `where uvx`
 on Windows, and replace the key placeholder. Quit Claude Desktop completely and
 reopen it.
 
-Alternatively, [download the Claude Desktop extension (.mcpb)](https://github.com/swkstudios/unifi-fabric-mcp-server/releases/download/v0.7.2/unifi-fabric-0.7.2.mcpb)
+Alternatively, [download the Claude Desktop extension (.mcpb)](https://github.com/swkstudios/unifi-fabric-mcp-server/releases/download/v0.7.3/unifi-fabric-0.7.3.mcpb)
 and open it; Claude Desktop prompts for your API key during installation.
 
 </details>
@@ -177,17 +188,18 @@ and open it; Claude Desktop prompts for your API key during installation.
 <details>
 <summary><b><img src="https://avatars.githubusercontent.com/u/14957082?s=32" width="16" height="16" /> Codex</b></summary>
 
-From a terminal (the first line prompts for your key):
+From a terminal (the first line prompts for your key, and the next saves it to a file only you can read):
 
 <!-- install-case: readme-install-32 mode=cli -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-32 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-32 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo
-codex mcp add unifi-fabric --env UNIFI_API_KEY="$UNIFI_API_KEY" -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+(umask 077; mkdir -p "$HOME/.config/unifi-fabric"; printf '%s\n' "$UNIFI_API_KEY" > "$HOME/.config/unifi-fabric/api-key"); unset UNIFI_API_KEY
+codex mcp add unifi-fabric --env UNIFI_API_KEY_FILE="$HOME/.config/unifi-fabric/api-key" -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
-This stores the key in `~/.codex/config.toml`. Run `codex mcp list` to check the
-registration.
+Only the file's path reaches the command line and `~/.codex/config.toml`. Run `codex mcp list`
+to check the registration.
 
 </details>
 
@@ -198,20 +210,22 @@ Export the key before starting `agy` — that keeps it out of config files
 (Antigravity does not expand `${VAR}` in `env` values):
 
 <!-- install-case: readme-install-33 mode=antigravity -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-33 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-33 -->
 ```bash
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
-agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+agy mcp add unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 agy
 ```
 
 When Antigravity is started from the Dock (Antigravity 2.0 and the IDE), it cannot
-see exported variables; store the key in the config instead:
+see exported variables. Save the key to a file only you can read and register its path:
 
 <!-- install-case: readme-install-34 mode=antigravity -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-34 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-34 -->
 ```bash
-agy mcp add --env UNIFI_API_KEY="$UNIFI_API_KEY" unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo
+(umask 077; mkdir -p "$HOME/.config/unifi-fabric"; printf '%s\n' "$UNIFI_API_KEY" > "$HOME/.config/unifi-fabric/api-key"); unset UNIFI_API_KEY
+agy mcp add --env UNIFI_API_KEY_FILE="$HOME/.config/unifi-fabric/api-key" unifi-fabric -- uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
 </details>
@@ -223,7 +237,7 @@ Install this repository as a Gemini CLI extension; it prompts for your API key
 (stored in the system keychain) and your write-policy choice:
 
 <!-- install-case: readme-install-35 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-35 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-35 -->
 ```bash
 gemini extensions install https://github.com/swkstudios/unifi-fabric-mcp-server
 ```
@@ -237,7 +251,7 @@ Use the install button above, or add this to `.vscode/mcp.json` in your workspac
 (VS Code prompts for the key on first start):
 
 <!-- install-case: readme-install-36 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-36 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-36 -->
 ```json
 {
   "inputs": [
@@ -246,7 +260,7 @@ Use the install button above, or add this to `.vscode/mcp.json` in your workspac
   "servers": {
     "unifi-fabric": {
       "command": "uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "${input:unifi_api_key}" }
     }
   }
@@ -262,13 +276,13 @@ Use the install button above, or merge this into `~/.cursor/mcp.json` and replac
 the key placeholder:
 
 <!-- install-case: readme-install-37 mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-37 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-37 -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
@@ -304,30 +318,30 @@ your network.
 Run the server locally over stdio (Python 3.12+, or let uv fetch one):
 
 <!-- install-case: readme-install-38 mode=uvx -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-38 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-38 -->
 ```bash
 export UNIFI_API_KEY="your-api-key-here"
-uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp
+uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp
 ```
 
 Or register it with the standard MCP configuration your client reads:
 
 <!-- install-case: readme-install-39 mode=desktop -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-39 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-39 -->
 ```json
 {
   "mcpServers": {
     "unifi-fabric": {
       "command": "uvx",
-      "args": ["--from", "unifi-fabric-mcp-server==0.7.2", "unifi-fabric-mcp"],
+      "args": ["--from", "unifi-fabric-mcp-server==0.7.3", "unifi-fabric-mcp"],
       "env": { "UNIFI_API_KEY": "your-api-key-here" }
     }
   }
 }
 ```
 
-Prefer a one-time install with `pipx install unifi-fabric-mcp-server==0.7.2` or
-`uv tool install unifi-fabric-mcp-server==0.7.2`, then use
+Prefer a one-time install with `pipx install unifi-fabric-mcp-server==0.7.3` or
+`uv tool install unifi-fabric-mcp-server==0.7.3`, then use
 `"command": "unifi-fabric-mcp"` with no `args`.
 
 </details>
@@ -339,13 +353,13 @@ Run the server as a container that your MCP clients reach over HTTP with a beare
 token, so only clients holding the token can use your UniFi key:
 
 <!-- install-case: readme-install-40 mode=docker -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-40 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-40 -->
 ```bash
 # Generate a random token once and keep it: the server checks it and your MCP client sends it.
 export MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
 printf 'UniFi API key: '; read -rs UNIFI_API_KEY; echo; export UNIFI_API_KEY
 docker run -e UNIFI_API_KEY -e MCP_AUTH_MODE=bearer -e MCP_BEARER_TOKEN \
-  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2
+  -p 127.0.0.1:3000:3000 ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3
 ```
 
 The third line prompts for your UniFi key. `-e UNIFI_API_KEY` and `-e MCP_BEARER_TOKEN`
@@ -353,7 +367,7 @@ with no `=value` pass both from your shell, so neither is written into the comma
 Point your client at it with an HTTP entry (the token stays in your environment):
 
 <!-- install-case: readme-install-41 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-41 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-41 -->
 ```json
 {
   "mcpServers": {
@@ -386,7 +400,7 @@ If it answers with your sites, you are connected — everything in
 
 <!-- BEGIN GENERATED: how-it-works-catalog -->
 By default, the server exposes a small set of discovery tools to your assistant rather
-than loading the entire 798-tool catalog into context at once. When you ask a question
+than loading the entire 814-tool catalog into context at once. When you ask a question
 or request a change, the assistant searches the catalog, inspects the matching tool, and
 calls it through the server.
 <!-- END GENERATED -->
@@ -401,7 +415,7 @@ or install software on your consoles.
 ### Tool families
 
 <!-- BEGIN GENERATED: tool-families -->
-Catalog: **798 registered tools**; **779** are in the product
+Catalog: **814 registered tools**; **795** are in the product
 families listed below. The remaining 19 cover Ubiquiti's ISP and
 mobile-routing products (Carrier Fabric and Mobility), which this overview
 leaves out. Availability depends on your hardware, permissions and API routes;
@@ -409,11 +423,11 @@ see [coverage and limitations](docs/COVERAGE.md).
 
 | Family | Tools | Family | Tools |
 |---|---:|---|---:|
-| Network | 345 | Protect | 225 |
-| VPN | 42 | Devices | 39 |
+| Network | 351 | Protect | 233 |
+| VPN | 42 | Devices | 40 |
 | Firewall | 33 | InnerSpace | 32 |
 | Site Manager | 20 | Statistics | 19 |
-| Clients | 15 | Connector relay | 5 |
+| Clients | 16 | Connector relay | 5 |
 | Hotspot | 4 |  |  |
 <!-- END GENERATED -->
 
@@ -422,9 +436,9 @@ see [coverage and limitations](docs/COVERAGE.md).
 <!-- BEGIN GENERATED: verification-status -->
 | Evidence | Result |
 |---|---|
-| Every tool runs in CI against a simulated upstream | 798 tools |
-| Live-tested on a real console | 402 of 798 passed on build `8a86a795f635`, 2026-11-10 |
-| Live write tools passed | 170 on that build and date |
+| Every tool runs in CI against a simulated upstream | 814 tools |
+| Live-tested on a real console | 442 of 815 passed on build `b5c901fd0277`, 2026-11-14 |
+| Live write tools passed | 205 on that build and date |
 <!-- END GENERATED -->
 
 Full results, failures and untested tools are in
@@ -445,7 +459,7 @@ Full results, failures and untested tools are in
 | `UNIFI_WRITE_POLICY=deny` | Read-only: write tools are hidden and refused. |
 
 <!-- install-case: readme-install-42 mode=non-executable reason=client-interaction-or-deployment-step-requires-user-setup -->
-<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 support=0.7.2 case=readme-install-42 -->
+<!-- doc-provenance: source=file:scripts/extract_install_cases.py@sha256:8f7cf152182e9bb02b2de257f5788e6f8e78bfc69decbbaa00f50360662cde02 case=readme-install-42 -->
 ```bash
 # example: run read-only
 export UNIFI_WRITE_POLICY=deny

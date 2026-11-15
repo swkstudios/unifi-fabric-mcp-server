@@ -142,7 +142,7 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     "create_ssl_inspection_certificate": {"mode": "generate"},
     "control_packet_capture": {"action": "start"},
     "control_ping_test": {"action": "start"},
-    # GS3 NC: topology history takes epoch-millisecond start/end; QoS batch bodies are
+    # topology history takes epoch-millisecond start/end; QoS batch bodies are
     # free-form arrays (an id array resolves each id first)
     "get_topology_snapshot": {
         "view": "timeline",
@@ -238,7 +238,7 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     "update_protect_case_asset": {"note": "probe-renamed"},
     "export_protect_case": {"action": "prepare", "case_id": ARG_ID},
     "set_firewall_app_blocks": {"blocks": [{"enabled": False, "app_ids": []}]},
-    # every device type but the nvr singleton needs its device id (GS3 P01)
+    # every device type but the nvr singleton needs its device id
     "update_protect_device_settings": {"device_id": ARG_ID},
     # the shortcut to update is located by the body id (the camera's shortcuts[].id)
     "update_camera_shortcut": {"body": {"id": ARG_ID, "name": "probe-renamed"}},

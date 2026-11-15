@@ -1,4 +1,4 @@
-"""Protect camera controls, camera WiFi and edge (on-camera) recording storage (GS3 P03).
+"""Protect camera controls, camera WiFi and edge (on-camera) recording storage.
 
 Every tool is exercised against the real ``UniFiClient`` with only the HTTP transport
 mocked: the route, method, query parameters and body sent, verbatim pass-through, binary
@@ -41,6 +41,7 @@ from unifi_fabric.client import (
 )
 from unifi_fabric.config import APIKeyConfig, Settings
 from unifi_fabric.families.protect import protect_camera_recording as pcr
+from unifi_fabric.families.protect import registrar as protect_registrar
 
 HOST = "console-p03"
 BASE = f"/v1/connector/consoles/{HOST}/proxy/protect/api"
@@ -877,7 +878,7 @@ async def test_wifi_setup_dry_run_masks_the_password_only_under_opt_in(monkeypat
 
 def _registered() -> dict[str, Any]:
     mcp = FastMCP("p03-test")
-    pcr.register(mcp, lambda: (None, None))
+    protect_registrar.register_2(mcp, lambda: (None, None))
     res = mcp.list_tools()
     tools = asyncio.run(res) if inspect.isawaitable(res) else res
     return {t.name: t for t in tools}

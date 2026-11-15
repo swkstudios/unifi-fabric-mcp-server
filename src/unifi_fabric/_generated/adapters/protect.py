@@ -22,6 +22,7 @@ __all__ = [
     "alarm_hub_trigger_output",
     "analyze_footage_with_ai",
     "apply_recognized_image",
+    "arm_external_arm_profile",
     "assign_detections_to_recognition_group",
     "assign_sensor_to_bridge",
     "bulk_upload_vehicle_groups",
@@ -38,6 +39,7 @@ __all__ = [
     "control_retroactive_ai_processing",
     "create_arm_profile",
     "create_camera_shortcut",
+    "create_external_arm_profile",
     "create_liveview",
     "create_protect_automation",
     "create_protect_backup",
@@ -52,6 +54,7 @@ __all__ = [
     "delete_arm_profile",
     "delete_camera_shortcut",
     "delete_doorbell_credential",
+    "delete_external_arm_profile",
     "delete_liveview",
     "delete_protect_automation",
     "delete_protect_backup",
@@ -68,6 +71,7 @@ __all__ = [
     "disable_arm",
     "disable_camera_mic_permanently",
     "disable_camera_share_link",
+    "disarm_external_arm_profile",
     "disconnect_cloud_archive_provider",
     "enable_arm",
     "enable_camera_share_link",
@@ -92,6 +96,7 @@ __all__ = [
     "get_detection_search_metadata",
     "get_detection_statistics",
     "get_door_lock",
+    "get_external_arm_profile",
     "get_fob",
     "get_light",
     "get_link_station",
@@ -134,6 +139,7 @@ __all__ = [
     "list_chimes",
     "list_door_lock_unlock_events",
     "list_door_locks",
+    "list_external_arm_profiles",
     "list_fobs",
     "list_lights",
     "list_link_stations",
@@ -198,6 +204,7 @@ __all__ = [
     "speaker_test_sound",
     "start_cloud_video_archive",
     "start_talkback_session",
+    "stop_speaker_siren",
     "stop_speaker_stream",
     "test_doorbell_ringtone",
     "transfer_camera_management",
@@ -214,6 +221,7 @@ __all__ = [
     "update_camera_shortcut",
     "update_chime",
     "update_edge_recording_settings",
+    "update_external_arm_profile",
     "update_fob",
     "update_light",
     "update_link_station",
@@ -304,6 +312,15 @@ async def apply_recognized_image(
 ) -> Any:
     """Adapter of ``apply_recognized_image``."""
     return await registered_wrapper("apply_recognized_image")(**validated_arguments)
+
+
+async def arm_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``arm_external_arm_profile``."""
+    return await registered_wrapper("arm_external_arm_profile")(**validated_arguments)
 
 
 async def assign_detections_to_recognition_group(
@@ -450,6 +467,15 @@ async def create_camera_shortcut(
     return await registered_wrapper("create_camera_shortcut")(**validated_arguments)
 
 
+async def create_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``create_external_arm_profile``."""
+    return await registered_wrapper("create_external_arm_profile")(**validated_arguments)
+
+
 async def create_liveview(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -574,6 +600,15 @@ async def delete_doorbell_credential(
 ) -> Any:
     """Adapter of ``delete_doorbell_credential``."""
     return await registered_wrapper("delete_doorbell_credential")(**validated_arguments)
+
+
+async def delete_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``delete_external_arm_profile``."""
+    return await registered_wrapper("delete_external_arm_profile")(**validated_arguments)
 
 
 async def delete_liveview(
@@ -718,6 +753,15 @@ async def disable_camera_share_link(
 ) -> Any:
     """Adapter of ``disable_camera_share_link``."""
     return await registered_wrapper("disable_camera_share_link")(**validated_arguments)
+
+
+async def disarm_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``disarm_external_arm_profile``."""
+    return await registered_wrapper("disarm_external_arm_profile")(**validated_arguments)
 
 
 async def disconnect_cloud_archive_provider(
@@ -934,6 +978,15 @@ async def get_door_lock(
 ) -> Any:
     """Adapter of ``get_door_lock``."""
     return await registered_wrapper("get_door_lock")(**validated_arguments)
+
+
+async def get_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``get_external_arm_profile``."""
+    return await registered_wrapper("get_external_arm_profile")(**validated_arguments)
 
 
 async def get_fob(
@@ -1312,6 +1365,15 @@ async def list_door_locks(
 ) -> Any:
     """Adapter of ``list_door_locks``."""
     return await registered_wrapper("list_door_locks")(**validated_arguments)
+
+
+async def list_external_arm_profiles(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``list_external_arm_profiles``."""
+    return await registered_wrapper("list_external_arm_profiles")(**validated_arguments)
 
 
 async def list_fobs(
@@ -1890,6 +1952,15 @@ async def start_talkback_session(
     return await registered_wrapper("start_talkback_session")(**validated_arguments)
 
 
+async def stop_speaker_siren(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``stop_speaker_siren``."""
+    return await registered_wrapper("stop_speaker_siren")(**validated_arguments)
+
+
 async def stop_speaker_stream(
     request_context: RequestContext,
     validated_arguments: Mapping[str, Any],
@@ -2032,6 +2103,15 @@ async def update_edge_recording_settings(
 ) -> Any:
     """Adapter of ``update_edge_recording_settings``."""
     return await registered_wrapper("update_edge_recording_settings")(**validated_arguments)
+
+
+async def update_external_arm_profile(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``update_external_arm_profile``."""
+    return await registered_wrapper("update_external_arm_profile")(**validated_arguments)
 
 
 async def update_fob(

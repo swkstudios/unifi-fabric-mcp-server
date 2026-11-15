@@ -37,7 +37,7 @@ _NEUTRAL_ENV = ("UNIFI_WRITE_POLICY", "UNIFI_WRITE_EXCEPTIONS", api_sources.DISA
 
 #: Conservative per-tool policy overrides, applied in addition to exercised routes.
 #: Assets belong to the same InnerSpace project surface, which may be served privately;
-#: disable the associated asset tool with that surface too (GS3 Wave 0 review M4).
+#: disable the associated asset tool with that surface too.
 PAIR_OVERRIDES: dict[str, tuple[str, ...]] = {
     "get_innerspace_asset": ("innerspace/private",),
     "authorize_guest": ("network/private.classic",),

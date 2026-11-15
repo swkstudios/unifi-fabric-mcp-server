@@ -30,6 +30,7 @@ __all__ = [
     "set_client_name",
     "set_client_note",
     "unblock_client",
+    "wake_client",
 ]
 
 
@@ -166,3 +167,12 @@ async def unblock_client(
 ) -> Any:
     """Adapter of ``unblock_client``."""
     return await registered_wrapper("unblock_client")(**validated_arguments)
+
+
+async def wake_client(
+    request_context: RequestContext,
+    validated_arguments: Mapping[str, Any],
+    dependencies: Dependencies,
+) -> Any:
+    """Adapter of ``wake_client``."""
+    return await registered_wrapper("wake_client")(**validated_arguments)

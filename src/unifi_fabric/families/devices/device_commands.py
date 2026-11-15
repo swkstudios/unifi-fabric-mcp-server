@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...client import UniFiClient, UniFiConnectionError, is_dry_run_preview, validate_selector
+from ...client import (
+    UniFiClient,
+    UniFiConnectionError,
+    is_dry_run_preview,
+    validate_selector,
+)
 from ...macs import is_mac
 from ...read_post_routes import post_read
 from ...refusal_audit import credential_values
@@ -19,35 +24,10 @@ from ...registry import Registry
 from ...secret_scrub import request_secret_scope
 from ...shared_shapes._classic_objects import checked_classic_response
 from ...shared_shapes._keys import with_context
-from ...tool_annotations import READ_ONLY, WRITE
 from .device_mgmt import _colon_mac, _device_mac, _validate_device_ref
-
-_COMMAND_CONSEQUENCES = {
-    "force-provision": "Configuration is reapplied; clients may disconnect.",
-    "devmgr/upgrade-all": "Fleet devices upgrade and reboot; clients may disconnect.",
-    "devmgr/set-rollupgrade": "Selected device types upgrade and reboot in sequence.",
-    "unset-rollupgrade": "Cancellation does not stop devices already upgrading or rebooting.",
-    "migrate": "Devices move to another controller and may lose connectivity.",
-    "adv-adopt": "SSH adoption changes device management and may interrupt connectivity.",
-    "move-device": "Moving sites reprovisions the device and may disconnect clients.",
-    "speedtest": "Speed testing consumes WAN bandwidth and can affect client throughput.",
-}
-
-
-# Network 11.0.97 answers HTTP 400 ``api.err.BackupFailed`` to ``{"cmd": "export-site"}`` on a
-# console whose site export cannot be built, whatever the body: the same answer came back
-# with extra ``days``, ``site`` and ``site_id`` fields, and ``{"cmd": "export-site"}`` is
-# exactly what the web UI's Export Site button sends (swai and modal chunks, ``cmd/backup``).
-# The Network 11.0.81 swai bundle confirms the body (``Xj(EXPORT_SITE, C1("cmd/backup"))``, no
-# other field) and translates ``api.err.BackupFailed`` as "Backup failed. Please ensure there is
-# enough space to perform the backup." (API_ERROR_BACKUP_FAILED).
-_EXPORT_FAILED_HINT = (
-    "The Network application refused to build the site export. The request sent, "
-    '{"cmd": "export-site"} on cmd/backup with no other field, is the one the Network web UI '
-    "sends, and the console gave the same answer when extra body fields were added, so a "
-    "different body will not help. The Network UI explains this error code as a backup that "
-    "could not be written: check that the console has free storage space, then open the "
-    "Network application log on the console around the request time for the cause, then retry."
+from .schemas import (  # the family's shapes (family-owned layout)
+    _COMMAND_CONSEQUENCES,
+    _EXPORT_FAILED_HINT,
 )
 
 
@@ -382,8 +362,7 @@ async def create_backup(
     [{"url": "/dl/backup/{version}.unf"}]}``, the console path of the backup file. The file is
     one transient export that the next backup overwrites; it is not a stored backup, so
     list_backups, cancel_controller_backup and delete_controller_backup never see it, and the
-    answer carries no filename or backup_id. This server has no tool that adds a stored backup.
-    Sent once, never automatically retried.
+    answer carries no filename or backup_id. Sent once, never automatically retried.
 
     Consequence: writes one transient backup file on the console, replacing the previous one;
     no stored backup is added and nothing is downloaded.
@@ -445,313 +424,5 @@ _list_backups = list_backups
 
 _create_backup = create_backup
 
+
 _export_site = export_site
-
-
-def register(mcp, deps_fn) -> None:
-    """Register Classic commands; a read command is an exact (route, command) pair of
-    ``read_post_routes.READ_COMMANDS`` and its tool is a read tool; every other command
-    tool is a write tool."""
-
-    @mcp.tool(annotations=WRITE)
-    async def provision_device(host: str, site: str, device_id: str) -> Any:
-        """Force provision an adopted device. Consequence: configuration is reapplied
-            and clients may disconnect.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#provision_device.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            device_id: Adopted Network device UUID or MAC from list_site_devices; not a Protect id.
-        """
-        client, registry = deps_fn()
-        return await _provision_device(client, registry, host, site, device_id)
-
-    @mcp.tool(annotations=WRITE)
-    async def cancel_rolling_upgrade(host: str, site: str) -> Any:
-        """Cancel the current rolling firmware upgrade. Consequence: devices already upgrading
-            may continue and reboot.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#cancel_rolling_upgrade.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-        """
-        client, registry = deps_fn()
-        return await _cancel_rolling_upgrade(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_device_firmware(host: str, site: str, cached: bool = False) -> Any:
-        """List available or cached device firmware through a controller command.
-
-        A read: it only reports firmware and upgrades nothing. Sends Classic POST
-        api/s/{site}/cmd/firmware with exactly {"cmd": "list-available"}, or
-        {"cmd": "list-cached"} when cached is true. UNIFI_WRITE_POLICY=deny and dry-run policy both
-        send it and return its result.
-
-        Returns the upstream body verbatim. Sent once, never automatically retried.
-
-        Example: docs/TOOL-USAGE.md#list_device_firmware.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            cached: False lists available firmware; true lists cached firmware.
-        """
-        client, registry = deps_fn()
-        return await _list_device_firmware(client, registry, host, site, cached)
-
-    @mcp.tool(annotations=WRITE)
-    async def migrate_device(host: str, site: str, device_id: str, inform_url: str) -> Any:
-        """Migrate a device to another controller. Consequence: the device leaves
-            controller management and may lose connectivity.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#migrate_device.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            device_id: Adopted Network device UUID or MAC from list_site_devices; not a Protect id.
-            inform_url: Destination controller inform URL; for example
-                http://controller.example:8080/inform.
-        """
-        client, registry = deps_fn()
-        return await _migrate_device(client, registry, host, site, device_id, inform_url)
-
-    @mcp.tool(annotations=WRITE)
-    async def advanced_adopt_device(
-        host: str,
-        site: str,
-        mac: str,
-        ip: str,
-        username: str,
-        password: str,
-        inform_url: str,
-        port: int = 22,
-        ssh_key_verify: bool = True,
-    ) -> Any:
-        """Adopt a device through SSH. Consequence: controller management and device
-            connectivity may change.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#advanced_adopt_device.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            mac: Unadopted device MAC; for example aa:bb:cc:dd:ee:ff.
-            ip: Device SSH IP address; for example 192.0.2.10.
-            username: Existing device SSH username.
-            password: Existing device SSH password; transmitted to the controller for adoption.
-            inform_url: Controller inform URL; for example http://controller.example:8080/inform.
-            port: Device SSH port, default 22.
-            ssh_key_verify: Whether the controller verifies the device SSH key; default true.
-        """
-        client, registry = deps_fn()
-        return await _advanced_adopt_device(
-            client,
-            registry,
-            host,
-            site,
-            mac,
-            ip,
-            username,
-            password,
-            inform_url,
-            port,
-            ssh_key_verify,
-        )
-
-    @mcp.tool(annotations=WRITE)
-    async def run_speedtest(host: str, site: str) -> Any:
-        """Run a gateway speed test. Consequence: test traffic consumes WAN bandwidth
-            and may affect clients.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#run_speedtest.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-        """
-        client, registry = deps_fn()
-        return await _run_speedtest(client, registry, host, site)
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def get_speedtest_status(host: str, site: str) -> Any:
-        """Get gateway speed-test status through a controller command.
-
-        A read: it only reports status and starts no test (run_speedtest starts one).
-        Sends Classic POST api/s/{site}/cmd/devmgr with exactly {"cmd": "speedtest-status"}.
-        UNIFI_WRITE_POLICY=deny and dry-run policy both send it and return its result.
-
-        Returns the upstream body verbatim. Sent once, never automatically retried.
-
-        Example: docs/TOOL-USAGE.md#get_speedtest_status.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-        """
-        client, registry = deps_fn()
-        return await _get_speedtest_status(client, registry, host, site)
-
-    @mcp.tool(annotations=WRITE)
-    async def upgrade_all_devices(host: str, site: str, device_type: str = "uap") -> Any:
-        """Upgrade every device of a family. Consequence: devices reboot and clients or
-            downstream equipment lose connectivity.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#upgrade_all_devices.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            device_type: Controller device family, documented values uap, usw, ugw; for example usw.
-        """
-        client, registry = deps_fn()
-        return await _upgrade_all_devices(client, registry, host, site, device_type)
-
-    @mcp.tool(annotations=WRITE)
-    async def start_rolling_upgrade(
-        host: str, site: str, device_types: list[str] | None = None
-    ) -> Any:
-        """Start a rolling firmware upgrade. Consequence: devices reboot in sequence
-            and clients may disconnect.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#start_rolling_upgrade.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            device_types: Complete family array, for example ["uap", "usw"]. When omitted sends
-                ["uap", "usw", "ugw", "uxg"]. The whole supplied array is sent verbatim.
-                Shape: string[]
-        """
-        client, registry = deps_fn()
-        return await _start_rolling_upgrade(client, registry, host, site, device_types)
-
-    @mcp.tool(annotations=WRITE)
-    async def move_device_to_site(
-        host: str, site: str, device_id: str, destination_site_id: str
-    ) -> Any:
-        """Move a device into another controller site. Consequence: destination
-            configuration is provisioned and connectivity may be interrupted.
-
-        Returns the upstream body verbatim. Never automatically retried. Under dry-run policy
-        nothing is sent; returns {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params, body}, _consequence}.
-
-        Example: docs/TOOL-USAGE.md#move_device_to_site.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            device_id: Adopted Network device UUID or MAC from list_site_devices; not a Protect id.
-            destination_site_id: Destination Classic site _id from the controller self/sites
-                endpoint, typically 24 hexadecimal characters. This is not an Integration UUID
-                or site slug. Read it with fabric_connector_get, path
-                "network/api/self/sites" (data[]._id).
-        """
-        client, registry = deps_fn()
-        return await _move_device_to_site(
-            client, registry, host, site, device_id, destination_site_id
-        )
-
-    @mcp.tool(annotations=READ_ONLY)
-    async def list_backups(host: str, site: str) -> Any:
-        """List backup metadata; never download or read backup file contents.
-
-        A read: it only reads backup metadata. Sends Classic POST api/s/{site}/cmd/backup
-        with exactly {"cmd": "list-backups"}. UNIFI_WRITE_POLICY=deny and dry-run policy both send
-        it
-        and return its result.
-
-        Returns the upstream body verbatim. Sent once, never automatically retried.
-
-        Example: docs/TOOL-USAGE.md#list_backups.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-        """
-        client, registry = deps_fn()
-        return await _list_backups(client, registry, host, site)
-
-    @mcp.tool(annotations=WRITE)
-    async def create_backup(host: str, site: str, days: int = -1) -> Any:
-        """Generate a one-off controller backup file and return its console download path; no
-            stored backup is added. Backups may contain secrets; this command never downloads one.
-
-        Consequence: writes one transient backup file on the console, replacing the previous
-        one; no stored backup is added and nothing is downloaded.
-
-        Returns the upstream body verbatim: on Network 11.0.97 {"meta": {"rc": "ok"}, "data":
-        [{"url": "/dl/backup/{version}.unf"}]}, the console path of the backup file. The file is one
-        transient export that the next backup overwrites; it is not a stored backup, so
-        list_backups, cancel_controller_backup and delete_controller_backup never see it, and the
-        answer carries no filename or backup_id. This server has no tool that adds a stored
-        backup. Never automatically retried. Under dry-run policy nothing is sent; returns
-        {status: "dry_run", dryRun: true, sent: false, message, preview: {method, path, params,
-        body}}.
-
-        Example: docs/TOOL-USAGE.md#create_backup.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-            days: Number of days for which the backup is generated; -1 is the source client
-                default, forwarded unchanged.
-        """
-        client, registry = deps_fn()
-        return await _create_backup(client, registry, host, site, days)
-
-    @mcp.tool(annotations=WRITE)
-    async def export_site(host: str, site: str) -> Any:
-        """Create a site export and return controller metadata. Exports may contain secrets;
-            this command never downloads export contents.
-
-        Consequence: the controller prepares a site export file (Classic cmd/backup
-        export-site); site configuration is unchanged and the contents are not downloaded.
-
-        Returns the upstream body verbatim. Never automatically retried. A console that cannot build
-        the export answers HTTP 400 api.err.BackupFailed, whatever the body; the error names the
-        next steps (free console storage first, then the Network application log).
-        Under dry-run policy nothing is sent; returns {status: "dry_run", dryRun: true,
-        sent: false, message, preview: {method, path, params, body}}.
-
-        Example: docs/TOOL-USAGE.md#export_site.
-
-        Args:
-            host: Console name or id from list_hosts.
-            site: Network site name or UUID from list_local_sites.
-        """
-        client, registry = deps_fn()
-        return await _export_site(client, registry, host, site)

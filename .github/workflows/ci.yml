@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       shards:
-        description: Shards per full suite (test and test-locked); empty uses TEST_SHARDS
+        description: Shards of the full test suite; empty uses TEST_SHARDS
         required: false
         default: ''
       full:
-        description: Run every suite (test, test-locked, scrub-oracle); otherwise the path classifier chooses
+        description: Run every suite (test, install-proof, scrub-oracle); otherwise the path classifier chooses
         type: boolean
         required: false
         default: false
@@ -26,31 +26,45 @@ permissions:
   contents: read
 
 concurrency:
-  # Pull requests: one group per PR. Pushes to dev: one group, so a newer dev head cancels the
-  # superseded run (the :dev image publishes from the newest green head). Other pushes keep a
-  # unique group and are never cancelled.
+  # Pull requests: one group per PR, cancelled in progress so a newer push supersedes the run.
+  # Pushes to dev: one group that is never cancelled in progress. GitHub keeps one running and
+  # one pending run there and replaces the pending one with the newest, so every run finishes
+  # (merges arrive faster than a run completes) and the :dev image publishes from the newest
+  # green head that completes. Other pushes keep a unique group and are never cancelled.
   group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/dev') && format('{0}-push-dev', github.workflow) || format('{0}-{1}-{2}-{3}', github.workflow, github.event_name, github.sha, github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Cache the development environment inside this hosted checkout.
   DEV_VENV: ${{ github.workspace }}/.venv
-  # Shards per full suite (test and test-locked): the one place the count is set. A manual
-  # dispatch may name another count through its shards input.
-  TEST_SHARDS: "20"
-  # The interpreter of every test-locked job (prep and its anchor, shards, aggregate): one
-  # exact patch release, so the aggregate's one-environment identity holds on whichever
-  # runner a job lands. It MUST equal the 3.12 release pinned in the self-hosted runners'
-  # tool cache; a runner without that release downloads it. Every other job keeps the
-  # minor version in .python-version.
+  # Shards of the full test suite: the one place the count is set. A manual
+  # dispatch may name another count through its shards input. Sized to available
+  # capacity; the count changes speed only (the assignment hashes the unit), so no
+  # test is lost. The aggregate still proves the shards cover the anchor exactly once.
+  TEST_SHARDS: "16"
+  # The interpreter of the install-proof job: one exact patch release, so its installed set
+  # is the same on whichever runner the job lands. It MUST equal the 3.12 release pinned in
+  # the self-hosted runners' tool cache; a runner without that release downloads it. Every
+  # other job keeps the minor version in .python-version.
   LOCKED_PYTHON: "3.12.15"
-  # Shards of the scrub oracle's 50 chunks: the one place the count is set. 25 gives every
-  # shard two chunks, run side by side (-n 2).
-  SCRUB_ORACLE_SHARDS: "25"
+  # Shards of the scrub oracle's 50 chunks: the one place the count is set.
+  # This count gives 14 shards three chunks and 4 shards two,
+  # run side by side (-n 2); the longest shard is the 3-chunk ones.
+  SCRUB_ORACLE_SHARDS: "18"
+  # More retries for a pip download that fails (a count, not a time limit). The cause of the
+  # registry-cache-pypi read stalls seen on the opening PR of a release was not pip: the dev venv
+  # and pip archive cache keys hashed pyproject.toml, so the version bump missed every
+  # cache and all 40 jobs of the run installed from the runners' package cache at once.
+  # The keys now hash requirements.lock alone, the only input of the install.
+  # pip's per-socket connect/read inactivity wait (not a total limit; pip's own default is 15 s),
+  # raised so a slow package-cache answer is waited for, and retried on failure. It stays at
+  # 60 s or more, and nothing limits the total duration of an install or a job.
+  PIP_TIMEOUT: "120"
+  PIP_RETRIES: "10"
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -105,7 +119,7 @@ jobs:
 
 
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -118,7 +132,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -136,11 +150,16 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
 
-
+  # The documentation checks run as two parallel jobs (docs, docs-catalog) so the pytest
+  # figure checks are not behind the single-pass generator run (issue 919). docs runs
+  # regen_docs.py --check (every generator in GENERATORS, one interpreter) and the Markdown
+  # lint; docs-catalog the README catalog sizes and the discovery accuracy baseline.
+  # scripts/ci_fast_jobs.py (prepush) and tests/test_generator_checks_wired.py insist every
+  # script with a --check mode is covered by regen_docs.py or has a step in one of them.
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,40 +173,22 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
         with:
           python-version: ${{ steps.py.outputs.python-version }}
-      # Every generated doc region (BLOCKS in scripts/doc_blocks.py) and figure, in order.
-      - name: Generated docs match the runtime and code
+      # Every generated doc region (BLOCKS in scripts/doc_blocks.py), figure and baseline, and
+      # the two documentation lints, in one interpreter: the server registry is imported and the
+      # hermetic tool capture made once, not once per check. The list is GENERATORS in
+      # scripts/regen_docs.py; tests/test_generator_checks_wired.py insists every script with a
+      # --check mode is in it, has a step here, or is exempt. The pytest tests that notice a
+      # stale copy run only in the full suite, so this step catches it before the push.
+      - name: Generated files match the runtime and code
         run: '"$DEV_VENV/bin/python" scripts/regen_docs.py --check'
-      # Both manifests are rebuilt from the hermetic tool capture. A change to what a tool
-      # requests makes the committed copy stale; the pytest tests that notice run only in
-      # the full suite, so these steps catch it before the push.
-      - name: Route manifest matches the tool capture
-        run: '"$DEV_VENV/bin/python" scripts/gen_route_manifest.py --check'
-      # Every other generated file or lint with a --check mode runs here too. The pytest
-      # tests that notice a stale copy run only in the full suite (CI-only in prepush), and
-      # a check nothing runs fails silently, so scripts/ci_fast_jobs.py (prepush) and
-      # tests/test_generator_checks_wired.py insist each one has a step.
-      - name: Tool catalog matches the registrations
-        run: '"$DEV_VENV/bin/python" scripts/gen_tool_catalog.py --check'
-      - name: Tool index matches the catalog
-        run: '"$DEV_VENV/bin/python" scripts/gen_tool_index.py --check'
-      - name: Handler adapters match the catalog
-        run: '"$DEV_VENV/bin/python" scripts/gen_handler_adapters.py --check'
-      - name: Tool input schema baseline matches the runtime
-        run: '"$DEV_VENV/bin/python" scripts/gen_tool_input_schemas.py --check'
-      - name: No retired setting outside the changelog
-        run: '"$DEV_VENV/bin/python" scripts/check_retired_settings.py --check'
-      - name: Documentation claims match the code
-        run: '"$DEV_VENV/bin/python" scripts/docs_claim_ledger.py --check'
-      - name: README catalog sizes (full and discovery modes)
-        run: '"$DEV_VENV/bin/python" -m pytest tests/test_readme_catalog_size.py -q -n 2 --max-worker-restart=0'
-      - name: Discovery selection accuracy (Recall@5 baseline)
-        run: '"$DEV_VENV/bin/python" -m pytest tests/test_discovery_accuracy.py -q -n 2 --max-worker-restart=0'
+      - name: No cross-family or core-to-family import
+        run: '"$DEV_VENV/bin/python" scripts/check_family_imports.py'
       # Rendered-Markdown lint (offline): table column counts / unescaped pipes and
       # relative links + #anchors across every tracked Markdown file.
       - run: '"$DEV_VENV/bin/python" scripts/check_markdown.py'
@@ -211,13 +212,38 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
+
+  docs-catalog:
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: py
+        with:
+          python-version-file: .python-version
+      - name: Restore pip archives
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
+      - name: Set up the shared dev environment
+        id: dev
+        uses: ./.github/actions/setup-dev
+        with:
+          python-version: ${{ steps.py.outputs.python-version }}
+      - name: README catalog sizes (full and discovery modes)
+        run: '"$DEV_VENV/bin/python" -m pytest tests/test_readme_catalog_size.py -q -n 2 --max-worker-restart=0'
+      - name: Discovery selection accuracy (Recall@5 baseline)
+        run: '"$DEV_VENV/bin/python" -m pytest tests/test_discovery_accuracy.py -q -n 2 --max-worker-restart=0'
 
   # The documentation-reading tests, on every run (a docs edit can break a test outside the
   # doc's own tests). The list has one source: scripts/ci_fast_jobs.py DOCS_CONTRACT.
   docs-contract:
     name: docs-contract
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -231,7 +257,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -243,11 +269,12 @@ jobs:
           mapfile -t tests < <("$DEV_VENV/bin/python" scripts/ci_fast_jobs.py --docs-contract)
           "$DEV_VENV/bin/python" -m pytest "${tests[@]}" -q -n 4 --max-worker-restart=0
 
-  # The heavy suites run only for the suites the classifier chose, and only after the fast
-  # checks (lint, typecheck, docs, docs-contract) passed, so a docs or lint failure or a
-  # newer push never pays for suites already running.
+  # The heavy suites run only for the suites the classifier chose, and they start with the
+  # fast checks (lint, typecheck, docs, docs-contract), not after them: a red fast job no
+  # longer skips every shard, so one red round shows every failure at once. ci-required is
+  # the one aggregate that needs everything green. A newer push still cancels the run.
   # The full tier runs for main/release candidates and conservative classifier escalation.
-  # The test and test-locked suites run as TEST_SHARDS shard jobs each. <suite>-prep fixes
+  # The test suite runs as TEST_SHARDS shard jobs. <suite>-prep fixes
   # the shard count and computes the behaviour-derived test selection once
   # (tests/_selection_cache.py, most of the collection time) for the shards to reuse. That
   # collection is also the anchor: the plain test list of an unsharded run, composed by
@@ -259,9 +286,8 @@ jobs:
   # failed shard fails the aggregate.
   test-prep:
     name: test-prep
-    needs: [lint, typecheck, docs, docs-contract]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
       list: ${{ steps.plan.outputs.list }}
@@ -284,7 +310,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -320,13 +346,13 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
 
   test-shard:
     name: test-shard ${{ matrix.k }}
     needs: [test-prep]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     strategy:
       fail-fast: false
       # Cap the heavy jobs one matrix places at once (the dispatcher balances by busy
@@ -347,7 +373,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -389,7 +415,7 @@ jobs:
     name: test
     needs: [test-prep, test-shard]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     permissions:
       contents: read
       actions: read
@@ -406,7 +432,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -451,17 +477,16 @@ jobs:
   # The corpus is 50 chunks of 4,200 cases (test_slow[0..49], about 9 minutes each on a
   # shared runner), split over SCRUB_ORACLE_SHARDS jobs the way the test suites are split:
   # scrub-oracle-prep fixes the count, each scrub-oracle-shard runs one slice through the
-  # shard plugin (tests/_sharding.py; the chunks are equal heavy units, so every shard gets
-  # the same number) and uploads its report and chunk evidence. The aggregate keeps the
+  # shard plugin (tests/_sharding.py; the chunks are equal heavy units, so shards get
+  # the same number, or one more when the count does not divide 50) and uploads its report and chunk evidence. The aggregate keeps the
   # scrub-oracle name: it proves against its own plain collection that every chunk ran
   # exactly once and passed, that every chunk left exactly one evidence file, and then
   # gates the aggregate coverage floor over all of them. A missing, extra, stale or failed
   # shard or chunk fails it.
   scrub-oracle-prep:
     name: scrub-oracle-prep
-    needs: [lint, typecheck, docs, docs-contract]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
       list: ${{ steps.plan.outputs.list }}
@@ -477,7 +502,7 @@ jobs:
     name: scrub-oracle-shard ${{ matrix.k }}
     needs: [scrub-oracle-prep]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     strategy:
       fail-fast: false
       # Cap the heavy jobs one matrix places at once (the dispatcher balances by busy
@@ -497,7 +522,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -534,7 +559,7 @@ jobs:
     name: scrub-oracle
     needs: [scrub-oracle-prep, scrub-oracle-shard]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     permissions:
       contents: read
       actions: read
@@ -551,7 +576,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'requirements.lock') }}
+          key: pip-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.lock') }}
       - name: Set up the shared dev environment
         id: dev
         uses: ./.github/actions/setup-dev
@@ -575,78 +600,17 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # The locked suite, sharded the same way. Every job installs requirements.lock fresh
-  # (hash-checked, no cache, no restored venv, shallow checkout, tool-cache interpreter),
-  # and the aggregate requires one environment identity, equal to the lock, in every shard
-  # and in its own anchor install.
-  test-locked-prep:
-    name: test-locked-prep
-    needs: [lint, typecheck, docs, docs-contract]
+  # The locked environment is proved once, unsharded: a fresh hash-checked install of
+  # requirements.lock on the exact LOCKED_PYTHON interpreter (no cache, no restored venv,
+  # shallow checkout, tool-cache interpreter), pip's own consistency check, the installed set
+  # equal to the lock (scripts/env_identity.py), and the full collection. The suite's tests
+  # run in the shared dev environment (the sharded test job); this job answers "does the
+  # lock install and collect", which is what the locked suite's shards re-proved 20 times.
+  # It starts with the fast jobs and is never reused from release evidence.
+  install-proof:
+    name: install-proof
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    outputs:
-      shards: ${{ steps.plan.outputs.shards }}
-      list: ${{ steps.plan.outputs.list }}
-      attempt: ${{ github.run_attempt }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Shard plan
-        id: plan
-        env:
-          SHARD_REQUESTED: ${{ inputs.shards }}
-        run: bash scripts/shard_ci.sh plan "${SHARD_REQUESTED:-$TEST_SHARDS}" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        id: py
-        with:
-          python-version: ${{ env.LOCKED_PYTHON }}
-      # A fresh venv of the LOCKED_PYTHON interpreter, first on PATH for the later steps. Its
-      # pip is the one CPython bundles (fixed per release), not whatever pip a runner's
-      # interpreter install upgraded to, and it sees no other site-packages, so the
-      # environment identity is the same on every runner.
-      - name: Install exact locked test environment
-        run: |
-          set -euo pipefail
-          start=$SECONDS
-          venv="$RUNNER_TEMP/locked-venv"
-          python -m venv "$venv"
-          "$venv/bin/python" -m pip install --require-hashes --no-deps -r requirements.lock
-          "$venv/bin/python" -m pip install --no-deps -e .
-          echo "$venv/bin" >> "$GITHUB_PATH"
-          echo "SHARD_INSTALL_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
-      - name: Runner record
-        run: bash scripts/shard_ci.sh record
-      - name: Anchor collection and test selection
-        run: bash scripts/shard_ci.sh anchor python --locked
-      - name: Selection cache
-        run: bash scripts/shard_ci.sh selection python
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: test-locked-anchor-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/anchor/
-          if-no-files-found: error
-          retention-days: 3
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: test-locked-selection-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .pytest_cache/unifi-selection/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 3
-
-  test-locked-shard:
-    name: test-locked-shard ${{ matrix.k }}
-    needs: [test-locked-prep]
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      # Cap the heavy jobs one matrix places at once (the dispatcher balances by busy
-      # slots only). A starting value: the first runs are measured against the pool.
-      max-parallel: 8
-      matrix:
-        k: ${{ fromJSON(needs.test-locked-prep.outputs.list) }}
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -654,102 +618,34 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.LOCKED_PYTHON }}
-      # A fresh venv of the LOCKED_PYTHON interpreter, first on PATH for the later steps. Its
-      # pip is the one CPython bundles (fixed per release), not whatever pip a runner's
-      # interpreter install upgraded to, and it sees no other site-packages, so the
-      # environment identity is the same on every runner.
-      - name: Install exact locked test environment
+      # A fresh venv of the LOCKED_PYTHON interpreter. Its pip is the one CPython bundles
+      # (fixed per release), not whatever pip a runner's interpreter install upgraded to, and
+      # it sees no other site-packages, so the installed set is the same on every runner.
+      - name: Install requirements.lock (hash-checked) and the project
         run: |
           set -euo pipefail
-          start=$SECONDS
+          python -c 'import platform, sys; v = platform.python_version(); print("interpreter", v); sys.exit(0 if v == sys.argv[1] else "LOCKED_PYTHON " + sys.argv[1] + " is not what setup-python resolved: " + v)' "$LOCKED_PYTHON"
           venv="$RUNNER_TEMP/locked-venv"
           python -m venv "$venv"
-          "$venv/bin/python" -m pip install --require-hashes --no-deps -r requirements.lock
+          "$venv/bin/python" -m pip install --require-hashes -r requirements.lock
           "$venv/bin/python" -m pip install --no-deps -e .
           echo "$venv/bin" >> "$GITHUB_PATH"
-          echo "SHARD_INSTALL_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
-      - name: Runner record
-        run: bash scripts/shard_ci.sh record
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: test-locked-selection-${{ github.run_id }}-${{ needs.test-locked-prep.outputs.attempt }}
-          path: .pytest_cache/unifi-selection
-      - name: Check the shard count
-        env:
-          SHARD_K: ${{ matrix.k }}
-          SHARD_N: ${{ needs.test-locked-prep.outputs.shards }}
-          SHARD_JOB_TOTAL: ${{ strategy.job-total }}
-        run: bash scripts/shard_ci.sh check "$SHARD_K" "$SHARD_N" "$SHARD_JOB_TOTAL"
-      - name: Selection cache
-        run: bash scripts/shard_ci.sh selection python
-      - name: Run full locked suite
-        env:
-          SHARD_K: ${{ matrix.k }}
-          SHARD_N: ${{ needs.test-locked-prep.outputs.shards }}
-          SHARD_OUT: ${{ runner.temp }}/shard-out
-        run: bash scripts/run_full_suite.sh python --workers auto --shard "$SHARD_K/$SHARD_N" --shard-suite test-locked --shard-report "$SHARD_OUT/report.json" --junitxml="$SHARD_OUT/junit.xml"
-      - name: Keep the shard's coverage data
-        if: ${{ !cancelled() }}
-        run: if [ -f .coverage ]; then cp .coverage "$RUNNER_TEMP/shard-out/.coverage"; fi
+      - name: pip check
+        run: python -m pip check
+      - name: The installed set equals the lock
+        run: python scripts/env_identity.py record --out "$RUNNER_TEMP/env-identity.json"
+      - name: Collect the whole suite
+        run: |
+          set -euo pipefail
+          bash scripts/run_full_suite.sh python --workers auto --collect-only > "$RUNNER_TEMP/collected.txt"
+          tail -n 3 "$RUNNER_TEMP/collected.txt"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: test-locked-shard-${{ matrix.k }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/shard-out/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 3
-
-  test-locked:
-    name: test-locked
-    needs: [test-locked-prep, test-locked-shard]
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ env.LOCKED_PYTHON }}
-      # A fresh venv of the LOCKED_PYTHON interpreter, first on PATH for the later steps. Its
-      # pip is the one CPython bundles (fixed per release), not whatever pip a runner's
-      # interpreter install upgraded to, and it sees no other site-packages, so the
-      # environment identity is the same on every runner.
-      - name: Install exact locked test environment
-        run: |
-          set -euo pipefail
-          start=$SECONDS
-          venv="$RUNNER_TEMP/locked-venv"
-          python -m venv "$venv"
-          "$venv/bin/python" -m pip install --require-hashes --no-deps -r requirements.lock
-          "$venv/bin/python" -m pip install --no-deps -e .
-          echo "$venv/bin" >> "$GITHUB_PATH"
-          echo "SHARD_INSTALL_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: test-locked-anchor-${{ github.run_id }}-${{ needs.test-locked-prep.outputs.attempt }}
-          path: ${{ runner.temp }}/anchor
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: test-locked-shard-*
-          path: ${{ runner.temp }}/shards
-      - name: Prove the shards and combine coverage
-        env:
-          SHARD_REQUESTED: ${{ inputs.shards }}
-          SHARD_PLANNED: ${{ needs.test-locked-prep.outputs.shards }}
-          SHARD_NEEDS: ${{ toJson(needs) }}
-          SHARD_REQUIRE: test-locked-prep,test-locked-shard
-        run: bash scripts/shard_ci.sh aggregate test-locked python "${SHARD_REQUESTED:-$TEST_SHARDS}" "$SHARD_PLANNED" --locked
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ !cancelled() }}
-        with:
-          name: test-locked-proof-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof/
+          name: install-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/env-identity.json
+            ${{ runner.temp }}/collected.txt
           if-no-files-found: warn
           retention-days: 7
 
@@ -770,7 +666,7 @@ jobs:
   # action) and run `gitleaks detect --redact` exactly.
   gitleaks:
     name: gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -807,7 +703,7 @@ jobs:
   # shapes (UniFi API keys, Bearer tokens, JWTs, PEM blocks, real public IPs).
   fixtures-sanitization:
     name: fixtures-sanitization
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -826,7 +722,7 @@ jobs:
   # Pure stdlib version guard: no dependency install or pip cache to populate.
   version-consistency:
     name: version-consistency
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -851,7 +747,7 @@ jobs:
   # arm64 binfmt handler cannot boot this image (exec format error).
   docker-build-arm64:
     name: docker-build-arm64
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ fromJSON(vars.LINUX_ARM64_RUNNER || '"ubuntu-24.04-arm"') }}
     env:
       PLATFORM: linux/arm64
       ARCH: arm64
@@ -860,6 +756,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # Result reuse (issue 919, item 4): a pull request whose inputs for this job (scripts/ci_job_reuse.py
+      # INPUTS) are unchanged since a successful push run of this same job on the default
+      # branch skips the work and says so. Only default-branch pushes write a record (a
+      # pull request never writes a cache) and only pull requests look one up, so every
+      # record comes from a full run.
+      - name: Fingerprint the inputs of this job
+        id: fp
+        run: python3 scripts/ci_job_reuse.py fingerprint docker-build-arm64 --github-output "$GITHUB_OUTPUT"
+      - name: Look up a recorded result for the same inputs
+        id: reuse
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ci-reuse
+          key: ${{ steps.fp.outputs.key }}
+      - name: State the reuse
+        if: ${{ steps.reuse.outputs.cache-hit == 'true' }}
+        run: python3 scripts/ci_job_reuse.py note docker-build-arm64 --marker "$RUNNER_TEMP/ci-reuse/result.json" --summary "$GITHUB_STEP_SUMMARY"
       - name: Require a native arm64 runner
         # The boot test below must run natively: an amd64 runner here would need QEMU.
         env:
@@ -873,6 +787,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
           # Match Publish: run the docker-container buildkitd in the Docker daemon's
@@ -881,6 +796,7 @@ jobs:
           buildkitd-flags: --allow-insecure-entitlement network.host
 
       - name: Build and load the linux/arm64 image (no push)
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -894,6 +810,7 @@ jobs:
           cache-to: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && 'type=gha,mode=max,scope=ci-arm64' || '' }}
 
       - name: Check the built image platform
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         run: |
           BUILT="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "unifi-fabric-mcp-server:ci-${ARCH}")"
           echo "built image platform: ${BUILT}"
@@ -903,7 +820,18 @@ jobs:
           fi
 
       - name: Boot the linux/arm64 image natively and send the README initialize call
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         run: bash scripts/smoke_image.sh unifi-fabric-mcp-server:ci-arm64 linux/arm64
+
+      - name: Record this result for pull requests with the same inputs
+        if: ${{ success() && github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
+        run: python3 scripts/ci_job_reuse.py record docker-build-arm64 --fingerprint "${{ steps.fp.outputs.fingerprint }}" --out "$RUNNER_TEMP/ci-reuse/result.json"
+      - name: Save the record
+        if: ${{ success() && github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ci-reuse
+          key: ${{ steps.fp.outputs.key }}
 
   # The linux/amd64 half. Build the production image on a PR (no push) so a broken image
   # build fails the PR rather than the Publish workflow. Same Dockerfile and buildx setup as
@@ -913,13 +841,33 @@ jobs:
   # test runs against the same image.
   docker-build-amd64:
     name: docker-build-amd64
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER_OCI || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+
+      # Result reuse (issue 919, item 4): a pull request whose inputs for this job (scripts/ci_job_reuse.py
+      # INPUTS) are unchanged since a successful push run of this same job on the default
+      # branch skips the work and says so. Only default-branch pushes write a record (a
+      # pull request never writes a cache) and only pull requests look one up, so every
+      # record comes from a full run.
+      - name: Fingerprint the inputs of this job
+        id: fp
+        run: python3 scripts/ci_job_reuse.py fingerprint docker-build-amd64 --github-output "$GITHUB_OUTPUT"
+      - name: Look up a recorded result for the same inputs
+        id: reuse
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ci-reuse
+          key: ${{ steps.fp.outputs.key }}
+      - name: State the reuse
+        if: ${{ steps.reuse.outputs.cache-hit == 'true' }}
+        run: python3 scripts/ci_job_reuse.py note docker-build-amd64 --marker "$RUNNER_TEMP/ci-reuse/result.json" --summary "$GITHUB_STEP_SUMMARY"
       - name: Set up Docker Buildx
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
           # Match Publish: run the docker-container buildkitd in the Docker daemon's
@@ -928,6 +876,7 @@ jobs:
           buildkitd-flags: --allow-insecure-entitlement network.host
 
       - name: Build the image for linux/amd64 and linux/arm64 (no push)
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -940,9 +889,11 @@ jobs:
           cache-to: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') && 'type=gha,mode=max' || '' }}
 
       - name: Verify the platforms in the image index
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         run: bash scripts/check_image_platforms.sh "oci-layout://${RUNNER_TEMP}/image-oci" linux/amd64 linux/arm64
 
       - name: Load the linux/amd64 image
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -960,6 +911,7 @@ jobs:
       # own temporary directory. So the proxy test, the longer of the two, starts first, in
       # the background, and the boot test runs while it does.
       - name: Start the TLS reverse proxy Host routing test in the background
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         run: |
           # The exit status goes to a file (written last) so the result step can report it.
           # The subshell is detached from the step's output and input, so the step ends at once.
@@ -973,10 +925,11 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/proxy-smoke.pid"
 
       - name: Boot the linux/amd64 image and send the README initialize call
+        if: ${{ steps.reuse.outputs.cache-hit != 'true' }}
         run: bash scripts/smoke_image.sh unifi-fabric-mcp-server:ci-amd64 linux/amd64
 
       - name: Test TLS reverse proxy Host routing in stateful and stateless modes
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.reuse.outputs.cache-hit != 'true' }}
         run: |
           if [ ! -f "$RUNNER_TEMP/proxy-smoke.pid" ]; then
             echo "::error::the TLS reverse proxy test did not start" >&2
@@ -994,6 +947,15 @@ jobs:
           fi
           exit "$(cat "$RUNNER_TEMP/proxy-smoke.rc")"
 
+      - name: Record this result for pull requests with the same inputs
+        if: ${{ success() && github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
+        run: python3 scripts/ci_job_reuse.py record docker-build-amd64 --fingerprint "${{ steps.fp.outputs.fingerprint }}" --out "$RUNNER_TEMP/ci-reuse/result.json"
+      - name: Save the record
+        if: ${{ success() && github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'schedule') }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ci-reuse
+          key: ${{ steps.fp.outputs.key }}
   # Required check `docker-build` (branch protection requires this exact context). It runs
   # after both halves whatever their outcome (always()), so it reports a failure, never a
   # skip, and it fails unless both halves succeeded: a failed, cancelled or skipped half
@@ -1002,7 +964,7 @@ jobs:
     name: docker-build
     needs: [docker-build-amd64, docker-build-arm64]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER_OCI || '"ubuntu-latest"') }}
     steps:
       - name: Require both image halves (docker-build-amd64 and docker-build-arm64)
         env:
@@ -1034,7 +996,10 @@ jobs:
   changelog-check:
     name: changelog-check
     if: ${{ (github.event_name == 'pull_request') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '"ubuntu-latest"') }}
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1044,12 +1009,23 @@ jobs:
       - name: Verify changelog entry when src/ changes
         # Event values reach the shell only through env vars, never as inline expressions:
         # a label name is free text, and a quote in it would otherwise break (or inject
-        # into) the script.
+        # into) the script. The labels are read live from the API, not from the event
+        # payload: a pull request opened with a label carries none in its opened payload,
+        # and a re-run (ci-relabel.yml) reuses the old payload.
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PAYLOAD_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
+          # In CI the API is the source and an API failure fails the check; a local
+          # prepush run has no token and reads the labels of its own pull request context.
+          if [ -n "${GH_TOKEN:-}" ]; then
+            LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --paginate -q '[.[].name]')
+          else
+            LABELS=$PAYLOAD_LABELS
+          fi
           changed=$(git diff --name-only "$BASE" "$HEAD")
           echo "Files changed in this PR:"
           echo "$changed"

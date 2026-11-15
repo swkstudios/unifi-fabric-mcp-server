@@ -95,6 +95,9 @@ FIELD_NOTES: dict[tuple[str, str, str], str] = {
     ("protect", "PATCH /v1/sensors/{id}", "hasCustomSensitivityWhenArmed"): (
         "#/components/schemas/sensorHasCustomSensitivityWhenArmed"
     ),
+    ("protect", "#/components/schemas/externalArmProfileRequest", "title"): (
+        "Title of the external arm profile."
+    ),
 }
 
 
@@ -760,8 +763,30 @@ def require_clean_environment() -> None:
         raise RuntimeError("ambient server settings must be cleared before generating shapes")
 
 
+def install_instant_pacing() -> None:
+    """Put the connector pacer on a clock whose sleep advances it instantly.
+
+    Deriving the table calls every tool against one synthetic console. On the real clock the
+    pacer waits out a minute after 95 sends; the suite avoids that in tests/conftest.py,
+    and the command line needs the same clock.
+    """
+    from unifi_fabric import pacing
+
+    state = {"now": 1000.0}
+
+    def clock() -> float:
+        return state["now"]
+
+    async def sleep(seconds: float) -> None:
+        state["now"] += max(seconds, 0.0)
+
+    pacing.reset_registry()
+    pacing.set_time_source(clock, sleep)
+
+
 if __name__ == "__main__":
     require_clean_environment()
+    install_instant_pacing()
     table, inventory = derive()
     if "--write" in sys.argv:
         OUTPUT.write_text(render(table, inventory))

@@ -1,4 +1,4 @@
-"""Tools this release removed, and what to call instead (its migration guide's table).
+"""Tools 0.7.2 removed, and what to call instead (its migration guide's table).
 
 A call naming one of them gets a coded ``tool_removed`` error that names the replacement,
 instead of a bare unknown-tool error. No request is sent.
@@ -11,6 +11,11 @@ import json
 from fastmcp.exceptions import ToolError
 
 TOOL_REMOVED = "tool_removed"
+
+#: The release that removed every tool below, and the migration guide whose table lists
+#: them. Fixed: a later release must not claim them or point at a guide of its own.
+REMOVED_IN = "0.7.2"
+MIGRATION_GUIDE = "docs/MIGRATING-0.7.2.md"
 
 _NO_QR = "Protect 7.3.74 has no QR route"
 _NO_ROUTE = "Protect 7.3.74 has no matching route"
@@ -39,23 +44,13 @@ REMOVED_TOOLS: dict[str, str] = {
 }
 
 
-def _migration_guide() -> str:
-    """The installed release's migration guide, read from the package version at call time."""
-    from importlib.metadata import PackageNotFoundError, version
-
-    try:
-        return f"docs/MIGRATING-{version('unifi-fabric-mcp-server')}.md"
-    except PackageNotFoundError:
-        return "the release's migration guide (docs/MIGRATING-<version>.md)"
-
-
 def removed_tool_error(name: str) -> ToolError | None:
     """The coded error for a call to a removed tool, or ``None`` for any other name."""
     guidance = REMOVED_TOOLS.get(name)
     if guidance is None:
         return None
     message = (
-        f"{name!r} was removed in this release: {guidance}. No request was sent. "
-        f"See {_migration_guide()}."
+        f"{name!r} was removed in {REMOVED_IN}: {guidance}. No request was sent. "
+        f"See {MIGRATION_GUIDE}."
     )
     return ToolError(json.dumps({"error": {"code": TOOL_REMOVED, "message": message}}))

@@ -100,10 +100,11 @@ from dataclasses import dataclass, field
 from functools import lru_cache, wraps
 from itertools import chain, repeat, starmap
 from typing import TYPE_CHECKING, Any, cast
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, unquote
 
 from . import fingerprint as _fingerprint
-from .credential_providers import resolved_secret_values
+from .credential_providers import _OTLP_HEADERS, resolved_secret_values
+from .lane import current_lane
 
 if TYPE_CHECKING:
     from .config import MCPTransportSettings, Settings
@@ -128,10 +129,48 @@ _MIN_FRAGMENT = 4
 _PERCENT_HEX = re.compile(r"%[0-9A-F]{2}")
 
 
+#: A shorter header value is configuration, not a credential.
+_MIN_OTLP_HEADER_SECRET_CHARS = 8
+#: Header names that carry a credential. A configured secret is scrubbed from every
+#: upstream response too, so a tenant or dataset header must never become one.
+_OTLP_CREDENTIAL_HEADER = re.compile(
+    r"auth|api[-_]?key|token|secret|password|signature"
+    # Vendor key headers whose names carry none of those words: Honeycomb's team key,
+    # an Uptrace DSN (it embeds the token), and any ``*-key`` such as SigNoz's.
+    r"|^x-honeycomb-team\Z|^uptrace-dsn\Z|[-_]key\Z",
+    re.I,
+)
+
+
+def _otlp_header_values() -> list[str]:
+    """The credential values in the OTLP exporter header variables.
+
+    The SDK does not log them today; this is defence in depth. ``key=value`` pairs are
+    comma-separated and URL-encoded.
+    """
+    values: list[str] = []
+    for name, raw in os.environ.items():
+        if not _OTLP_HEADERS.match(name) or not raw.strip():
+            continue
+        for pair in raw.split(","):
+            header, _, encoded = pair.partition("=")
+            if not _OTLP_CREDENTIAL_HEADER.search(unquote(header)):
+                continue
+            value = unquote(encoded).strip()
+            if len(value) >= _MIN_OTLP_HEADER_SECRET_CHARS:
+                values.append(value)
+                # An ``Authorization`` value is scheme plus token; the token alone also counts.
+                token = value.rpartition(" ")[2]
+                if len(token) >= _MIN_OTLP_HEADER_SECRET_CHARS:
+                    values.append(token)
+    return values
+
+
 def _env_secrets() -> list[str]:
     values = [os.environ.get(name, "") for name in SECRET_ENV_VARS]
     # Keys read from UNIFI_API_KEY(S)_FILE / _COMMAND at startup are configured secrets too.
     values.extend(resolved_secret_values())
+    values.extend(_otlp_header_values())
     raw = os.environ.get(KEYS_ENV_VAR, "")
     if raw.strip():
         try:
@@ -2459,6 +2498,11 @@ def install_log_scrubber() -> None:
                 request_args = list(record.args)
                 request_args[1] = str(request_args[1]).split("?", 1)[0]
                 record.args = tuple(request_args)
+                # The calling request's X-UF-Lane tag, so the window accounting counts
+                # this upstream request per lane (lane.py; the pattern has no '%').
+                lane = current_lane()
+                if lane is not None:
+                    record.msg = f"{record.msg} lane={lane}"
             _scrub_record(record)
             return record
 

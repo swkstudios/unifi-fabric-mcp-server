@@ -1,0 +1,158 @@
+{
+ "data": [
+  {
+   "mac": "02:00:5e:00:00:a1",
+   "scans": [
+    {
+     "name": "wifi0",
+     "radio": "ng",
+     "spectrum_table": [
+      {
+       "center_freq": 2422,
+       "channel": 1,
+       "interference": -72,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 39,
+       "width": 40
+      },
+      {
+       "center_freq": 2447,
+       "channel": 6,
+       "interference": -73,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 21,
+       "width": 40
+      },
+      {
+       "center_freq": 2452,
+       "channel": 11,
+       "interference": -69,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 15,
+       "width": 40
+      }
+     ],
+     "spectrum_table_time": 1794301201
+    },
+    {
+     "name": "wifi1",
+     "radio": "na",
+     "spectrum_table": [
+      {
+       "center_freq": 5250,
+       "channel": 36,
+       "interference": -85,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 3,
+       "width": 160
+      },
+      {
+       "center_freq": 5570,
+       "channel": 100,
+       "interference": -96,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 2,
+       "width": 160
+      }
+     ],
+     "spectrum_table_time": 1794301296
+    }
+   ],
+   "spectrum_scan_timestamp": 1794301383342,
+   "spectrum_scanning": false
+  },
+  {
+   "mac": "02:00:5e:00:00:a3",
+   "scans": [
+    {
+     "name": "wifi0",
+     "radio": "ng",
+     "spectrum_table": [
+      {
+       "center_freq": 2432,
+       "channel": 5,
+       "interference": -76,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 47,
+       "width": 20
+      },
+      {
+       "center_freq": 2437,
+       "channel": 6,
+       "interference": -21,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 44,
+       "width": 20
+      },
+      {
+       "center_freq": 2442,
+       "channel": 7,
+       "interference": -21,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 50,
+       "width": 20
+      },
+      {
+       "center_freq": 2447,
+       "channel": 8,
+       "interference": -21,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 64,
+       "width": 20
+      }
+     ],
+     "spectrum_table_time": 1786780856
+    },
+    {
+     "name": "wifi1",
+     "radio": "na",
+     "spectrum_table": [
+      {
+       "center_freq": 5775,
+       "channel": 149,
+       "interference": 1,
+       "interference_type": [],
+       "other_bss_count": 0,
+       "perf_index": 0,
+       "total_samples": 0,
+       "utilization": 12,
+       "width": 80
+      }
+     ],
+     "spectrum_table_time": 1786780800
+    }
+   ],
+   "spectrum_scan_timestamp": 1786780874549
+  }
+ ],
+ "meta": {
+  "rc": "ok"
+ }
+}

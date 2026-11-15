@@ -1,0 +1,164 @@
+{
+ "client_details": [
+  {
+   "band": "6e",
+   "channel": 69,
+   "channel_width": 160,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:25",
+    "name": "Client 28",
+    "wlanconf_id": "wlan-4353"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a1",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 72100,
+   "roams_count": 0,
+   "satisfaction_avg": 99,
+   "signal_avg": -89,
+   "total_traffic_percentage": 20,
+   "tx_retries_percentage": 13.2
+  },
+  {
+   "band": "na",
+   "channel": 60,
+   "channel_width": 160,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:1e",
+    "name": "Client 21",
+    "wlanconf_id": "wlan-4353"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a1",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 432400,
+   "roams_count": 12,
+   "satisfaction_avg": 100,
+   "signal_avg": -81,
+   "total_traffic_percentage": 2.7,
+   "tx_retries_percentage": 10.8
+  },
+  {
+   "band": "6e",
+   "channel": 69,
+   "channel_width": 160,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:09",
+    "name": "Client 05",
+    "wlanconf_id": "wlan-4353"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a1",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 1441200,
+   "roams_count": 15,
+   "satisfaction_avg": 100,
+   "signal_avg": -72,
+   "total_traffic_percentage": 1.1,
+   "tx_retries_percentage": 9.3
+  },
+  {
+   "band": "na",
+   "channel": 112,
+   "channel_width": 80,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:20",
+    "name": "Client 23",
+    "wlanconf_id": "wlan-4353"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a2",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 12000,
+   "roams_count": 8,
+   "satisfaction_avg": 99,
+   "signal_avg": -64,
+   "total_traffic_percentage": 2.3,
+   "tx_retries_percentage": 10.1
+  },
+  {
+   "band": "na",
+   "channel": 112,
+   "channel_width": 80,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:16",
+    "name": "Client 14",
+    "wlanconf_id": "wlan-ba91"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a2",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 433300,
+   "roams_count": 0,
+   "satisfaction_avg": 100,
+   "signal_avg": -64,
+   "total_traffic_percentage": 20.6,
+   "tx_retries_percentage": 5.5
+  },
+  {
+   "band": "na",
+   "channel": 112,
+   "channel_width": 80,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:03",
+    "name": "Client 02",
+    "wlanconf_id": "wlan-ba91"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a2",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 390000,
+   "roams_count": 0,
+   "satisfaction_avg": 100,
+   "signal_avg": -65,
+   "total_traffic_percentage": 18.9,
+   "tx_retries_percentage": 6
+  },
+  {
+   "band": "ng",
+   "channel": 1,
+   "channel_width": 20,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:14",
+    "name": "Client 13",
+    "wlanconf_id": "wlan-0889"
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a1",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 72200,
+   "roams_count": 1,
+   "satisfaction_avg": 100,
+   "signal_avg": -53,
+   "total_traffic_percentage": 7.2,
+   "tx_retries_percentage": 13.7
+  },
+  {
+   "band": "ng",
+   "channel": 11,
+   "channel_width": 20,
+   "client": {
+    "is_wired": false,
+    "mac": "02:00:5e:00:01:28",
+    "name": "Client",
+    "wlanconf_id": null
+   },
+   "is_mlo": false,
+   "last_ap_mac": "02:00:5e:00:00:a2",
+   "mimo": "MIMO_2",
+   "phy_rate_most_common": 8100,
+   "roams_count": 0,
+   "satisfaction_avg": 97,
+   "signal_avg": -72,
+   "total_traffic_percentage": 0,
+   "tx_retries_percentage": 31.8
+  }
+ ]
+}

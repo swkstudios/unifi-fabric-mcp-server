@@ -1,0 +1,22 @@
+{
+  "args": [
+    "Default"
+  ],
+  "body": {
+    "available_ports": [
+      1194
+    ]
+  },
+  "kwargs": {
+    "service": "openvpn"
+  },
+  "recorded_by_tool": "suggest_service_port",
+  "request": {
+    "method": "GET",
+    "path": "/v1/connector/consoles/000000000000000000000000000000000000000000000000000000FA0001:0000000001/proxy/network/v2/api/site/default/network/port-suggest",
+    "query": {
+      "service": "service-0001"
+    }
+  },
+  "status": 200
+}

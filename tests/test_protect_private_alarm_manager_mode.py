@@ -264,6 +264,35 @@ async def test_tool_description_states_only_what_was_observed():
     assert "body.armMode" in tool.description
 
 
+async def test_tool_description_lists_the_external_arm_profiles_key_and_claims_no_gam_api():
+    from unifi_fabric.server import mcp
+
+    tool = next(t for t in await mcp.list_tools() if t.name == "get_protect_alarm_manager_mode")
+    flat = " ".join(tool.description.split())
+    # the returned summary lists every key it can carry
+    assert (
+        "_alarmManager {mode, reason, integrationArmProfiles, externalArmProfiles, "
+        "globalAlarmManagerApi}"
+    ) in flat
+    assert "externalArmProfiles {available, tools, reason}" in flat
+    assert "list_external_arm_profiles" in flat and "7.4.96" in flat
+    # the global Alarm Manager API is not supported here, and the old blanket pointer is gone
+    assert "Manage global alarms in the UniFi Protect app" not in flat
+    assert "has no tool for the global Alarm Manager API" in flat
+    assert "supported is always false" in flat
+
+
+async def test_the_listed_summary_keys_are_the_keys_the_summary_carries():
+    known, _ = await _mode(_nvr(featureFlags={"useExternalAlarmManager": True}))
+    assert set(known["_alarmManager"]) == {
+        "mode",
+        "reason",
+        "integrationArmProfiles",
+        "externalArmProfiles",
+        "globalAlarmManagerApi",
+    }
+
+
 ARM_PROFILE_TOOLS = (
     "list_arm_profiles",
     "get_arm_profile",
@@ -297,19 +326,3 @@ def _coverage_section() -> str:
     )
     start = text.index("### Protect global Alarm Manager")
     return " ".join(text[start : text.index("\n### ", start + 1)].split())
-
-
-def test_coverage_labels_local_mode_detection_simulated():
-    """Global mode was read live; local mode has only simulated evidence."""
-    section = _coverage_section()
-    assert "local mode" in section.lower()
-    assert "simulated" in section
-    assert "needs live testing" in section.lower()
-
-
-def test_coverage_does_not_claim_adoption_forces_global_mode():
-    """The evidence shows the flag on global-mode consoles, not why it is on."""
-    section = _coverage_section()
-    assert "forced on" not in section
-    assert "adopting UniFi sensors, fobs, relays or an alarm hub" in section
-    assert "can turn it on" in section

@@ -387,7 +387,7 @@ def test_generator_repins_the_encoded_install_badge_versions() -> None:
     gen = _generator()
     readme = README.read_text()
     current = gen.PUBLISHED_VERSION
-    cursor = re.compile(r"cursor\.com/en/install-mcp\?[^\"\s)]*?config=([A-Za-z0-9_+/-]+=*)")
+    cursor = re.compile(r"cursor\.com/install-mcp\?[^\"\s)]*?config=([A-Za-z0-9_+/-]+=*)")
     payloads = cursor.findall(readme)
     assert payloads, "README must keep the Cursor install badge"
     assert f"unifi-fabric-mcp-server%3D%3D{current}" in readme
@@ -414,7 +414,7 @@ def test_suffixed_encoded_pins_are_rerendered_so_check_fails(suffix: str) -> Non
     assert vscode in readme
     stale_vscode = readme.replace(vscode, vscode + suffix)
     assert gen.render_install_versions(stale_vscode, current) == readme
-    cursor = re.compile(r"(cursor\.com/en/install-mcp\?[^\"\s)]*?config=)([A-Za-z0-9_+/-]+=*)")
+    cursor = re.compile(r"(cursor\.com/install-mcp\?[^\"\s)]*?config=)([A-Za-z0-9_+/-]+=*)")
     match = cursor.search(readme)
     assert match
     config = base64.b64decode(match[2]).decode()
@@ -561,3 +561,33 @@ def test_changelog_regenerates_added_and_removed_counts():
     )
     text = "# Changelog\n\n## [9.9.9]\n\nHighlights: 1 tools (0 added, 0 removed).\n"
     assert "Highlights: 987 tools (2 added, 1 removed)" in gen.render_changelog(text, fig)
+
+
+def test_lead_renders_alone_and_only_while_in_flight():
+    gen = _generator()
+    in_flight = (
+        "# Changelog\n\n## [Unreleased]\n\n## [9.9.9]\n\nHighlights: 798 tools (0 added, 0 "
+        "removed); the full list.\n\n### Changed\n\n- Full mode serves the catalog (1 tools, "
+        "about 1 KB of `tools/list`).\n\n## [9.9.8] - 2026-01-01\n\nHighlights: 5 tools (5 "
+        "added, 0 removed).\n"
+    )
+    rendered = gen.render_lead(in_flight, 799, (1, 0))
+    assert "Highlights: 799 tools (1 added, 0 removed); the full list." in rendered
+    # Only the lead: the size figure and the released section keep their text.
+    assert rendered.replace("799 tools (1 added, 0 removed)", "798 tools (0 added, 0 removed)") == (
+        in_flight
+    )
+    dated = in_flight.replace("## [9.9.9]", "## [9.9.9] - 2026-02-02")
+    assert gen.render_lead(dated, 799, (1, 0)) == dated
+
+
+def test_lead_figures_refuse_a_count_the_registry_does_not_hold(monkeypatch):
+    """The 798-against-799 lead came from two sources that were never compared."""
+    gen = _generator()
+    monkeypatch.setattr(gen, "_measure", lambda *args, **kwargs: (798, 1))
+    monkeypatch.setattr(gen, "tool_inventory", lambda: [("a", "m", None)] * 799)
+    monkeypatch.setattr(gen, "catalog_delta", lambda: (1, 0))
+    with pytest.raises(RuntimeError, match="798 tools but the registry holds 799"):
+        gen.lead_figures()
+    monkeypatch.setattr(gen, "_measure", lambda *args, **kwargs: (799, 1))
+    assert gen.lead_figures() == (799, (1, 0))

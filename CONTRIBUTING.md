@@ -184,8 +184,7 @@ let the description stand on its own.
 All of the following checks must pass before a PR can merge. Branch protection marks only
 some of them as required, so GitHub can show a PR as mergeable while a check it does not
 require is red; maintainers merge only when every check that ran is green. On every pull
-request, `test` and `test-locked` run the whole suite with the 97% coverage gate, not a
-subset. Before pushing, run lint, types and the tests that cover your change (the local
+request, `test` runs the whole suite with the 97% coverage gate, not a subset. Before pushing, run lint, types and the tests that cover your change (the local
 test rule is in [AGENTS.md](AGENTS.md), "Mandatory local test before push"); the full
 suite runs in CI:
 
@@ -202,9 +201,9 @@ Full CI gate matrix:
 |-------|-----------------|
 | `lint` | `ruff check` (rules: E, F, I, W, B, S, ANN, UP) |
 | `typecheck` | `mypy` static type analysis |
-| `docs` | `regen_docs.py --check`: every generated doc region and figure (`TOOLS.md`, README and CHANGELOG catalog sizes and tool counts, the reference blocks) matches the runtime and code; `check_markdown.py`; the README catalog-size and discovery-accuracy tests |
+| `docs` | `regen_docs.py --check`: every generated doc region, figure and committed baseline (`TOOLS.md`, README and CHANGELOG catalog sizes and tool counts, the reference blocks, the tool catalog, index, adapters, input schemas and route manifest) matches the runtime and code, in one interpreter; `check_markdown.py`; the README catalog-size and discovery-accuracy tests |
 | `test` | `pytest` + 97% line-coverage minimum |
-| `test-locked` | The full suite again in an environment installed exactly from `requirements.lock` (`pip install --require-hashes`), with the same 97% coverage minimum |
+| `install-proof` | A fresh install of `requirements.lock` on the exact release interpreter (`pip install --require-hashes`), `pip check`, the installed set equal to the lock, and the full test collection |
 | `scrub-oracle` | The 210,000-case scrubber acceptance corpus (50 chunks, `-m slow -n 4`) and its aggregate coverage-floor step, both of which the full suite skips. Runs in parallel with `test`, whenever `test` runs and on an integration PR that changes the scrubber, the oracle or its generator |
 | `gitleaks` | No secrets committed (file scan + PR diff scan) |
 | `fixtures-sanitization` | No real MACs, IPs, or API keys in fixtures |
@@ -280,7 +279,7 @@ written by scripts, and the rules follow from that:
    `scripts/check_markdown.py` fails until you update them. Keep `## Installation` within
    the first 90 lines.
 6. **Regenerate, then check.** Run `python3 scripts/regen_docs.py`: it runs every
-   documentation generator in order and fixes every generated figure, pin and block. Then
+   generator in order and fixes every generated figure, pin, block and baseline. Then
    `python3 scripts/regen_docs.py --check` runs the same checks as the `docs` CI job and
    prints a diff of anything stale.
 
@@ -297,7 +296,7 @@ the three invariants and the table of every generator are in
 .venv/bin/python scripts/gen_reference_blocks.py
 ```
 
-`scripts/regen_docs.py` runs the same three in this order in one command.
+`scripts/regen_docs.py` runs these three and the other generators of the `docs` job in order, in one command.
 `gen_catalog_figures.py` refreshes the catalog sizes and tool counts in the README and in
 the docs listed in its header. It also targets the first numbered section of
 `CHANGELOG.md` while that section is undated. Never commit a change to a released section:
@@ -337,8 +336,12 @@ specification instead.
        client, _ = deps_fn()
        params = {"kind": widget_kind} if widget_kind is not None else None
        collected = await collect_cursor(
-           client, "/v1/example-widgets", params=params, page_token=page_token,
-           page_size=page_size, one_page=page_token is not None or page_size is not None,
+           client,
+           "/v1/example-widgets",
+           params=params,
+           page_token=page_token,
+           page_size=page_size,
+           one_page=page_token is not None or page_size is not None,
        )
        return mark_incomplete({"data": collected["items"]}, collected)
    ```

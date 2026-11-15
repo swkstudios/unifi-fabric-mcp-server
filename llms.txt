@@ -1,13 +1,13 @@
 # UniFi Fabric MCP Server
 
-> An MCP server that exposes the UniFi Fabric APIs (Site Manager, Network, Protect, InnerSpace, Carrier Fabric, Mobility) as tools for AI assistants. Version 0.7.2. Python 3.12+. Package `unifi-fabric-mcp-server`, command `unifi-fabric-mcp`.
+> An MCP server that exposes the UniFi Fabric APIs (Site Manager, Network, Protect, InnerSpace, Carrier Fabric, Mobility) as tools for AI assistants. Version 0.7.3. Python 3.12+. Package `unifi-fabric-mcp-server`, command `unifi-fabric-mcp`.
 
 This index is for AI coding agents and assistants. It points to the files that are the source of truth; it does not copy their content. There is no `llms-full.txt`: the linked files are the full text.
 
 ## Install (exact)
 
-- Run from PyPI: `uvx --from unifi-fabric-mcp-server==0.7.2 unifi-fabric-mcp` with `UNIFI_API_KEY` set in the environment.
-- Docker: `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.2`; HTTP deployment and the client entry are in [docs/DOCKER.md](docs/DOCKER.md).
+- Run from PyPI: `uvx --from unifi-fabric-mcp-server==0.7.3 unifi-fabric-mcp` with `UNIFI_API_KEY` set in the environment.
+- Docker: `docker pull ghcr.io/swkstudios/unifi-fabric-mcp-server:0.7.3`; HTTP deployment and the client entry are in [docs/DOCKER.md](docs/DOCKER.md).
 - Client setup (Claude Code, Codex, Claude Desktop, VS Code, Cursor, Antigravity, ChatGPT): [README.md](README.md) Quick Start.
 
 ## Read-only use
@@ -16,7 +16,7 @@ This index is for AI coding agents and assistants. It points to the files that a
 - `UNIFI_WRITE_POLICY=dry-run` previews writes without sending them. Authentication and TLS for HTTP: [docs/AUTH-TLS.md](docs/AUTH-TLS.md).
 
 - Tools using console-internal paths depend on routes Ubiquiti can restrict without notice; `UNIFI_EXCLUDE=unofficial` alone retains generic relays that can reach private routes; use `UNIFI_EXCLUDE=unofficial,source:relay` for an official-only catalog.
-- Official APIs only: `UNIFI_EXCLUDE=unofficial,source:relay`, under which 194 tools remain and 604 are excluded; `unofficial` alone keeps the generic `fabric_connector_*` relays, which can reach private routes ([docs/CONFIGURATION.md](docs/CONFIGURATION.md#official-only-catalog)).
+- Official APIs only: `UNIFI_EXCLUDE=unofficial,source:relay`, under which 202 tools remain and 612 are excluded; `unofficial` alone keeps the generic `fabric_connector_*` relays, which can reach private routes ([docs/CONFIGURATION.md](docs/CONFIGURATION.md#official-only-catalog)).
 
 - Every setting with its default and accepted values: the generated [settings reference](docs/CONFIGURATION.md#settings-reference-generated).
 

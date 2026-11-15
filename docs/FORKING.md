@@ -41,6 +41,16 @@ Prose in `README.md` and `docs/DOCKER.md` repeats the package pin and the image 
 
 Things that do not change in a fork: the `UNIFI_` environment variable prefix and the Python import package `unifi_fabric`. Both are public contracts of the code, not of the distribution.
 
+## Fork profiles
+
+A fork that ships only some product families does not delete or edit registration code. It
+selects its families by configuration in its deployment (`UNIFI_FAMILY_ALLOW`, or the
+`family:` and `module:` entries of `UNIFI_EXCLUDE`), so the complete upstream profile stays
+one setting away and every profile runs the same registration path. See
+[Fork profiles](CONFIGURATION.md#fork-profiles), including why selecting families does not
+restrict the generic relay's routes: a fork that must not reach other product areas also
+leaves out the `connector` family.
+
 ## Rename a fork
 
 1. Pick the new package name, registry ID, image name and repository URLs.

@@ -78,7 +78,7 @@ def test_every_pull_request_concurrency_copy_is_listed():
 
 
 def test_own_block_workflows_keep_their_own_concurrency(tmp_path):
-    """ci.yml keeps its own block (dev pushes share one cancelling group); not rendered."""
+    """ci.yml keeps its own block (dev pushes share one uncancelled group); not rendered."""
     header = gen.load()
     assert "ci.yml" in header.own_block
     assert set(header.own_block).isdisjoint(header.workflows)
@@ -86,7 +86,7 @@ def test_own_block_workflows_keep_their_own_concurrency(tmp_path):
     assert gen.MARKER not in ci
     concurrency = yaml.safe_load(ci)["concurrency"]
     assert "format('{0}-push-dev', github.workflow)" in concurrency["group"]
-    assert "refs/heads/dev" in concurrency["cancel-in-progress"]
+    assert concurrency["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
     # --write leaves an own-block workflow byte-for-byte as it was.
     workflows = _tree(tmp_path, ci=ci)
     own = gen.Header(header.group, header.cancel_in_progress, (), ("ci.yml",))

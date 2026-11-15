@@ -318,8 +318,10 @@ def device_tag_update_body(tag: dict[str, Any], current: dict[str, Any]) -> dict
     at once, or a ``member_device_macs`` that is not a list of strings) is sent verbatim
     for the controller to judge, and an upstream error gets :data:`DEVICE_TAG_UPDATE_HINT`.
     """
-    # Imported here: device_mgmt imports this module at load time.
-    from ..families.devices.device_mgmt import _colon_mac, _is_mac
+    # The MAC helpers device_mgmt re-binds (``_colon_mac = colon_mac``, ``_is_mac = is_mac``),
+    # from their core module: no family is imported (public #41, design review C1).
+    from ..macs import colon_mac as _colon_mac
+    from ..macs import is_mac as _is_mac
 
     if "member_device_macs" not in tag or device_tag_update_hint(tag) is not None:
         return tag

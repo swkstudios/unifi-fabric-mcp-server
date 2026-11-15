@@ -448,7 +448,7 @@ _SPEC_TYPES = re.compile(r"(image|audio)/[a-z0-9.+-]+")
 
 def _spec_upload_types() -> set[str]:
     spec = json.loads(
-        (uh.Path(__file__).parent / "fixtures/openapi/protect-7.3.74.json").read_text()
+        (uh.Path(__file__).parent / "fixtures/openapi/protect-7.4.96.json").read_text()
     )
     post = spec["paths"]["/v1/files/{fileType}"]["post"]
     schema = post["requestBody"]["content"]["multipart/form-data"]["schema"]

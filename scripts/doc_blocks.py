@@ -78,6 +78,7 @@ BLOCKS: tuple[Block, ...] = (
     Block("tool-mode-choices", "docs/TOOL-USAGE.md", REFERENCE, "Settings.tool_mode"),
     Block("family-names", "docs/TOOL-USAGE.md", REFERENCE, "families.ALL_FAMILIES"),
     Block("search-tools-limit", "docs/TOOL-USAGE.md", REFERENCE, "search_tools limit default"),
+    Block("filter-tools", "docs/PAGINATION.md", REFERENCE, "registered tools taking filter"),
 )
 
 #: A whole block: the BEGIN line, the generated body and the END line.

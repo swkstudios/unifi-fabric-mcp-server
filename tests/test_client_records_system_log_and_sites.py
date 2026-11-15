@@ -493,11 +493,11 @@ _NET_V2 = "/v1/connector/consoles/h/proxy/network/v2/api/site/default"
 @pytest.mark.parametrize(
     "path,is_write",
     [
-        # system-log/all is a read-POST route (the collector reads it through post_read); the
-        # native readers keep it a write with always_write (test_system_log_incident_document:
-        # test_native_system_log_writes_preview_under_dry_run_on_every_class)
+        # the nine system-log class routes are read-POST routes (the collector and the native
+        # readers send them through post_read); every other system-log POST stays a write
         ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/all", False),
-        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/critical", True),
+        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/critical", False),
+        ("/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/triggers", True),
         (
             "/v1/connector/consoles/h/proxy/network/v2/api/site/default/system-log/threat-alert/",
             True,

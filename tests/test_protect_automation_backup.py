@@ -19,6 +19,7 @@ from tests.conftest import MULTIKEY_HOSTS_BY_LABEL
 from unifi_fabric import route_secrets, server
 from unifi_fabric.client import DRY_RUN_MESSAGE
 from unifi_fabric.families.protect import protect_automation_backup as tools
+from unifi_fabric.families.protect import registrar as protect_registrar
 from unifi_fabric.families.protect.protect import PROTECT_PRIVATE_BASE
 
 FIXTURES = Path(__file__).parent / "fixtures" / "protect_automation_backup"
@@ -564,10 +565,8 @@ def test_cloud_archive_status_stays_a_read_with_an_honest_description():
 
     from fastmcp import FastMCP
 
-    from unifi_fabric.families.protect import protect_automation_backup as pab
-
     mcp = FastMCP("t")
-    pab.register(mcp, lambda: (None, None))
+    protect_registrar.register_8(mcp, lambda: (None, None))
     tool = asyncio.run(mcp.get_tool("get_cloud_archive_status"))
     assert tool.annotations.readOnlyHint is True
     assert "authorize endpoint" in tool.description

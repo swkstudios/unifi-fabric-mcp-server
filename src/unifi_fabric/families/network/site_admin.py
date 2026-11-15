@@ -15,10 +15,7 @@ Key) and stay hermetic-only, needing a live test there.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
-
-from fastmcp import FastMCP
 
 from ...client import UniFiClient, upstream_error_value, validate_selector
 from ...config import APIKeyConfig
@@ -27,15 +24,11 @@ from ...registry import Registry
 from ...shared_shapes._classic_objects import _classic_data, listed_record_id, resolve_site_slug
 from ...shared_shapes._payload import with_upstream_hint
 from ...shared_shapes._results import deletion_result
-from ...tool_annotations import WRITE
+from .schemas import (  # the family's shapes (family-owned layout)
+    _MULTI_SITE_HINT,
+)
 
 _CONSOLE = "/v1/connector/consoles/{host_id}/proxy/network/api"
-
-_MULTI_SITE_HINT = (
-    "Creating and deleting sites needs a console that hosts several Network sites (UniFi OS "
-    "Server, Cloud Key); a UniFi OS gateway console answers api.err.NotImplemented to "
-    "add-site."
-)
 
 
 def _sitemgr(host_id: str, site_slug: str) -> str:
@@ -125,127 +118,3 @@ async def _delete_site(
         _MULTI_SITE_HINT,
     )
     return deletion_result(f"Site {target.get('desc')!r} (_id {target_id}) deleted.", response)
-
-
-def register(mcp: FastMCP, deps_fn: Callable[..., Any]) -> None:
-    """Register the site administration MCP tools."""
-
-    @mcp.tool(annotations=WRITE)
-    async def create_site(
-        host: str,
-        site: str,
-        description: str,
-    ) -> Any:
-        """Create a new Network site on a console that hosts several sites.
-
-        Classic REST POST network/api/s/{site}/cmd/sitemgr with {"cmd": "add-site", "desc":
-        description} (the controller UI's request; no published spec): the command is sent
-        through an existing site of the console (e.g. "Default"). A UniFi OS
-        gateway console has no multi-site support and answers HTTP 400 api.err.NotImplemented
-        (Network 11.0.81); multi-site consoles (UniFi OS Server, Cloud Key) create the site.
-        Not yet live-tested on a multi-site console.
-
-        Returns the upstream Classic body verbatim: {meta: {rc}, data: [the new site {_id,
-        name (its URL slug), desc}]} (under dry-run policy, the dry-run preview {status:
-        "dry_run", dryRun: true, sent: false, message, preview: {method, path, params (query
-        parameters), body}} instead).
-
-        Example call (create_site):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "description": "Branch office"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: An existing Network site to send the command through (name or UUID, resolved
-                server-side), e.g. "Default". Get it from list_local_sites (name or id).
-            description: Display name of the new site, e.g. "Branch office".
-        """
-        client, registry = deps_fn()
-        return await _create_site(client, registry, host, site, description)
-
-    @mcp.tool(annotations=WRITE)
-    async def rename_site(
-        host: str,
-        site: str,
-        description: str,
-    ) -> Any:
-        """Rename a Network site (change its display name).
-
-        Consequence: tools and clients that select the site by its old display name must use
-        the new one; the site's id and URL slug do not change.
-
-        Classic REST POST network/api/s/{site}/cmd/sitemgr with {"cmd": "update-site", "desc":
-        description} (the controller UI's request; no published spec): it renames the site the
-        URL addresses. Verified on Network 11.0.81 with the current name (accepted, rc ok).
-
-        Returns the upstream Classic body verbatim: {meta: {rc}, data: [...]} (under
-        dry-run policy, the dry-run preview {status: "dry_run", dryRun: true, sent: false, message,
-        preview: {method, path, params (query parameters), body}} instead). Read
-        list_local_sites afterwards to see the new name.
-
-        Example call (rename_site):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "description": "Head office"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Network site name or UUID; resolved server-side. Get it from list_local_sites
-                (name or id). Names like "Default" work.
-            description: The new display name, e.g. "Head office".
-        """
-        client, registry = deps_fn()
-        return await _rename_site(client, registry, host, site, description)
-
-    @mcp.tool(annotations=WRITE)
-    async def delete_site(
-        host: str,
-        site: str,
-        site_to_delete: str,
-    ) -> dict[str, Any]:
-        """Delete a Network site and everything configured in it.
-
-        Consequence: the site and the configuration stored in it (networks, WiFi, firewall
-        rules, client records, device settings) are removed; move its devices to another site
-        first. There is no undo.
-
-        The site to delete is resolved in the console's site list (network/api/self/sites) by
-        _id, URL name or display name; an unknown or ambiguous value fails listing the sites and
-        nothing is sent. Then Classic REST POST network/api/s/{site}/cmd/sitemgr with {"cmd":
-        "delete-site", "site": SITE_ID} (the controller UI's request; no published spec), sent
-        through another existing site (e.g. "Default"). The controller judges what may be
-        deleted (the default site cannot be). A UniFi OS gateway console has a single site and
-        nothing to delete; not yet live-tested on a multi-site console.
-
-        Returns {deleted: true, message, response}; response is the upstream body verbatim.
-        Under dry-run policy nothing is deleted: {status: "dry_run", deleted: false, message,
-        response (the preview {status: "dry_run", dryRun: true, sent: false, message, preview:
-        {method, path, params (query parameters), body}})}.
-
-        Example call (delete_site):
-            {
-              "host": "my-console",
-              "site": "Default",
-              "site_to_delete": "Branch office"
-            }
-
-        Args:
-            host: Console name or id: the short name from list_hosts (data[].reportedState.hostname
-                or reportedState.name, case-insensitive, e.g. "my-console") or the long data[].id
-                (MAC:numericId composite). One console serves both Network and Protect.
-            site: Another existing Network site to send the command through (name or UUID,
-                resolved server-side), e.g. "Default". Get it from list_local_sites (name or id).
-            site_to_delete: The site to delete: its _id, URL name or display name, from
-                list_local_sites or list_sites, e.g. "Branch office".
-        """
-        client, registry = deps_fn()
-        return await _delete_site(client, registry, host, site, site_to_delete)
